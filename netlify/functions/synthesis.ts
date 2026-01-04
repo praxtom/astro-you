@@ -2,7 +2,7 @@ import { Config, Context } from "@netlify/functions";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-flash-lite-latest" });
 
 export default async (req: Request, context: Context) => {
     if (req.method !== "POST") {
@@ -10,7 +10,11 @@ export default async (req: Request, context: Context) => {
     }
 
     try {
-        const { messages, birthData } = await req.json();
+        const { messages, birthData, kundaliData } = await req.json();
+
+        const planetaryInsights = kundaliData?.planetary_positions?.map((p: any) =>
+            `${p.name} in ${p.sign} (${p.house}th House)${p.is_retrograde ? ' [Retrograde]' : ''}`
+        ).join(', ') || 'Planetary data currently veiled.';
 
         const systemPrompt = `
       You are the "Voice of the Stars" for AstroYou. 
@@ -21,14 +25,17 @@ export default async (req: Request, context: Context) => {
       - Gender: ${birthData?.gender || 'Not specified'}
       - Birth: ${birthData?.dob} at ${birthData?.tob}
       - Origin: ${birthData?.pob}
-      - Current Location: ${birthData?.currentLocation || 'Traveling the Earth'}
+      
+      Planetary Alignments (Vedic Sidereal):
+      ${planetaryInsights}
 
       Guidelines:
       1. Address the user by name occasionally.
-      2. Use Vedic terminology (Rashis, Bhavas, Dashas) but explain them poetically.
-      3. Be compassionate, philosophical, and empowering.
-      4. Keep responses concise (under 200 words) but deeply impactful.
-      5. If some data is missing, adapt gracefully without breaking character.
+      2. Use the provided Planetary Alignments to give specific Vedic insights.
+      3. Use Vedic terminology (Rashis, Bhavas, Dashas) but explain them poetically.
+      4. Be compassionate, philosophical, and empowering.
+      5. Keep responses concise (under 200 words) but deeply impactful.
+      6. If some data is missing, adapt gracefully without breaking character.
     `;
 
         const chat = model.startChat({

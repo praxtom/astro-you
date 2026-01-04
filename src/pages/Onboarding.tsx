@@ -5,6 +5,7 @@ import { doc, setDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import AuthModal from "../components/AuthModal";
 import { Loader2, Navigation } from "lucide-react";
+import { OnboardingSEO } from "../components/SEO";
 
 type Step = "identity" | "temporal" | "spatial" | "present";
 
@@ -122,6 +123,8 @@ export default function Onboarding() {
 
   return (
     <div className="min-h-screen bg-[#030308] flex items-center justify-center p-6 text-content-primary">
+      <OnboardingSEO />
+
       {/* Background Ambiance */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] right-[-5%] w-[60vw] h-[60vw] bg-violet/10 blur-[120px] rounded-full"></div>
@@ -162,13 +165,19 @@ export default function Onboarding() {
 
             <div className="space-y-8">
               <div>
-                <label className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-[0.65rem] font-bold">
+                <label
+                  htmlFor="name-input"
+                  className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-[0.65rem] font-bold"
+                >
                   Full Name
                 </label>
                 <input
+                  id="name-input"
                   type="text"
                   placeholder="Enter your name"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 outline-none focus:border-gold/50 transition-all text-xl font-sans font-light"
+                  aria-required="true"
+                  autoComplete="name"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 outline-none focus:border-gold/50 transition-all text-xl font-sans font-light focus-ring"
                   value={formData.name}
                   onChange={(e) => {
                     const newData = { ...formData, name: e.target.value };
@@ -181,16 +190,23 @@ export default function Onboarding() {
                 <label className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-[0.65rem] font-bold">
                   Gender Essence
                 </label>
-                <div className="grid grid-cols-3 gap-4">
+                <div
+                  className="grid grid-cols-3 gap-4"
+                  role="radiogroup"
+                  aria-label="Gender selection"
+                >
                   {["Male", "Female", "Other"].map((g) => (
                     <button
                       key={g}
+                      type="button"
+                      role="radio"
+                      aria-checked={formData.gender === g}
                       onClick={() => {
                         const newData = { ...formData, gender: g };
                         setFormData(newData);
                         saveStepData(newData);
                       }}
-                      className={`py-3 rounded-xl border transition-all text-sm font-sans tracking-wide ${
+                      className={`py-3 rounded-xl border transition-all text-sm font-sans tracking-wide focus-ring ${
                         formData.gender === g
                           ? "bg-gold/10 border-gold/50 text-gold shadow-[0_0_15px_rgba(255,215,0,0.1)]"
                           : "bg-white/5 border-white/10 text-white/40 hover:border-white/20"

@@ -1,0 +1,80 @@
+.kundali-container {
+  width: 100%;
+  max-width: 600px;
+  aspect-ratio: 1;
+  position: relative;
+  background: radial-gradient(
+    circle at center,
+    rgba(255, 215, 0, 0.03) 0%,
+    transparent 70%
+  );
+  padding: 2rem;
+  border-radius: 2rem;
+  border: 1px solid rgba(255, 215, 0, 0.05);
+}
+
+.kundali-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.chart-line {
+  fill: none;
+  stroke: url(#goldGradient);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 2px rgba(255, 215, 0, 0.2));
+  opacity: 0.8;
+}
+
+.rashi-text {
+  font-family: "Outfit", sans-serif;
+  font-size: 24px;
+  font-weight: 300;
+  fill: rgba(255, 215, 0, 0.4);
+}
+
+.planet-text {
+  font-family: "Inter", sans-serif;
+  font-size: 20px;
+  font-weight: 500;
+  filter: drop-shadow(0 0 5px rgba(0, 0, 0, 0.5));
+}
+
+.degree-text {
+  font-size: 10px;
+  opacity: 0.6;
+  font-weight: 400;
+}
+
+.retro-text {
+  font-size: 10px;
+  fill: #f87171;
+  font-weight: bold;
+}
+
+.house-group {
+  transition: opacity 0.3s ease;
+}
+
+.house-group:hover .rashi-text {
+  fill: rgba(255, 215, 0, 0.9);
+  font-weight: 500;
+}
+
+/* Drawing animation on first load */
+@keyframes drawLine {
+  from {
+    stroke-dashoffset: 2000;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.chart-line {
+  stroke-dasharray: 2000;
+  stroke-dashoffset: 0;
+  animation: drawLine 2s cubic-bezier(0.4, 0, 0.2, 1);
+}

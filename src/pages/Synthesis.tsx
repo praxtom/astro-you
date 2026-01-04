@@ -13,6 +13,9 @@ import { useAuth } from "../lib/AuthContext";
 import { doc, getDoc, updateDoc, increment } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useRazorpay } from "../hooks/useRazorpay";
+import { SynthesisSEO } from "../components/SEO";
+import Kundali from "../components/astrology/Kundali";
+import { KundaliData } from "../lib/astrology";
 
 interface Message {
   id: string;
@@ -44,6 +47,8 @@ export default function Synthesis() {
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
   const [birthData, setBirthData] = useState<any>(null);
+  const [kundaliData, setKundaliData] = useState<KundaliData | null>(null);
+  const [isLoadingKundali, setIsLoadingKundali] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Load profile data and enforce onboarding
@@ -84,6 +89,35 @@ export default function Synthesis() {
     };
     loadData();
   }, [user, navigate]);
+
+  // Fetch Kundali when birthData is ready
+  useEffect(() => {
+    const fetchKundali = async () => {
+      if (!birthData) return;
+      setIsLoadingKundali(true);
+      try {
+        const response = await fetch("/api/kundali", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ birthData }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (data.chart_data) {
+          setKundaliData(data.chart_data);
+        }
+      } catch (err) {
+        console.error("Error fetching Kundali:", err);
+      } finally {
+        setIsLoadingKundali(false);
+      }
+    };
+    fetchKundali();
+  }, [birthData]);
 
   // Initialize trial timer from localStorage
   useEffect(() => {
@@ -215,6 +249,7 @@ export default function Synthesis() {
             content: m.content,
           })),
           birthData,
+          kundaliData, // Pass the actual chart data to Gemini!
         }),
       });
 
@@ -245,7 +280,10 @@ export default function Synthesis() {
 
   return (
     <div className="min-h-screen bg-[#010103] flex flex-col text-content-primary">
+      <SynthesisSEO />
+
       {/* Header */}
+
       <header className="py-6 px-10 border-b border-white/5 flex justify-between items-center z-20">
         <div className="flex items-center gap-4">
           <button
@@ -296,65 +334,119 @@ export default function Synthesis() {
         </div>
       </header>
 
-      {/* Chat Area */}
-      <main className="flex-1 overflow-hidden relative flex flex-col">
-        <div className="absolute inset-0 z-0 pointer-events-none opacity-20">
-          <div className="absolute top-[20%] left-[10%] w-[40vw] h-[40vw] bg-violet blur-[120px] rounded-full"></div>
-          <div className="absolute bottom-[20%] right-[10%] w-[30vw] h-[30vw] bg-gold blur-[120px] rounded-full"></div>
-        </div>
+      {/* Main Content Area */}
+      <main className="flex-1 overflow-hidden relative flex flex-row">
+        {/* Left Column: Celestial Blueprint */}
+        <div className="hidden lg:flex w-[450px] border-r border-white/5 flex-col p-8 overflow-y-auto bg-black/20 backdrop-blur-sm z-10">
+          <div className="flex items-center gap-3 mb-8 opacity-60">
+            <Sparkles size={16} className="text-gold" />
+            <h3 className="font-display tracking-[0.2em] uppercase text-xs">
+              Celestial Blueprint
+            </h3>
+          </div>
 
-        <div
-          ref={scrollRef}
-          className="flex-1 overflow-y-auto p-10 space-y-8 relative z-10"
-        >
-          {messages.map((m) => (
-            <div
-              key={m.id}
-              className={`flex ${
-                m.role === "user" ? "justify-end" : "justify-start"
-              }`}
-            >
-              <div
-                className={`max-w-[70%] p-6 rounded-2xl border ${
-                  m.role === "user"
-                    ? "bg-white/5 border-white/10"
-                    : "bg-surface-accent/20 border-gold/10"
-                }`}
-              >
-                <p className="text-body leading-relaxed whitespace-pre-wrap">
-                  {m.content}
-                </p>
+          {isLoadingKundali ? (
+            <div className="flex-1 flex flex-col items-center justify-center gap-4 opacity-40">
+              <Loader2 className="animate-spin" size={32} />
+              <span className="text-[0.6rem] uppercase tracking-widest">
+                Calculating Planetary Alignments...
+              </span>
+            </div>
+          ) : kundaliData ? (
+            <div className="animate-in fade-in zoom-in-95 duration-1000">
+              <Kundali data={kundaliData} />
+              <div className="mt-8 space-y-4">
+                <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+                  <h4 className="text-[0.65rem] uppercase tracking-widest text-gold/60 mb-2">
+                    Soul Signature
+                  </h4>
+                  <p className="text-xs font-sans font-light opacity-60 leading-relaxed">
+                    Your chart reflects a{" "}
+                    {
+                      kundaliData.planetary_positions.find(
+                        (p) => p.name === "Sun"
+                      )?.sign
+                    }{" "}
+                    Soul, guided by the wisdom of{" "}
+                    {kundaliData.planetary_positions.find(
+                      (p) => p.name === "Ascendant"
+                    )?.sign?.[0] || "your"}{" "}
+                    Ascendant.
+                  </p>
+                </div>
               </div>
             </div>
-          ))}
-          {isSynthesizing && (
-            <div className="text-gold/40 text-xs animate-pulse">
-              Synthesizing...
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center opacity-20 text-center">
+              <p className="text-xs italic">
+                The celestial patterns are veiled.
+              </p>
             </div>
           )}
         </div>
 
-        {/* Input Area */}
-        <div className="p-10 z-10">
-          <div className="relative max-w-4xl mx-auto">
-            <textarea
-              rows={1}
-              placeholder="Ask the stars..."
-              className="w-full bg-white/5 border border-white/10 rounded-3xl px-8 py-6 outline-none focus:border-gold/50 transition-all font-sans text-lg pr-20"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) =>
-                e.key === "Enter" &&
-                !e.shiftKey &&
-                (e.preventDefault(), handleSend())
-              }
-            />
-            <button
-              onClick={handleSend}
-              className="absolute right-4 top-1/2 -translate-y-1/2 p-4 text-gold/60"
-            >
-              <Send size={24} />
-            </button>
+        {/* Right Column: Chat Area */}
+        <div className="flex-1 flex flex-col relative">
+          <div className="absolute inset-0 z-0 pointer-events-none opacity-10">
+            <div className="absolute top-[20%] left-[10%] w-[40vw] h-[40vw] bg-violet blur-[120px] rounded-full"></div>
+            <div className="absolute bottom-[20%] right-[10%] w-[30vw] h-[30vw] bg-gold blur-[120px] rounded-full"></div>
+          </div>
+
+          <div
+            ref={scrollRef}
+            className="flex-1 overflow-y-auto p-10 space-y-8 relative z-10"
+          >
+            {messages.map((m) => (
+              <div
+                key={m.id}
+                className={`flex ${
+                  m.role === "user" ? "justify-end" : "justify-start"
+                }`}
+              >
+                <div
+                  className={`max-w-[70%] p-6 rounded-2xl border ${
+                    m.role === "user"
+                      ? "bg-white/5 border-white/10"
+                      : "bg-surface-accent/20 border-gold/10"
+                  }`}
+                >
+                  <p className="text-body leading-relaxed whitespace-pre-wrap">
+                    {m.content}
+                  </p>
+                </div>
+              </div>
+            ))}
+            {isSynthesizing && (
+              <div className="text-gold/40 text-[0.6rem] uppercase tracking-widest animate-pulse flex items-center gap-2">
+                <Loader2 size={10} className="animate-spin" />
+                Synthesizing cosmic response...
+              </div>
+            )}
+          </div>
+
+          {/* Input Area */}
+          <div className="p-10 z-10">
+            <div className="relative max-w-4xl mx-auto">
+              <textarea
+                rows={1}
+                placeholder="Ask the stars..."
+                className="w-full bg-white/5 border border-white/10 rounded-3xl px-8 py-6 outline-none focus:border-gold/50 transition-all font-sans text-lg pr-20"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) =>
+                  e.key === "Enter" &&
+                  !e.shiftKey &&
+                  (e.preventDefault(), handleSend())
+                }
+              />
+              <button
+                onClick={handleSend}
+                className="absolute right-4 top-1/2 -translate-y-1/2 p-4 text-gold/60 hover:text-gold transition-colors"
+                disabled={isSynthesizing}
+              >
+                <Send size={24} />
+              </button>
+            </div>
           </div>
         </div>
       </main>

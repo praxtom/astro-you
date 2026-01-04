@@ -1,47 +1,76 @@
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import CelestialEngine from "../components/CelestialEngine";
+import { LandingSEO } from "../components/SEO";
 
 function Landing() {
   const navigate = useNavigate();
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 50);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   return (
     <div className="landing relative min-h-screen bg-surface-primary transition-colors duration-700">
+      <LandingSEO />
+
       {/* Full-Screen Static Ambiance (Static) */}
       <div className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none">
-        <div className="blob top-[-10%] right-[-5%] w-[60vw] h-[60vw] bg-violet/5"></div>
-        <div className="blob bottom-[-10%] left-[-5%] w-[60vw] h-[60vw] bg-indigo/5"></div>
+        <div className="blob top-[-10%] right-[-5%] w-[60vw] h-[60vw] bg-violet/5 animate-float-slow"></div>
+        <div
+          className="blob bottom-[-10%] left-[-5%] w-[60vw] h-[60vw] bg-indigo/5 animate-float-slow"
+          style={{ animationDelay: "-5s" }}
+        ></div>
       </div>
 
       {/* Navigation */}
-      <header className="fixed top-0 left-0 right-0 z-[1000] py-8 border-b border-white/[0.03] bg-surface-primary/80 backdrop-blur-md">
+      <header
+        className={`fixed top-0 left-0 right-0 z-[1000] transition-all duration-500 border-b border-transparent ${
+          scrolled ? "header-scrolled" : "py-8"
+        }`}
+      >
         <div className="container mx-auto px-6 flex flex-row items-center justify-between">
-          <a href="/" className="logo group flex items-center gap-3">
-            <span className="font-display text-2xl lg:text-3xl tracking-[0.2em] uppercase text-content-primary">
+          <a
+            href="/"
+            className="logo group flex items-center gap-3 active:scale-95 transition-transform"
+          >
+            <div className="relative w-8 h-8 flex items-center justify-center">
+              <div className="absolute inset-0 border border-gold/30 rounded-full group-hover:rotate-180 transition-transform duration-1000"></div>
+              <div className="w-1.5 h-1.5 bg-gold rounded-full shadow-[0_0_10px_var(--color-gold)]"></div>
+            </div>
+            <span className="font-display text-xl lg:text-2xl tracking-[0.3em] uppercase text-content-primary group-hover:tracking-[0.35em] transition-all">
               AstroYou
             </span>
           </a>
-          <nav className="hidden md:flex items-center gap-12">
-            <a
-              href="#about"
-              className="section-label mb-0 hover:text-content-primary transition-colors cursor-pointer text-caption"
-            >
+
+          <nav className="hidden md:flex items-center gap-10">
+            <a href="#about" className="nav-link">
               Philosophy
             </a>
-            <a
-              href="#experience"
-              className="section-label mb-0 hover:text-content-primary transition-colors cursor-pointer text-caption"
-            >
+            <a href="#experience" className="nav-link">
               Experience
             </a>
-            <button className="text-caption hover:text-gold transition-colors font-bold uppercase cursor-pointer bg-transparent border-none">
+            <button className="text-caption text-content-secondary hover:text-gold transition-colors font-bold uppercase cursor-pointer bg-transparent border-none tracking-[0.2em]">
               Sign In
             </button>
             <button
-              className="btn btn-primary"
+              className="btn-premium"
               onClick={() => navigate("/onboarding")}
             >
               Begin Journey
             </button>
           </nav>
+
+          {/* Mobile Menu Toggle (Simplified for design focus) */}
+          <button className="md:hidden w-6 h-6 flex flex-col justify-center gap-1.5">
+            <div className="w-full h-px bg-content-primary"></div>
+            <div className="w-2/3 h-px bg-content-primary self-end"></div>
+          </button>
         </div>
       </header>
 
@@ -66,7 +95,7 @@ function Landing() {
               </h1>
             </div>
             <div>
-              <p className="text-body text-xl md:text-2xl mb-14 max-w-2xl text-content-secondary/90 leading-relaxed font-sans font-light">
+              <p className="text-body text-xl mb-14 max-w-2xl text-content-secondary/90 leading-relaxed font-sans font-light">
                 AstroYou combines ancient Vedic wisdom with modern precision to
                 deliver profoundly accurate personal insights. Your cosmic
                 blueprint, instantly calculated.
@@ -135,21 +164,94 @@ function Landing() {
       </section>
 
       {/* Footer */}
-      <footer className="py-24 border-t border-stroke-subtle">
+      <footer className="pt-32 pb-16 relative border-t border-white/[0.03] bg-[#030308]">
         <div className="container mx-auto px-6">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-8">
-            <span className="font-display text-xl tracking-[0.2em] uppercase text-content-primary">
-              AstroYou
-            </span>
-            <div className="flex gap-12 text-caption">
-              <a href="#" className="hover:text-gold transition-colors">
-                Privacy
-              </a>
-              <a href="#" className="hover:text-gold transition-colors">
-                Terms
-              </a>
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-16 mb-24">
+            {/* Brand Column */}
+            <div className="lg:col-span-1">
+              <span className="font-display text-2xl tracking-[0.2em] uppercase text-content-primary mb-6 block">
+                AstroYou
+              </span>
+              <p className="text-content-secondary text-sm leading-relaxed max-w-xs mb-8">
+                Translating ancient celestial wisdom into precise digital
+                insights for the modern seeker.
+              </p>
+              <div className="flex gap-4">
+                <a href="#" className="social-icon">
+                  𝕏
+                </a>
+                <a href="#" className="social-icon">
+                  IG
+                </a>
+                <a href="#" className="social-icon">
+                  FB
+                </a>
+              </div>
             </div>
-            <p className="text-caption">© 2026. All rights reserved.</p>
+
+            {/* Links Columns */}
+            <div>
+              <span className="footer-title">Platform</span>
+              <div className="flex flex-col gap-3">
+                <a href="#experience" className="footer-link">
+                  Experience
+                </a>
+                <a href="#" className="footer-link">
+                  Technical Kundali
+                </a>
+                <a href="#" className="footer-link">
+                  Sage Synthesis
+                </a>
+                <a href="#" className="footer-link">
+                  Sacred Geometry
+                </a>
+              </div>
+            </div>
+
+            <div>
+              <span className="footer-title">Privacy & Legal</span>
+              <div className="flex flex-col gap-3">
+                <a href="#" className="footer-link">
+                  Privacy Policy
+                </a>
+                <a href="#" className="footer-link">
+                  Terms of Service
+                </a>
+                <a href="#" className="footer-link">
+                  Cookie Policy
+                </a>
+                <a href="#" className="footer-link">
+                  Security
+                </a>
+              </div>
+            </div>
+
+            {/* Newsletter Column */}
+            <div className="lg:col-span-1">
+              <span className="footer-title">Cosmic Updates</span>
+              <p className="text-content-secondary text-xs tracking-wider mb-6">
+                Receive celestial transit alerts and soul guidance.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  placeholder="The stars await..."
+                  className="cosmic-input"
+                />
+                <button className="bg-gold text-black px-4 py-2 text-xs font-bold uppercase transition-all hover:bg-[#dfc28c]">
+                  Join
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Bar */}
+          <div className="pt-8 border-t border-white/[0.05] flex flex-col md:flex-row justify-between items-center gap-6 text-caption text-[10px] opacity-50">
+            <p>© 2026 AstroYou Intelligence. All rights reserved.</p>
+            <div className="flex gap-8 italic">
+              <span>Made for the modern seeker.</span>
+              <span>Based in Ancient Wisdom.</span>
+            </div>
           </div>
         </div>
       </footer>
