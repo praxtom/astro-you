@@ -1,5 +1,10 @@
 import React from "react";
-import { KundaliData, PLANETS, calculateHouseSigns } from "../../lib/astrology";
+import {
+  KundaliData,
+  PLANETS,
+  calculateHouseSigns,
+  getSignNumberByCode,
+} from "../../lib/astrology";
 import "./Kundali.css";
 
 interface KundaliProps {
@@ -12,7 +17,9 @@ const Kundali: React.FC<KundaliProps> = ({ data, className = "" }) => {
   const ascendantPos = data.planetary_positions.find(
     (p) => p.name === "Ascendant"
   );
-  const ascendantSignNum = ascendantPos ? 12 : 1; // Default to 1 if not found, though it should be there
+  const ascendantSignNum = ascendantPos
+    ? getSignNumberByCode(ascendantPos.sign)
+    : 1;
 
   // Map planets to houses
   const housePlanets: Record<number, any[]> = {};
