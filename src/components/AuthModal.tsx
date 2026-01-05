@@ -4,7 +4,6 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signInWithRedirect,
-  getRedirectResult,
   signInWithCustomToken,
 } from "firebase/auth";
 import { auth } from "../lib/firebase";
@@ -46,22 +45,6 @@ export default function AuthModal({
     useRef<HTMLInputElement>(null),
     useRef<HTMLInputElement>(null),
   ];
-
-  // Handle redirect result on component mount (for production)
-  useEffect(() => {
-    if (!isDev) {
-      getRedirectResult(auth)
-        .then((result) => {
-          if (result?.user) {
-            onClose();
-          }
-        })
-        .catch((err) => {
-          console.error("Redirect result error:", err);
-          setError(err.message || "Google sign-in failed.");
-        });
-    }
-  }, [onClose]);
 
   // Countdown timer for resend
   useEffect(() => {

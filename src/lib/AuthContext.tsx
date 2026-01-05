@@ -9,6 +9,7 @@ import {
   User,
   onAuthStateChanged,
   signOut as firebaseSignOut,
+  getRedirectResult,
 } from "firebase/auth";
 import { auth } from "./firebase";
 
@@ -20,9 +21,33 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Check if we're in production (not localhost)
+const isProduction =
+  typeof window !== "undefined" &&
+  window.location.hostname !== "localhost" &&
+  window.location.hostname !== "127.0.0.1";
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Handle redirect result on app load (for production Google OAuth)
+  useEffect(() => {
+    if (isProduction) {
+      getRedirectResult(auth)
+        .then((result) => {
+          if (result?.user) {
+            console.log(
+              "Google redirect sign-in successful:",
+              result.user.email
+            );
+          }
+        })
+        .catch((error) => {
+          console.error("Google redirect result error:", error);
+        });
+    }
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
