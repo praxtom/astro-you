@@ -21,42 +21,50 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Check if we're in production (not localhost)
-const isProduction =
-  typeof window !== "undefined" &&
-  window.location.hostname !== "localhost" &&
-  window.location.hostname !== "127.0.0.1";
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [redirectChecked, setRedirectChecked] = useState(false);
 
-  // Handle redirect result on app load (for production Google OAuth)
+  // Handle redirect result on app load - this MUST run before we consider auth ready
   useEffect(() => {
-    if (isProduction) {
-      getRedirectResult(auth)
-        .then((result) => {
-          if (result?.user) {
-            console.log(
-              "Google redirect sign-in successful:",
-              result.user.email
-            );
-          }
-        })
-        .catch((error) => {
-          console.error("Google redirect result error:", error);
-        });
-    }
+    console.log("[Auth] Checking for redirect result...");
+
+    getRedirectResult(auth)
+      .then((result) => {
+        console.log("[Auth] Redirect result:", result);
+        if (result?.user) {
+          console.log("[Auth] User from redirect:", result.user.email);
+        } else {
+          console.log("[Auth] No redirect result (user came directly to page)");
+        }
+      })
+      .catch((error) => {
+        console.error(
+          "[Auth] Redirect result error:",
+          error.code,
+          error.message
+        );
+      })
+      .finally(() => {
+        setRedirectChecked(true);
+      });
   }, []);
 
+  // Set up auth state listener after redirect check
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
+    if (!redirectChecked) return;
+
+    console.log("[Auth] Setting up auth state listener...");
+
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      console.log("[Auth] Auth state changed:", currentUser?.email || "null");
+      setUser(currentUser);
       setLoading(false);
     });
 
     return unsubscribe;
-  }, []);
+  }, [redirectChecked]);
 
   const signOut = async () => {
     await firebaseSignOut(auth);
