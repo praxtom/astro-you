@@ -1,4 +1,5 @@
 import { Config, Context } from "@netlify/functions";
+import { getNatalChart, BirthData } from "./shared/astro-api";
 
 export default async (req: Request, context: Context) => {
     if (req.method !== "POST") {
@@ -6,8 +7,9 @@ export default async (req: Request, context: Context) => {
     }
 
     try {
-        const { birthData } = await req.json();
+        const { birthData, chartType = 'D1' } = await req.json();
 
+        // Validate required fields
         if (!birthData || !birthData.dob || !birthData.tob) {
             return new Response(JSON.stringify({ error: "Missing birth data" }), {
                 status: 400,
@@ -15,43 +17,19 @@ export default async (req: Request, context: Context) => {
             });
         }
 
-        // Parse date and time
-        // dob: YYYY-MM-DD
-        // tob: HH:MM
-        const [year, month, day] = birthData.dob.split("-").map(Number);
-        const [hour, minute] = birthData.tob.split(":").map(Number);
+        // Use shared service for API call based on type
+        const { getNatalChart, getNavamsaChart } = await import("./shared/astro-api");
 
-        const payload = {
-            subject: {
-                name: birthData.name || "User",
-                birth_data: {
-                    year,
-                    month,
-                    day,
-                    hour,
-                    minute,
-                    city: birthData.pob || "Mumbai",
-                },
-            },
-            options: {
-                house_system: "W",
-                zodiac_type: "Sidereal",
-                active_points: ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Mean_Node", "Mean_South_Node", "Ascendant"],
-                precision: 2,
-            },
-        };
+        let kundaliData;
+        if (chartType === 'D9') {
+            kundaliData = await getNavamsaChart(birthData as BirthData);
+        } else {
+            kundaliData = await getNatalChart(birthData as BirthData);
+        }
 
-        const response = await fetch("https://api.astrology-api.io/api/v3/charts/natal", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(payload),
-        });
+        console.log(`KUNDALI ${chartType} DATA RECEIVED:`, JSON.stringify(kundaliData).substring(0, 500));
 
-        const data = await response.json();
-
-        return new Response(JSON.stringify(data), {
+        return new Response(JSON.stringify(kundaliData), {
             status: 200,
             headers: { "Content-Type": "application/json" },
         });

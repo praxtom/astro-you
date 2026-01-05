@@ -25,11 +25,11 @@ export default function NotFound() {
 
         {/* Message */}
         <h2 className="text-title text-3xl mb-4 font-display">
-          Lost in the Cosmos
+          Page Not Found
         </h2>
         <p className="text-body text-sm opacity-70 mb-10 leading-relaxed max-w-md mx-auto">
-          The celestial path you seek does not exist in this dimension. Perhaps
-          the stars have other plans for your journey.
+          The page you are looking for does not exist. Please check the URL or
+          return to the dashboard.
         </p>
 
         {/* Navigation */}

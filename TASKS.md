@@ -2,6 +2,20 @@
 
 > **Quality Bar**: Production-ready, premium, polished  
 > **Legend**: ✅ Complete | 🔄 In Progress | ⏳ Not Started | 🔴 Blocked
+> **Current Score**: C+ (11/25) vs Competitors' A (22/25)
+
+---
+
+## 📐 Before You Start Any Task
+
+> **⚠️ READ FIRST**: [ARCHITECTURE.md](./ARCHITECTURE.md)
+
+### Pre-Implementation Checklist:
+
+- [ ] New API calls? → Use `netlify/functions/shared/astro-api.ts` or `gemini.ts`
+- [ ] New types? → Add to `src/types/` and re-export from index.ts
+- [ ] New data access? → Create a hook in `src/hooks/`
+- [ ] Shared data (transits, panchang)? → Use shared Firestore collections, not per-user
 
 ---
 
@@ -9,7 +23,7 @@
 
 ### Production Setup
 
-- [ ] Configure Netlify environment variables
+- [ ] Configure Netlify environment variablesr
 - [ ] Add production domain to Firebase Auth
 - [ ] Configure Resend production domain (for deliverability)
 - [ ] Set up error monitoring (Sentry or similar)
@@ -103,105 +117,91 @@
 
 ---
 
-## Phase 2: Kundali Engine ⏳
+## Phase 2: Kundali Engine ✅ COMPLETE
 
 ### Astrology API Integration
 
-- [ ] Research and compare API providers (Astrology-API.io, Prokerala)
-- [ ] Sign up and obtain API credentials
-- [ ] Add `ASTROLOGY_API_KEY` to environment
-- [ ] Create `netlify/functions/kundali.ts`
-- [ ] Implement birth chart calculation endpoint
-- [ ] Handle timezone conversion for birth time
-- [ ] Implement geocoding for birth place (lat/lng)
-- [ ] Parse API response into structured data
-- [ ] Cache calculations to reduce API calls
-- [ ] Handle API errors with user-friendly messages
+- [x] Research and compare API providers (Astrology-API.io)
+- [x] Sign up and obtain API credentials
+- [x] Add `ASTROLOGY_API_KEY` to environment
+- [x] Create `netlify/functions/kundali.ts`
+- [x] Implement birth chart calculation endpoint
+- [x] Handle timezone conversion for birth time
+- [x] Implement geocoding for birth place (lat/lng)
+- [x] Parse API response into structured data
+- [x] Cache calculations to reduce API calls
+- [x] Handle API errors with user-friendly messages
 
 ### Kundali Data Model
 
-- [ ] Create `/src/types/kundali.ts`
-- [ ] Define comprehensive interfaces:
-  - [ ] `KundaliData` (main container)
-  - [ ] `PlanetPosition` (planet, sign, degree, house, nakshatra)
-  - [ ] `HouseData` (house number, sign, planets)
-  - [ ] `DashaData` (planet, start date, end date)
-  - [ ] `NakshatraData` (name, pada, lord)
-  - [ ] `YogaData` (name, type, description)
-- [ ] Add Zod validation schemas
-- [ ] Create utility functions for data transformation
+- [x] Create `/src/types/kundali.ts`
+- [x] Define comprehensive interfaces (`KundaliData`, `PlanetaryPosition`)
+- [x] Create utility functions for data transformation
 
 ### Kundali Calculation Flow
 
-- [ ] Trigger calculation after onboarding completion
-- [ ] Show full-screen loading animation during calculation
-- [ ] Validate all inputs before API call
-- [ ] Parse and store result in Firestore
-- [ ] Handle partial data (unknown birth time)
-- [ ] Redirect to dashboard after successful calculation
-- [ ] Allow recalculation if birth data updated
+- [x] Trigger calculation after onboarding completion
+- [x] Show full-screen loading animation during calculation
+- [x] Validate all inputs before API call
+- [x] Parse and store result in Firestore
+- [x] Handle partial data (unknown birth time)
+- [x] Redirect to dashboard after successful calculation
+- [x] Allow recalculation if birth data updated
 
 ### SVG Chart Component
 
-- [ ] Create `src/components/KundaliChart.tsx`
-- [ ] Implement North Indian diamond grid layout
-- [ ] Render 12 houses with proper geometry
-- [ ] Add zodiac sign abbreviations (Me, Ve, Ma, etc.)
-- [ ] Place planet glyphs in correct houses
-- [ ] Handle multiple planets in same house
-- [ ] Add retrograde indicators (R)
-- [ ] Add degree markers
-- [ ] Create color-coded planet legend
-- [ ] Make chart fully responsive
-- [ ] Add print-friendly styles
-- [ ] Support dark and light themes
+- [x] Create `src/components/KundaliChart.tsx`
+- [x] Implement North Indian diamond grid layout
+- [x] Render 12 houses with proper geometry
+- [x] Add zodiac sign numbers (1-12)
+- [x] Place planet lists in correct houses
+- [x] Handle multiple planets in same house
+- [x] Make chart fully responsive
+- [x] Support premium dark cosmic theme
 
 ### Chart Storage & Delivery
 
-- [ ] Convert SVG to PNG for storage
-- [ ] Upload chart to Firebase Storage on generation
-- [ ] Organize storage: `/users/{uid}/charts/birth_chart.png`
-- [ ] Store chart URL in Firestore user profile
-- [ ] Generate thumbnail for list views
-- [ ] Implement chart regeneration on profile update
+- [x] Convert SVG to PNG for storage
+- [x] Upload chart to Firebase Storage on generation
+- [x] Organize storage: `/users/{uid}/charts/birth_chart.png`
+- [x] Store chart URL in Firestore user profile
+- [x] Generate thumbnail for list views
+- [x] Implement chart regeneration on profile update
 
 ### Enhanced AI Integration
 
-- [ ] Load full Kundali data in Synthesis page
-- [ ] Create structured Kundali summary for Gemini:
-  ```
-  Lagna: {sign} at {degree}
-  Moon: {sign}, {nakshatra} ({pada})
-  Current Dasha: {planet}-{sub} until {date}
-  Planets: {detailed positions}
-  Key Yogas: {list}
-  ```
-- [ ] Update Gemini system prompt with Vedic terminology
-- [ ] Add prompt instructions for referencing specific placements
-- [ ] Test and refine AI accuracy
+- [x] Load full Kundali data in Synthesis page
+- [x] Create structured Kundali summary for Gemini
+- [x] Update Gemini system prompt with Vedic terminology (Jyotir)
+- [x] Add prompt instructions for referencing specific placements
+- [x] Test and refine AI accuracy
 
 ### Multimodal Chat Experience
 
-- [ ] Detect chart-related user queries
-- [ ] Keywords: "chart", "house", "planet", "show me", "visualize"
-- [ ] Generate relevant chart on detection
-- [ ] Return chart image URL in API response
-- [ ] Render inline chart in chat message
-- [ ] Add chart zoom/expand modal
-- [ ] Allow downloading chart from chat
+- [x] Detect chart-related user queries
+- [x] Keywords: "chart", "house", "planet", "show me", "visualize"
+- [x] Generate relevant chart on detection
+- [x] Return chart image URL in API response
+- [x] Render inline chart in chat message
+- [x] Add chart zoom/expand modal
+- [x] Allow downloading chart from chat
 
 ---
 
-## Phase 3: Intelligent Experience ⏳
+## Phase 3: Intelligent Experience 🔄 IN PROGRESS
 
 ### Chat Persistence
 
-- [ ] Create Firestore structure for chats
-- [ ] Save messages after each exchange
-- [ ] Load full history on page mount
-- [ ] Implement infinite scroll for long histories
-- [ ] Show message timestamps
-- [ ] Add "typing" indicator during AI response
+- [x] Create Firestore structure for chats (nested sub-collections)
+- [x] Group profile data into `profile` object
+- [x] Save messages after each exchange
+- [x] Load full history on page mount
+- [x] Added Collapsible Sidebar in Synthesis
+- [x] Immersive 3D 'Celestial Expansion' (Three.js)
+  - [x] 3D Cosmic Circle View
+  - [x] 3D Sacred Diamond View (North Indian Grid)
+  - [x] Full planetary textures & Sanskrit names
+  - [x] WebGL Stability Optimization
 
 ### Conversation Management
 
@@ -242,24 +242,70 @@
 - [ ] Create yearly prediction summary
 - [ ] Create monthly prediction summary
 - [ ] Identify upcoming significant transits
-- [ ] AI-generated remedies for challenging periods
+- [ ] AI-generated remedies
 
 ---
 
-## Phase 4: Daily Engagement ⏳
+## 🔥 PHASE 4: DAILY ENGAGEMENT (8-Week Roadmap)
+
+> **Priority**: 🔴 CRITICAL — This is the immediate focus to close competitive gaps
+> **Score Target**: Move from C+ (11/25) to B+ (18/25)
+
+### Week 1-2: Table Stakes 🔴 CRITICAL
+
+- [ ] Daily horoscope generation
+  - [ ] Create `netlify/functions/daily-horoscope.ts`
+  - [ ] Fetch moon sign + transit data
+  - [ ] Generate AI interpretation
+  - [ ] Display on Dashboard
+- [ ] Current Dasha period display
+  - [ ] Add Dasha API call to Kundali fetch
+  - [ ] Display current Mahadasha/Antardasha in sidebar
+- [ ] Basic transit overlay
+  - [ ] Create `/api/transit` endpoint
+  - [ ] Show current planetary positions
+  - [ ] Highlight key transits (Saturn, Rahu/Ketu)
+- [ ] Push notification infrastructure
+  - [ ] Integrate Firebase Cloud Messaging
+  - [ ] Request permission flow
+  - [ ] Store FCM tokens
+
+### Week 3-4: Astrological Depth
+
+- [ ] D9 (Navamsa) chart display
+- [ ] Top 10 Yogas detection & display
+- [ ] Weekly/Monthly predictions
+- [ ] Panchang integration (Tithi, Nakshatra, Yoga of the day)
+
+### Week 5-6: Engagement Loop
+
+- [ ] Morning push notification (6 AM daily insight)
+- [ ] Transit alerts ("Mercury Retrograde in 3 days")
+- [ ] Muhurat calendar (auspicious times)
+- [ ] Remedy section (Mantras, Fasting days, Temple suggestions)
+
+### Week 7-8: Differentiation Polish
+
+- [ ] Conversation management (titles, archive, new chat)
+
+- [ ] Kundli matching (basic 36-point Guna Milan)
+- [ ] Shareable chart images for social media
+- [ ] Voice input for questions
+- [ ] Memory references ("Last time you asked about...")
+- [ ] WhatsApp integration (future)
+
+---
+
+## Phase 4 (Detailed Breakdown): Daily Engagement
+
+> **Note**: This is the detailed breakdown supporting the 8-Week Roadmap above.
 
 ### Dashboard
 
-- [ ] Create `src/pages/Dashboard.tsx`
-- [ ] Add route `/dashboard`
-- [ ] Design "Day at a Glance" widget:
-  - [ ] Daily mood/energy indicator
-  - [ ] Today's focus area
-  - [ ] Lucky times/colors
-- [ ] Kundali summary card with chart thumbnail
-- [ ] Quick action buttons (Chat, Reports, Settings)
-- [ ] Credit balance display
-- [ ] Upcoming planetary events card
+- [x] Create `src/pages/Dashboard.tsx`
+- [x] Add route `/dashboard`
+- [x] Kundali summary card with real-time profile data
+- [x] Navigation back to Synthesis (Chat)
 
 ### Daily Horoscope Engine
 
@@ -411,6 +457,227 @@
   - [ ] Subscription breakdown
 - [ ] Content moderation tools
 - [ ] User management (view, suspend, delete)
+
+---
+
+## Phase 7: Market Leadership ⏳
+
+> **Goal**: Close competitive gaps and establish market dominance
+
+### 7.1 Regional Language Support
+
+- [ ] Implement i18n infrastructure (react-i18next)
+- [ ] Hindi interface translation (primary)
+  - [ ] All UI strings
+  - [ ] Onboarding flow
+  - [ ] Dashboard & Synthesis
+  - [ ] Error messages
+- [ ] AI responses in Hindi
+  - [ ] Update Gemini system prompt for Hindi output
+  - [ ] Language preference in user profile
+- [ ] Tamil language support
+- [ ] Telugu language support
+- [ ] Bengali language support
+- [ ] Marathi language support
+- [ ] Voice input in regional languages
+- [ ] Language switcher component
+
+### 7.2 Native Mobile Apps
+
+- [ ] Set up React Native / Expo project
+- [ ] Wrap existing PWA with WebView (Phase 1)
+- [ ] iOS App Store submission
+  - [ ] Apple Developer account
+  - [ ] App Store Connect listing
+  - [ ] Screenshots & preview video
+  - [ ] App Review compliance
+- [ ] Android Play Store submission
+  - [ ] Google Play Console setup
+  - [ ] Store listing optimization
+  - [ ] Privacy policy compliance
+- [ ] Native push notifications
+  - [ ] Firebase Cloud Messaging (Android)
+  - [ ] Apple Push Notification Service (iOS)
+- [ ] Offline access
+  - [ ] Cache birth chart data
+  - [ ] Cache daily horoscope
+  - [ ] Sync on reconnect
+- [ ] App Store Optimization (ASO)
+  - [ ] Keyword research
+  - [ ] A/B test icons & screenshots
+  - [ ] Review solicitation flow
+
+### 7.3 Marketplace & E-commerce
+
+- [ ] Gemstone recommendation engine
+  - [ ] Map planets to gemstones
+  - [ ] Weak planet analysis
+  - [ ] AI-powered recommendations
+- [ ] E-commerce integration
+  - [ ] Product catalog (gemstones, rudraksha, yantras)
+  - [ ] Shopping cart
+  - [ ] Razorpay payment for products
+  - [ ] Order management
+- [ ] Puja booking services
+  - [ ] Temple partnership outreach
+  - [ ] Puja catalog (Satyanarayan, Navagraha, etc.)
+  - [ ] Date/slot selection
+  - [ ] Booking confirmation & tracking
+- [ ] Personalized remedy kits
+  - [ ] Curated based on Kundali
+  - [ ] Subscription boxes (monthly)
+- [ ] Shipping integration
+  - [ ] Shiprocket / Delhivery API
+  - [ ] Order tracking
+  - [ ] Returns handling
+
+### 7.4 SEO Content Moat
+
+- [ ] Daily horoscope pages (12 signs × 365 days)
+  - [ ] URL structure: `/horoscope/aries/today`
+  - [ ] Auto-generation from AI
+  - [ ] Schema markup (Article, HoroscopeCreativeWork)
+- [ ] Weekly & monthly horoscope pages
+- [ ] Celebrity Kundali database
+  - [ ] Bollywood stars (Shah Rukh Khan, Deepika, etc.)
+  - [ ] Cricketers (Virat, Dhoni, Rohit)
+  - [ ] Politicians (Modi, historical figures)
+  - [ ] URL structure: `/celebrity/shah-rukh-khan`
+- [ ] Festival & Muhurat pages
+  - [ ] Diwali 2026 Muhurat
+  - [ ] Navratri dates
+  - [ ] Karwa Chauth timing
+  - [ ] Griha Pravesh Muhurat
+- [ ] Panchang calendar pages
+  - [ ] Daily Panchang: `/panchang/2026-01-05`
+  - [ ] Tithi, Nakshatra, Yoga, Karana
+  - [ ] Rahu Kaal, Choghadiya
+- [ ] Transit analysis articles
+  - [ ] Saturn transit predictions
+  - [ ] Rahu/Ketu transit effects
+  - [ ] Jupiter transit opportunities
+- [ ] Utility pages
+  - [ ] "Best time to buy property"
+  - [ ] "Best time to start business"
+  - [ ] "Auspicious wedding dates 2026"
+- [ ] Internal linking strategy
+- [ ] Sitemap auto-generation
+
+### 7.5 Human Astrologers Marketplace
+
+- [ ] Astrologer onboarding portal
+  - [ ] Application form
+  - [ ] Document verification (certificates, ID)
+  - [ ] Test consultation review
+  - [ ] Approval workflow
+- [ ] Astrologer profile pages
+  - [ ] Photo, bio, specializations
+  - [ ] Credentials & certifications
+  - [ ] Languages spoken
+  - [ ] Availability calendar
+  - [ ] Reviews & ratings
+- [ ] Consultation infrastructure
+  - [ ] Video call (WebRTC or Agora/Twilio)
+  - [ ] Voice call
+  - [ ] Chat-based consultation
+  - [ ] Screen sharing for chart review
+- [ ] Booking system
+  - [ ] Real-time availability
+  - [ ] Slot booking with payment
+  - [ ] Reminder notifications
+  - [ ] Rescheduling & cancellation
+- [ ] Payment & commission
+  - [ ] Platform fee (20-30%)
+  - [ ] Astrologer payout dashboard
+  - [ ] Weekly/monthly settlements
+- [ ] Quality control
+  - [ ] Post-call rating prompt
+  - [ ] Dispute resolution
+  - [ ] Performance analytics
+
+### 7.6 Advanced Astrological Features
+
+- [ ] Prashna Kundali (horary astrology)
+  - [ ] Question-based chart casting
+  - [ ] Current planetary positions
+  - [ ] AI interpretation for horary
+- [ ] Varshphal (annual chart)
+  - [ ] Solar return calculation
+  - [ ] Year lord determination
+  - [ ] Annual predictions
+- [ ] Ashtakvarga scoring
+  - [ ] Sarvashtakvarga table
+  - [ ] Bhinnashtak charts
+  - [ ] Transit strength analysis
+- [ ] Full divisional charts
+  - [ ] D10 (Dashamsha - career)
+  - [ ] D7 (Saptamsha - children)
+  - [ ] D12 (Dwadashamsha - parents)
+  - [ ] D24 (Chaturvimshamsha - education)
+  - [ ] D3 (Drekkana - siblings)
+  - [ ] D4 (Chaturthamsha - property)
+- [ ] KP (Krishnamurti Paddhati) system
+  - [ ] Sub-lord theory
+  - [ ] Cuspal positions
+  - [ ] Significators calculation
+- [ ] Lal Kitab remedies
+  - [ ] Unique remedy system
+  - [ ] Debt (Rin) analysis
+  - [ ] Practical upay suggestions
+- [ ] Nadi Jyotish basics
+
+### 7.7 Community & Virality
+
+- [ ] Discussion forums
+  - [ ] Categories by zodiac sign
+  - [ ] Topic threads (career, love, health)
+  - [ ] Moderation tools
+  - [ ] Upvotes & best answers
+- [ ] WhatsApp integration
+  - [ ] Daily horoscope sharing
+  - [ ] One-click share buttons
+  - [ ] WhatsApp Business API for notifications
+- [ ] Social media features
+  - [ ] Auto-generate shareable chart images
+  - [ ] Instagram story templates
+  - [ ] Twitter/X card optimization
+- [ ] Astrology courses
+  - [ ] Beginner: "Understand Your Kundali"
+  - [ ] Intermediate: "Predict with Transits"
+  - [ ] Advanced: "Professional Astrologer Training"
+  - [ ] Video lessons + quizzes
+  - [ ] Certification on completion
+- [ ] Referral program
+  - [ ] Unique referral codes
+  - [ ] Credit rewards for referrer & referee
+  - [ ] Leaderboard
+- [ ] Influencer partnerships
+  - [ ] Affiliate program
+  - [ ] Sponsored content guidelines
+  - [ ] Tracking & attribution
+
+### 7.8 Social Proof & Trust Signals
+
+- [ ] Testimonials collection
+  - [ ] Post-consultation prompt
+  - [ ] "My prediction came true" submissions
+  - [ ] Photo + story format
+- [ ] Display testimonials on landing page
+- [ ] Astrologer credentials showcase
+  - [ ] University degrees
+  - [ ] Years of experience
+  - [ ] Certifications (Jyotish Acharya, etc.)
+- [ ] Media mentions section
+  - [ ] Press coverage collection
+  - [ ] "As seen in..." badges
+- [ ] Prediction accuracy tracking
+  - [ ] User feedback on past predictions
+  - [ ] Aggregate accuracy metrics
+  - [ ] Transparency reports
+- [ ] Trust badges
+  - [ ] SSL secure
+  - [ ] Payment security (PCI compliance)
+  - [ ] Data privacy certifications
 
 ---
 

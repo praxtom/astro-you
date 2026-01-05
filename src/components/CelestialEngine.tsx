@@ -5,23 +5,17 @@ import * as THREE from "three";
 import * as React from "react";
 
 // --- Constants ---
-const OFFSET_X = 22;
+// Kundali house center angles (counter-clockwise starting from top/House 1)
+const getHouseAngle = (houseIndex: number) => {
+  return Math.PI / 2 + (houseIndex * Math.PI * 2) / 12;
+};
 
-// Kundali house centers (North Indian diamond - 12 houses)
-const HOUSE_CENTERS: THREE.Vector3[] = [
-  new THREE.Vector3(0, 0, 0), // House 1 (Lagna)
-  new THREE.Vector3(-4, 4, 0), // House 2
-  new THREE.Vector3(-8, 0, 0), // House 3
-  new THREE.Vector3(-4, -4, 0), // House 4
-  new THREE.Vector3(0, -8, 0), // House 5
-  new THREE.Vector3(4, -4, 0), // House 6
-  new THREE.Vector3(8, 0, 0), // House 7
-  new THREE.Vector3(4, 4, 0), // House 8
-  new THREE.Vector3(0, 8, 0), // House 9
-  new THREE.Vector3(-2, 6, 0), // House 10
-  new THREE.Vector3(2, 6, 0), // House 11
-  new THREE.Vector3(6, 2, 0), // House 12
-].map((v) => new THREE.Vector3(v.x + OFFSET_X, v.y, v.z));
+const HOUSE_RADII = {
+  inner: 4,
+  middle: 7.5,
+  outer: 11,
+  far: 14.5,
+};
 
 // Planet categories for visual distinction
 type PlanetType = "benefic" | "malefic" | "neutral" | "shadow";
@@ -37,6 +31,7 @@ interface TransitPlanetProps {
   retrograde?: boolean;
   hasRings?: boolean;
   zLayer: number; // Unique Z depth to prevent overlap
+  orbitRadius: number; // Assigned orbital path radius
 }
 
 // --- Cosmic Dust Particles ---
@@ -51,10 +46,10 @@ function CosmicDust() {
     for (let i = 0; i < count; i++) {
       // Spread particles in a disk around the chart
       const angle = Math.random() * Math.PI * 2;
-      const radius = 5 + Math.random() * 20;
-      positions[i * 3] = Math.cos(angle) * radius + OFFSET_X;
-      positions[i * 3 + 1] = (Math.random() - 0.5) * 15;
-      positions[i * 3 + 2] = (Math.random() - 0.5) * 10;
+      const radius = 5 + Math.random() * 25;
+      positions[i * 3] = Math.cos(angle) * radius;
+      positions[i * 3 + 1] = (Math.random() - 0.5) * 20;
+      positions[i * 3 + 2] = (Math.random() - 0.5) * 15;
       sizes[i] = Math.random() * 0.05 + 0.02;
     }
 
@@ -97,7 +92,7 @@ function KundaliGrid() {
   });
 
   const lines = useMemo(() => {
-    const s = 8;
+    const s = 15;
     return [
       [
         [s, s, 0],
@@ -143,7 +138,12 @@ function KundaliGrid() {
   }, []);
 
   const circles = useMemo(() => {
-    const radii = [3, 5.5, 8.5, 11];
+    const radii = [
+      HOUSE_RADII.inner,
+      HOUSE_RADII.middle,
+      HOUSE_RADII.outer,
+      HOUSE_RADII.far,
+    ];
     return radii.map((r) => {
       const points: THREE.Vector3[] = [];
       for (let i = 0; i <= 72; i++) {
@@ -162,15 +162,23 @@ function KundaliGrid() {
     for (let i = 0; i < 12; i++) {
       const angle = (i / 12) * Math.PI * 2;
       lines.push([
-        new THREE.Vector3(Math.cos(angle) * 5.5, Math.sin(angle) * 5.5, 0),
-        new THREE.Vector3(Math.cos(angle) * 11, Math.sin(angle) * 11, 0),
+        new THREE.Vector3(
+          Math.cos(angle) * HOUSE_RADII.inner,
+          Math.sin(angle) * HOUSE_RADII.inner,
+          0
+        ),
+        new THREE.Vector3(
+          Math.cos(angle) * HOUSE_RADII.far,
+          Math.sin(angle) * HOUSE_RADII.far,
+          0
+        ),
       ]);
     }
     return lines;
   }, []);
 
   return (
-    <group ref={ref} position={[OFFSET_X, 0, -0.8]}>
+    <group ref={ref} position={[0, 0, -0.8]}>
       {/* Main grid */}
       {lines.map((pts, i) => (
         <Line
@@ -307,10 +315,11 @@ function TransitPlanet({
   retrograde = false,
   hasRings = false,
   zLayer,
+  orbitRadius,
 }: TransitPlanetProps) {
   const meshRef = useRef<THREE.Group>(null!);
   const texture = useLoader(THREE.TextureLoader, textureMap);
-  const currentPos = useRef(HOUSE_CENTERS[startHouse].clone());
+  const currentPos = useRef(new THREE.Vector3(0, 0, 0));
   const phaseOffset = useMemo(() => Math.random() * Math.PI * 2, []);
 
   useFrame(({ clock }) => {
@@ -320,35 +329,28 @@ function TransitPlanet({
     const direction = retrograde ? -1 : 1;
     const houseProgress =
       ((t * direction) / transitSpeed + startHouse + 12) % 12;
-    const currentHouse = Math.floor(houseProgress);
-    const nextHouse = (currentHouse + (retrograde ? 11 : 1)) % 12;
-    const transitionProgress = Math.abs(houseProgress - currentHouse);
 
-    const easedProgress =
-      transitionProgress < 0.5
-        ? 2 * transitionProgress * transitionProgress
-        : 1 - Math.pow(-2 * transitionProgress + 2, 2) / 2;
+    // Calculate orbital angle based on house progress
+    const houseAngle = getHouseAngle(houseProgress);
 
-    const fromPos = HOUSE_CENTERS[currentHouse];
-    const toPos = HOUSE_CENTERS[nextHouse];
+    const targetX = Math.cos(houseAngle) * orbitRadius;
+    const targetY = Math.sin(houseAngle) * orbitRadius;
 
-    const targetX = THREE.MathUtils.lerp(fromPos.x, toPos.x, easedProgress);
-    const targetY = THREE.MathUtils.lerp(fromPos.y, toPos.y, easedProgress);
-
-    const breathX = Math.sin(t * 0.35 + phaseOffset) * 0.08;
-    const breathY = Math.sin(t * 0.3 + phaseOffset * 1.3) * 0.1;
+    const breathX = Math.sin(t * 0.35 + phaseOffset) * 0.15;
+    const breathY = Math.sin(t * 0.3 + phaseOffset * 1.3) * 0.15;
     // Each planet has unique Z layer to prevent visual overlap
     const floatZ = zLayer + Math.sin(t * 0.2 + phaseOffset) * 0.1;
 
+    // Smoother interpolation for orbital "locking"
     currentPos.current.x = THREE.MathUtils.lerp(
       currentPos.current.x,
       targetX + breathX,
-      0.015
+      0.05
     );
     currentPos.current.y = THREE.MathUtils.lerp(
       currentPos.current.y,
       targetY + breathY,
-      0.015
+      0.05
     );
     currentPos.current.z = floatZ;
 
@@ -357,7 +359,7 @@ function TransitPlanet({
   });
 
   return (
-    <group ref={meshRef} position={HOUSE_CENTERS[startHouse]}>
+    <group ref={meshRef}>
       <Sphere args={[size, 64, 64]}>
         <meshStandardMaterial
           map={texture}
@@ -378,15 +380,17 @@ function ShadowPlanet({
   color,
   transitSpeed,
   startHouse,
+  orbitRadius,
 }: {
   name: string;
   size: number;
   color: string;
   transitSpeed: number;
   startHouse: number;
+  orbitRadius: number;
 }) {
   const meshRef = useRef<THREE.Group>(null!);
-  const currentPos = useRef(HOUSE_CENTERS[startHouse].clone());
+  const currentPos = useRef(new THREE.Vector3(0, 0, 0));
   const phaseOffset = useMemo(() => Math.random() * Math.PI * 2, []);
 
   useFrame(({ clock }) => {
@@ -394,32 +398,21 @@ function ShadowPlanet({
 
     // Shadow planets always retrograde
     const houseProgress = (-t / transitSpeed + startHouse + 120) % 12;
-    const currentHouse = Math.floor(houseProgress);
-    const nextHouse = (currentHouse + 11) % 12;
-    const transitionProgress = Math.abs(houseProgress - currentHouse);
+    const houseAngle = getHouseAngle(houseProgress);
 
-    const easedProgress =
-      transitionProgress < 0.5
-        ? 2 * transitionProgress * transitionProgress
-        : 1 - Math.pow(-2 * transitionProgress + 2, 2) / 2;
-
-    const fromPos = HOUSE_CENTERS[currentHouse];
-    const toPos = HOUSE_CENTERS[nextHouse];
-
-    const targetX = THREE.MathUtils.lerp(fromPos.x, toPos.x, easedProgress);
-    const targetY = THREE.MathUtils.lerp(fromPos.y, toPos.y, easedProgress);
-
+    const targetX = Math.cos(houseAngle) * orbitRadius;
+    const targetY = Math.sin(houseAngle) * orbitRadius;
     const floatZ = 0.5 + Math.sin(t * 0.15 + phaseOffset) * 0.2;
 
     currentPos.current.x = THREE.MathUtils.lerp(
       currentPos.current.x,
       targetX,
-      0.012
+      0.04
     );
     currentPos.current.y = THREE.MathUtils.lerp(
       currentPos.current.y,
       targetY,
-      0.012
+      0.04
     );
     currentPos.current.z = floatZ;
 
@@ -431,7 +424,7 @@ function ShadowPlanet({
   const isRahu = name === "Rahu";
 
   return (
-    <group ref={meshRef} position={HOUSE_CENTERS[startHouse]}>
+    <group ref={meshRef}>
       {/* Shadow planet - dark sphere with eerie glow */}
       <Sphere args={[size, 32, 32]}>
         <meshStandardMaterial
@@ -479,7 +472,7 @@ function VedicSun() {
   }, []);
 
   return (
-    <group position={[OFFSET_X, 0, 0.3]}>
+    <group position={[0, 0, 0.3]}>
       {/* Core sun */}
       <Sphere ref={meshRef} args={[1.3, 64, 64]}>
         <meshStandardMaterial
@@ -527,15 +520,14 @@ function VedicSun() {
 function SteadyCameraRig() {
   useFrame((state) => {
     const t = state.clock.getElapsedTime();
-    const subtleX = Math.sin(t * 0.05) * 0.3;
-    const subtleY = Math.sin(t * 0.04) * 0.2;
-    const targetPos = new THREE.Vector3(
-      OFFSET_X - 6 + subtleX,
-      1 + subtleY,
-      34
-    );
-    state.camera.position.lerp(targetPos, 0.003);
-    state.camera.lookAt(OFFSET_X - 8, 0, 0);
+    const subtleX = Math.sin(t * 0.05) * 0.5;
+    const subtleY = Math.sin(t * 0.04) * 0.3;
+
+    // Increase distance (Z) to ensure edge planets (radius 12.5) stay in view
+    // and shift X to -10 to push the chart center to the right half of the screen
+    const targetPos = new THREE.Vector3(-12 + subtleX, 1 + subtleY, 65);
+    state.camera.position.lerp(targetPos, 0.004);
+    state.camera.lookAt(0, 0, 0);
   });
   return null;
 }
@@ -551,7 +543,8 @@ export default function CelestialEngine() {
       transitSpeed: 8,
       startHouse: 2,
       planetType: "benefic",
-      zLayer: 3.5, // Front layer - Moon moves fastest, most visible
+      zLayer: 3.5,
+      orbitRadius: HOUSE_RADII.inner,
     },
     {
       name: "Mercury",
@@ -562,6 +555,7 @@ export default function CelestialEngine() {
       startHouse: 4,
       planetType: "neutral",
       zLayer: 2.5,
+      orbitRadius: HOUSE_RADII.inner,
     },
     {
       name: "Venus",
@@ -572,6 +566,7 @@ export default function CelestialEngine() {
       startHouse: 6,
       planetType: "benefic",
       zLayer: 2.0,
+      orbitRadius: HOUSE_RADII.middle,
     },
     {
       name: "Mars",
@@ -582,6 +577,7 @@ export default function CelestialEngine() {
       startHouse: 8,
       planetType: "malefic",
       zLayer: 1.5,
+      orbitRadius: HOUSE_RADII.middle,
     },
     {
       name: "Jupiter",
@@ -592,6 +588,7 @@ export default function CelestialEngine() {
       startHouse: 10,
       planetType: "benefic",
       zLayer: 1.0,
+      orbitRadius: HOUSE_RADII.outer,
     },
     {
       name: "Saturn",
@@ -602,14 +599,15 @@ export default function CelestialEngine() {
       startHouse: 5,
       planetType: "malefic",
       hasRings: true,
-      zLayer: 0.5, // Back layer - Saturn moves slowest
+      zLayer: 0.5,
+      orbitRadius: HOUSE_RADII.outer,
     },
   ];
 
   return (
     <div className="w-full h-full relative pointer-events-none">
       <Canvas dpr={[1, 2]} gl={{ antialias: true, alpha: true }}>
-        <PerspectiveCamera makeDefault position={[OFFSET_X, 3, 36]} fov={32} />
+        <PerspectiveCamera makeDefault position={[0, 3, 65]} fov={32} />
         <color attach="background" args={["#030308"]} />
 
         <SteadyCameraRig />
@@ -660,6 +658,7 @@ export default function CelestialEngine() {
             color="#6366f1"
             transitSpeed={100}
             startHouse={3}
+            orbitRadius={HOUSE_RADII.far}
           />
           <ShadowPlanet
             name="Ketu"
@@ -667,6 +666,7 @@ export default function CelestialEngine() {
             color="#8b5cf6"
             transitSpeed={100}
             startHouse={9}
+            orbitRadius={HOUSE_RADII.far}
           />
         </React.Suspense>
       </Canvas>

@@ -2,10 +2,18 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import CelestialEngine from "../components/CelestialEngine";
 import { LandingSEO } from "../components/SEO";
+import AuthModal from "../components/AuthModal";
+import OnboardingModal from "../components/OnboardingModal";
+import { useAuth } from "../lib/AuthContext";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../lib/firebase";
 
 function Landing() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [scrolled, setScrolled] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showOnboardingModal, setShowOnboardingModal] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -14,6 +22,26 @@ function Landing() {
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  // Auto-redirect if user is logged in
+  useEffect(() => {
+    if (user) {
+      const checkProfile = async () => {
+        try {
+          const docSnap = await getDoc(doc(db, "users", user.uid));
+          if (docSnap.exists() && docSnap.data().name) {
+            navigate("/dashboard");
+          } else {
+            sessionStorage.setItem("astroyou_mode", "logged_in");
+            setShowOnboardingModal(true);
+          }
+        } catch (err) {
+          console.error("Redirect check failed:", err);
+        }
+      };
+      checkProfile();
+    }
+  }, [user, navigate]);
 
   return (
     <div className="landing relative min-h-screen bg-surface-primary transition-colors duration-700">
@@ -55,15 +83,42 @@ function Landing() {
             <a href="#experience" className="nav-link">
               Experience
             </a>
-            <button className="text-caption text-content-secondary hover:text-gold transition-colors font-bold uppercase cursor-pointer bg-transparent border-none tracking-[0.2em]">
-              Sign In
-            </button>
-            <button
-              className="btn-premium"
-              onClick={() => navigate("/onboarding")}
-            >
-              Begin Journey
-            </button>
+            {user ? (
+              <>
+                <span className="text-caption text-gold/60 font-sans text-xs">
+                  ✦ {user.displayName || user.email?.split("@")[0]}
+                </span>
+                <button
+                  className="btn-premium"
+                  onClick={async () => {
+                    const docSnap = await getDoc(doc(db, "users", user.uid));
+                    if (docSnap.exists() && docSnap.data().name) {
+                      navigate("/dashboard");
+                    } else {
+                      sessionStorage.setItem("astroyou_mode", "logged_in");
+                      setShowOnboardingModal(true);
+                    }
+                  }}
+                >
+                  Enter Portal
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  className="text-caption text-content-secondary hover:text-gold transition-colors font-bold uppercase cursor-pointer bg-transparent border-none tracking-[0.2em]"
+                  onClick={() => setShowAuthModal(true)}
+                >
+                  Sign In
+                </button>
+                <button
+                  className="btn-premium"
+                  onClick={() => setShowAuthModal(true)}
+                >
+                  Begin Journey
+                </button>
+              </>
+            )}
           </nav>
 
           {/* Mobile Menu Toggle (Simplified for design focus) */}
@@ -85,7 +140,7 @@ function Landing() {
           <div className="max-w-4xl">
             <div className="transition-all duration-1000">
               <span className="section-label font-black tracking-[0.5em] opacity-80">
-                Celestial Intelligence
+                Modern Intelligence
               </span>
               <h1 className="mb-10 text-glow !leading-[1.05]">
                 The Stars, <br />
@@ -97,25 +152,40 @@ function Landing() {
             <div>
               <p className="text-body text-xl mb-14 max-w-2xl text-content-secondary/90 leading-relaxed font-sans font-light">
                 AstroYou combines ancient Vedic wisdom with modern precision to
-                deliver profoundly accurate personal insights. Your cosmic
-                blueprint, instantly calculated.
+                deliver accurate personal insights. Your birth chart, instantly
+                calculated.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-6">
               <button
                 className="btn btn-primary px-12 group"
-                onClick={() => navigate("/onboarding")}
+                onClick={async () => {
+                  if (user) {
+                    const docSnap = await getDoc(doc(db, "users", user.uid));
+                    if (docSnap.exists() && docSnap.data().name) {
+                      navigate("/dashboard");
+                    } else {
+                      sessionStorage.setItem("astroyou_mode", "logged_in");
+                      setShowOnboardingModal(true);
+                    }
+                  } else {
+                    setShowAuthModal(true);
+                  }
+                }}
               >
-                Map Your Destiny
+                Get Started
                 <span className="ml-2 group-hover:translate-x-1 transition-transform">
                   →
                 </span>
               </button>
               <button
                 className="btn btn-outline px-12"
-                onClick={() => navigate("/synthesis")}
+                onClick={() => {
+                  sessionStorage.setItem("astroyou_mode", "guest");
+                  setShowOnboardingModal(true);
+                }}
               >
-                Explore the Voice
+                Try 5 Mins Free
               </button>
             </div>
           </div>
@@ -230,7 +300,7 @@ function Landing() {
             <div className="lg:col-span-1">
               <span className="footer-title">Cosmic Updates</span>
               <p className="text-content-secondary text-xs tracking-wider mb-6">
-                Receive celestial transit alerts and soul guidance.
+                Receive astrological updates and personal guidance.
               </p>
               <div className="flex gap-2">
                 <input
@@ -246,7 +316,7 @@ function Landing() {
           </div>
 
           {/* Bottom Bar */}
-          <div className="pt-8 border-t border-white/[0.05] flex flex-col md:flex-row justify-between items-center gap-6 text-caption text-[10px] opacity-50">
+          <div className="pt-8 border-t border-white/[0.05] flex flex-col md:flex-row justify-between items-center gap-6 text-caption text-xs opacity-50">
             <p>© 2026 AstroYou Intelligence. All rights reserved.</p>
             <div className="flex gap-8 italic">
               <span>Made for the modern seeker.</span>
@@ -255,6 +325,18 @@ function Landing() {
           </div>
         </div>
       </footer>
+
+      <OnboardingModal
+        isOpen={showOnboardingModal}
+        onClose={() => setShowOnboardingModal(false)}
+        onComplete={() => navigate("/dashboard")}
+      />
+
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        message="Sign in to save your profile and unlock unlimited insights."
+      />
     </div>
   );
 }

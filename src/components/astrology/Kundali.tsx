@@ -21,6 +21,9 @@ const Kundali: React.FC<KundaliProps> = ({ data, className = "" }) => {
     ? getSignNumberByCode(ascendantPos.sign)
     : 1;
 
+  const moonPos = data.planetary_positions.find((p) => p.name === "Moon");
+  const moonNakshatra = moonPos?.nakshatra ? moonPos.nakshatra : "CHITRA";
+
   // Map planets to houses
   const housePlanets: Record<number, any[]> = {};
   for (let i = 1; i <= 12; i++) housePlanets[i] = [];
@@ -153,8 +156,8 @@ const Kundali: React.FC<KundaliProps> = ({ data, className = "" }) => {
       </svg>
 
       {/* Legend/Info */}
-      <div className="kundali-footer mt-6 flex justify-between items-end opacity-40 uppercase tracking-widest text-[0.6rem]">
-        <div>NAKSHATRA: CHITRA</div>
+      <div className="kundali-footer mt-6 flex justify-between items-end opacity-40 uppercase tracking-widest text-xs">
+        <div>NAKSHATRA: {moonNakshatra}</div>
         <div>SIDEREAL / WHOLE SIGN</div>
       </div>
     </div>

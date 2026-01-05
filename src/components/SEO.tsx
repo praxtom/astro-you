@@ -9,9 +9,9 @@ interface SEOProps {
 }
 
 const defaultMeta = {
-  title: "AstroYou | Celestial Intelligence",
+  title: "AstroYou | AI-Powered Astrology",
   description:
-    "Discover your cosmic blueprint with AI-powered Vedic astrology. Get personalized Kundali readings, daily horoscopes, and celestial guidance from the Voice of the Stars.",
+    "Discover your birth chart with AI-powered Vedic astrology. Get personalized Kundali readings, daily horoscopes, and expert guidance from the stars.",
   image: "/og-image.png",
   url: "https://astroyou.app",
   type: "website" as const,
@@ -80,8 +80,8 @@ export function SEO({
 export function LandingSEO() {
   return (
     <SEO
-      title="Celestial Intelligence"
-      description="AstroYou combines ancient Vedic wisdom with modern AI to deliver profoundly accurate personal insights. Your cosmic blueprint, instantly calculated."
+      title="AI-Powered Astrology"
+      description="AstroYou combines ancient Vedic wisdom with modern AI to deliver accurate personal insights. Your birth chart, instantly calculated."
     />
   );
 }
@@ -98,8 +98,8 @@ export function OnboardingSEO() {
 export function SynthesisSEO() {
   return (
     <SEO
-      title="Celestial Synthesis"
-      description="Consult the Voice of the Stars. Get personalized astrological insights, predictions, and guidance based on your unique birth chart."
+      title="Synthesis"
+      description="Consult the Jyotir AI. Get personalized astrological insights, predictions, and guidance based on your unique birth chart."
     />
   );
 }

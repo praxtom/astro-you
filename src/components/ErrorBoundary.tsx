@@ -58,7 +58,7 @@ export class ErrorBoundary extends Component<Props, State> {
             </h1>
             <p className="text-body text-sm opacity-70 mb-8 leading-relaxed">
               The stars have encountered an unexpected alignment. This error has
-              been recorded and our celestial engineers are investigating.
+              been recorded and our engineers are investigating.
             </p>
 
             {/* Error Details (Dev only) */}

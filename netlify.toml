@@ -6,18 +6,14 @@
 [build.environment]
   SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
 
-[dev]
-  command = "npm run dev"
-  port = 5173
-  targetPort = 5173
-  autoLaunch = false
-
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
 
+# SPA fallback for production
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+  force = false

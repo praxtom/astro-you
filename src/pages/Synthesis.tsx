@@ -1,21 +1,43 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Send,
   Clock,
   Loader2,
-  User as UserIcon,
   CreditCard,
   Sparkles,
+  ChevronLeft,
+  Plus,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Download,
+  Save,
 } from "lucide-react";
 import AuthModal from "../components/AuthModal";
+import OnboardingModal from "../components/OnboardingModal";
 import { useAuth } from "../lib/AuthContext";
-import { doc, getDoc, updateDoc, increment } from "firebase/firestore";
+import { useUserProfile, useKundali } from "../hooks";
+import type { ChartType } from "../hooks/useKundali";
+import {
+  doc,
+  updateDoc,
+  increment,
+  collection,
+  addDoc,
+  query,
+  orderBy,
+  onSnapshot,
+  serverTimestamp,
+} from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useRazorpay } from "../hooks/useRazorpay";
 import { SynthesisSEO } from "../components/SEO";
 import Kundali from "../components/astrology/Kundali";
-import { KundaliData } from "../lib/astrology";
+import CelestialChart from "../components/astrology/CelestialChart";
+import type { KundaliData } from "../types";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { downloadChart } from "../lib/chartStorage";
 
 interface Message {
   id: string;
@@ -28,96 +50,160 @@ const FREE_LIMIT_SECONDS = 300; // 5 minutes
 
 export default function Synthesis() {
   const navigate = useNavigate();
+  const { id } = useParams();
   const { user } = useAuth();
   const isRPCLoaded = useRazorpay();
 
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      role: "assistant",
-      content:
-        "Welcome to the Celestial Synthesis. I am the voice of the stars. Ask me anything about your destiny, current transits, or spiritual path.",
-      timestamp: new Date(),
-    },
-  ]);
+  // Use centralized hooks for data access (when user is logged in)
+  const [currentChartType, setCurrentChartType] = useState<ChartType>("D1");
+  const { birthData: hookBirthData, loading: isLoadingProfile } =
+    useUserProfile();
+  const { kundaliData: hookKundaliData, loading: isLoadingHookKundali } =
+    useKundali(hookBirthData, currentChartType);
+
+  // Local state - needed for guest mode and chat functionality
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [currentChatId, setCurrentChatId] = useState<string | null>(id || null);
   const [input, setInput] = useState("");
   const [secondsUsed, setSecondsUsed] = useState(0);
-  const [credits, setCredits] = useState(0); // Minutes
+  const [credits, setCredits] = useState(0);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
   const [birthData, setBirthData] = useState<any>(null);
   const [kundaliData, setKundaliData] = useState<KundaliData | null>(null);
   const [isLoadingKundali, setIsLoadingKundali] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [showExpandedChart, setShowExpandedChart] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Load profile data and enforce onboarding
+  const WELCOME_MESSAGE: Message = {
+    id: "welcome",
+    role: "assistant",
+    content:
+      "Welcome to your personal synthesis. I am Jyotir, your guide to Vedic insights. How can I assist you today?",
+    timestamp: new Date(),
+  };
+
+  // 1. Sync logged-in user data to local state
   useEffect(() => {
-    const loadData = async () => {
-      // 1. Check for logged in user data
-      if (user) {
-        try {
-          const docRef = doc(db, "users", user.uid);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists() && docSnap.data().name) {
-            const data = docSnap.data();
-            setBirthData(data);
-            setCredits(data.credits || 0);
-          } else {
-            // Check session storage first (for users who just completed onboarding but haven't synced yet)
-            const temp = sessionStorage.getItem("astroyou_temp_profile");
-            if (temp) {
-              setBirthData(JSON.parse(temp));
-            } else {
-              navigate("/onboarding");
-            }
-          }
-        } catch (err) {
-          console.error("Error fetching data:", err);
-        }
+    if (hookBirthData) {
+      setBirthData(hookBirthData);
+    }
+  }, [hookBirthData]);
+
+  // 2. Handle guest data and onboarding trigger
+  useEffect(() => {
+    if (isLoadingProfile) return;
+
+    if (!user) {
+      const guestData = sessionStorage.getItem("astroyou_guest_profile");
+      const guestComplete = sessionStorage.getItem("astroyou_guest_complete");
+
+      if (guestData && guestComplete) {
+        setBirthData(JSON.parse(guestData));
       } else {
-        // 2. Check for guest session data
-        const temp = sessionStorage.getItem("astroyou_temp_profile");
-        const isComplete = sessionStorage.getItem("astroyou_profile_complete");
-        if (temp && isComplete) {
-          setBirthData(JSON.parse(temp));
+        // No guest data? Try localStorage before forcing onboarding
+        const localData = localStorage.getItem("astroyou_profile");
+        if (localData) {
+          setBirthData(JSON.parse(localData));
         } else {
-          // No profile data at all -> Go through onboarding
-          navigate("/onboarding");
+          setShowOnboardingModal(true);
         }
       }
-    };
-    loadData();
-  }, [user, navigate]);
+    } else if (!hookBirthData) {
+      // Logged in but no profile data found in Firestore
+      setShowOnboardingModal(true);
+    }
+  }, [user, isLoadingProfile, hookBirthData]);
 
-  // Fetch Kundali when birthData is ready
+  const handleOnboardingComplete = () => {
+    // For guest users, we need to manually pick up the data from sessionStorage
+    if (!user) {
+      const guestData = sessionStorage.getItem("astroyou_guest_profile");
+      if (guestData) {
+        setBirthData(JSON.parse(guestData));
+      }
+    }
+    // For logged-in users, useUserProfile's onSnapshot will auto-update hookBirthData
+  };
+
+  // Fetch Kundali for guests or when data/type changes
   useEffect(() => {
-    const fetchKundali = async () => {
-      if (!birthData) return;
-      setIsLoadingKundali(true);
-      try {
-        const response = await fetch("/api/kundali", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ birthData }),
-        });
+    if (!user && birthData) {
+      const fetchGuestKundali = async () => {
+        setIsLoadingKundali(true);
+        try {
+          const response = await fetch("/api/kundali", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ birthData, chartType: currentChartType }),
+          });
 
-        if (!response.ok) {
-          throw new Error(`API error: ${response.status}`);
-        }
+          if (!response.ok) throw new Error("API error");
 
-        const data = await response.json();
-        if (data.chart_data) {
-          setKundaliData(data.chart_data);
+          const data = await response.json();
+          setKundaliData(data);
+        } catch (err) {
+          console.error("Error fetching guest Kundali:", err);
+        } finally {
+          setIsLoadingKundali(false);
         }
-      } catch (err) {
-        console.error("Error fetching Kundali:", err);
-      } finally {
-        setIsLoadingKundali(false);
-      }
-    };
-    fetchKundali();
-  }, [birthData]);
+      };
+      fetchGuestKundali();
+    }
+  }, [birthData, user, currentChartType]);
+
+  // Sync hook data to local state when available (for logged-in users)
+  useEffect(() => {
+    if (hookKundaliData && user) {
+      setKundaliData(hookKundaliData);
+      setIsLoadingKundali(false);
+    }
+  }, [hookKundaliData, user]);
+
+  useEffect(() => {
+    if (user) {
+      setIsLoadingKundali(isLoadingHookKundali);
+    }
+  }, [isLoadingHookKundali, user]);
+
+  // Handle Chat Persistence & Loading
+  useEffect(() => {
+    if (!user) {
+      setMessages([WELCOME_MESSAGE]);
+      return;
+    }
+
+    if (!currentChatId) {
+      setMessages([WELCOME_MESSAGE]);
+      return;
+    }
+
+    // Load messages for specific chat
+    const q = query(
+      collection(db, "users", user.uid, "chats", currentChatId, "messages"),
+      orderBy("timestamp", "asc")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().timestamp?.toDate() || new Date(),
+      })) as Message[];
+
+      setMessages(msgs.length > 0 ? msgs : [WELCOME_MESSAGE]);
+    });
+
+    return () => unsubscribe();
+  }, [user, currentChatId]);
+
+  // Update currentChatId when URL param changes
+  useEffect(() => {
+    if (id) setCurrentChatId(id);
+  }, [id]);
 
   // Initialize trial timer from localStorage
   useEffect(() => {
@@ -165,7 +251,7 @@ export default function Synthesis() {
         amount: order.amount,
         currency: order.currency,
         name: "AstroYou",
-        description: `Purchase ${minutes} Celestial Minutes`,
+        description: `Purchase ${minutes} Minutes`,
         order_id: order.id,
         handler: async (response: any) => {
           // Verify payment
@@ -221,23 +307,62 @@ export default function Synthesis() {
       return;
     }
 
+    const userMsgContent = input;
     const userMsg: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: input,
+      content: userMsgContent,
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    // If not logged in, just update state
+    if (!user) {
+      setMessages((prev) => [...prev, userMsg]);
+    }
+
     setInput("");
     setIsSynthesizing(true);
 
     try {
+      let chatId = currentChatId;
+
       // Deduct credit if user is logged in
       if (user && credits > 0) {
         const userRef = doc(db, "users", user.uid);
         await updateDoc(userRef, { credits: increment(-1) });
         setCredits((prev) => prev - 1);
+      }
+
+      // If logged in and first message, create chat doc
+      if (user && !chatId) {
+        const newChatRef = await addDoc(
+          collection(db, "users", user.uid, "chats"),
+          {
+            userId: user.uid,
+            title: userMsgContent.substring(0, 40) + "...",
+            createdAt: serverTimestamp(),
+            lastUpdatedAt: serverTimestamp(),
+          }
+        );
+        chatId = newChatRef.id;
+        setCurrentChatId(chatId);
+        navigate(`/synthesis/${chatId}`, { replace: true });
+      }
+
+      // Save user message to Firestore if logged in
+      if (user && chatId) {
+        await addDoc(
+          collection(db, "users", user.uid, "chats", chatId, "messages"),
+          {
+            role: "user",
+            content: userMsgContent,
+            timestamp: serverTimestamp(),
+          }
+        );
+        // Update lastUpdatedAt
+        await updateDoc(doc(db, "users", user.uid, "chats", chatId), {
+          lastUpdatedAt: serverTimestamp(),
+        });
       }
 
       const response = await fetch("/api/synthesis", {
@@ -249,7 +374,7 @@ export default function Synthesis() {
             content: m.content,
           })),
           birthData,
-          kundaliData, // Pass the actual chart data to Gemini!
+          kundaliData,
         }),
       });
 
@@ -261,7 +386,28 @@ export default function Synthesis() {
           content: data.content,
           timestamp: new Date(),
         };
-        setMessages((prev) => [...prev, aiMsg]);
+
+        if (user && chatId) {
+          // Save AI message to Firestore
+          await addDoc(
+            collection(db, "users", user.uid, "chats", chatId, "messages"),
+            {
+              role: "assistant",
+              content: data.content,
+              timestamp: serverTimestamp(),
+              suggestAction: data.suggestAction,
+            }
+          );
+        } else {
+          // If guest, just update state
+          const msgWithAction = { ...aiMsg, suggestAction: data.suggestAction };
+          setMessages((prev) => [...prev, msgWithAction]);
+        }
+
+        // Auto-action if suggested
+        if (data.suggestAction === "show_chart") {
+          setTimeout(() => setShowExpandedChart(true), 1500);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -279,86 +425,172 @@ export default function Synthesis() {
   const remainingSeconds = Math.max(0, FREE_LIMIT_SECONDS - secondsUsed);
 
   return (
-    <div className="min-h-screen bg-[#010103] flex flex-col text-content-primary">
+    <div className="h-screen bg-[#010103] flex flex-col text-content-primary overflow-hidden">
       <SynthesisSEO />
 
-      {/* Header */}
-
-      <header className="py-6 px-10 border-b border-white/5 flex justify-between items-center z-20">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate("/")}
-            className="text-white/50 hover:text-white"
+      {/* Main Container */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Leftmost: Conversation Sidebar (Hidden on mobile) */}
+        {user && (
+          <aside
+            className={`hidden md:flex ${
+              isSidebarCollapsed ? "w-0 opacity-0" : "w-72 opacity-100"
+            } border-r border-white/5 bg-black/40 backdrop-blur-md flex-col transition-all duration-300 relative overflow-hidden shrink-0`}
           >
-            ←
-          </button>
-          <span className="font-display tracking-widest uppercase text-lg">
-            Celestial Synthesis
-          </span>
-        </div>
-
-        <div className="flex items-center gap-6">
-          {!user ? (
-            <div className="flex items-center gap-2 text-xs font-mono px-3 py-1.5 rounded-full border border-gold/30 text-gold bg-gold/5">
-              <Clock size={12} />
-              <span>
-                {Math.floor(remainingSeconds / 60)}:
-                {(remainingSeconds % 60).toString().padStart(2, "0")} FREE TRIAL
-              </span>
+            <div className="p-4 border-b border-white/5">
+              <button
+                onClick={() => {
+                  setCurrentChatId(null);
+                  navigate("/synthesis");
+                }}
+                className="w-full btn btn-outline !py-3 text-xs uppercase flex items-center justify-center gap-2 group whitespace-nowrap"
+              >
+                <Plus
+                  size={14}
+                  className="group-hover:rotate-90 transition-transform"
+                />
+                New Synthesis
+              </button>
             </div>
-          ) : (
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-xs font-mono px-3 py-1.5 rounded-full border border-gold/30 text-gold bg-gold/5">
-                <Sparkles size={12} />
-                <span>{credits} MINS REMAINING</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs font-mono text-white/40">
-                <UserIcon size={12} />
-                <span>{user.displayName || user.email}</span>
-              </div>
-            </div>
-          )}
 
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
+              <ConversationsList
+                userId={user.uid}
+                currentId={currentChatId}
+                onSelect={(id) => {
+                  setCurrentChatId(id);
+                  navigate(`/synthesis/${id}`);
+                }}
+              />
+            </div>
+
+            <div className="p-4 border-t border-white/5">
+              <button
+                onClick={() => navigate("/dashboard")}
+                className="flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-white/40 hover:text-gold transition-colors whitespace-nowrap"
+              >
+                <ChevronLeft size={14} />
+                Back to Portal
+              </button>
+            </div>
+          </aside>
+        )}
+
+        {/* Toggle Button (Floating) */}
+        {user && (
           <button
-            onClick={() => handlePurchase(60, 499)}
-            disabled={isPaying}
-            className="btn btn-primary !py-2 !px-6 !text-[0.7rem] uppercase flex items-center gap-2"
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className={`hidden md:flex absolute ${
+              isSidebarCollapsed ? "left-4" : "left-[17rem]"
+            } top-14 z-50 p-2 rounded-full border border-white/10 bg-black/40 backdrop-blur-md text-white/40 hover:text-gold hover:border-gold/30 transition-all duration-300`}
           >
-            {isPaying ? (
-              <Loader2 className="animate-spin" size={14} />
+            {isSidebarCollapsed ? (
+              <PanelLeftOpen size={16} />
             ) : (
-              <CreditCard size={14} />
+              <PanelLeftClose size={16} />
             )}
-            {user ? "Buy 60 Mins" : "Upgrade"}
           </button>
-        </div>
-      </header>
+        )}
 
-      {/* Main Content Area */}
-      <main className="flex-1 overflow-hidden relative flex flex-row">
-        {/* Left Column: Celestial Blueprint */}
-        <div className="hidden lg:flex w-[450px] border-r border-white/5 flex-col p-8 overflow-y-auto bg-black/20 backdrop-blur-sm z-10">
-          <div className="flex items-center gap-3 mb-8 opacity-60">
-            <Sparkles size={16} className="text-gold" />
-            <h3 className="font-display tracking-[0.2em] uppercase text-xs">
-              Celestial Blueprint
-            </h3>
-          </div>
+        {/* Middle/Left: Celestial Blueprint */}
+        <div className="hidden lg:flex w-[310px] border-r border-white/5 flex-col p-4 overflow-y-auto bg-black/20 backdrop-blur-sm z-10 shrink-0">
+          <header className="flex justify-between items-center mb-4">
+            <div className="flex items-center gap-3">
+              <select
+                value={currentChartType}
+                onChange={(e) =>
+                  setCurrentChartType(e.target.value as ChartType)
+                }
+                className="bg-transparent text-md font-display tracking-[0.2em] uppercase text-white/60 border-none focus:ring-0 cursor-pointer hover:text-white transition-colors p-0"
+              >
+                <option value="D1" className="bg-black">
+                  Natal Chart (D1)
+                </option>
+                <option value="D9" className="bg-black">
+                  Navamsa (D9)
+                </option>
+              </select>
+            </div>
+            <div className="flex items-center gap-3">
+              {!user ? (
+                <div className="flex items-center gap-2 text-xs font-mono px-2 py-1 rounded-full border border-gold/30 text-gold bg-gold/5">
+                  <Clock size={10} />
+                  <span>
+                    {Math.floor(remainingSeconds / 60)}:
+                    {(remainingSeconds % 60).toString().padStart(2, "0")}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-xs font-mono px-2 py-1 rounded-full border border-gold/30 text-gold bg-gold/5">
+                  <Sparkles size={10} />
+                  <span>{credits}m</span>
+                </div>
+              )}
+            </div>
+          </header>
 
           {isLoadingKundali ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-4 opacity-40">
               <Loader2 className="animate-spin" size={32} />
-              <span className="text-[0.6rem] uppercase tracking-widest">
+              <span className="text-xs uppercase tracking-widest text-center">
                 Calculating Planetary Alignments...
               </span>
             </div>
           ) : kundaliData ? (
             <div className="animate-in fade-in zoom-in-95 duration-1000">
-              <Kundali data={kundaliData} />
-              <div className="mt-8 space-y-4">
-                <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-                  <h4 className="text-[0.65rem] uppercase tracking-widest text-gold/60 mb-2">
-                    Soul Signature
+              <div id="kundali-chart-container">
+                <button
+                  onClick={() => setShowExpandedChart(true)}
+                  className="w-full scale-90 origin-top hover:scale-[0.92] transition-transform duration-500 cursor-zoom-in relative group"
+                >
+                  <div className="absolute inset-0 bg-gold/5 opacity-0 group-hover:opacity-100 rounded-full blur-2xl transition-opacity" />
+                  <Kundali data={kundaliData} />
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
+                    <Sparkles size={12} className="text-gold" />
+                    <span className="text-xs uppercase tracking-[0.2em] text-white">
+                      Expand Chart
+                    </span>
+                  </div>
+                </button>
+              </div>
+
+              {/* Chart Action Buttons */}
+              <div className="flex gap-2 mt-3">
+                <button
+                  onClick={() =>
+                    downloadChart(
+                      "kundali-chart-container",
+                      `kundali-${birthData?.name || "chart"}.png`
+                    )
+                  }
+                  className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-all flex items-center justify-center group"
+                  title="Download Chart"
+                >
+                  <Download
+                    size={16}
+                    className="text-white/60 group-hover:text-gold transition-colors"
+                  />
+                </button>
+                {/* Update Birth Data Button */}
+                <button
+                  onClick={() => setShowOnboardingModal(true)}
+                  className="flex-1 p-2 rounded-lg bg-gold/10 border border-gold/20 hover:bg-gold/20 transition-all flex items-center justify-center gap-2 group"
+                  title="Update Birth Data"
+                >
+                  <Save
+                    size={14}
+                    className="text-gold group-hover:scale-110 transition-transform"
+                  />
+                  <span className="text-xs uppercase tracking-widest font-bold text-gold">
+                    Update Details
+                  </span>
+                </button>
+              </div>
+
+              <div className="mt-3 space-y-2">
+                <div className="p-3 rounded-xl bg-white/5 border border-white/5">
+                  <h4 className="text-xs uppercase tracking-widest text-gold/60 mb-2">
+                    Chart Essence
                   </h4>
                   <p className="text-xs font-sans font-light opacity-60 leading-relaxed">
                     Your chart reflects a{" "}
@@ -367,72 +599,181 @@ export default function Synthesis() {
                         (p) => p.name === "Sun"
                       )?.sign
                     }{" "}
-                    Soul, guided by the wisdom of{" "}
-                    {kundaliData.planetary_positions.find(
-                      (p) => p.name === "Ascendant"
-                    )?.sign?.[0] || "your"}{" "}
-                    Ascendant.
+                    influence, guided by the wisdom of{" "}
+                    {
+                      kundaliData.planetary_positions.find(
+                        (p) => p.name === "Ascendant"
+                      )?.sign
+                    }{" "}
+                    Lagna.
                   </p>
                 </div>
+
+                <button
+                  onClick={() => handlePurchase(60, 499)}
+                  disabled={isPaying}
+                  className="w-full p-3 rounded-xl bg-gold/5 border border-gold/10 hover:bg-gold/10 transition-all flex items-center justify-between group disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="flex items-center gap-3">
+                    {isPaying ? (
+                      <Loader2 size={16} className="text-gold animate-spin" />
+                    ) : (
+                      <CreditCard size={16} className="text-gold" />
+                    )}
+                    <span className="text-xs uppercase tracking-widest text-white/80">
+                      {isPaying ? "Processing..." : "Refill Essence"}
+                    </span>
+                  </div>
+                  <Plus
+                    size={14}
+                    className="text-gold group-hover:scale-125 transition-transform"
+                  />
+                </button>
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center opacity-20 text-center">
-              <p className="text-xs italic">
-                The celestial patterns are veiled.
+            <div className="flex-1 flex flex-col items-center justify-center opacity-20 text-center p-12">
+              <p className="text-xs uppercase tracking-[0.3em] font-light">
+                Birth data required
               </p>
             </div>
           )}
         </div>
 
-        {/* Right Column: Chat Area */}
-        <div className="flex-1 flex flex-col relative">
-          <div className="absolute inset-0 z-0 pointer-events-none opacity-10">
-            <div className="absolute top-[20%] left-[10%] w-[40vw] h-[40vw] bg-violet blur-[120px] rounded-full"></div>
-            <div className="absolute bottom-[20%] right-[10%] w-[30vw] h-[30vw] bg-gold blur-[120px] rounded-full"></div>
+        {/* Right: Synthesis Chat Area */}
+        <div className="flex-1 flex flex-col relative bg-[#030308]">
+          <div className="absolute inset-0 z-0 pointer-events-none opacity-5">
+            <div className="absolute top-[20%] left-[10%] w-[40vw] h-[40vw] bg-violet blur-[150px] rounded-full"></div>
+            <div className="absolute bottom-[20%] right-[10%] w-[30vw] h-[30vw] bg-gold blur-[150px] rounded-full"></div>
+          </div>
+
+          {/* Mobile Header (Hidden on Desktop) */}
+          <div className="md:hidden p-4 border-b border-white/5 bg-black/40 backdrop-blur-md flex justify-between items-center z-20">
+            <button
+              onClick={() => navigate("/dashboard")}
+              className="text-white/40"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <span className="font-display tracking-[0.2em] uppercase text-xs">
+              Synthesis
+            </span>
+            <button
+              onClick={() => setCurrentChatId(null)}
+              className="text-gold"
+            >
+              <Plus size={20} />
+            </button>
           </div>
 
           <div
             ref={scrollRef}
-            className="flex-1 overflow-y-auto p-10 space-y-8 relative z-10"
+            className="flex-1 overflow-y-auto p-2 md:p-6 space-y-4 relative z-10 custom-scrollbar"
           >
+            {messages.length === 0 && !isSynthesizing && (
+              <div className="h-full flex flex-col items-center justify-center opacity-30 text-center gap-6">
+                <div className="w-16 h-16 rounded-full border border-gold/20 flex items-center justify-center text-gold">
+                  <Sparkles size={32} />
+                </div>
+                <div>
+                  <h4 className="font-display tracking-widest uppercase mb-2 text-xs">
+                    The Void Awaited
+                  </h4>
+                  <p className="text-xs italic">
+                    A single query illuminates the entire cosmos.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {messages.map((m) => (
               <div
                 key={m.id}
                 className={`flex ${
                   m.role === "user" ? "justify-end" : "justify-start"
-                }`}
+                } animate-in fade-in slide-in-from-bottom-2 duration-500`}
               >
-                <div
-                  className={`max-w-[70%] p-6 rounded-2xl border ${
-                    m.role === "user"
-                      ? "bg-white/5 border-white/10"
-                      : "bg-surface-accent/20 border-gold/10"
-                  }`}
-                >
-                  <p className="text-body leading-relaxed whitespace-pre-wrap">
-                    {m.content}
-                  </p>
+                <div className="max-w-[90%] md:max-w-[85%] group">
+                  <div
+                    className={`text-xs uppercase tracking-widest mb-1 opacity-30 flex items-center gap-2 ${
+                      m.role === "user" ? "flex-row-reverse" : "flex-row"
+                    }`}
+                  >
+                    {m.role === "user" ? "You" : "Jyotir"}
+                    <span>•</span>
+                    <span>
+                      {m.timestamp.toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+                  <div
+                    className={`p-3 md:p-5 rounded-2xl md:rounded-3xl border transition-all duration-300 ${
+                      m.role === "user"
+                        ? "bg-white/5 border-white/10 group-hover:bg-white/10"
+                        : "bg-surface-accent/10 border-gold/10 group-hover:border-gold/20"
+                    }`}
+                  >
+                    <div
+                      className={m.role === "assistant" ? "prose-cosmic" : ""}
+                    >
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          p: ({ children }) => (
+                            <p
+                              className={
+                                m.role === "user"
+                                  ? "text-sm md:text-base leading-relaxed whitespace-pre-wrap font-sans font-light"
+                                  : ""
+                              }
+                            >
+                              {children}
+                            </p>
+                          ),
+                        }}
+                      >
+                        {m.content}
+                      </ReactMarkdown>
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
+
             {isSynthesizing && (
-              <div className="text-gold/40 text-[0.6rem] uppercase tracking-widest animate-pulse flex items-center gap-2">
-                <Loader2 size={10} className="animate-spin" />
-                Synthesizing cosmic response...
+              <div className="flex justify-start animate-in fade-in duration-300">
+                <div className="max-w-[85%]">
+                  <div className="text-xs uppercase tracking-widest mb-2 opacity-30">
+                    Jyotir
+                  </div>
+                  <div className="p-4 rounded-3xl border border-gold/10 bg-surface-accent/10 flex items-center gap-4">
+                    <Loader2 size={16} className="animate-spin text-gold" />
+                    <span className="text-xs uppercase tracking-[0.3em] text-gold/60 animate-pulse">
+                      Thinking...
+                    </span>
+                  </div>
+                </div>
               </div>
             )}
           </div>
 
           {/* Input Area */}
-          <div className="p-10 z-10">
-            <div className="relative max-w-4xl mx-auto">
+          <div className="p-2 md:p-5 z-10">
+            <div className="relative max-w-4xl mx-auto group">
+              <div className="absolute -inset-1 bg-gradient-to-r from-gold/20 to-violet/20 rounded-[2.5rem] blur opacity-0 group-focus-within:opacity-100 transition duration-1000"></div>
               <textarea
                 rows={1}
-                placeholder="Ask the stars..."
-                className="w-full bg-white/5 border border-white/10 rounded-3xl px-8 py-6 outline-none focus:border-gold/50 transition-all font-sans text-lg pr-20"
+                placeholder="Ask the stars about your destiny..."
+                className="relative w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 outline-none focus:border-gold/50 transition-all font-sans text-base md:text-lg pr-14 overflow-hidden resize-none"
+                style={{ height: "auto" }}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  e.target.style.height = "auto";
+                  e.target.style.height = e.target.scrollHeight + "px";
+                }}
                 onKeyDown={(e) =>
                   e.key === "Enter" &&
                   !e.shiftKey &&
@@ -441,22 +782,106 @@ export default function Synthesis() {
               />
               <button
                 onClick={handleSend}
-                className="absolute right-4 top-1/2 -translate-y-1/2 p-4 text-gold/60 hover:text-gold transition-colors"
-                disabled={isSynthesizing}
+                className={`absolute right-4 top-1/2 -translate-y-1/2 p-4 transition-all ${
+                  input.trim()
+                    ? "text-gold scale-110"
+                    : "text-white/20 scale-100"
+                }`}
+                disabled={isSynthesizing || !input.trim()}
               >
                 <Send size={24} />
               </button>
             </div>
+            <p className="text-center mt-2 text-xs uppercase tracking-[0.2em] text-white/20">
+              Personalized for {birthData?.name || "Seeker"}
+            </p>
           </div>
         </div>
-      </main>
+      </div>
+
+      <OnboardingModal
+        isOpen={showOnboardingModal}
+        onClose={() => setShowOnboardingModal(false)}
+        onComplete={handleOnboardingComplete}
+      />
 
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
-        title="Time for Deeper Insights"
-        message="Your free session has concluded. Join the stars to unlock unlimited access and personalized cosmic tracking."
+        title="Create Your Profile"
+        message="Save your birth charts and access AI insights by creating an account."
       />
+
+      {showExpandedChart && kundaliData && (
+        <CelestialChart
+          data={kundaliData}
+          onClose={() => setShowExpandedChart(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// Sidebar Component for Conversations
+function ConversationsList({
+  userId,
+  currentId,
+  onSelect,
+}: {
+  userId: string;
+  currentId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const [chats, setChats] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, "users", userId, "chats"),
+      orderBy("lastUpdatedAt", "desc")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setChats(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [userId]);
+
+  if (isLoading)
+    return (
+      <div className="p-4 text-xs uppercase tracking-widest opacity-20">
+        Aligning...
+      </div>
+    );
+  if (chats.length === 0)
+    return (
+      <div className="p-4 text-xs uppercase tracking-widest opacity-20 italic">
+        No past dialogues.
+      </div>
+    );
+
+  return (
+    <div className="flex flex-col py-2">
+      {chats.map((chat) => (
+        <button
+          key={chat.id}
+          onClick={() => onSelect(chat.id)}
+          className={`px-4 py-3 text-left hover:bg-white/5 transition-all border-l-2 ${
+            currentId === chat.id
+              ? "border-gold bg-gold/5"
+              : "border-transparent"
+          }`}
+        >
+          <div className="text-xs font-medium text-white/80 truncate mb-1">
+            {chat.title || "Untitled Synthesis"}
+          </div>
+          <div className="text-xs text-white/30 truncate">
+            {chat.lastUpdatedAt?.toDate?.().toLocaleDateString() || "Recent"}
+          </div>
+        </button>
+      ))}
     </div>
   );
 }

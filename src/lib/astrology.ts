@@ -67,6 +67,7 @@ export interface PlanetaryPosition {
     house: number;
     is_retrograde: boolean;
     speed?: number;
+    nakshatra?: string;
 }
 
 export interface KundaliData {

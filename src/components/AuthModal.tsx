@@ -29,8 +29,8 @@ type AuthStep = "email" | "otp";
 export default function AuthModal({
   isOpen,
   onClose,
-  title = "Join the Cosmos",
-  message = "Continue your celestial journey by creating an account.",
+  title = "Create Your Profile",
+  message = "Save your birth charts and access AI insights by creating an account.",
 }: AuthModalProps) {
   const [step, setStep] = useState<AuthStep>("email");
   const [email, setEmail] = useState("");
@@ -212,7 +212,7 @@ export default function AuthModal({
           <>
             <div className="text-center mb-10">
               <span className="section-label mb-4 opacity-60">
-                Authentication
+                Secure Login
               </span>
               <h2 className="text-title text-3xl mb-4">{title}</h2>
               <p className="text-body text-sm opacity-70 px-4">{message}</p>
@@ -271,7 +271,7 @@ export default function AuthModal({
               )}
 
               <div>
-                <label className="block text-caption mb-2 opacity-50 uppercase tracking-widest text-[0.6rem] font-bold">
+                <label className="block text-caption mb-2 opacity-50 uppercase tracking-widest text-xs font-bold">
                   Email Address
                 </label>
                 <input

@@ -5,8 +5,7 @@
    TailwindCSS v4 Compatible
    ==================================== */
 
-/* --- CSS Custom Properties (Theme Variables) --- */
-:root {
+@theme {
   /* Core Palette */
   --color-bg-app: #030308;
   --color-bg-card: rgba(13, 13, 22, 0.7);
@@ -17,8 +16,8 @@
   --color-text-muted: #475569;
 
   /* Brand Accents */
-  --color-gold: #c5a059;
-  --color-gold-glow: rgba(197, 160, 89, 0.2);
+  --color-gold: #ffcd6a;
+  --color-gold-glow: rgba(255, 205, 106, 0.25);
   --color-indigo: #4f46e5;
   --color-violet: #7c3aed;
 
@@ -440,4 +439,76 @@ p {
     background: white;
     color: black;
   }
+}
+/* --- High-Fi Markdown Rendering --- */
+.prose-cosmic {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.prose-cosmic h1,
+.prose-cosmic h2,
+.prose-cosmic h3 {
+  font-family: var(--font-display);
+  color: var(--color-gold);
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.prose-cosmic h1 {
+  font-size: 1.5rem;
+}
+.prose-cosmic h2 {
+  font-size: 1.25rem;
+}
+.prose-cosmic h3 {
+  font-size: 1.1rem;
+}
+
+.prose-cosmic p {
+  margin-bottom: 1.25rem;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.prose-cosmic strong {
+  color: var(--color-gold);
+  font-weight: 700;
+}
+
+.prose-cosmic ul,
+.prose-cosmic ol {
+  margin-bottom: 1.5rem;
+  padding-left: 1.5rem;
+}
+
+.prose-cosmic li {
+  margin-bottom: 0.5rem;
+  position: relative;
+}
+
+.prose-cosmic ul li::before {
+  content: "✧";
+  position: absolute;
+  left: -1.25rem;
+  color: var(--color-gold);
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+
+.prose-cosmic blockquote {
+  border-left: 2px solid var(--color-gold);
+  padding-left: 1.5rem;
+  margin: 2rem 0;
+  font-style: italic;
+  opacity: 0.8;
+}
+
+.prose-cosmic hr {
+  border: none;
+  border-top: 1px solid var(--stroke-subtle);
+  margin: 3rem 0;
 }

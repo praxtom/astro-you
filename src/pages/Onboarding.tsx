@@ -24,11 +24,12 @@ export default function Onboarding() {
     tob: "",
     pob: "",
     currentLocation: "",
+    birthTimeUnknown: false,
   });
 
-  // Load existing data if guest already filled some in this session
+  // Load existing data from localStorage (persists across sessions)
   useEffect(() => {
-    const saved = sessionStorage.getItem("astroyou_temp_profile");
+    const saved = localStorage.getItem("astroyou_profile");
     if (saved) {
       setFormData(JSON.parse(saved));
     }
@@ -36,7 +37,7 @@ export default function Onboarding() {
 
   const saveStepData = (data: typeof formData) => {
     setFormData(data);
-    sessionStorage.setItem("astroyou_temp_profile", JSON.stringify(data));
+    localStorage.setItem("astroyou_profile", JSON.stringify(data));
   };
 
   const getCurrentLocation = () => {
@@ -70,32 +71,44 @@ export default function Onboarding() {
   };
 
   const finalizeJourney = async () => {
-    // Save to session regardless so chat can use it
-    sessionStorage.setItem("astroyou_profile_complete", "true");
+    const mode = sessionStorage.getItem("astroyou_mode");
 
-    if (user) {
+    if (user || mode === "logged_in") {
+      // Logged-in user: Save to Firestore for permanent storage
       setIsSaving(true);
       try {
-        await setDoc(
-          doc(db, "users", user.uid),
-          {
-            ...formData,
-            credits: 5, // Initial bonus
-            updatedAt: new Date(),
-          },
-          { merge: true }
-        );
-        navigate("/synthesis");
+        if (user) {
+          await setDoc(
+            doc(db, "users", user.uid),
+            {
+              profile: {
+                ...formData,
+              },
+              credits: 5, // Initial bonus
+              updatedAt: new Date(),
+            },
+            { merge: true }
+          );
+        }
+        // Also store in localStorage as backup
+        localStorage.setItem("astroyou_profile", JSON.stringify(formData));
+        localStorage.setItem("astroyou_profile_complete", "true");
+        navigate("/dashboard");
       } catch (err) {
         console.error("Error saving data:", err);
         alert("Connection interrupted. Your progress is saved locally.");
-        navigate("/synthesis");
+        navigate("/dashboard");
       } finally {
         setIsSaving(false);
       }
     } else {
-      // Guest path: just go to chat
-      navigate("/synthesis");
+      // Guest path: Only store in sessionStorage (clears on browser close)
+      sessionStorage.setItem(
+        "astroyou_guest_profile",
+        JSON.stringify(formData)
+      );
+      sessionStorage.setItem("astroyou_guest_complete", "true");
+      navigate("/dashboard");
     }
   };
 
@@ -153,21 +166,21 @@ export default function Onboarding() {
         {/* Step 1: Identity */}
         {step === "identity" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <span className="section-label mb-4 opacity-60 uppercase tracking-[0.3em] font-sans text-[0.6rem]">
+            <span className="section-label mb-4 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
               Step 01 / 04
             </span>
             <h2 className="text-title text-4xl mb-4 font-display tracking-tight">
-              The Traveler
+              Personal Basis
             </h2>
             <p className="text-body mb-10 opacity-70 font-sans font-light">
-              Reveal the name and essence bestowed upon your soul.
+              We'll start with your basic profile details.
             </p>
 
             <div className="space-y-8">
               <div>
                 <label
                   htmlFor="name-input"
-                  className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-[0.65rem] font-bold"
+                  className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-xs font-bold"
                 >
                   Full Name
                 </label>
@@ -187,8 +200,8 @@ export default function Onboarding() {
                 />
               </div>
               <div>
-                <label className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-[0.65rem] font-bold">
-                  Gender Essence
+                <label className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-xs font-bold">
+                  Gender
                 </label>
                 <div
                   className="grid grid-cols-3 gap-4"
@@ -224,7 +237,7 @@ export default function Onboarding() {
         {/* Step 2: Temporal */}
         {step === "temporal" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <span className="section-label mb-4 opacity-60 uppercase tracking-[0.3em] font-sans text-[0.6rem]">
+            <span className="section-label mb-4 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
               Step 02 / 04
             </span>
             <h2 className="text-title text-4xl mb-4 font-display tracking-tight">
@@ -237,7 +250,7 @@ export default function Onboarding() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div>
-                <label className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-[0.65rem] font-bold">
+                <label className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-xs font-bold">
                   Birth Date
                 </label>
                 <input
@@ -252,19 +265,54 @@ export default function Onboarding() {
                 />
               </div>
               <div>
-                <label className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-[0.65rem] font-bold">
+                <label className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-xs font-bold">
                   Birth Time
                 </label>
                 <input
                   type="time"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 outline-none focus:border-gold/50 transition-all text-xl font-sans font-light appearance-none invert-calendar-icon"
-                  value={formData.tob}
+                  className={`w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 outline-none focus:border-gold/50 transition-all text-xl font-sans font-light appearance-none invert-calendar-icon ${
+                    formData.birthTimeUnknown
+                      ? "opacity-40 cursor-not-allowed"
+                      : ""
+                  }`}
+                  value={formData.birthTimeUnknown ? "12:00" : formData.tob}
+                  disabled={formData.birthTimeUnknown}
                   onChange={(e) => {
                     const newData = { ...formData, tob: e.target.value };
                     setFormData(newData);
                     saveStepData(newData);
                   }}
                 />
+
+                {/* Unknown birth time checkbox */}
+                <label className="flex items-center gap-3 mt-4 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={formData.birthTimeUnknown}
+                    onChange={(e) => {
+                      const newData = {
+                        ...formData,
+                        birthTimeUnknown: e.target.checked,
+                        tob: e.target.checked ? "12:00" : formData.tob,
+                      };
+                      setFormData(newData);
+                      saveStepData(newData);
+                    }}
+                    className="w-5 h-5 rounded border-2 border-white/20 bg-white/5 checked:bg-gold checked:border-gold appearance-none cursor-pointer transition-all"
+                  />
+                  <span className="text-xs text-white/50 group-hover:text-white/70 transition-colors font-sans">
+                    I don't know my exact birth time
+                  </span>
+                </label>
+
+                {formData.birthTimeUnknown && (
+                  <div className="mt-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                    <p className="text-xs text-amber-400 font-sans">
+                      ⚠️ Using 12:00 noon. Ascendant and house positions may be
+                      less accurate.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -273,20 +321,20 @@ export default function Onboarding() {
         {/* Step 3: Spatial */}
         {step === "spatial" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <span className="section-label mb-4 opacity-60 uppercase tracking-[0.3em] font-sans text-[0.6rem]">
+            <span className="section-label mb-4 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
               Step 03 / 04
             </span>
             <h2 className="text-title text-4xl mb-4 font-display tracking-tight">
-              The Origin
+              Birth Location
             </h2>
             <p className="text-body mb-10 opacity-70 font-sans font-light">
-              The coordinates of your vessel's origin anchor your cosmic
-              blueprint.
+              Your location of birth is essential for accurate planetary
+              mapping.
             </p>
 
             <div className="space-y-6">
               <div>
-                <label className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-[0.65rem] font-bold">
+                <label className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-xs font-bold">
                   Birth Place
                 </label>
                 <input
@@ -308,7 +356,7 @@ export default function Onboarding() {
         {/* Step 4: Present */}
         {step === "present" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <span className="section-label mb-4 opacity-60 uppercase tracking-[0.3em] font-sans text-[0.6rem]">
+            <span className="section-label mb-4 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
               Step 04 / 04
             </span>
             <h2 className="text-title text-4xl mb-4 font-display tracking-tight">
@@ -320,7 +368,7 @@ export default function Onboarding() {
 
             <div className="space-y-6">
               <div className="relative">
-                <label className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-[0.65rem] font-bold">
+                <label className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-xs font-bold">
                   Current Location
                 </label>
                 <div className="relative group">
@@ -361,14 +409,14 @@ export default function Onboarding() {
           <button
             disabled={isSaving}
             onClick={prevStep}
-            className="btn btn-outline py-4 flex-1 font-bold tracking-widest text-[0.7rem] uppercase"
+            className="btn btn-outline py-4 flex-1 font-bold tracking-widest text-xs uppercase"
           >
             {step === "identity" ? "Cancel" : "Back"}
           </button>
           <button
             disabled={isSaving}
             onClick={nextStep}
-            className={`btn btn-primary py-4 flex-[2] font-bold tracking-widest text-[0.7rem] uppercase flex items-center justify-center gap-2 transition-all ${
+            className={`btn btn-primary py-4 flex-[2] font-bold tracking-widest text-xs uppercase flex items-center justify-center gap-2 transition-all ${
               (step === "identity" && (!formData.name || !formData.gender)) ||
               (step === "temporal" && (!formData.dob || !formData.tob)) ||
               (step === "spatial" && !formData.pob) ||
