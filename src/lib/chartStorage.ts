@@ -45,10 +45,8 @@ export async function uploadChartToStorage(
 ): Promise<string> {
     const timestamp = Date.now();
     const path = `users/${userId}/charts/${chartType}_chart_${timestamp}.png`;
-    const thumbPath = `users/${userId}/charts/${chartType}_thumb_${timestamp}.png`;
 
-    // Generate thumbnail blob from full blob (actually we need the element for html2canvas thumbnail)
-    // For simplicity, we'll just upload the same blob for now or skip thumbnail if not provided
+    // Note: Thumbnail is handled separately in captureAndUploadChart function
 
     const storageRef = ref(storage, path);
     await uploadBytes(storageRef, blob, {
