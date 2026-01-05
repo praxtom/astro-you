@@ -11,6 +11,13 @@
   to = "/.netlify/functions/:splat"
   status = 200
 
+# Firebase Auth reverse proxy - enables signInWithRedirect on Netlify
+[[redirects]]
+  from = "/__/auth/*"
+  to = "https://astro-you.firebaseapp.com/__/auth/:splat"
+  status = 200
+  force = true
+
 # SPA fallback for production
 [[redirects]]
   from = "/*"

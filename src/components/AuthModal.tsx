@@ -162,14 +162,24 @@ export default function AuthModal({
 
     try {
       if (isDev) {
+        // Use popup in development (works without Firebase Hosting)
         await signInWithPopup(auth, googleProvider);
         onClose();
       } else {
+        // Use redirect in production (requires reverse proxy in netlify.toml)
+        console.log("[Auth] Starting redirect sign-in...");
         await signInWithRedirect(auth, googleProvider);
+        // Note: After redirect, the page will reload and getRedirectResult will handle the result
       }
     } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Google sign-in failed.");
+      console.error("Google sign-in error:", err);
+      if (err.code === "auth/popup-blocked") {
+        setError("Popup was blocked. Please allow popups for this site.");
+      } else if (err.code === "auth/popup-closed-by-user") {
+        setError("Sign-in was cancelled.");
+      } else {
+        setError(err.message || "Google sign-in failed.");
+      }
       setIsGoogleLoading(false);
     }
   };
