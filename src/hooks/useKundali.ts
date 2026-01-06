@@ -78,8 +78,30 @@ export function useKundali(birthData: BirthData | null, chartType: ChartType = '
             const data = await response.json();
 
             // Transform API response to our format
+            const positions = data.planetary_positions || [];
+
+            // Calculate Ketu from Rahu (Mean_Node) - Ketu is always exactly 180° opposite
+            const rahuPos = positions.find((p: any) => p.name === 'Mean_Node');
+            if (rahuPos && !positions.find((p: any) => p.name === 'Mean_South_Node')) {
+                // Get opposite sign (6 signs away)
+                const signOrder = ['Ari', 'Tau', 'Gem', 'Can', 'Leo', 'Vir', 'Lib', 'Sco', 'Sag', 'Cap', 'Aqu', 'Pis'];
+                const rahuSignIdx = signOrder.indexOf(rahuPos.sign);
+                const ketuSignIdx = (rahuSignIdx + 6) % 12; // 180° opposite
+                const ketuHouse = ((rahuPos.house - 1 + 6) % 12) + 1; // Opposite house
+
+                positions.push({
+                    name: 'Mean_South_Node',
+                    sign: signOrder[ketuSignIdx],
+                    degree: rahuPos.degree, // Same degree as Rahu
+                    house: ketuHouse,
+                    is_retrograde: true, // Nodes are always retrograde
+                    nakshatra: '' // Will be calculated if needed
+                });
+                console.log('[useKundali] Calculated Ketu position:', signOrder[ketuSignIdx], ketuHouse);
+            }
+
             const kundali: KundaliData = {
-                planetary_positions: data.planetary_positions || [],
+                planetary_positions: positions,
                 house_cusps: data.house_cusps || [],
                 ascendant: data.ascendant || null
             };

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/AuthContext";
-import { useUserProfile } from "../hooks";
+import { useUserProfile, useHeaderScroll } from "../hooks";
 import {
   MessageSquare,
   Map as MapIcon,
@@ -97,6 +97,7 @@ export default function Dashboard() {
 
   // Use centralized hook for profile data
   const { profile, loading: isLoading } = useUserProfile();
+  const { isVisible, scrolled } = useHeaderScroll();
 
   // Also check for guest mode in sessionStorage
   const [guestData, setGuestData] = useState<any>(null);
@@ -204,20 +205,28 @@ export default function Dashboard() {
       </div>
 
       {/* Header */}
-      <header className="relative z-20 border-b border-white/5 bg-black/40 backdrop-blur-xl">
-        <div className="container mx-auto px-6 py-6 flex flex-row items-center justify-between">
+      <header
+        className={`fixed top-0 left-0 right-0 z-[1000] transition-all duration-700 ease-in-out ${
+          isVisible ? "translate-y-0" : "-translate-y-full"
+        } ${
+          scrolled
+            ? "bg-black/40 backdrop-blur-xl border-b border-white/5 py-3"
+            : "py-6"
+        }`}
+      >
+        <div className="container mx-auto px-6 flex flex-row items-center justify-between">
           <div className="flex items-center gap-8">
-            <a href="/" className="logo flex items-center gap-3">
+            <a href="/" className="logo flex items-center gap-3 group">
               <div className="relative w-8 h-8 flex items-center justify-center">
-                <div className="absolute inset-0 border border-gold/30 rounded-full animate-spin-slow"></div>
+                <div className="absolute inset-0 border border-gold/30 rounded-full animate-spin-slow group-hover:scale-110 transition-transform"></div>
                 <div className="w-1.5 h-1.5 bg-gold rounded-full"></div>
               </div>
-              <span className="font-display text-xl tracking-[0.3em] uppercase">
+              <span className="font-display text-lg tracking-[0.4em] uppercase text-white/90 group-hover:text-gold transition-colors">
                 AstroYou
               </span>
             </a>
 
-            <nav className="hidden lg:flex items-center gap-8 text-xs font-bold uppercase tracking-[0.2em] text-white/40">
+            <nav className="hidden lg:flex items-center gap-8 text-xs font-black  tracking-[0.3em] text-white/40">
               <span className="text-gold border-b border-gold/50 pb-1 cursor-default">
                 Dashboard
               </span>
@@ -235,22 +244,22 @@ export default function Dashboard() {
               <span className="text-xs font-bold text-white/90">
                 {userData?.profile?.name || userData?.name || "Seeker"}
               </span>
-              <span className="text-xs uppercase tracking-widest text-gold/60">
+              <span className="text-[10px] uppercase tracking-widest text-gold/60 font-black">
                 {user ? "Premium Member" : "Guest Mode"}
               </span>
             </div>
             <button
               onClick={handleLogout}
-              className="p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-white/40 hover:text-white"
+              className="p-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-white/40 hover:text-white"
               title="Logout"
             >
-              <LogOut size={18} />
+              <LogOut size={16} />
             </button>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-6 py-16 relative z-10">
+      <main className="container mx-auto pt-24 px-6 py-12 relative z-10">
         {/* Welcome Banner */}
         <section className="mb-20">
           <div className="relative glass p-10 md:p-14 overflow-hidden rounded-[2rem] border-white/10">
@@ -345,7 +354,6 @@ export default function Dashboard() {
       </main>
 
       <footer className="container mx-auto px-6 py-20 border-t border-white/5 opacity-30 text-xs uppercase tracking-[0.3em] flex justify-between">
-        <span>AstroYou System v0.8.2</span>
         <span>Coords: 28.6139° N, 77.2090° E</span>
       </footer>
 

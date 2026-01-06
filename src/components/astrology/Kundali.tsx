@@ -21,17 +21,16 @@ const Kundali: React.FC<KundaliProps> = ({ data, className = "" }) => {
     ? getSignNumberByCode(ascendantPos.sign)
     : 1;
 
-  const moonPos = data.planetary_positions.find((p) => p.name === "Moon");
-  const moonNakshatra = moonPos?.nakshatra ? moonPos.nakshatra : "CHITRA";
-
   // Map planets to houses
   const housePlanets: Record<number, any[]> = {};
   for (let i = 1; i <= 12; i++) housePlanets[i] = [];
 
   data.planetary_positions.forEach((p) => {
-    if (p.name !== "Ascendant") {
-      housePlanets[p.house]?.push(p);
-    }
+    // Exclude Ascendant and True Nodes (avoid duplicates)
+    // Western planets (Uranus, Neptune, Pluto) are now included by default
+    if (p.name === "Ascendant") return;
+    if (p.name === "True_Node" || p.name === "True_South_Node") return;
+    housePlanets[p.house]?.push(p);
   });
 
   // Calculate Rashi numbers for each house
@@ -43,36 +42,40 @@ const Kundali: React.FC<KundaliProps> = ({ data, className = "" }) => {
 
   const houseSigns = calculateHouseSigns(ascendantSignNum);
 
-  // SVG Coordinates (800x800)
+  // SVG Coordinates (800x800) for North Indian Kundali
+  // Houses progress ANTI-CLOCKWISE from H1 (top diamond)
+  // Reference: H1=top, H2=top-left, H3=left-upper, H4=left-center,
+  //   H5=left-lower, H6=bottom-left, H7=bottom, H8=bottom-right,
+  //   H9=right-lower, H10=right-center, H11=right-upper, H12=top-right
   const centers = [
-    { x: 400, y: 200 }, // H1
-    { x: 200, y: 100 }, // H2
-    { x: 100, y: 200 }, // H3
-    { x: 200, y: 400 }, // H4
-    { x: 100, y: 600 }, // H5
-    { x: 200, y: 700 }, // H6
-    { x: 400, y: 600 }, // H7
-    { x: 600, y: 700 }, // H8
-    { x: 700, y: 600 }, // H9
-    { x: 600, y: 400 }, // H10
-    { x: 700, y: 200 }, // H11
-    { x: 600, y: 100 }, // H12
+    { x: 400, y: 150 }, // H1  - top center diamond (Lagna)
+    { x: 200, y: 100 }, // H2  - top-left corner triangle
+    { x: 100, y: 200 }, // H3  - left side, upper triangle
+    { x: 200, y: 400 }, // H4  - left center diamond
+    { x: 100, y: 600 }, // H5  - left side, lower triangle
+    { x: 200, y: 700 }, // H6  - bottom-left corner triangle
+    { x: 400, y: 650 }, // H7  - bottom center diamond
+    { x: 600, y: 700 }, // H8  - bottom-right corner triangle
+    { x: 700, y: 600 }, // H9  - right side, lower triangle
+    { x: 600, y: 400 }, // H10 - right center diamond
+    { x: 700, y: 200 }, // H11 - right side, upper triangle
+    { x: 600, y: 100 }, // H12 - top-right corner triangle
   ];
 
-  // Rashi Number Positions (Offset from center or specific corners)
+  // Rashi/Sign Number Positions (placed in corners of each house region)
   const rashiPositions = [
-    { x: 400, y: 50 }, // H1
-    { x: 50, y: 50 }, // H2
-    { x: 50, y: 150 }, // H3
-    { x: 350, y: 400 }, // H4
-    { x: 50, y: 650 }, // H5
-    { x: 50, y: 750 }, // H6
-    { x: 400, y: 750 }, // H7
-    { x: 750, y: 750 }, // H8
-    { x: 750, y: 650 }, // H9
-    { x: 450, y: 400 }, // H10
-    { x: 750, y: 150 }, // H11
-    { x: 750, y: 50 }, // H12
+    { x: 400, y: 50 }, // H1  - top of top diamond
+    { x: 200, y: 50 }, // H2  - top-left corner
+    { x: 50, y: 200 }, // H3  - left edge, upper
+    { x: 160, y: 400 }, // H4  - inside left diamond
+    { x: 50, y: 600 }, // H5  - left edge, lower
+    { x: 200, y: 750 }, // H6  - bottom-left corner
+    { x: 400, y: 750 }, // H7  - bottom of bottom diamond
+    { x: 600, y: 750 }, // H8  - bottom-right corner
+    { x: 750, y: 600 }, // H9  - right edge, lower
+    { x: 640, y: 400 }, // H10 - inside right diamond
+    { x: 750, y: 200 }, // H11 - right edge, upper
+    { x: 600, y: 50 }, // H12 - top-right corner
   ];
 
   return (
@@ -155,11 +158,7 @@ const Kundali: React.FC<KundaliProps> = ({ data, className = "" }) => {
         {/* Central Overlay? No, keep it clean */}
       </svg>
 
-      {/* Legend/Info */}
-      <div className="kundali-footer mt-6 flex justify-between items-end opacity-40 uppercase tracking-widest text-xs">
-        <div>NAKSHATRA: {moonNakshatra}</div>
-        <div>SIDEREAL / WHOLE SIGN</div>
-      </div>
+      {/* Legend/Info - Removed Nakshatra/Sidereal labels as requested */}
     </div>
   );
 };

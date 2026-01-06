@@ -11,6 +11,7 @@ import { auth } from "../lib/firebase";
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
   title?: string;
   message?: string;
 }
@@ -28,6 +29,7 @@ type AuthStep = "email" | "otp";
 export default function AuthModal({
   isOpen,
   onClose,
+  onSuccess,
   title = "Create Your Profile",
   message = "Save your birth charts and access AI insights by creating an account.",
 }: AuthModalProps) {
@@ -146,6 +148,7 @@ export default function AuthModal({
       // Sign in with custom token
       await signInWithCustomToken(auth, data.token);
       onClose();
+      if (onSuccess) onSuccess();
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Invalid code. Please try again.");
@@ -165,6 +168,7 @@ export default function AuthModal({
         // Use popup in development (works without Firebase Hosting)
         await signInWithPopup(auth, googleProvider);
         onClose();
+        if (onSuccess) onSuccess();
       } else {
         // Use redirect in production (requires reverse proxy in netlify.toml)
         console.log("[Auth] Starting redirect sign-in...");

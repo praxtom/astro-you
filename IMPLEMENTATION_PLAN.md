@@ -121,7 +121,8 @@ Every feature ships complete. Every interaction is polished. Every detail matter
 | 3D Diamond View   | 3D North Indian Chart Layout      | ✅ COMPLETE |
 | Asset Refinement  | 4K Textures & Sanskrit full names | ✅ COMPLETE |
 | WebGL Stability   | Texture Pre-loading & Suspense    | ✅ COMPLETE |
-| Conversation Mgmt | Multiple chats, titles, archive   | ⏳          |
+| Conversation Mgmt | Multiple chats, delete, new chat  | ✅ COMPLETE |
+| Stateful API      | Google Interactions API context   | ✅ COMPLETE |
 | Transit Engine    | Real-time planetary positions     | ⏳          |
 
 **Definition of Done**:

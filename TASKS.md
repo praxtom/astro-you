@@ -98,7 +98,7 @@
 ### AI Chat (Synthesis)
 
 - [x] Create chat interface component
-- [x] Connect to Gemini 1.5 Flash API
+- [x] Connect to Gemini 2.5 Flash API
 - [x] Personalize prompts with birth data
 - [x] Implement 5-minute free trial timer
 - [x] Persist trial usage in localStorage
@@ -117,7 +117,7 @@
 
 ---
 
-## Phase 2: Kundali Engine ✅ COMPLETE
+## Phase 2: Kundali Engine 🔄 IN PROGRESS
 
 ### Astrology API Integration
 
@@ -161,11 +161,11 @@
 
 ### Chart Storage & Delivery
 
-- [x] Convert SVG to PNG for storage
-- [x] Upload chart to Firebase Storage on generation
-- [x] Organize storage: `/users/{uid}/charts/birth_chart.png`
-- [x] Store chart URL in Firestore user profile
-- [x] Generate thumbnail for list views
+- [x] Convert SVG to PNG for storage (function exists)
+- [ ] Upload chart to Firebase Storage on generation (not wired up)
+- [ ] Organize storage: `/users/{uid}/charts/birth_chart.png` (not wired up)
+- [ ] Store chart URL in Firestore user profile (not wired up)
+- [ ] Generate thumbnail for list views (not wired up)
 - [x] Implement chart regeneration on profile update
 
 ### Enhanced AI Integration
@@ -178,11 +178,11 @@
 
 ### Multimodal Chat Experience
 
-- [x] Detect chart-related user queries
+- [x] Detect chart-related user queries (keyword detection)
 - [x] Keywords: "chart", "house", "planet", "show me", "visualize"
-- [x] Generate relevant chart on detection
-- [x] Return chart image URL in API response
-- [x] Render inline chart in chat message
+- [x] Open expanded chart modal on detection
+- [ ] Return chart image URL in API response (not implemented)
+- [ ] Render inline chart in chat message (not implemented)
 - [x] Add chart zoom/expand modal
 - [x] Allow downloading chart from chat
 
@@ -205,14 +205,29 @@
 
 ### Conversation Management
 
-- [ ] Create chat sidebar component
-- [ ] List all conversations (newest first)
-- [ ] Auto-generate titles from first message
+- [x] Create chat sidebar component
+- [x] List all conversations (newest first)
+- [x] Auto-generate titles from first message
 - [ ] Allow manual title editing
-- [ ] "New Chat" button
-- [ ] Delete conversation (with confirmation)
+- [x] "New Chat" button
+- [x] Delete conversation (with inline confirmation)
 - [ ] Archive old conversations
 - [ ] Search across conversations (future)
+
+### Stateful Interactions API (Cost Optimization)
+
+- [x] Add `interactionId` state management
+- [x] Pass `previousInteractionId` to API
+- [x] Send only last message (not full history)
+- [x] Reset interaction ID on new chat
+
+### Jyotir AI Persona Refinements
+
+- [x] Yogi Jyotish persona (not AI chatbot)
+- [x] Ultra-short responses (2-4 lines max)
+- [x] No unnecessary questions
+- [x] Simple language (no technical jargon)
+- [x] No dashes/bullet points in responses
 
 ### Vision-Based Kundali Parsing
 

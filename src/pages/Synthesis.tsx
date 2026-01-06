@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Send,
@@ -56,10 +56,37 @@ export default function Synthesis() {
 
   // Use centralized hooks for data access (when user is logged in)
   const [currentChartType, setCurrentChartType] = useState<ChartType>("D1");
-  const { birthData: hookBirthData, loading: isLoadingProfile } =
-    useUserProfile();
+  const {
+    profile,
+    birthData: hookBirthData,
+    loading: isLoadingProfile,
+  } = useUserProfile();
   const { kundaliData: hookKundaliData, loading: isLoadingHookKundali } =
     useKundali(hookBirthData, currentChartType);
+
+  // Memoize Markdown components to prevent remounting subtrees on every render
+  const markdownComponents = useMemo(
+    () => ({
+      p: ({ children }: any) => (
+        <p className="mb-4 last:mb-0 text-sm md:text-base leading-relaxed whitespace-pre-wrap font-sans font-light">
+          {children}
+        </p>
+      ),
+      li: ({ children }: any) => <li className="mb-2 last:mb-0">{children}</li>,
+      h1: ({ children }: any) => (
+        <h1 className="font-display text-xl text-gold mt-6 mb-3">{children}</h1>
+      ),
+      h2: ({ children }: any) => (
+        <h2 className="font-display text-lg text-gold mt-5 mb-2">{children}</h2>
+      ),
+      h3: ({ children }: any) => (
+        <h3 className="font-display text-base text-gold mt-4 mb-2">
+          {children}
+        </h3>
+      ),
+    }),
+    []
+  );
 
   // Local state - needed for guest mode and chat functionality
   const [messages, setMessages] = useState<Message[]>([]);
@@ -76,6 +103,7 @@ export default function Synthesis() {
   const [isLoadingKundali, setIsLoadingKundali] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showExpandedChart, setShowExpandedChart] = useState(false);
+  const [interactionId, setInteractionId] = useState<string | null>(null); // Google Interactions API context
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const WELCOME_MESSAGE: Message = {
@@ -92,6 +120,13 @@ export default function Synthesis() {
       setBirthData(hookBirthData);
     }
   }, [hookBirthData]);
+
+  // Sync credits from profile
+  useEffect(() => {
+    if (profile) {
+      setCredits(profile.credits || 0);
+    }
+  }, [profile]);
 
   // 2. Handle guest data and onboarding trigger
   useEffect(() => {
@@ -171,6 +206,9 @@ export default function Synthesis() {
 
   // Handle Chat Persistence & Loading
   useEffect(() => {
+    // Reset interaction ID when chat changes (new conversation context)
+    setInteractionId(null);
+
     if (!user) {
       setMessages([WELCOME_MESSAGE]);
       return;
@@ -369,16 +407,21 @@ export default function Synthesis() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: [...messages, userMsg].map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
+          // Only send the last message - Google manages conversation history via interactionId
+          messages: [{ role: userMsg.role, content: userMsg.content }],
           birthData,
           kundaliData,
+          previousInteractionId: interactionId, // Pass previous interaction for context
         }),
       });
 
       const data = await response.json();
+
+      // Store the new interaction ID for next turn
+      if (data.interactionId) {
+        setInteractionId(data.interactionId);
+      }
+
       if (data.content) {
         const aiMsg: Message = {
           id: (Date.now() + 1).toString(),
@@ -443,13 +486,13 @@ export default function Synthesis() {
                   setCurrentChatId(null);
                   navigate("/synthesis");
                 }}
-                className="w-full btn btn-outline !py-3 text-xs uppercase flex items-center justify-center gap-2 group whitespace-nowrap"
+                className="w-full btn btn-outline !py-3 text-xs rounded-lg flex items-center justify-center gap-2 group whitespace-nowrap"
               >
                 <Plus
                   size={14}
                   className="group-hover:rotate-90 transition-transform"
                 />
-                New Synthesis
+                New Chat
               </button>
             </div>
 
@@ -460,6 +503,21 @@ export default function Synthesis() {
                 onSelect={(id) => {
                   setCurrentChatId(id);
                   navigate(`/synthesis/${id}`);
+                }}
+                onDelete={async (id) => {
+                  try {
+                    // Delete chat document from Firestore
+                    const { deleteDoc } = await import("firebase/firestore");
+                    await deleteDoc(doc(db, "users", user.uid, "chats", id));
+
+                    // If we deleted the current chat, navigate to new chat
+                    if (currentChatId === id) {
+                      setCurrentChatId(null);
+                      navigate("/synthesis");
+                    }
+                  } catch (err) {
+                    console.error("Failed to delete chat:", err);
+                  }
                 }}
               />
             </div>
@@ -545,8 +603,7 @@ export default function Synthesis() {
                 >
                   <div className="absolute inset-0 bg-gold/5 opacity-0 group-hover:opacity-100 rounded-full blur-2xl transition-opacity" />
                   <Kundali data={kundaliData} />
-                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
-                    <Sparkles size={12} className="text-gold" />
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md px-2 py-3 rounded-full border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
                     <span className="text-xs uppercase tracking-[0.2em] text-white">
                       Expand Chart
                     </span>
@@ -581,7 +638,7 @@ export default function Synthesis() {
                     size={14}
                     className="text-gold group-hover:scale-110 transition-transform"
                   />
-                  <span className="text-xs uppercase tracking-widest font-bold text-gold">
+                  <span className="text-xs tracking font-bold text-gold">
                     Update Details
                   </span>
                 </button>
@@ -589,7 +646,7 @@ export default function Synthesis() {
 
               <div className="mt-3 space-y-2">
                 <div className="p-3 rounded-xl bg-white/5 border border-white/5">
-                  <h4 className="text-xs uppercase tracking-widest text-gold/60 mb-2">
+                  <h4 className="text-sm uppercase tracking-widest text-gold/60 mb-2">
                     Chart Essence
                   </h4>
                   <p className="text-xs font-sans font-light opacity-60 leading-relaxed">
@@ -620,8 +677,8 @@ export default function Synthesis() {
                     ) : (
                       <CreditCard size={16} className="text-gold" />
                     )}
-                    <span className="text-xs uppercase tracking-widest text-white/80">
-                      {isPaying ? "Processing..." : "Refill Essence"}
+                    <span className="text-sm text-white/80">
+                      {isPaying ? "Processing..." : "Add More Minutes"}
                     </span>
                   </div>
                   <Plus
@@ -670,6 +727,8 @@ export default function Synthesis() {
             ref={scrollRef}
             className="flex-1 overflow-y-auto p-2 md:p-6 space-y-4 relative z-10 custom-scrollbar"
           >
+            {/* Atmospheric Aura */}
+            <div className="aura-bg opacity-50 absolute inset-0 -z-10 pointer-events-none" />
             {messages.length === 0 && !isSynthesizing && (
               <div className="h-full flex flex-col items-center justify-center opacity-30 text-center gap-6">
                 <div className="w-16 h-16 rounded-full border border-gold/20 flex items-center justify-center text-gold">
@@ -691,7 +750,11 @@ export default function Synthesis() {
                 key={m.id}
                 className={`flex ${
                   m.role === "user" ? "justify-end" : "justify-start"
-                } animate-in fade-in slide-in-from-bottom-2 duration-500`}
+                } ${
+                  m.role === "user"
+                    ? "animate-message-send"
+                    : "animate-reveal-progressive"
+                }`}
               >
                 <div className="max-w-[90%] md:max-w-[85%] group">
                   <div
@@ -702,37 +765,31 @@ export default function Synthesis() {
                     {m.role === "user" ? "You" : "Jyotir"}
                     <span>•</span>
                     <span>
-                      {m.timestamp.toLocaleTimeString([], {
+                      {m.timestamp.toLocaleTimeString("en-GB", {
                         hour: "2-digit",
                         minute: "2-digit",
-                      })}
+                        timeZone: "UTC",
+                      })}{" "}
+                      GMT
                     </span>
                   </div>
                   <div
-                    className={`p-3 md:p-5 rounded-2xl md:rounded-3xl border transition-all duration-300 ${
+                    className={`px-4 py-3 rounded-2xl md:rounded-3xl border transition-all duration-300 ${
                       m.role === "user"
                         ? "bg-white/5 border-white/10 group-hover:bg-white/10"
                         : "bg-surface-accent/10 border-gold/10 group-hover:border-gold/20"
                     }`}
                   >
                     <div
-                      className={m.role === "assistant" ? "prose-cosmic" : ""}
+                      className={
+                        m.role === "assistant"
+                          ? "prose-cosmic animate-reveal-progressive"
+                          : ""
+                      }
                     >
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
-                        components={{
-                          p: ({ children }) => (
-                            <p
-                              className={
-                                m.role === "user"
-                                  ? "text-sm md:text-base leading-relaxed whitespace-pre-wrap font-sans font-light"
-                                  : ""
-                              }
-                            >
-                              {children}
-                            </p>
-                          ),
-                        }}
+                        components={markdownComponents as any}
                       >
                         {m.content}
                       </ReactMarkdown>
@@ -751,7 +808,7 @@ export default function Synthesis() {
                   <div className="p-4 rounded-3xl border border-gold/10 bg-surface-accent/10 flex items-center gap-4">
                     <Loader2 size={16} className="animate-spin text-gold" />
                     <span className="text-xs uppercase tracking-[0.3em] text-gold/60 animate-pulse">
-                      Thinking...
+                      Typing...
                     </span>
                   </div>
                 </div>
@@ -827,13 +884,16 @@ function ConversationsList({
   userId,
   currentId,
   onSelect,
+  onDelete,
 }: {
   userId: string;
   currentId: string | null;
   onSelect: (id: string) => void;
+  onDelete: (id: string) => void;
 }) {
   const [chats, setChats] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
 
   useEffect(() => {
     const q = query(
@@ -849,6 +909,22 @@ function ConversationsList({
     return () => unsubscribe();
   }, [userId]);
 
+  const handleDeleteClick = (e: React.MouseEvent, chatId: string) => {
+    e.stopPropagation();
+    setConfirmingDelete(chatId);
+  };
+
+  const handleConfirmDelete = (e: React.MouseEvent, chatId: string) => {
+    e.stopPropagation();
+    onDelete(chatId);
+    setConfirmingDelete(null);
+  };
+
+  const handleCancelDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setConfirmingDelete(null);
+  };
+
   if (isLoading)
     return (
       <div className="p-4 text-xs uppercase tracking-widest opacity-20">
@@ -857,30 +933,101 @@ function ConversationsList({
     );
   if (chats.length === 0)
     return (
-      <div className="p-4 text-xs uppercase tracking-widest opacity-20 italic">
-        No past dialogues.
+      <div className="p-4 text-xs tracking-widest opacity-20 italic">
+        No past conversation.
       </div>
     );
 
   return (
     <div className="flex flex-col py-2">
       {chats.map((chat) => (
-        <button
+        <div
           key={chat.id}
-          onClick={() => onSelect(chat.id)}
-          className={`px-4 py-3 text-left hover:bg-white/5 transition-all border-l-2 ${
+          className={`group flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-all border-l-2 cursor-pointer ${
             currentId === chat.id
               ? "border-gold bg-gold/5"
               : "border-transparent"
           }`}
+          onClick={() => onSelect(chat.id)}
         >
-          <div className="text-xs font-medium text-white/80 truncate mb-1">
-            {chat.title || "Untitled Synthesis"}
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-medium text-white/80 truncate mb-1">
+              {chat.title || "Untitled Synthesis"}
+            </div>
+            <div className="text-xs text-white/30 truncate">
+              {chat.lastUpdatedAt?.toDate?.().toLocaleDateString() || "Recent"}
+            </div>
           </div>
-          <div className="text-xs text-white/30 truncate">
-            {chat.lastUpdatedAt?.toDate?.().toLocaleDateString() || "Recent"}
-          </div>
-        </button>
+
+          {confirmingDelete === chat.id ? (
+            // Inline confirmation UI
+            <div className="flex items-center gap-1 animate-in fade-in duration-200">
+              <span className="text-xs text-red-400 mr-1">Delete?</span>
+              <button
+                onClick={(e) => handleConfirmDelete(e, chat.id)}
+                className="p-1 rounded hover:bg-red-500/30 text-red-400 transition-all"
+                title="Confirm delete"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </button>
+              <button
+                onClick={handleCancelDelete}
+                className="p-1 rounded hover:bg-white/10 text-white/50 transition-all"
+                title="Cancel"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+          ) : (
+            // Delete button (shows on hover)
+            <button
+              onClick={(e) => handleDeleteClick(e, chat.id)}
+              className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-500/20 text-white/30 hover:text-red-400 transition-all"
+              title="Delete chat"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M3 6h18" />
+                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+              </svg>
+            </button>
+          )}
+        </div>
       ))}
     </div>
   );

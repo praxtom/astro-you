@@ -32,7 +32,24 @@ interface TransitPlanetProps {
   hasRings?: boolean;
   zLayer: number; // Unique Z depth to prevent overlap
   orbitRadius: number; // Assigned orbital path radius
+  isVisible?: boolean;
+  isPaused?: boolean;
+  scrollAngle?: number; // Fixed angle for equidistant ring during scrollytelling
 }
+
+interface ShadowPlanetProps {
+  name: string;
+  size: number;
+  color: string;
+  transitSpeed: number;
+  startHouse: number;
+  orbitRadius: number;
+  isVisible?: boolean;
+  isPaused?: boolean;
+  scrollAngle?: number; // Fixed angle for equidistant ring during scrollytelling
+}
+
+interface TransitPlanetComponentProps extends TransitPlanetProps {}
 
 // --- Cosmic Dust Particles ---
 function CosmicDust() {
@@ -71,10 +88,10 @@ function CosmicDust() {
         />
       </bufferGeometry>
       <pointsMaterial
-        size={0.08}
+        size={0.03}
         color="#c5a059"
         transparent
-        opacity={0.4}
+        opacity={0.25}
         sizeAttenuation
         blending={THREE.AdditiveBlending}
       />
@@ -92,7 +109,7 @@ function KundaliGrid() {
   });
 
   const lines = useMemo(() => {
-    const s = 15;
+    const s = 1;
     return [
       [
         [s, s, 0],
@@ -314,27 +331,38 @@ function TransitPlanet({
   planetType,
   retrograde = false,
   hasRings = false,
+  isVisible = true,
+  isPaused = false,
   zLayer,
   orbitRadius,
-}: TransitPlanetProps) {
+  scrollAngle,
+}: TransitPlanetComponentProps) {
   const meshRef = useRef<THREE.Group>(null!);
   const texture = useLoader(THREE.TextureLoader, textureMap);
   const currentPos = useRef(new THREE.Vector3(0, 0, 0));
   const phaseOffset = useMemo(() => Math.random() * Math.PI * 2, []);
 
+  // Fixed orbit radius for scrollytelling ring
+  const SCROLL_ORBIT_RADIUS = 6;
+
   useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
+    // Stop time during scrolling to keep targets consistent
+    const t = isPaused ? 0 : clock.getElapsedTime();
 
     // Retrograde moves backwards
     const direction = retrograde ? -1 : 1;
     const houseProgress =
       ((t * direction) / transitSpeed + startHouse + 12) % 12;
 
-    // Calculate orbital angle based on house progress
+    // Calculate orbital angle based on house progress OR scrollAngle
     const houseAngle = getHouseAngle(houseProgress);
+    const activeAngle =
+      isPaused && scrollAngle !== undefined ? scrollAngle : houseAngle;
+    const activeOrbit =
+      isPaused && scrollAngle !== undefined ? SCROLL_ORBIT_RADIUS : orbitRadius;
 
-    const targetX = Math.cos(houseAngle) * orbitRadius;
-    const targetY = Math.sin(houseAngle) * orbitRadius;
+    const targetX = Math.cos(activeAngle) * activeOrbit;
+    const targetY = Math.sin(activeAngle) * activeOrbit;
 
     const breathX = Math.sin(t * 0.35 + phaseOffset) * 0.15;
     const breathY = Math.sin(t * 0.3 + phaseOffset * 1.3) * 0.15;
@@ -354,6 +382,8 @@ function TransitPlanet({
     );
     currentPos.current.z = floatZ;
 
+    // Fade out when not focused
+    meshRef.current.visible = isVisible;
     meshRef.current.position.copy(currentPos.current);
     meshRef.current.rotation.y += retrograde ? -0.003 : 0.002;
   });
@@ -368,7 +398,6 @@ function TransitPlanet({
         />
       </Sphere>
       {hasRings && <SaturnRings size={size} />}
-      <PlanetAura size={size} color={color} planetType={planetType} />
     </group>
   );
 }
@@ -381,27 +410,32 @@ function ShadowPlanet({
   transitSpeed,
   startHouse,
   orbitRadius,
-}: {
-  name: string;
-  size: number;
-  color: string;
-  transitSpeed: number;
-  startHouse: number;
-  orbitRadius: number;
-}) {
+  isVisible = true,
+  isPaused = false,
+  scrollAngle,
+}: ShadowPlanetProps) {
   const meshRef = useRef<THREE.Group>(null!);
   const currentPos = useRef(new THREE.Vector3(0, 0, 0));
   const phaseOffset = useMemo(() => Math.random() * Math.PI * 2, []);
 
+  // Fixed orbit radius for scrollytelling ring
+  const SCROLL_ORBIT_RADIUS = 6;
+
   useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
+    const t = isPaused ? 0 : clock.getElapsedTime();
 
     // Shadow planets always retrograde
     const houseProgress = (-t / transitSpeed + startHouse + 120) % 12;
     const houseAngle = getHouseAngle(houseProgress);
 
-    const targetX = Math.cos(houseAngle) * orbitRadius;
-    const targetY = Math.sin(houseAngle) * orbitRadius;
+    // Use scrollAngle when paused (during scrollytelling)
+    const activeAngle =
+      isPaused && scrollAngle !== undefined ? scrollAngle : houseAngle;
+    const activeOrbit =
+      isPaused && scrollAngle !== undefined ? SCROLL_ORBIT_RADIUS : orbitRadius;
+
+    const targetX = Math.cos(activeAngle) * activeOrbit;
+    const targetY = Math.sin(activeAngle) * activeOrbit;
     const floatZ = 0.5 + Math.sin(t * 0.15 + phaseOffset) * 0.2;
 
     currentPos.current.x = THREE.MathUtils.lerp(
@@ -416,6 +450,7 @@ function ShadowPlanet({
     );
     currentPos.current.z = floatZ;
 
+    meshRef.current.visible = isVisible;
     meshRef.current.position.copy(currentPos.current);
     meshRef.current.rotation.y -= 0.004;
     meshRef.current.rotation.x = Math.sin(t * 0.3) * 0.1;
@@ -438,20 +473,25 @@ function ShadowPlanet({
         <torusGeometry args={[size * 1.4, 0.03, 16, 32]} />
         <meshBasicMaterial color={color} transparent opacity={0.5} />
       </mesh>
-      <PlanetAura size={size} color={color} planetType="shadow" />
     </group>
   );
 }
 
 // --- Enhanced Sun with Corona ---
-function VedicSun() {
+function VedicSun({
+  isVisible = true,
+  isPaused = false,
+}: {
+  isVisible?: boolean;
+  isPaused?: boolean;
+}) {
   const meshRef = useRef<THREE.Mesh>(null!);
   const coronaRef = useRef<THREE.Mesh>(null!);
   const raysRef = useRef<THREE.Group>(null!);
   const texture = useLoader(THREE.TextureLoader, "/assets/planets/sun.png");
 
   useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
+    const t = isPaused ? 0 : clock.getElapsedTime();
     meshRef.current.rotation.y -= 0.0006;
     coronaRef.current.rotation.z = t * 0.05;
     coronaRef.current.scale.setScalar(1 + Math.sin(t * 0.8) * 0.08);
@@ -484,56 +524,174 @@ function VedicSun() {
         />
       </Sphere>
 
-      {/* Corona glow */}
-      <Sphere ref={coronaRef} args={[1.8, 32, 32]}>
-        <meshBasicMaterial
-          color="#FFD700"
-          transparent
-          opacity={0.15}
-          blending={THREE.AdditiveBlending}
-        />
-      </Sphere>
+      {/* Corona & Rays - User requested removal for cleaner scrolly focus */}
+      <group visible={!isPaused}>
+        {/* Corona glow */}
+        <Sphere ref={coronaRef} args={[1.8, 32, 32]}>
+          <meshBasicMaterial
+            color="#FFD700"
+            transparent
+            opacity={0.15}
+            blending={THREE.AdditiveBlending}
+          />
+        </Sphere>
 
-      {/* God rays */}
-      <group ref={raysRef}>
-        {rays.map((ray, i) => (
-          <mesh key={i} position={[0, 0, -0.1]} rotation={[0, 0, ray.angle]}>
-            <planeGeometry args={[0.08, ray.length]} />
-            <meshBasicMaterial
-              color="#FFD700"
-              transparent
-              opacity={0.1}
-              blending={THREE.AdditiveBlending}
-              side={THREE.DoubleSide}
-            />
-          </mesh>
-        ))}
+        {/* God rays */}
+        <group ref={raysRef}>
+          {rays.map((ray, i) => (
+            <mesh key={i} position={[0, 0, -0.1]} rotation={[0, 0, ray.angle]}>
+              <planeGeometry args={[0.08, ray.length]} />
+              <meshBasicMaterial
+                color="#FFD700"
+                transparent
+                opacity={0.1}
+                blending={THREE.AdditiveBlending}
+                side={THREE.DoubleSide}
+              />
+            </mesh>
+          ))}
+        </group>
       </group>
 
-      <pointLight intensity={3} distance={80} color="#FFD700" decay={1.8} />
-      <pointLight intensity={1} distance={40} color="#ff9500" decay={2} />
+      <pointLight
+        intensity={isVisible ? 3 : 0}
+        distance={80}
+        color="#FFD700"
+        decay={1.8}
+      />
     </group>
   );
 }
 
-// --- Steady Camera ---
-function SteadyCameraRig() {
-  useFrame((state) => {
-    const t = state.clock.getElapsedTime();
-    const subtleX = Math.sin(t * 0.05) * 0.5;
-    const subtleY = Math.sin(t * 0.04) * 0.3;
+// --- Scrollytelling Camera Rig ---
+interface CameraState {
+  pos: THREE.Vector3;
+  lookAt: THREE.Vector3;
+}
 
-    // Increase distance (Z) to ensure edge planets (radius 12.5) stay in view
-    // and shift X to -10 to push the chart center to the right half of the screen
-    const targetPos = new THREE.Vector3(-12 + subtleX, 1 + subtleY, 65);
-    state.camera.position.lerp(targetPos, 0.004);
-    state.camera.lookAt(0, 0, 0);
+function ScrollyCameraRig({ progress }: { progress: number }) {
+  useFrame((state) => {
+    // Constants for the equidistant ring
+    const PLANET_RING_RADIUS = 6;
+    const CAMERA_ORBIT_RADIUS = 12; // Camera orbits outside the ring
+    const CAMERA_Z = 8; // Consistent depth
+
+    // Generate camera scenes based on planet angles
+    // 0: Hero, 1: Sun, 2-7: 6 Planets, 8: Rahu, 9: Ketu, 10: Synthesis
+    const scenes: CameraState[] = [];
+
+    // Scene 0: Hero (wide shot)
+    scenes.push({
+      pos: new THREE.Vector3(-8, 1, 50),
+      lookAt: new THREE.Vector3(0, 0, 0),
+    });
+
+    // Scene 1: Sun (center)
+    scenes.push({
+      pos: new THREE.Vector3(0, -4, 10),
+      lookAt: new THREE.Vector3(0, 0, 0),
+    });
+
+    // Scenes 2-9: Planets on equidistant ring (Moon, Mercury, Venus, Mars, Jupiter, Saturn, Rahu, Ketu)
+    for (let i = 0; i < 8; i++) {
+      const planetAngle = Math.PI / 2 + (i / 8) * Math.PI * 2;
+      const planetX = Math.cos(planetAngle) * PLANET_RING_RADIUS;
+      const planetY = Math.sin(planetAngle) * PLANET_RING_RADIUS;
+
+      // Camera positioned opposite the planet, looking at it
+      const cameraAngle = planetAngle + Math.PI; // Opposite side
+      const cameraX = Math.cos(cameraAngle) * CAMERA_ORBIT_RADIUS * 0.01;
+      const cameraY = Math.sin(cameraAngle) * CAMERA_ORBIT_RADIUS * 0.01;
+
+      scenes.push({
+        pos: new THREE.Vector3(cameraX, cameraY, CAMERA_Z),
+        lookAt: new THREE.Vector3(planetX, planetY, 0),
+      });
+    }
+
+    // Scene 10: Synthesis (pull back to see full ring)
+    scenes.push({
+      pos: new THREE.Vector3(0, 0, 60),
+      lookAt: new THREE.Vector3(0, 0, 0),
+    });
+
+    // 2. Interpolate between scenes based on progress
+    const totalScenes = scenes.length - 1;
+    const sceneIndex = Math.min(
+      Math.floor(progress * totalScenes),
+      totalScenes - 1
+    );
+    const sceneProgress = (progress * totalScenes) % 1;
+
+    const start = scenes[sceneIndex];
+    const end = scenes[sceneIndex + 1];
+
+    const currentPos = new THREE.Vector3().lerpVectors(
+      start.pos,
+      end.pos,
+      sceneProgress
+    );
+    const currentLookAt = new THREE.Vector3().lerpVectors(
+      start.lookAt,
+      end.lookAt,
+      sceneProgress
+    );
+
+    // 3. Apply subtle float/noise
+    const t = state.clock.getElapsedTime();
+    currentPos.x += Math.sin(t * 0.1) * 0.2;
+    currentPos.y += Math.cos(t * 0.12) * 0.15;
+
+    state.camera.position.lerp(currentPos, 0.1);
+
+    // Smoothing the lookAt
+    const targetLookAt = new THREE.Vector3();
+    state.camera.getWorldDirection(targetLookAt);
+    targetLookAt.add(state.camera.position); // Direction to point in world space
+
+    // Force stable 'up' vector to prevent flipping during sharp interpolation
+    state.camera.up.set(0, 1, 0);
+    state.camera.lookAt(currentLookAt);
   });
+
   return null;
 }
 
+function NarrativeAmbiance({ progress }: { progress: number }) {
+  const ambientRef = useRef<THREE.AmbientLight>(null!);
+  const mainLightRef = useRef<THREE.DirectionalLight>(null!);
+
+  useFrame(() => {
+    // Dim background as we isolate planets
+    const intensity = progress > 0.05 && progress < 0.95 ? 0.2 : 0.6;
+    ambientRef.current.intensity = intensity;
+    mainLightRef.current.intensity = 0.8 + intensity;
+  });
+
+  return (
+    <>
+      <ambientLight ref={ambientRef} intensity={0.45} />
+      <directionalLight
+        ref={mainLightRef}
+        position={[-10, 15, 10]}
+        intensity={1.6}
+        color="#ffffff"
+      />
+      <directionalLight
+        position={[10, -5, 5]}
+        intensity={0.3}
+        color="#c5a059"
+      />
+    </>
+  );
+}
+
 // --- Main Export ---
-export default function CelestialEngine() {
+export default function CelestialEngine({
+  progress = 0,
+}: {
+  progress?: number;
+}) {
   const planets: TransitPlanetProps[] = [
     {
       name: "Moon",
@@ -543,7 +701,7 @@ export default function CelestialEngine() {
       transitSpeed: 8,
       startHouse: 2,
       planetType: "benefic",
-      zLayer: 3.5,
+      zLayer: -0.5,
       orbitRadius: HOUSE_RADII.inner,
     },
     {
@@ -554,7 +712,7 @@ export default function CelestialEngine() {
       transitSpeed: 22,
       startHouse: 4,
       planetType: "neutral",
-      zLayer: 2.5,
+      zLayer: 2,
       orbitRadius: HOUSE_RADII.inner,
     },
     {
@@ -565,7 +723,7 @@ export default function CelestialEngine() {
       transitSpeed: 28,
       startHouse: 6,
       planetType: "benefic",
-      zLayer: 2.0,
+      zLayer: 0.8,
       orbitRadius: HOUSE_RADII.middle,
     },
     {
@@ -576,7 +734,7 @@ export default function CelestialEngine() {
       transitSpeed: 40,
       startHouse: 8,
       planetType: "malefic",
-      zLayer: 1.5,
+      zLayer: 1,
       orbitRadius: HOUSE_RADII.middle,
     },
     {
@@ -610,48 +768,60 @@ export default function CelestialEngine() {
         <PerspectiveCamera makeDefault position={[0, 3, 65]} fov={32} />
         <color attach="background" args={["#030308"]} />
 
-        <SteadyCameraRig />
+        <ScrollyCameraRig progress={progress} />
 
-        {/* Lighting */}
-        <ambientLight intensity={0.45} />
-        <directionalLight
-          position={[-10, 15, 10]}
-          intensity={1.6}
-          color="#ffffff"
-        />
-        <directionalLight
-          position={[10, -5, 5]}
-          intensity={0.3}
-          color="#c5a059"
-        />
+        {/* Narrative-controlled Lighting */}
+        <NarrativeAmbiance progress={progress} />
 
-        {/* Deep space stars */}
+        {/* Deep space stars - very small factor to appear as fine points */}
         <Stars
           radius={300}
-          depth={80}
-          count={4000}
-          factor={3}
+          depth={100}
+          count={8000}
+          factor={0.8}
           saturation={0}
           fade
-          speed={0.02}
+          speed={0.01}
         />
 
         <React.Suspense fallback={null}>
           {/* Cosmic dust */}
           <CosmicDust />
 
-          {/* Sacred geometry */}
-          <KundaliGrid />
+          {/* Sacred geometry - fade out during focus */}
+          <group visible={progress < 0.05 || progress > 0.95}>
+            <KundaliGrid />
+          </group>
 
           {/* Central Sun */}
-          <VedicSun />
+          <VedicSun
+            isPaused={progress > 0}
+            isVisible={progress < 0.15 || progress > 0.95}
+          />
 
           {/* Main planets */}
-          {planets.map((p) => (
-            <TransitPlanet key={p.name} {...p} />
-          ))}
+          {planets.map((p, idx) => {
+            // Calculate focus (Moon=0.2, Merc=0.3, Ven=0.4, Mars=0.5, Jup=0.6, Sat=0.7)
+            const sceneFocus = (idx + 2) / 10;
+            const isTarget = Math.abs(progress - sceneFocus) < 0.08; // Wider window for smoother transition
+            const showOnlyTarget = progress > 0.15 && progress < 0.8;
 
-          {/* Shadow planets (Rahu & Ketu) - retrograde */}
+            // Equidistant angle: total 8 bodies (6 planets + Rahu + Ketu)
+            // Starting from top (π/2), going clockwise
+            const scrollAngle = Math.PI / 2 + (idx / 8) * Math.PI * 2;
+
+            return (
+              <TransitPlanet
+                key={p.name}
+                {...p}
+                isPaused={progress > 0}
+                isVisible={!showOnlyTarget || isTarget}
+                scrollAngle={scrollAngle}
+              />
+            );
+          })}
+
+          {/* Shadow planets (Rahu & Ketu) */}
           <ShadowPlanet
             name="Rahu"
             size={0.4}
@@ -659,6 +829,13 @@ export default function CelestialEngine() {
             transitSpeed={100}
             startHouse={3}
             orbitRadius={HOUSE_RADII.far}
+            isPaused={progress > 0}
+            scrollAngle={Math.PI / 2 + (6 / 8) * Math.PI * 2} // Equidistant angle for Rahu (7th of 8)
+            isVisible={
+              progress < 0.15 ||
+              Math.abs(progress - 0.8) < 0.08 ||
+              progress > 0.95
+            }
           />
           <ShadowPlanet
             name="Ketu"
@@ -667,6 +844,13 @@ export default function CelestialEngine() {
             transitSpeed={100}
             startHouse={9}
             orbitRadius={HOUSE_RADII.far}
+            isPaused={progress > 0}
+            scrollAngle={Math.PI / 2 + (7 / 8) * Math.PI * 2} // Equidistant angle for Ketu (8th of 8)
+            isVisible={
+              progress < 0.15 ||
+              Math.abs(progress - 0.9) < 0.08 ||
+              progress > 0.95
+            }
           />
         </React.Suspense>
       </Canvas>

@@ -1,9 +1,9 @@
 /**
  * Gemini AI Service - Centralized wrapper for all Gemini API calls
- * This prevents code duplication and ensures consistent AI behavior
+ * Migrated to the new @google/genai SDK with Full Features
  */
 
-import { GoogleGenerativeAI, GenerativeModel, ChatSession } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
 // Types
 export interface UserContext {
@@ -27,23 +27,26 @@ export interface HoroscopeRequest {
     language?: "en" | "hi";
 }
 
+export interface SynthesisResponse {
+    content: string;
+    interactionId: string;
+}
+
 // Singleton instance
-let genAI: GoogleGenerativeAI | null = null;
-let model: GenerativeModel | null = null;
+let ai: GoogleGenAI | null = null;
 
 /**
  * Initialize Gemini client (singleton pattern)
  */
-function getModel(): GenerativeModel {
-    if (!model) {
+function getClient(): GoogleGenAI {
+    if (!ai) {
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey) {
             throw new Error("GEMINI_API_KEY not configured");
         }
-        genAI = new GoogleGenerativeAI(apiKey);
-        model = genAI.getGenerativeModel({ model: "gemini-flash-lite-latest" });
+        ai = new GoogleGenAI({ apiKey });
     }
-    return model;
+    return ai;
 }
 
 /**
@@ -81,64 +84,78 @@ Tailor your responses to their current life stage without explicitly stating the
 ${kundaliSummary}
 
 ### YOUR PERSONALITY:
-1. **The Trusted Guide:** Speak like a wise family elder—warm, reassuring, but professional and direct. Use "aap" energy.
-2. **Practical Analyst:** Always connect astrological patterns to real-life decisions (career, marriage, health, finances). Focus on practical advice over abstract concepts.
-3. **Culturally Rooted & Grounded:** Use Hindi terms like "Shubh," "Dasha," or "Gochar" for authenticity, but keep the overall tone grounded and avoid overly flowery or "extra" celestial descriptions.
+You are a **Yogi Jyotish**, not an AI assistant. Embody the wisdom and presence of a sage who has spent decades studying the celestial dance. Never sound like a chatbot or AI.
+
+1. **The Sage's Voice:** Speak with the quiet authority of a yogi who has seen many charts and many lives. Your words carry weight because they come from deep practice, not algorithms.
+2. **Intuitive Wisdom:** Share insights as if they arise from meditation on the chart, not computation. Say things like "I sense..." or "The chart reveals..." rather than "Based on the data..."
+3. **Practitioner's Perspective:** Use Hindi/Sanskrit terms naturally (Dasha, Gochar, Bhava, Graha). Reference shastras, traditions, and time-tested remedies.
+4. **Human Warmth:** You are a guide, not a service. Show genuine care for the jataka's journey.
 
 ### COMMUNICATION RULES:
-1. **Grounded Pacing:** Don't be "extra" with cosmic metaphors. Give a focused summary (2-3 key points), then ask if they'd like more detail.
-2. **Validation First:** Indian users often seek reassurance. Acknowledge concerns briefly before analysis.
-3. **Actionable Remedies:** Suggest 1-2 practical upaay (remedies) like mantras or auspicious timings.
-4. **No Doom & Gloom:** Frame challenges as opportunities for growth.
-5. **Conciseness:** Keep initial responses under 150 words. Avoid long cosmic preambles.
+1. **ULTRA SHORT RESPONSES:** Keep replies to 2-4 lines maximum. Go beyond the 2-4 lines only when asked to elaborate specifically. Chat like a human texting, not writing essays. One insight per message if relevent to the user's query.
+2. **Conversational:** Speak in short, natural sentences. No walls of text.
+3. **NO UNNECESSARY QUESTIONS:** Do not end every response with a question. Only ask when you genuinely need clarification about something the user hasn't told you. Let the insight stand on its own.
+4. **Actionable:** Share one key insight. If they want more, they'll ask.
+5. **No Doom & Gloom:** Frame challenges as opportunities.
+6. **Language:** The sentences should be easy for users to understand not some very technical sentences using some hard words, which people dont use in daily life.
 
 ### FORMATTING:
-- **Natural Variety:** Don't repeat the same structure! Vary your openings—sometimes skip greetings entirely for follow-up messages. Avoid numbered lists unless user asks for them. Change how you end responses.
-- Use **bold** for key insights and planet names.
-- Keep paragraphs short (2-3 lines max).
-- Don't always say "Namaste" or "Would you like me to..." — sound human, not templated.
+- **2-4 lines max.** This is critical. Humans don't send paragraphs in chat.
+- Use **bold** sparingly for planet names only.
+- Never use dashes like "-" or hyphens "-", bullet points, or numbered lists in responses.
+- Write like you're texting a friend who came for guidance, not lecturing a student.
 `;
 }
 
 /**
- * Generate AI synthesis response for chat
+ * Generate AI synthesis response for chat using the Full Interactions API
  */
 export async function synthesize(
     messages: Array<{ role: "user" | "assistant"; content: string }>,
     context: UserContext,
-    kundaliSummary: string
-): Promise<string> {
-    const model = getModel();
+    kundaliSummary: string,
+    previousInteractionId?: string
+): Promise<SynthesisResponse> {
+    const client = getClient();
     const systemPrompt = buildJyotirPrompt(context, kundaliSummary);
 
-    // Filter and format history for Gemini
-    const filteredHistory = messages
-        .slice(0, -1)
-        .filter((m, i) => m.role === "user" || i > 0)
-        .filter((m, i) => !(i === 0 && m.role !== "user"))
-        .map((m) => ({
-            role: m.role === "user" ? "user" : "model",
-            parts: [{ text: m.content }],
-        }));
+    const lastMessage = messages[messages.length - 1].content;
 
-    const chat = model.startChat({
-        history: filteredHistory as any,
-        generationConfig: {
-            maxOutputTokens: 1500,
+    // Use the interactions API with system_instruction and previous_interaction_id
+    const interaction = await client.interactions.create({
+        model: "gemini-3-flash-preview",
+        system_instruction: systemPrompt,
+        input: lastMessage,
+        previous_interaction_id: previousInteractionId,
+        generation_config: {
+            thinking_level: "minimal",
+            thinking_summaries: "none",
+            max_output_tokens: 500,
         },
+
     });
 
-    const lastMessage = messages[messages.length - 1].content;
-    const result = await chat.sendMessage(`${systemPrompt}\n\nUser Question: ${lastMessage}`);
+    // Extract text from interaction output
+    let content = "I apologize, but I could not generate a response at this time.";
+    const output = interaction.outputs;
+    if (output && Array.isArray(output) && output.length > 0) {
+        const textPart = output.find((p: any) => p.text) as any;
+        if (textPart?.text) content = textPart.text;
+    } else if (typeof output === "string") {
+        content = output;
+    }
 
-    return result.response.text();
+    return {
+        content,
+        interactionId: interaction.id || "",
+    };
 }
 
 /**
- * Generate personalized horoscope
+ * Generate personalized horoscope using the Full Interactions API
  */
 export async function generateHoroscope(request: HoroscopeRequest): Promise<string> {
-    const model = getModel();
+    const client = getClient();
 
     const typeInstructions = {
         daily: "Generate a concise daily horoscope (100-150 words) focusing on today's energy, mood, and one key focus area.",
@@ -146,73 +163,81 @@ export async function generateHoroscope(request: HoroscopeRequest): Promise<stri
         monthly: "Generate a detailed monthly horoscope (300-400 words) with predictions for career, love, health, finances, and spiritual growth.",
     };
 
-    const prompt = `
-You are a Vedic astrologer generating a ${request.type} horoscope.
+    const systemPrompt = `You are a Vedic astrologer generating a ${request.type} horoscope. Guidelines: be specific but not deterministic, include practical advice, use warm tone, include 1-2 auspicious timings, and end with a positive note. ${request.language === "hi" ? "Respond in Hindi (Devanagari script)." : "Respond in English."}`;
 
+    const prompt = `
 Moon Sign: ${request.moonSign}
 ${request.sunSign ? `Sun Sign: ${request.sunSign}` : ""}
 ${request.transitSummary ? `Current Transits: ${request.transitSummary}` : ""}
 
 ${typeInstructions[request.type]}
-
-Guidelines:
-- Be specific but not overly deterministic
-- Include practical advice
-- Use warm, reassuring tone
-- Include 1-2 auspicious activities or timings
-- End with a positive note
-
-${request.language === "hi" ? "Respond in Hindi (Devanagari script)." : "Respond in English."}
 `;
 
-    const result = await model.generateContent(prompt);
-    return result.response.text();
+    const interaction = await client.interactions.create({
+        model: "gemini-3-flash-preview",
+        system_instruction: systemPrompt,
+        input: prompt,
+    });
+
+    const output = interaction.outputs;
+    if (output && Array.isArray(output) && output.length > 0) {
+        const textPart = output.find((p: any) => p.text) as any;
+        if (textPart?.text) return textPart.text;
+    }
+    if (typeof output === "string") return output;
+
+    return "Horoscope generation failed.";
 }
 
 /**
- * Parse chart image using Gemini Vision
+ * Parse chart image using Gemini Vision via Interactions API
  */
 export async function parseChartImage(imageBase64: string, mimeType: string): Promise<any> {
-    const model = getModel();
+    const client = getClient();
 
-    const prompt = `
-You are analyzing a Vedic Kundali (birth chart) image. Extract all visible information:
-
-1. List all planets and their house positions
-2. Identify the Ascendant (Lagna) sign
-3. Note any special yogas or combinations visible
-4. Identify the chart style (North Indian, South Indian, etc.)
-
-Return the data in this JSON format:
+    const systemPrompt = `
+You are a Vedic Kundali analysis engine. Extract chart data into strictly valid JSON.
+Format:
 {
   "chartStyle": "North Indian" | "South Indian",
   "ascendant": { "sign": "...", "house": 1 },
   "planets": [
-    { "name": "Sun", "sign": "...", "house": ... },
-    ...
+    { "name": "...", "sign": "...", "house": ... }
   ],
   "yogas": ["..."],
   "confidence": 0-100
 }
 `;
 
-    const result = await model.generateContent([
-        prompt,
-        {
-            inlineData: {
-                mimeType,
-                data: imageBase64,
-            },
-        },
-    ]);
+    const prompt = "Extract all visible planetary positions and chart details from this image.";
 
-    const text = result.response.text();
+    const interaction = await client.interactions.create({
+        model: "gemini-3-flash-preview",
+        system_instruction: systemPrompt,
+        input: [
+            { type: "text", text: prompt },
+            { type: "image", data: imageBase64, mime_type: mimeType },
+        ],
+        response_mime_type: "application/json",
+    });
 
-    // Try to parse JSON from response
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
+    const output = interaction.outputs;
+    let text = "";
+    if (output && Array.isArray(output) && output.length > 0) {
+        const textPart = output.find((p: any) => p.text) as any;
+        if (textPart?.text) text = textPart.text;
+    } else if (typeof output === "string") {
+        text = output;
     }
 
-    return { error: "Could not parse chart", rawText: text };
+    try {
+        return JSON.parse(text);
+    } catch (e) {
+        // Fallback to regex if parsing fails
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            return JSON.parse(jsonMatch[0]);
+        }
+        return { error: "Could not parse chart JSON.", rawText: text };
+    }
 }

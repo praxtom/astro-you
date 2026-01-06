@@ -77,6 +77,96 @@
   }
 }
 
+@keyframes message-send-flight {
+  0% {
+    opacity: 0;
+    transform: translateY(100px) scale(0.9);
+    filter: blur(10px);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-8px) scale(1.02);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes reveal-progressive {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes aura-pulse {
+  0%,
+  100% {
+    opacity: 0.15;
+    transform: scale(1) translate(0, 0);
+  }
+  50% {
+    opacity: 0.25;
+    transform: scale(1.1) translate(2%, 2%);
+  }
+}
+
+.animate-message-send {
+  animation: message-send-flight 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-reveal-progressive {
+  animation: reveal-progressive 0.8s cubic-bezier(0.2, 0, 0, 1) forwards;
+  opacity: 0;
+}
+
+/* Staggered delays for children to create the waterfall effect */
+.animate-reveal-progressive > * {
+  animation: reveal-progressive 0.8s cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.animate-reveal-progressive > *:nth-child(1) {
+  animation-delay: 0.1s;
+}
+.animate-reveal-progressive > *:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.animate-reveal-progressive > *:nth-child(3) {
+  animation-delay: 0.3s;
+}
+.animate-reveal-progressive > *:nth-child(4) {
+  animation-delay: 0.4s;
+}
+.animate-reveal-progressive > *:nth-child(5) {
+  animation-delay: 0.5s;
+}
+.animate-reveal-progressive > *:nth-child(n + 6) {
+  animation-delay: 0.6s;
+}
+
+.aura-bg {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(79, 70, 229, 0.1) 0%,
+    rgba(124, 58, 237, 0.05) 30%,
+    transparent 70%
+  );
+  filter: blur(100px);
+  pointer-events: none;
+  z-index: 0;
+  animation: aura-pulse 15s ease-in-out infinite;
+}
+
 @keyframes shimmer {
   from {
     transform: translateX(-100%) skewX(-15deg);
@@ -164,12 +254,19 @@ p {
 .glass {
   position: relative;
   overflow: hidden;
-  background-color: var(--surface-secondary);
+  background: rgba(255, 255, 255, 0.02);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
   border: 1px solid var(--stroke-subtle);
   border-radius: 2px;
   transition: all 700ms;
+}
+
+.h-light {
+  text-shadow: 0 0 30px var(--color-gold-glow);
+  color: var(--color-gold);
 }
 
 .glass::after {

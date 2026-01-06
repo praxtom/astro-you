@@ -27,6 +27,11 @@ export const PLANETS = {
     'Saturn': { name: 'Shani', symbol: 'Sa', color: '#94A3B8' },
     'Mean_Node': { name: 'Rahu', symbol: 'Ra', color: '#A78BFA' },
     'Mean_South_Node': { name: 'Ketu', symbol: 'Ke', color: '#6366F1' },
+    'True_Node': { name: 'Rahu', symbol: 'Ra', color: '#A78BFA' },
+    'True_South_Node': { name: 'Ketu', symbol: 'Ke', color: '#6366F1' },
+    'Uranus': { name: 'Uranus', symbol: 'Ur', color: '#2DD4BF' },
+    'Neptune': { name: 'Neptune', symbol: 'Ne', color: '#818CF8' },
+    'Pluto': { name: 'Pluto', symbol: 'Pl', color: '#9CA3AF' },
     'Ascendant': { name: 'Lagna', symbol: 'Asc', color: '#FFFFFF' },
 };
 

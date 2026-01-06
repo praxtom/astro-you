@@ -7,7 +7,7 @@ export default async (req: Request, context: Context) => {
     }
 
     try {
-        const { messages, birthData, kundaliData } = await req.json();
+        const { messages, birthData, kundaliData, previousInteractionId } = await req.json();
 
         // Build kundali summary for AI context
         const kundaliSummary = kundaliData?.planetary_positions?.map((p: any) =>
@@ -25,13 +25,14 @@ export default async (req: Request, context: Context) => {
         };
 
         // Use shared gemini service for synthesis
-        const responseText = await synthesize(
+        const response = await synthesize(
             messages.map((m: any) => ({
                 role: m.role as 'user' | 'assistant',
                 content: m.content,
             })),
             userContext,
-            kundaliSummary
+            kundaliSummary,
+            previousInteractionId
         );
 
         // Simple keyword detection for chart requests
@@ -40,7 +41,8 @@ export default async (req: Request, context: Context) => {
         const isRequestingChart = chartKeywords.some(keyword => lastMessage.includes(keyword));
 
         return new Response(JSON.stringify({
-            content: responseText,
+            content: response.content,
+            interactionId: response.interactionId,
             suggestAction: isRequestingChart ? 'show_chart' : null
         }), {
             status: 200,

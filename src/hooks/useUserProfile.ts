@@ -87,6 +87,11 @@ export function useUserProfile(): UseUserProfileResult {
                     credits: data.credits,
                     subscription: data.subscription,
                 };
+                // Always prioritize root-level credits if available
+                if (data.credits !== undefined) {
+                    profileData.credits = data.credits;
+                }
+                console.log('[useUserProfile] Credits:', profileData.credits, 'from data:', data.credits);
                 setProfile(profileData);
             } else {
                 setProfile(null);
