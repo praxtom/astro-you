@@ -4,7 +4,6 @@ import { useAuth } from "../lib/AuthContext";
 import { useUserProfile, useHeaderScroll } from "../hooks";
 import {
   MessageSquare,
-  Map as MapIcon,
   Sun,
   Heart,
   History,
@@ -143,21 +142,13 @@ export default function Dashboard() {
       onClick: () => navigate("/synthesis"),
     },
     {
-      title: "Natal Kundali",
-      description:
-        "Explore your authentic North Indian style birth chart with detailed planetary mapping.",
-      icon: <MapIcon size={24} />,
-      status: "Active",
-      accentColor: "rgba(139, 92, 246, 0.8)", // Violet
-      onClick: () => navigate("/synthesis"), // Both lead to synthesis for now
-    },
-    {
       title: "Daily Forecast",
       description:
         "Personalized transit insights based on your Moon sign and ongoing dashas.",
       icon: <Sun size={24} />,
-      status: "Beta",
+      status: "Active",
       accentColor: "rgba(245, 158, 11, 0.8)", // Amber
+      onClick: () => navigate("/forecast"),
     },
     {
       title: "Compatibility Analysis",
@@ -180,8 +171,9 @@ export default function Dashboard() {
       description:
         "Real-time planetary movement visualization over your birth houses.",
       icon: <Compass size={24} />,
-      status: "Coming Soon",
+      status: "Active",
       accentColor: "rgba(59, 130, 246, 0.8)", // Blue
+      onClick: () => navigate("/transit"),
     },
     {
       title: "Life Reports",

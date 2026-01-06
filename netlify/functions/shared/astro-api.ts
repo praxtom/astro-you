@@ -94,6 +94,8 @@ function parseBirthData(birthData: BirthData) {
                 hour,
                 minute,
                 city: birthData.pob || "Mumbai",
+                latitude: birthData.lat,
+                longitude: birthData.lng,
             },
         },
         options: {
@@ -309,4 +311,224 @@ export async function getNavamsaChart(birthData: BirthData): Promise<KundaliData
         console.error("Navamsa error:", err);
         return { planetary_positions: [], house_cusps: [] };
     }
+}
+
+/**
+ * Fetch transit chart (Transit overlay on Natal)
+ */
+export async function getTransitChart(birthData: BirthData, transitDate?: string): Promise<any> {
+    const basePayload = parseBirthData(birthData);
+    const now = new Date();
+    const dateStr = transitDate || now.toISOString().split('T')[0];
+    const [y, m, d] = dateStr.split('-').map(Number);
+
+    const payload = {
+        ...basePayload,
+        transit_time: {
+            datetime: {
+                year: y,
+                month: m,
+                day: d,
+                hour: now.getUTCHours(),
+                minute: now.getUTCMinutes(),
+                second: 0,
+                city: birthData.pob || "Mumbai",
+                latitude: birthData.lat,
+                longitude: birthData.lng,
+            }
+        }
+    };
+
+    const response = await fetch(`${API_BASE}/charts/transit`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+        throw new Error(`Transit API error: ${response.status}`);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Fetch natal transit report (Predictions based on current transits)
+ */
+export async function getTransitReport(birthData: BirthData, transitDate?: string): Promise<any[]> {
+    const basePayload = parseBirthData(birthData);
+    const now = new Date();
+    const dateStr = transitDate || now.toISOString().split('T')[0];
+    const [y, m, d] = dateStr.split('-').map(Number);
+
+    const payload = {
+        ...basePayload,
+        transit_time: {
+            datetime: {
+                year: y,
+                month: m,
+                day: d,
+                hour: now.getUTCHours(),
+                minute: now.getUTCMinutes(),
+                second: 0,
+                city: birthData.pob || "Mumbai",
+                latitude: birthData.lat,
+                longitude: birthData.lng,
+            }
+        }
+    };
+
+    const response = await fetch(`${API_BASE}/analysis/natal-transit-report`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+        console.warn("Transit report API error:", response.status);
+        return [];
+    }
+
+    const result = await response.json();
+    console.log("[TransitReport] Raw API response keys:", Object.keys(result));
+    console.log("[TransitReport] data keys:", result.data ? Object.keys(result.data) : 'none');
+
+    // Handle deeply nested structure: result.data.report.events
+    const data = result.data || result;
+    const events = data.report?.events || data.events || result.report?.events || result.events || [];
+    console.log(`[TransitReport] Found ${events.length} events`);
+    return events;
+}
+
+/**
+ * Fetch a pre-rendered transit chart image/svg
+ */
+export async function getRenderedTransitChart(birthData: BirthData, transitDate?: string): Promise<string> {
+    const basePayload = parseBirthData(birthData);
+    const now = new Date();
+    const dateStr = transitDate || now.toISOString().split('T')[0];
+    const [y, m, d] = dateStr.split('-').map(Number);
+
+    const payload = {
+        ...basePayload,
+        transit_time: {
+            datetime: {
+                year: y,
+                month: m,
+                day: d,
+                hour: now.getUTCHours(),
+                minute: now.getUTCMinutes(),
+                second: 0,
+                city: birthData.pob || "Mumbai",
+                latitude: birthData.lat,
+                longitude: birthData.lng,
+            }
+        },
+        render_options: {
+            format: "svg",
+            theme: "dark"
+        }
+    };
+
+    const response = await fetch(`${API_BASE}/render/transit`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+        throw new Error(`Transit render API error: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.url || result.data || "";
+}
+
+/**
+ * Fetch high-precision personal daily horoscope
+ */
+export async function getDailyHoroscope(birthData: BirthData, date?: string): Promise<any> {
+    const basePayload = parseBirthData(birthData);
+    const now = new Date();
+    const dateStr = date || now.toISOString().split('T')[0];
+    const [y, m, d] = dateStr.split('-').map(Number);
+
+    const payload = {
+        ...basePayload,
+        prediction_time: {
+            datetime: {
+                year: y,
+                month: m,
+                day: d,
+                hour: now.getUTCHours(),
+                minute: now.getUTCMinutes(),
+                second: 0,
+                city: birthData.pob || "Mumbai",
+                latitude: birthData.lat,
+                longitude: birthData.lng,
+            }
+        },
+        horoscope_type: "daily",
+        language: "en",
+        tradition: "universal",
+        include_transits: true,
+        include_progressions: false,
+        options: {
+            ...basePayload.options,
+            language: "en"
+        }
+    };
+
+    const response = await fetch(`${API_BASE}/horoscope/personal/daily`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+        console.warn("High-precision Horoscope API error:", response.status);
+        // Fallback to text version if JSON one fails or isn't available
+        try {
+            return await getDailyHoroscopeText(birthData, date);
+        } catch {
+            return null;
+        }
+    }
+
+    const result = await response.json();
+    return result.data || result;
+}
+
+/**
+ * Fallback to text-based daily horoscope
+ */
+async function getDailyHoroscopeText(birthData: BirthData, date?: string): Promise<any> {
+    const basePayload = parseBirthData(birthData);
+    const now = new Date();
+    const dateStr = date || now.toISOString().split('T')[0];
+    const [y, m, d] = dateStr.split('-').map(Number);
+
+    const payload = {
+        ...basePayload,
+        prediction_time: {
+            datetime: {
+                year: y,
+                month: m,
+                day: d,
+                hour: now.getUTCHours(),
+                minute: now.getUTCMinutes(),
+                second: 0,
+            }
+        }
+    };
+
+    const response = await fetch(`${API_BASE}/horoscope/personal/daily/text`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) return null;
+    const result = await response.json();
+    return result.data || result;
 }

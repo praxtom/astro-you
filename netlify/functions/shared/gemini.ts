@@ -205,6 +205,11 @@ Format:
     { "name": "...", "sign": "...", "house": ... }
   ],
   "yogas": ["..."],
+  "birthDetails": {
+    "dob": "YYYY-MM-DD",
+    "tob": "HH:MM",
+    "pob": "City, Country"
+  },
   "confidence": 0-100
 }
 `;

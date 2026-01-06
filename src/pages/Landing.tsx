@@ -7,15 +7,7 @@ import OnboardingModal from "../components/OnboardingModal";
 import { useAuth } from "../lib/AuthContext";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import {
-  Sparkles,
-  Map,
-  Zap,
-  ChevronDown,
-  ShieldCheck,
-  Globe,
-  ScrollText,
-} from "lucide-react";
+import { Sparkles, Zap, ChevronDown, ScrollText } from "lucide-react";
 
 interface InfluenceCardProps {
   number: string;
@@ -320,7 +312,7 @@ function Landing() {
             <InfluenceCard
               number="03"
               title="Mercury (Budh)"
-              description="Represents the Budhdhi—clear perception, communication, and commerce. It governs your ability to understand the world, your wit, and the power of speech, bridging the gap between thoughts and reality."
+              description="Represents the Budhdhi,clear perception, communication, and commerce. It governs your ability to understand the world, your wit, and the power of speech, bridging the gap between thoughts and reality."
               theme="text-green-400 border-green-500/20 shadow-[0_0_20px_rgba(34,197,94,0.1)]"
               isActive={scrollProgress > 0.22 && scrollProgress < 0.32}
               align="left"
@@ -433,8 +425,12 @@ function Landing() {
                   </p>
                 </div>
                 <div className="relative z-10 order-1 md:order-2">
-                  <div className="w-20 h-20 rounded-2xl bg-gold/5 border border-gold/20 flex items-center justify-center text-gold shadow-[0_0_40px_rgba(197,160,89,0.1)] group-hover:bg-gold/10 group-hover:border-gold/40 transition-all duration-700">
-                    <Map size={32} strokeWidth={1.5} />
+                  <div className="w-24 h-24 rounded-full overflow-hidden border border-gold/20 shadow-[0_0_40px_rgba(197,160,89,0.2)] group-hover:scale-110 transition-transform duration-700">
+                    <img
+                      src="/assets/landing/coordinates.png"
+                      alt="The Origin"
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                   <div className="absolute inset-[-20px] bg-gold/5 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
                 </div>
@@ -445,8 +441,12 @@ function Landing() {
               <div className="relative flex flex-col md:flex-row items-center gap-12 group">
                 <div className="flex-1 hidden md:block"></div>
                 <div className="relative z-10">
-                  <div className="w-20 h-20 rounded-2xl bg-violet/5 border border-violet/20 flex items-center justify-center text-violet shadow-[0_0_40px_rgba(139,92,246,0.1)] group-hover:bg-violet/10 group-hover:border-violet/40 transition-all duration-700">
-                    <Zap size={32} strokeWidth={1.5} />
+                  <div className="w-24 h-24 rounded-full overflow-hidden border border-violet/20 shadow-[0_0_40px_rgba(139,92,246,0.2)] group-hover:scale-110 transition-transform duration-700">
+                    <img
+                      src="/assets/landing/imprint.png"
+                      alt="Planetary Alignment"
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                   <div className="absolute inset-[-20px] bg-violet/5 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
                 </div>
@@ -472,7 +472,8 @@ function Landing() {
                     The Living Blueprint
                   </h3>
                   <p className="text-lg text-content-secondary font-sans font-light leading-relaxed">
-                    These markings unfold into a dynamic blueprint—defining your{" "}
+                    These markings unfold into a dynamic blueprint, defining
+                    your{" "}
                     <span className="text-gold font-bold">
                       behavioral patterns, career trajectory, and the deep soul
                       resonance
@@ -481,8 +482,12 @@ function Landing() {
                   </p>
                 </div>
                 <div className="relative z-10 order-1 md:order-2">
-                  <div className="w-20 h-20 rounded-2xl bg-indigo/5 border border-indigo/20 flex items-center justify-center text-indigo shadow-[0_0_40px_rgba(99,102,241,0.1)] group-hover:bg-indigo/10 group-hover:border-indigo/40 transition-all duration-700">
-                    <Sparkles size={32} strokeWidth={1.5} />
+                  <div className="w-24 h-24 rounded-full overflow-hidden border border-indigo/20 shadow-[0_0_40px_rgba(99,102,241,0.2)] group-hover:scale-110 transition-transform duration-700">
+                    <img
+                      src="/assets/landing/blueprint_icon.png"
+                      alt="Cosmic Blueprint"
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                   <div className="absolute inset-[-20px] bg-indigo/5 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
                 </div>
@@ -591,59 +596,77 @@ function Landing() {
                 your unique chart.
               </p>
 
-              <div className="space-y-8">
-                <div className="flex gap-6">
-                  <div className="shrink-0 w-12 h-12 rounded-xl bg-gold/5 border border-gold/10 flex items-center justify-center">
-                    <Zap className="text-gold" size={20} />
+              <div className="grid gap-6">
+                <div className="group p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.05] hover:border-gold/20 transition-all duration-500 flex gap-6 items-center">
+                  <div className="shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-gold/10 bg-gold/5">
+                    <img
+                      src="/assets/landing/transits.png"
+                      alt="Real-time Transits"
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                    />
                   </div>
                   <div>
-                    <h4 className="text-lg font-display text-white mb-2 uppercase tracking-widest">
+                    <h4 className="text-lg font-display text-white mb-2 uppercase tracking-widest group-hover:text-gold transition-colors">
                       Real-time Transits
                     </h4>
-                    <p className="text-sm text-content-secondary leading-relaxed">
+                    <p className="text-sm text-content-secondary leading-relaxed opacity-70">
                       Know exactly how today's planetary movements affect your
                       specific lagna and dasha.
                     </p>
                   </div>
                 </div>
-                <div className="flex gap-6">
-                  <div className="shrink-0 w-12 h-12 rounded-xl bg-violet/5 border border-violet/10 flex items-center justify-center">
-                    <ShieldCheck className="text-violet" size={20} />
+
+                <div className="group p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.05] hover:border-violet/20 transition-all duration-500 flex gap-6 items-center">
+                  <div className="shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-violet/10 bg-violet/5">
+                    <img
+                      src="/assets/landing/remedies.png"
+                      alt="Remedial Upaay"
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                    />
                   </div>
                   <div>
-                    <h4 className="text-lg font-display text-white mb-2 uppercase tracking-widest">
+                    <h4 className="text-lg font-display text-white mb-2 uppercase tracking-widest group-hover:text-violet transition-colors">
                       Remedial Upaay
                     </h4>
-                    <p className="text-sm text-content-secondary leading-relaxed">
+                    <p className="text-sm text-content-secondary leading-relaxed opacity-70">
                       Practical, non-dogmatic actions to balance energy during
                       difficult transits.
                     </p>
                   </div>
                 </div>
-                <div className="flex gap-6">
-                  <div className="shrink-0 w-12 h-12 rounded-xl bg-indigo/5 border border-indigo/10 flex items-center justify-center">
-                    <Globe className="text-indigo" size={20} />
+
+                <div className="group p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.05] hover:border-indigo/20 transition-all duration-500 flex gap-6 items-center">
+                  <div className="shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-indigo/10 bg-indigo/5">
+                    <img
+                      src="/assets/landing/precision.png"
+                      alt="Celestial Precision"
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                    />
                   </div>
                   <div>
-                    <h4 className="text-lg font-display text-white mb-2 uppercase tracking-widest">
+                    <h4 className="text-lg font-display text-white mb-2 uppercase tracking-widest group-hover:text-indigo transition-colors">
                       Celestial Precision
                     </h4>
-                    <p className="text-sm text-content-secondary leading-relaxed">
+                    <p className="text-sm text-content-secondary leading-relaxed opacity-70">
                       Deep calculations ensure the highest possible astronomical
-                      precision for every movement and placement in your chart.
+                      precision for every movement and placement.
                     </p>
                   </div>
                 </div>
 
-                <div className="flex gap-6">
-                  <div className="shrink-0 w-12 h-12 rounded-xl bg-amber-500/5 border border-amber-500/10 flex items-center justify-center">
-                    <Map className="text-amber-500" size={20} />
+                <div className="group p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.05] hover:border-gold/20 transition-all duration-500 flex gap-6 items-center">
+                  <div className="shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-gold/10 bg-gold/5">
+                    <img
+                      src="/assets/landing/expansion.png"
+                      alt="3D Chart Expansion"
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                    />
                   </div>
                   <div>
-                    <h4 className="text-lg font-display text-white mb-2 uppercase tracking-widest">
+                    <h4 className="text-lg font-display text-white mb-2 uppercase tracking-widest group-hover:text-gold transition-colors">
                       3D Chart Expansion
                     </h4>
-                    <p className="text-sm text-content-secondary leading-relaxed">
+                    <p className="text-sm text-content-secondary leading-relaxed opacity-70">
                       Toggle between 3D Cosmic Circle and Sacred Diamond views
                       to explore your chart in an immersive environment.
                     </p>
@@ -652,49 +675,52 @@ function Landing() {
               </div>
             </div>
 
-            <div className="relative">
-              <div className="absolute inset-0 bg-gold/5 blur-[100px] rounded-full animate-pulse"></div>
-              <div className="glass p-8 md:p-12 relative z-10 border border-white/10 rounded-[40px]">
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between border-b border-white/10 pb-6">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-gold/20 flex items-center justify-center text-gold font-bold">
+            <div className="relative pt-12 lg:pt-0">
+              <div className="absolute inset-0 bg-gold/10 blur-[120px] rounded-full animate-pulse-slow"></div>
+              <div className="glass p-8 md:p-12 relative z-10 border border-white/10 rounded-[40px] shadow-[0_40px_100px_rgba(0,0,0,0.5)]">
+                <div className="space-y-8">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-8">
+                    <div className="flex items-center gap-5">
+                      <div className="w-12 h-12 rounded-full bg-gold/20 flex items-center justify-center text-gold font-bold border border-gold/30">
                         10
                       </div>
                       <div>
-                        <p className="text-xs text-gold uppercase tracking-[0.2em] font-bold">
+                        <p className="text-[10px] text-gold uppercase tracking-[0.3em] font-black mb-1">
                           Current Cycle
                         </p>
-                        <p className="text-lg font-display">
+                        <p className="text-xl font-display text-white">
                           Shukra-Rahu Dasha
                         </p>
                       </div>
                     </div>
-                    <div className="px-3 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-[10px] text-green-400 font-bold uppercase tracking-widest">
+                    <div className="px-4 py-1.5 rounded-full bg-green-500/10 border border-green-500/30 text-[10px] text-green-400 font-bold uppercase tracking-[0.2em] shadow-[0_0_15px_rgba(34,197,94,0.1)]">
                       Active
                     </div>
                   </div>
 
-                  <div className="p-6 rounded-2xl bg-white/5 border border-white/5 italic text-sm text-content-secondary leading-relaxed">
-                    "This is a period of intense creative expansion. Avoid
-                    impulsive financial decisions between now and the next
-                    Amavasya."
+                  <div className="p-8 rounded-3xl bg-white/5 border border-white/5 relative overflow-hidden group">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-gold/40"></div>
+                    <p className="italic text-base text-content-secondary leading-relaxed font-sans font-light">
+                      "This is a period of intense creative expansion. Avoid
+                      impulsive financial decisions between now and the next
+                      Amavasya."
+                    </p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5">
-                      <p className="text-[10px] text-content-tertiary uppercase tracking-widest mb-1">
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] transition-colors">
+                      <p className="text-[10px] text-content-tertiary uppercase tracking-[0.3em] mb-2 font-bold">
                         Focus
                       </p>
-                      <p className="text-sm font-display text-gold">
+                      <p className="text-lg font-display text-gold">
                         Career Peak
                       </p>
                     </div>
-                    <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5">
-                      <p className="text-[10px] text-content-tertiary uppercase tracking-widest mb-1">
+                    <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] transition-colors">
+                      <p className="text-[10px] text-content-tertiary uppercase tracking-[0.3em] mb-2 font-bold">
                         Energy
                       </p>
-                      <p className="text-sm font-display text-gold">
+                      <p className="text-lg font-display text-gold">
                         High Satvic
                       </p>
                     </div>
@@ -760,7 +786,7 @@ function Landing() {
             />
             <FAQItem
               question="Can Jyotish truly understand a birth chart?"
-              answer="Jyotish is incredibly thorough in the 'Math of the Stars'—calculating planetary degrees and aspects. We've shaped Jyotish specifically on classic Vedic texts to ensure the interpretation is authentic and grounded in tradition."
+              answer="Jyotish is incredibly thorough in the 'Math of the Stars', calculating planetary degrees and aspects. We've shaped Jyotish specifically on classic Vedic texts to ensure the interpretation is authentic and grounded in tradition."
             />
             <FAQItem
               question="What if I don't know my exact time of birth?"

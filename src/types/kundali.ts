@@ -103,3 +103,25 @@ export interface PanchangData {
     moonSign: string;
     sunSign: string;
 }
+export interface TransitPrediction {
+    title: string;
+    description: string;
+    type: 'positive' | 'negative' | 'neutral';
+    strength: number; // 1-10
+    duration?: string;
+}
+
+export interface NatalTransitData {
+    subject_data?: {
+        natal_subject: any;
+        transit_subject: any;
+    };
+    chart_data?: {
+        planetary_positions: any[];
+        house_cusps: any[];
+        aspects: any[];
+    };
+    natal?: KundaliData;
+    transit?: TransitData;
+    aspects?: any[];
+}

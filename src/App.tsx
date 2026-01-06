@@ -9,8 +9,11 @@ const Landing = lazy(() => import("./pages/Landing"));
 const Onboarding = lazy(() => import("./pages/Onboarding"));
 const Synthesis = lazy(() => import("./pages/Synthesis"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
+const TransitOracle = lazy(() => import("./pages/TransitOracle"));
+const DailyForecast = lazy(() => import("./pages/DailyForecast"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
+// Main Application Component
 function App() {
   return (
     <ErrorBoundary>
@@ -23,6 +26,8 @@ function App() {
             <Route path="/synthesis" element={<Synthesis />} />
             <Route path="/synthesis/:id" element={<Synthesis />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/transit" element={<TransitOracle />} />
+            <Route path="/forecast" element={<DailyForecast />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>

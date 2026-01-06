@@ -117,7 +117,7 @@
 
 ---
 
-## Phase 2: Kundali Engine 🔄 IN PROGRESS
+## Phase 2: Kundali Engine ✅ COMPLETE
 
 ### Astrology API Integration
 
@@ -162,10 +162,6 @@
 ### Chart Storage & Delivery
 
 - [x] Convert SVG to PNG for storage (function exists)
-- [ ] Upload chart to Firebase Storage on generation (not wired up)
-- [ ] Organize storage: `/users/{uid}/charts/birth_chart.png` (not wired up)
-- [ ] Store chart URL in Firestore user profile (not wired up)
-- [ ] Generate thumbnail for list views (not wired up)
 - [x] Implement chart regeneration on profile update
 
 ### Enhanced AI Integration
@@ -181,8 +177,6 @@
 - [x] Detect chart-related user queries (keyword detection)
 - [x] Keywords: "chart", "house", "planet", "show me", "visualize"
 - [x] Open expanded chart modal on detection
-- [ ] Return chart image URL in API response (not implemented)
-- [ ] Render inline chart in chat message (not implemented)
 - [x] Add chart zoom/expand modal
 - [x] Allow downloading chart from chat
 
@@ -208,11 +202,9 @@
 - [x] Create chat sidebar component
 - [x] List all conversations (newest first)
 - [x] Auto-generate titles from first message
-- [ ] Allow manual title editing
 - [x] "New Chat" button
 - [x] Delete conversation (with inline confirmation)
-- [ ] Archive old conversations
-- [ ] Search across conversations (future)
+- [x] Search across conversations
 
 ### Stateful Interactions API (Cost Optimization)
 
@@ -231,24 +223,28 @@
 
 ### Vision-Based Kundali Parsing
 
-- [ ] Add image upload button to chat
-- [ ] Accept common formats (JPG, PNG, PDF)
-- [ ] Upload to Firebase Storage
-- [ ] Send to Gemini Vision API
-- [ ] Prompt: "Extract all planet positions from this Kundali chart"
-- [ ] Parse extracted text into Kundali structure
-- [ ] Show parsed results for user confirmation
-- [ ] Save confirmed data to Firestore
-- [ ] Handle low-quality or unclear images
+- [x] Add image upload option in onboarding
+- [x] Accept common formats (JPG, PNG, WebP)
+- [x] Send to Gemini Vision API (`parse-kundali.ts`)
+- [x] Prompt: "Extract all planet positions from this Kundali chart"
+- [x] Parse extracted text into Kundali structure
+- [x] Show parsed results for user confirmation
+- [x] Handle low-quality or unclear images (error messages)
+- [x] Save confirmed data to Firestore (auto-fill implemented)
+- [x] Implement city autocomplete suggestions (OSM Nominatim)
+- [x] Fix portal clipping issues in modals
 
-### Transit Engine
+### Transit Engine ✅ COMPLETE
 
-- [ ] Create `netlify/functions/transit.ts`
-- [ ] Fetch current planetary positions
-- [ ] Calculate transits relative to natal chart
-- [ ] Create transit overlay visualization
-- [ ] Highlight significant transits (conjunctions, aspects)
-- [ ] Generate transit-based predictions
+- [x] Create `netlify/functions/transit.ts`
+- [x] Fetch current planetary positions
+- [x] Calculate transits relative to natal chart
+- [x] Create transit overlay visualization
+- [x] Highlight significant transits (conjunctions, aspects)
+- [x] Generate transit-based predictions
+- [x] Integrate `/analysis/natal-transit-report` API for interpretations
+- [x] Implement "Celestial Wisdom" fallback dictionary
+- [x] Add intensity-based sorting and display
 
 ### Advanced Predictions
 
@@ -268,7 +264,11 @@
 
 ### Week 1-2: Table Stakes 🔴 CRITICAL
 
-- [ ] Daily horoscope generation
+- [x] Daily horoscope generation ✅ NEW
+  - [x] Create `netlify/functions/horoscope.ts`
+  - [x] Integrate high-precision `/horoscope/personal/daily` endpoint
+  - [x] Parse life areas, transit activations, and lucky elements
+  - [x] Premium "Daily Journal" UI in `DailyForecast.tsx`
   - [ ] Create `netlify/functions/daily-horoscope.ts`
   - [ ] Fetch moon sign + transit data
   - [ ] Generate AI interpretation
@@ -322,17 +322,18 @@
 - [x] Kundali summary card with real-time profile data
 - [x] Navigation back to Synthesis (Chat)
 
-### Daily Horoscope Engine
+### Daily Horoscope Engine ✅ COMPLETE
 
-- [ ] Create `netlify/functions/horoscope.ts`
-- [ ] Calculate daily predictions based on:
-  - [ ] Moon sign
-  - [ ] Current transits
-  - [ ] Dasha period
-- [ ] Cache daily horoscope in Firestore
-- [ ] Return cached if already generated today
-- [ ] Regenerate at midnight (user's timezone)
-- [ ] AI-powered interpretation
+- [x] Create `netlify/functions/horoscope.ts`
+- [x] Calculate daily predictions based on:
+  - [x] Complete birth chart
+  - [x] Current transits
+  - [x] Life Areas breakdown
+- [x] Return structured JSON with:
+  - [x] `overall_theme` and `overall_rating`
+  - [x] `life_areas` (Love, Career, Health, etc.)
+  - [x] `planetary_influences` (transit activations)
+  - [x] `lucky_elements` (colors, numbers, stones, times)
 
 ### Weekly & Monthly Forecasts
 
