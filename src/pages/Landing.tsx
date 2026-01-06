@@ -543,7 +543,7 @@ function Landing() {
                 Intelligent Synthesis
               </h3>
               <p className="text-sm text-content-secondary font-sans leading-relaxed px-6">
-                Jyotir interprets thousands of Dasha combinations and planetary
+                Jyotish interprets thousands of Dasha combinations and planetary
                 aspects to weave a clear, relevant narrative for the modern
                 seeker.
               </p>
@@ -759,8 +759,8 @@ function Landing() {
               answer="Yes. We treat birth data as sacred. Your information is encrypted and never sold. We only use it to generate your unique celestial map within the AstroYou experience."
             />
             <FAQItem
-              question="Can Jyotir truly understand a birth chart?"
-              answer="Jyotir is incredibly thorough in the 'Math of the Stars'—calculating planetary degrees and aspects. We've shaped Jyotir specifically on classic Vedic texts to ensure the interpretation is authentic and grounded in tradition."
+              question="Can Jyotish truly understand a birth chart?"
+              answer="Jyotish is incredibly thorough in the 'Math of the Stars'—calculating planetary degrees and aspects. We've shaped Jyotish specifically on classic Vedic texts to ensure the interpretation is authentic and grounded in tradition."
             />
             <FAQItem
               question="What if I don't know my exact time of birth?"

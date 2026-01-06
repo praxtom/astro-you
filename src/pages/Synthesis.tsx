@@ -103,14 +103,13 @@ export default function Synthesis() {
   const [isLoadingKundali, setIsLoadingKundali] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showExpandedChart, setShowExpandedChart] = useState(false);
-  const [interactionId, setInteractionId] = useState<string | null>(null); // Google Interactions API context
+  const [interactionId, setInteractionId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const WELCOME_MESSAGE: Message = {
     id: "welcome",
     role: "assistant",
-    content:
-      "Welcome to your personal synthesis. I am Jyotir, your guide to Vedic insights. How can I assist you today?",
+    content: `Welcome ${user?.displayName}. I am your personal Jyotish, your guide to Vedic insights. What would you like to know today?`,
     timestamp: new Date(),
   };
 
@@ -609,6 +608,9 @@ export default function Synthesis() {
                     </span>
                   </div>
                 </button>
+                <div className="text-center text-[10px] uppercase tracking-[0.3em] text-gold/60 font-medium">
+                  Your Kundali
+                </div>
               </div>
 
               {/* Chart Action Buttons */}
@@ -762,7 +764,7 @@ export default function Synthesis() {
                       m.role === "user" ? "flex-row-reverse" : "flex-row"
                     }`}
                   >
-                    {m.role === "user" ? "You" : "Jyotir"}
+                    {m.role === "user" ? "You" : "Jyotish"}
                     <span>•</span>
                     <span>
                       {m.timestamp.toLocaleTimeString("en-GB", {
@@ -803,7 +805,7 @@ export default function Synthesis() {
               <div className="flex justify-start animate-in fade-in duration-300">
                 <div className="max-w-[85%]">
                   <div className="text-xs uppercase tracking-widest mb-2 opacity-30">
-                    Jyotir
+                    Jyotish
                   </div>
                   <div className="p-4 rounded-3xl border border-gold/10 bg-surface-accent/10 flex items-center gap-4">
                     <Loader2 size={16} className="animate-spin text-gold" />

@@ -8,9 +8,9 @@
     rgba(255, 215, 0, 0.03) 0%,
     transparent 70%
   );
-  padding: 2rem;
-  border-radius: 2rem;
-  border: 1px solid rgba(255, 215, 0, 0.05);
+  padding: 0.5rem;
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 215, 0, 0.1);
 }
 
 .kundali-svg {
@@ -22,10 +22,10 @@
 .chart-line {
   fill: none;
   stroke: url(#goldGradient);
-  stroke-width: 1.5;
+  stroke-width: 2.2;
   stroke-linecap: round;
-  filter: drop-shadow(0 0 2px rgba(255, 215, 0, 0.2));
-  opacity: 0.8;
+  filter: drop-shadow(0 0 3px rgba(255, 215, 0, 0.4));
+  opacity: 1;
 }
 
 .rashi-text {
@@ -66,7 +66,7 @@
 /* Drawing animation on first load */
 @keyframes drawLine {
   from {
-    stroke-dashoffset: 2000;
+    stroke-dashoffset: 4000;
   }
   to {
     stroke-dashoffset: 0;
@@ -74,7 +74,7 @@
 }
 
 .chart-line {
-  stroke-dasharray: 2000;
+  stroke-dasharray: 4000;
   stroke-dashoffset: 0;
   animation: drawLine 2s cubic-bezier(0.4, 0, 0.2, 1);
 }

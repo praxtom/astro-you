@@ -99,7 +99,7 @@ export function SynthesisSEO() {
   return (
     <SEO
       title="Synthesis"
-      description="Consult Jyotir. Get personalized astrological insights, predictions, and guidance based on your unique birth chart."
+      description="Consult Jyotish. Get personalized astrological insights, predictions, and guidance based on your unique birth chart."
     />
   );
 }

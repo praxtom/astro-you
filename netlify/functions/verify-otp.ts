@@ -63,6 +63,7 @@ export default async (req: Request, context: Context) => {
 
         // Get or create the user
         let userRecord;
+        let isNewUser = false;
         try {
             userRecord = await auth.getUserByEmail(email);
         } catch (error: any) {
@@ -72,9 +73,23 @@ export default async (req: Request, context: Context) => {
                     email,
                     emailVerified: true,
                 });
+                isNewUser = true;
             } else {
                 throw error;
             }
+        }
+
+        // Ensure the user has a Firestore document and initial credits
+        const userDocRef = db.collection("users").doc(userRecord.uid);
+        const userDoc = await userDocRef.get();
+
+        if (!userDoc.exists || userDoc.data()?.credits === undefined) {
+            await userDocRef.set({
+                email,
+                credits: 5, // Initial bonus credits
+                createdAt: userDoc.exists ? (userDoc.data()?.createdAt || new Date()) : new Date(),
+            }, { merge: true });
+            console.log(`[Auth] Initialized credits for ${email} (UID: ${userRecord.uid})`);
         }
 
         // Create a custom token for the user

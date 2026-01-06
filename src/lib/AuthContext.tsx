@@ -11,7 +11,8 @@ import {
   signOut as firebaseSignOut,
   getRedirectResult,
 } from "firebase/auth";
-import { auth } from "./firebase";
+import { auth, db } from "./firebase";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
 interface AuthContextType {
   user: User | null;
@@ -57,9 +58,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     console.log("[Auth] Setting up auth state listener...");
 
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       console.log("[Auth] Auth state changed:", currentUser?.email || "null");
       setUser(currentUser);
+
+      // Initialize credits if user exists but doc/credits missing
+      if (currentUser) {
+        try {
+          const userDocRef = doc(db, "users", currentUser.uid);
+          const docSnap = await getDoc(userDocRef);
+
+          if (!docSnap.exists() || docSnap.data()?.credits === undefined) {
+            console.log(
+              "[Auth] Initializing credits for user:",
+              currentUser.email
+            );
+            await setDoc(
+              userDocRef,
+              {
+                email: currentUser.email,
+                credits: 5, // Initial bonus
+                createdAt: docSnap.exists()
+                  ? docSnap.data()?.createdAt || serverTimestamp()
+                  : serverTimestamp(),
+              },
+              { merge: true }
+            );
+          }
+        } catch (err) {
+          console.error("[Auth] Error checking/initializing credits:", err);
+        }
+      }
+
       setLoading(false);
     });
 
