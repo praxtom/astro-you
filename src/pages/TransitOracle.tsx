@@ -3,11 +3,9 @@ import { useNavigate } from "react-router-dom";
 import {
   ChevronLeft,
   Compass,
-  Sparkles,
   Clock,
   Calendar as CalendarIcon,
   Info,
-  ExternalLink,
 } from "lucide-react";
 import { useHeaderScroll } from "../hooks";
 import TransitOverlay from "../components/astrology/TransitOverlay";

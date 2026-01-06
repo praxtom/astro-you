@@ -7,7 +7,7 @@ import OnboardingModal from "../components/OnboardingModal";
 import { useAuth } from "../lib/AuthContext";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { Sparkles, Zap, ChevronDown, ScrollText } from "lucide-react";
+import { Sparkles, ChevronDown, ScrollText } from "lucide-react";
 
 interface InfluenceCardProps {
   number: string;
