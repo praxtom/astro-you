@@ -233,73 +233,6 @@ function KundaliGrid() {
   );
 }
 
-// --- Planet Aura (with type-based coloring) ---
-function PlanetAura({
-  size,
-  color,
-  planetType,
-}: {
-  size: number;
-  color: string;
-  planetType: PlanetType;
-}) {
-  const ref = useRef<THREE.Mesh>(null!);
-
-  const glowMaterial = useMemo(() => {
-    const glowColor = new THREE.Color(color);
-    // Reduced intensity to prevent overlap visual issues
-    const baseIntensity =
-      planetType === "benefic" ? 0.25 : planetType === "malefic" ? 0.18 : 0.2;
-
-    return new THREE.ShaderMaterial({
-      uniforms: {
-        glowColor: { value: glowColor },
-        intensity: { value: baseIntensity },
-        falloff: { value: planetType === "shadow" ? 3.5 : 2.5 },
-      },
-      vertexShader: `
-        varying vec3 vNormal;
-        varying vec3 vPositionNormal;
-        void main() {
-          vNormal = normalize(normalMatrix * normal);
-          vPositionNormal = normalize((modelViewMatrix * vec4(position, 1.0)).xyz);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform vec3 glowColor;
-        uniform float intensity;
-        uniform float falloff;
-        varying vec3 vNormal;
-        varying vec3 vPositionNormal;
-        void main() {
-          float glow = pow(1.0 - abs(dot(vNormal, vPositionNormal)), falloff);
-          gl_FragColor = vec4(glowColor, glow * intensity);
-        }
-      `,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      side: THREE.BackSide,
-      depthWrite: false,
-    });
-  }, [color, planetType]);
-
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
-    const pulseSpeed =
-      planetType === "benefic" ? 0.5 : planetType === "malefic" ? 0.8 : 0.6;
-    // Smaller aura to prevent overlap
-    ref.current.scale.setScalar(1.25 + Math.sin(t * pulseSpeed) * 0.05);
-  });
-
-  return (
-    <mesh ref={ref}>
-      <sphereGeometry args={[size, 32, 32]} />
-      <primitive object={glowMaterial} attach="material" />
-    </mesh>
-  );
-}
-
 // --- Saturn Rings ---
 function SaturnRings({ size }: { size: number }) {
   const ref = useRef<THREE.Mesh>(null!);
@@ -325,7 +258,6 @@ function SaturnRings({ size }: { size: number }) {
 function TransitPlanet({
   size,
   textureMap,
-  color,
   transitSpeed,
   startHouse,
   planetType,

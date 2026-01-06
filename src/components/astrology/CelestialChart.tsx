@@ -389,7 +389,7 @@ const DiamondGrid = ({
                       }}
                     >
                       <div className="text-gold text-[10px] font-bold uppercase tracking-[0.2em] mb-1">
-                        Bhava {num}
+                        Bhav {num}
                       </div>
                       <div className="text-white font-display text-sm mb-1">
                         {houseInfo.short}
