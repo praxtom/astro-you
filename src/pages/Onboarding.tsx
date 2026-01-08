@@ -16,19 +16,7 @@ import { OnboardingSEO } from "../components/SEO";
 import LocationInput from "../components/LocationInput";
 
 type Step = "upload" | "identity" | "temporal" | "spatial" | "present";
-
-interface ParsedChartData {
-  chartStyle?: "North Indian" | "South Indian";
-  ascendant?: { sign: string; house: number };
-  planets?: Array<{ name: string; sign: string; house: number }>;
-  yogas?: string[];
-  birthDetails?: {
-    dob?: string;
-    tob?: string;
-    pob?: string;
-  };
-  confidence?: number;
-}
+import type { ParsedChartData } from "../types";
 
 export default function Onboarding() {
   const navigate = useNavigate();

@@ -25,7 +25,12 @@ export type {
     HoroscopeData,
     DailyHoroscope,
     WeeklyHoroscope,
-    MonthlyHoroscope
+    MonthlyHoroscope,
+    LifeArea,
+    PlanetaryInfluence,
+    LuckyElements,
+    MoonData,
+    ForecastData
 } from './horoscope';
 
 // Chat types
@@ -34,3 +39,10 @@ export type {
     ChatConversation,
     ChatState
 } from './chat';
+
+// Component Prop types
+export type {
+    FeatureCardProps,
+    InfluenceCardProps,
+    ParsedChartData
+} from './components';

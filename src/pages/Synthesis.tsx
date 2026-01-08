@@ -32,19 +32,15 @@ import {
 import { db } from "../lib/firebase";
 import { useRazorpay } from "../hooks/useRazorpay";
 import { SynthesisSEO } from "../components/SEO";
+import Header from "../components/layout/Header";
 import Kundali from "../components/astrology/Kundali";
 import CelestialChart from "../components/astrology/CelestialChart";
-import type { KundaliData } from "../types";
+import type { KundaliData, ChatMessage } from "../types";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { downloadChart } from "../lib/chartStorage";
 
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  timestamp: Date;
-}
+type Message = ChatMessage;
 
 const FREE_LIMIT_SECONDS = 300; // 5 minutes
 
@@ -105,6 +101,7 @@ export default function Synthesis() {
   const [showExpandedChart, setShowExpandedChart] = useState(false);
   const [interactionId, setInteractionId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const prevChatIdRef = useRef<string | null>(null); // Track previous chat ID to detect sidebar navigation
 
   const WELCOME_MESSAGE: Message = {
     id: "welcome",
@@ -205,8 +202,15 @@ export default function Synthesis() {
 
   // Handle Chat Persistence & Loading
   useEffect(() => {
-    // Reset interaction ID when chat changes (new conversation context)
-    setInteractionId(null);
+    // Only reset interaction ID when switching to a DIFFERENT existing chat from sidebar
+    // Don't reset when: (1) creating a new chat (prevChatIdRef.current was null), or (2) same chat
+    if (
+      prevChatIdRef.current !== null &&
+      prevChatIdRef.current !== currentChatId
+    ) {
+      setInteractionId(null);
+    }
+    prevChatIdRef.current = currentChatId;
 
     if (!user) {
       setMessages([WELCOME_MESSAGE]);
@@ -231,7 +235,8 @@ export default function Synthesis() {
         timestamp: doc.data().timestamp?.toDate() || new Date(),
       })) as Message[];
 
-      setMessages(msgs.length > 0 ? msgs : [WELCOME_MESSAGE]);
+      // Always prepend welcome message so it appears at the start of conversation
+      setMessages([WELCOME_MESSAGE, ...msgs]);
     });
 
     return () => unsubscribe();
@@ -470,8 +475,13 @@ export default function Synthesis() {
     <div className="h-screen bg-[#010103] flex flex-col text-content-primary overflow-hidden">
       <SynthesisSEO />
 
+      {/* Header - Hidden on mobile where we have custom header */}
+      <div className="hidden md:block">
+        <Header onShowOnboarding={() => setShowOnboardingModal(true)} />
+      </div>
+
       {/* Main Container */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden md:pt-20">
         {/* Leftmost: Conversation Sidebar (Hidden on mobile) */}
         {user && (
           <aside
@@ -539,7 +549,7 @@ export default function Synthesis() {
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
             className={`hidden md:flex absolute ${
               isSidebarCollapsed ? "left-4" : "left-[17rem]"
-            } top-14 z-50 p-2 rounded-full border border-white/10 bg-black/40 backdrop-blur-md text-white/40 hover:text-gold hover:border-gold/30 transition-all duration-300`}
+            } top-32 z-50 p-2 rounded-full border border-white/10 bg-black/40 backdrop-blur-md text-white/40 hover:text-gold hover:border-gold/30 transition-all duration-300`}
           >
             {isSidebarCollapsed ? (
               <PanelLeftOpen size={16} />
@@ -727,7 +737,7 @@ export default function Synthesis() {
 
           <div
             ref={scrollRef}
-            className="flex-1 overflow-y-auto p-2 md:p-6 space-y-4 relative z-10 custom-scrollbar"
+            className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-6 space-y-4 relative z-10 custom-scrollbar"
           >
             {/* Atmospheric Aura */}
             <div className="aura-bg opacity-50 absolute inset-0 -z-10 pointer-events-none" />
@@ -767,12 +777,10 @@ export default function Synthesis() {
                     {m.role === "user" ? "You" : "Jyotish"}
                     <span>•</span>
                     <span>
-                      {m.timestamp.toLocaleTimeString("en-GB", {
+                      {m.timestamp.toLocaleTimeString([], {
                         hour: "2-digit",
                         minute: "2-digit",
-                        timeZone: "UTC",
-                      })}{" "}
-                      GMT
+                      })}
                     </span>
                   </div>
                   <div
@@ -868,7 +876,7 @@ export default function Synthesis() {
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
         title="Create Your Profile"
-        message="Save your birth charts and access AI insights by creating an account."
+        message="Save your birth charts and access insights by creating an account."
       />
 
       {showExpandedChart && kundaliData && (

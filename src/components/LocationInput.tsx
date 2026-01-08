@@ -5,6 +5,7 @@ import { MapPin, Loader2, X } from "lucide-react";
 interface LocationInputProps {
   value: string;
   onChange: (value: string) => void;
+  onSelect?: (suggestion: Suggestion) => void;
   placeholder?: string;
   label?: string;
   className?: string;
@@ -20,6 +21,7 @@ interface Suggestion {
 export default function LocationInput({
   value,
   onChange,
+  onSelect,
   placeholder = "Search for a city...",
   label,
   className = "",
@@ -128,6 +130,7 @@ export default function LocationInput({
     const displayName = suggestion.display_name;
     setQuery(displayName);
     onChange(displayName);
+    if (onSelect) onSelect(suggestion);
     setIsOpen(false);
   };
 

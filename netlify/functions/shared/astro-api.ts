@@ -500,29 +500,40 @@ export async function getDailyHoroscope(birthData: BirthData, date?: string): Pr
 }
 
 /**
- * Fallback to text-based daily horoscope
+ * Get narrative horoscope text using the specific sign-based endpoint
  */
-async function getDailyHoroscopeText(birthData: BirthData, date?: string): Promise<any> {
+export async function getDailyHoroscopeText(
+    birthData: BirthData,
+    date?: string
+): Promise<any> {
     const basePayload = parseBirthData(birthData);
-    const now = new Date();
-    const dateStr = date || now.toISOString().split('T')[0];
-    const [y, m, d] = dateStr.split('-').map(Number);
+    const [year, month, day] = birthData.dob.split("-").map(Number);
+
+    // Calculate sign if not provided
+    const signs = [
+        "Capricorn",
+        "Aquarius",
+        "Pisces",
+        "Aries",
+        "Taurus",
+        "Gemini",
+        "Cancer",
+        "Leo",
+        "Virgo",
+        "Libra",
+        "Scorpio",
+        "Sagittarius",
+    ];
+    const boundaries = [20, 19, 21, 20, 21, 21, 23, 23, 23, 23, 22, 22];
+    const sign = day < boundaries[month - 1] ? signs[month - 1] : signs[month % 12];
 
     const payload = {
         ...basePayload,
-        prediction_time: {
-            datetime: {
-                year: y,
-                month: m,
-                day: d,
-                hour: now.getUTCHours(),
-                minute: now.getUTCMinutes(),
-                second: 0,
-            }
-        }
+        sign: sign,
+        date: date || new Date().toISOString().split("T")[0],
     };
 
-    const response = await fetch(`${API_BASE}/horoscope/personal/daily/text`, {
+    const response = await fetch(`${API_BASE}/horoscope/sign/daily/text`, {
         method: "POST",
         headers: getHeaders(),
         body: JSON.stringify(payload),
@@ -531,4 +542,106 @@ async function getDailyHoroscopeText(birthData: BirthData, date?: string): Promi
     if (!response.ok) return null;
     const result = await response.json();
     return result.data || result;
+}
+/**
+ * Match two birth charts using Guna Milan (36 points)
+ */
+export async function getCompatibilityDetails(
+    maleData: BirthData,
+    femaleData: BirthData
+): Promise<any> {
+    const male = parseBirthData(maleData);
+    const female = parseBirthData(femaleData);
+
+    const commonPayload = {
+        subjects: [
+            {
+                name: maleData.name || "Member 1",
+                birth_data: male.subject.birth_data,
+            },
+            {
+                name: femaleData.name || "Member 2",
+                birth_data: female.subject.birth_data,
+            },
+        ],
+        options: {
+            language: "en",
+            house_system: "P",
+        },
+        compatibility_options: {
+            include_davison: false,
+            include_timing: false
+        }
+    };
+
+    const analysisPayload = {
+        ...commonPayload,
+        report_options: {
+            tradition: "psychological",
+            language: "en",
+        }
+    };
+
+    console.log("[getCompatibilityDetails] Payloads construction started");
+
+    try {
+        const [respInsights, respAnalysis] = await Promise.all([
+            fetch(`${API_BASE}/insights/relationship/compatibility`, {
+                method: "POST",
+                headers: getHeaders(),
+                body: JSON.stringify(commonPayload),
+            }),
+            fetch(`${API_BASE}/analysis/relationship`, {
+                method: "POST",
+                headers: getHeaders(),
+                body: JSON.stringify(analysisPayload),
+            })
+        ]);
+
+        let insightsData: any = {};
+        if (respInsights.ok) {
+            const raw = await respInsights.json();
+            insightsData = raw.data || raw;
+        } else {
+            console.error(`[getCompatibilityDetails] Insights API Error ${respInsights.status}`);
+        }
+
+        let analysisData: any = {};
+        if (respAnalysis.ok) {
+            const raw = await respAnalysis.json();
+            analysisData = raw.data || raw;
+        } else {
+            console.error(`[getCompatibilityDetails] Analysis API Error ${respAnalysis.status}`);
+        }
+
+        // Deep Merge Strategy to prevent overwriting nested scores
+        return {
+            ...insightsData,
+            ...analysisData,
+            synastry: {
+                ...(insightsData.synastry || {}),
+                ...(analysisData.synastry || {}),
+            },
+            love_languages: {
+                ...(insightsData.love_languages || {}),
+                ...(analysisData.love_languages || {}),
+            },
+            dynamics: {
+                ...(insightsData.dynamics || {}),
+                ...(analysisData.dynamics || {}),
+                ...(analysisData.relationship_dynamics || {}), // Handle naming variation
+            },
+            compatibility: {
+                ...(insightsData.compatibility || {}),
+                ...(analysisData.compatibility || {}),
+            },
+            // Ensure lists are combined/preserved
+            interpretations: analysisData.interpretations || [],
+            overall_score: insightsData.overall_score || analysisData.overall_compatibility || insightsData.compatibility?.overall_score || 0,
+        };
+
+    } catch (error) {
+        console.error("[getCompatibilityDetails] Multi-fetch error:", error);
+        return null;
+    }
 }

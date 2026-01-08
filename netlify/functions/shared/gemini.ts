@@ -121,6 +121,9 @@ export async function synthesize(
 
     const lastMessage = messages[messages.length - 1].content;
 
+    console.log("[Synthesis] Input:", lastMessage.substring(0, 50) + "...");
+    console.log("[Synthesis] Previous Interaction ID:", previousInteractionId || "null (first message)");
+
     // Use the interactions API with system_instruction and previous_interaction_id
     const interaction = await client.interactions.create({
         model: "gemini-3-flash-preview",
@@ -134,6 +137,8 @@ export async function synthesize(
         },
 
     });
+
+    console.log("[Synthesis] New Interaction ID:", interaction.id);
 
     // Extract text from interaction output
     let content = "I apologize, but I could not generate a response at this time.";

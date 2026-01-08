@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/AuthContext";
-import { useUserProfile, useHeaderScroll } from "../hooks";
+import { useUserProfile } from "../hooks";
 import {
   MessageSquare,
   Sun,
@@ -12,22 +12,13 @@ import {
   ChevronRight,
   TrendingUp,
   Clock,
-  LogOut,
   Crown,
   Settings,
+  ArrowUpRight,
 } from "lucide-react";
-import { auth } from "../lib/firebase";
-import { signOut } from "firebase/auth";
 import OnboardingModal from "../components/OnboardingModal";
-
-interface FeatureCardProps {
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  status: "Active" | "Beta" | "Coming Soon";
-  onClick?: () => void;
-  accentColor: string;
-}
+import Header from "../components/layout/Header";
+import type { FeatureCardProps } from "../types";
 
 const FeatureCard = ({
   title,
@@ -96,11 +87,12 @@ export default function Dashboard() {
 
   // Use centralized hook for profile data
   const { profile, loading: isLoading } = useUserProfile();
-  const { isVisible, scrolled } = useHeaderScroll();
 
-  // Also check for guest mode in sessionStorage
+  // also check for guest mode in sessionStorage
   const [guestData, setGuestData] = useState<any>(null);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
+  const [prediction, setPrediction] = useState<string | null>(null);
+  const [isPredictionLoading, setIsPredictionLoading] = useState(false);
 
   useEffect(() => {
     if (!user && !isLoading) {
@@ -116,12 +108,95 @@ export default function Dashboard() {
   // Combined userData from hook or guest storage
   const userData = profile || guestData;
 
-  const handleLogout = async () => {
-    await signOut(auth);
-    sessionStorage.clear();
-    localStorage.clear();
-    navigate("/");
+  const getZodiacSign = (day: number, month: number) => {
+    const signs = [
+      "Capricorn",
+      "Aquarius",
+      "Pisces",
+      "Aries",
+      "Taurus",
+      "Gemini",
+      "Cancer",
+      "Leo",
+      "Virgo",
+      "Libra",
+      "Scorpio",
+      "Sagittarius",
+    ];
+    const boundaries = [20, 19, 21, 20, 21, 21, 23, 23, 23, 23, 22, 22];
+    return day < boundaries[month - 1] ? signs[month - 1] : signs[month % 12];
   };
+
+  useEffect(() => {
+    const fetchPrediction = async () => {
+      if (!userData || !userData.dob || prediction || isPredictionLoading)
+        return;
+
+      setIsPredictionLoading(true);
+      try {
+        const [year, month, day] = userData.dob.split("-").map(Number);
+        const [hour, minute] = (userData.tob || "12:00").split(":").map(Number);
+
+        // Simple extraction for city/country from pob "City, Country"
+        const pobParts = (userData.pob || "Unknown")
+          .split(",")
+          .map((s: string) => s.trim());
+        const city = pobParts[0] || "Unknown";
+        const countryCode = pobParts[1]?.substring(0, 2).toUpperCase() || "US";
+
+        const zodiacSign = userData.sunSign || getZodiacSign(day, month);
+
+        const url = "/.netlify/functions/daily-prediction";
+        const body = {
+          sign: zodiacSign,
+          format: "short",
+          subject: {
+            name: userData.name || "Seeker",
+            birth_data: {
+              year,
+              month,
+              day,
+              hour,
+              minute,
+              city,
+              country_code: countryCode === "KA" ? "IN" : countryCode,
+            },
+          },
+          options: {
+            house_system: "P",
+            zodiac_type: "Tropic",
+            active_points: [
+              "Sun",
+              "Moon",
+              "Mercury",
+              "Venus",
+              "Mars",
+              "Jupiter",
+              "Saturn",
+            ],
+            precision: 2,
+          },
+        };
+
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        const result = await response.json();
+        if (result.success && result.data?.text) {
+          setPrediction(result.data.text);
+        }
+      } catch (err) {
+        console.error("Failed to fetch prediction:", err);
+      } finally {
+        setIsPredictionLoading(false);
+      }
+    };
+
+    fetchPrediction();
+  }, [userData]);
 
   if (isLoading) {
     return (
@@ -135,9 +210,9 @@ export default function Dashboard() {
     {
       title: "Synthesis",
       description:
-        "Chat with your personal AI thought partner powered by Vedic wisdom and modern psychology.",
+        "Chat with your personal thought partner powered by Vedic wisdom and modern psychology.",
       icon: <MessageSquare size={24} />,
-      status: "Active",
+      status: null,
       accentColor: "rgba(255, 215, 0, 0.8)", // Gold
       onClick: () => navigate("/synthesis"),
     },
@@ -146,17 +221,27 @@ export default function Dashboard() {
       description:
         "Personalized transit insights based on your Moon sign and ongoing dashas.",
       icon: <Sun size={24} />,
-      status: "Active",
+      status: null,
       accentColor: "rgba(245, 158, 11, 0.8)", // Amber
       onClick: () => navigate("/forecast"),
+    },
+    {
+      title: "Transit Oracle",
+      description:
+        "Real-time planetary movement visualization over your birth houses.",
+      icon: <Compass size={24} />,
+      status: null,
+      accentColor: "rgba(59, 130, 246, 0.8)", // Blue
+      onClick: () => navigate("/transit"),
     },
     {
       title: "Compatibility Analysis",
       description:
         "Analyze Guna Milan and synastry between two birth charts for deep understanding.",
       icon: <Heart size={24} />,
-      status: "Coming Soon",
+      status: null,
       accentColor: "rgba(239, 68, 68, 0.8)", // Red
+      onClick: () => navigate("/compatibility"),
     },
     {
       title: "Dasha Timeline",
@@ -165,15 +250,6 @@ export default function Dashboard() {
       icon: <History size={24} />,
       status: "Coming Soon",
       accentColor: "rgba(16, 185, 129, 0.8)", // Emerald
-    },
-    {
-      title: "Transit Oracle",
-      description:
-        "Real-time planetary movement visualization over your birth houses.",
-      icon: <Compass size={24} />,
-      status: "Active",
-      accentColor: "rgba(59, 130, 246, 0.8)", // Blue
-      onClick: () => navigate("/transit"),
     },
     {
       title: "Life Reports",
@@ -196,93 +272,48 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Header */}
-      <header
-        className={`fixed top-0 left-0 right-0 z-[1000] transition-all duration-700 ease-in-out ${
-          isVisible ? "translate-y-0" : "-translate-y-full"
-        } ${
-          scrolled
-            ? "bg-black/40 backdrop-blur-xl border-b border-white/5 py-3"
-            : "py-6"
-        }`}
-      >
-        <div className="container mx-auto px-6 flex flex-row items-center justify-between">
-          <div className="flex items-center gap-8">
-            <a href="/" className="logo flex items-center gap-3 group">
-              <div className="relative w-8 h-8 flex items-center justify-center">
-                <div className="absolute inset-0 border border-gold/30 rounded-full animate-spin-slow group-hover:scale-110 transition-transform"></div>
-                <div className="w-1.5 h-1.5 bg-gold rounded-full"></div>
-              </div>
-              <span className="font-display text-lg tracking-[0.4em] uppercase text-white/90 group-hover:text-gold transition-colors">
-                AstroYou
-              </span>
-            </a>
-
-            <nav className="hidden lg:flex items-center gap-8 text-xs font-black  tracking-[0.3em] text-white/40">
-              <span className="text-gold border-b border-gold/50 pb-1 cursor-default">
-                Dashboard
-              </span>
-              <button className="hover:text-white transition-colors">
-                Calendar
-              </button>
-              <button className="hover:text-white transition-colors">
-                Library
-              </button>
-            </nav>
-          </div>
-
-          <div className="flex items-center gap-6">
-            <div className="hidden sm:flex flex-col items-end">
-              <span className="text-xs font-bold text-white/90">
-                {userData?.profile?.name || userData?.name || "Seeker"}
-              </span>
-              <span className="text-[10px] uppercase tracking-widest text-gold/60 font-black">
-                {user ? "Premium Member" : "Guest Mode"}
-              </span>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="p-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-white/40 hover:text-white"
-              title="Logout"
-            >
-              <LogOut size={16} />
-            </button>
-          </div>
-        </div>
-      </header>
+      <Header onShowOnboarding={() => setShowOnboardingModal(true)} />
 
       <main className="container mx-auto pt-24 px-6 py-12 relative z-10">
         {/* Welcome Banner */}
         <section className="mb-20">
-          <div className="relative glass p-10 md:p-14 overflow-hidden rounded-[2rem] border-white/10">
+          <div className="relative glass p-6 md:p-10 overflow-hidden rounded-[2rem] border-white/10">
             {/* Ornament */}
             <div className="absolute top-0 right-0 p-8 text-gold/10">
-              <Crown size={120} strokeWidth={0.5} />
+              <Crown size={60} strokeWidth={0.5} />
             </div>
 
-            <div className="relative z-10 max-w-2xl">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="h-px w-8 bg-gold/50"></div>
-                <span className="text-xs font-bold uppercase tracking-[0.4em] text-gold">
-                  Personal Dashboard
-                </span>
-              </div>
-              <h2 className="text-4xl md:text-5xl font-display leading-tight mb-6">
-                Welcome, <br />
-                <span className="text-gold italic font-light">
+            <div className="relative z-10 max-w-5xl">
+              <h2 className="text-4xl md:text-5xl font-display leading-tight mb-4">
+                Welcome,{" "}
+                <span className="text-gold italic font-base">
                   {userData?.profile?.name || userData?.name || "Seeker"}
                 </span>
-                .
               </h2>
-              <p className="text-body text-white/60 mb-10 leading-relaxed font-sans max-w-xl">
-                The cosmic tides are currently shifting. The Moon resides in
-                <span className="text-white font-medium">
-                  {" "}
-                  Chitra Nakshatra
-                </span>
-                , blessing today with architectural precision and creative
-                clarity.
-              </p>
+              {isPredictionLoading ? (
+                <div className="space-y-3 mb-10 max-w-2xl">
+                  <div className="h-4 bg-white/5 rounded-full animate-pulse w-full"></div>
+                  <div className="h-4 bg-white/5 rounded-full animate-pulse w-5/6"></div>
+                  <div className="h-4 bg-white/5 rounded-full animate-pulse w-4/6"></div>
+                </div>
+              ) : (
+                <p className="text-2xl text-white/90 font-display !leading-tight !font-semibold !tracking-tight italic mb-2 font-sans mb-6">
+                  {prediction ||
+                    "The cosmic tides are currently shifting. The stars are aligning to bring you unique insights today."}
+                  {prediction && (
+                    <button
+                      onClick={() => navigate("/forecast")}
+                      className="ml-2 text-gold hover:text-white transition-colors inline-flex items-center gap-1 group whitespace-nowrap"
+                    >
+                      View full forecast{" "}
+                      <ArrowUpRight
+                        size={14}
+                        className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"
+                      />
+                    </button>
+                  )}
+                </p>
+              )}
 
               <div className="flex flex-wrap gap-8">
                 <div className="flex items-center gap-3">

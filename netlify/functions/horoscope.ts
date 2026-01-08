@@ -1,5 +1,5 @@
 import { Handler } from "@netlify/functions";
-import { getDailyHoroscope, getDashaPeriods } from "./shared/astro-api";
+import { getDailyHoroscope, getDailyHoroscopeText, getDashaPeriods } from "./shared/astro-api";
 
 export const handler: Handler = async (event) => {
     if (event.httpMethod !== "POST") {
@@ -18,21 +18,23 @@ export const handler: Handler = async (event) => {
 
         console.log(`[Horoscope] Fetching daily forecast for ${date || 'today'}...`);
 
-        // Fetch daily horoscope and dashas in parallel
-        const [horoscopeData, dashaData] = await Promise.all([
+        // Fetch daily horoscope (structured), narrative, and dashas in parallel
+        const [horoscopeData, narrativeData, dashaData] = await Promise.all([
             getDailyHoroscope(birthData, date),
+            getDailyHoroscopeText(birthData, date),
             getDashaPeriods(birthData)
         ]);
 
         // Find current dasha
-        const currentDasha = dashaData?.find(d => d.isCurrent);
-        const currentBhukti = currentDasha?.subPeriods?.find(s => s.isCurrent);
+        const currentDasha = dashaData?.find((d: any) => d.isCurrent);
+        const currentBhukti = currentDasha?.subPeriods?.find((s: any) => s.isCurrent);
 
         return {
             statusCode: 200,
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 horoscope: horoscopeData,
+                narrative: narrativeData?.text || narrativeData,
                 dasha: {
                     mahadasha: currentDasha?.planet,
                     bhukti: currentBhukti?.planet,

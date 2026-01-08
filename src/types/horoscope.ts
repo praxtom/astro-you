@@ -46,3 +46,59 @@ export interface MonthlyHoroscope extends HoroscopeData {
         type: 'auspicious' | 'challenging' | 'neutral';
     }>;
 }
+
+// High-Precision Forecast Types (from /horoscope/personal/daily endpoint)
+
+export interface LifeArea {
+    area: string;
+    title: string;
+    prediction: string;
+    rating: number;
+    keywords: string[];
+    reasoning?: string;
+}
+
+export interface PlanetaryInfluence {
+    planet: string;
+    aspect_type: string;
+    description: string;
+    strength: number;
+    natal_planet?: string;
+    aspect_name?: string;
+    orb?: number;
+    reasoning?: string;
+}
+
+export interface LuckyElements {
+    colors: string[];
+    numbers: number[];
+    stones: string[];
+    directions: string[];
+    times: string[];
+}
+
+export interface MoonData {
+    phase: string;
+    sign: string;
+    prediction: string;
+    illumination: number;
+}
+
+export interface ForecastData {
+    horoscope: {
+        date: string;
+        overall_theme: string;
+        overall_rating: number;
+        life_areas: LifeArea[];
+        planetary_influences: PlanetaryInfluence[];
+        lucky_elements: LuckyElements;
+        moon?: MoonData;
+        tips: string[];
+    };
+    narrative?: string;
+    dasha: {
+        mahadasha: string;
+        bhukti: string;
+        ends: string;
+    };
+}

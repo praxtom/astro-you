@@ -31,7 +31,7 @@ export default function AuthModal({
   onClose,
   onSuccess,
   title = "Create Your Profile",
-  message = "Save your birth charts and access AI insights by creating an account.",
+  message = "Save your birth charts and access insights by creating an account.",
 }: AuthModalProps) {
   const [step, setStep] = useState<AuthStep>("email");
   const [email, setEmail] = useState("");
@@ -172,6 +172,7 @@ export default function AuthModal({
       } else {
         // Use redirect in production (requires reverse proxy in netlify.toml)
         console.log("[Auth] Starting redirect sign-in...");
+        sessionStorage.setItem("astroyou_login_redirect", "true");
         await signInWithRedirect(auth, googleProvider);
         // Note: After redirect, the page will reload and getRedirectResult will handle the result
       }

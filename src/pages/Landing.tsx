@@ -4,19 +4,13 @@ import CelestialEngine from "../components/CelestialEngine";
 import { LandingSEO } from "../components/SEO";
 import AuthModal from "../components/AuthModal";
 import OnboardingModal from "../components/OnboardingModal";
+import Header from "../components/layout/Header";
+import Footer from "../components/layout/Footer";
 import { useAuth } from "../lib/AuthContext";
 import { doc, getDoc } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { auth, db } from "../lib/firebase";
 import { Sparkles, ChevronDown, ScrollText } from "lucide-react";
-
-interface InfluenceCardProps {
-  number: string;
-  title: string;
-  description: string;
-  theme: string;
-  isActive: boolean;
-  align?: "left" | "right" | "center";
-}
+import type { InfluenceCardProps } from "../types";
 
 const InfluenceCard = ({
   number,
@@ -27,7 +21,7 @@ const InfluenceCard = ({
   align = "left",
 }: InfluenceCardProps) => (
   <div
-    className={`sticky top-[20%] p-8 md:p-12 rounded-[2rem] border border-white/10 glass/10 transition-all duration-700 transform max-w-xl mx-auto lg:mx-0 ${
+    className={`sticky top-[20%] p-8 md:p-12 rounded-[2rem] border border-white/10 glass transition-all duration-700 transform max-w-xl mx-auto lg:mx-0 ${
       isActive
         ? "opacity-100 scale-100 translate-y-0"
         : "opacity-0 scale-95 translate-y-12"
@@ -38,7 +32,11 @@ const InfluenceCard = ({
         ? "lg:mx-auto"
         : "lg:mr-auto"
     }`}
-    style={{ background: `rgba(255, 255, 255, 0.02)` }}
+    style={{
+      background: `rgba(255, 255, 255, 0.08)`,
+      backdropFilter: "blur(32px)",
+      WebkitBackdropFilter: "blur(32px)",
+    }}
   >
     <div
       className={`w-12 h-12 rounded-full mb-8 flex items-center justify-center border border-white/20 text-sm font-bold ${theme}`}
@@ -97,7 +95,6 @@ const FAQItem = ({
 function Landing() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [scrolled, setScrolled] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
@@ -105,8 +102,6 @@ function Landing() {
 
   useEffect(() => {
     const handleScroll = () => {
-      setScrolled(window.scrollY > 50);
-
       // Calculate progress of the scrollytelling stack
       if (stackRef.current) {
         const rect = stackRef.current.getBoundingClientRect();
@@ -120,9 +115,28 @@ function Landing() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Handle post-redirect login success
+  useEffect(() => {
+    if (user && sessionStorage.getItem("astroyou_login_redirect")) {
+      sessionStorage.removeItem("astroyou_login_redirect");
+      navigate("/dashboard");
+    }
+  }, [user, navigate]);
+
   // Handle post-login navigation logic
   const handleLoginSuccess = async () => {
-    navigate("/dashboard");
+    const currentUser = auth.currentUser || user;
+    if (currentUser) {
+      const docSnap = await getDoc(doc(db, "users", currentUser.uid));
+      if (docSnap.exists() && docSnap.data().name) {
+        navigate("/dashboard");
+      } else {
+        sessionStorage.setItem("astroyou_mode", "logged_in");
+        setShowOnboardingModal(true);
+      }
+    } else {
+      navigate("/dashboard");
+    }
   };
 
   return (
@@ -138,75 +152,10 @@ function Landing() {
         ></div>
       </div>
 
-      {/* Navigation */}
-      <header
-        className={`fixed top-0 left-0 right-0 z-[1000] transition-all duration-500 border-b border-transparent ${
-          scrolled ? "header-scrolled" : "py-8"
-        }`}
-      >
-        <div className="container mx-auto px-6 flex flex-row items-center justify-between">
-          <a
-            href="/"
-            className="logo group flex items-center gap-3 active:scale-95 transition-transform"
-          >
-            <div className="relative w-8 h-8 flex items-center justify-center">
-              <div className="absolute inset-0 border border-gold/30 rounded-full group-hover:rotate-180 transition-transform duration-1000"></div>
-              <div className="w-1.5 h-1.5 bg-gold rounded-full shadow-[0_0_10px_var(--color-gold)]"></div>
-            </div>
-            <span className="font-display text-xl lg:text-2xl tracking-[0.3em] uppercase text-content-primary group-hover:tracking-[0.35em] transition-all">
-              AstroYou
-            </span>
-          </a>
-
-          <nav className="hidden md:flex items-center gap-10">
-            <a href="#journey" className="nav-link">
-              Journey
-            </a>
-            <a href="#features" className="nav-link">
-              Features
-            </a>
-            <a href="#philosophy" className="nav-link">
-              Philosophy
-            </a>
-            {user ? (
-              <>
-                <span className="text-caption text-gold/60 font-sans text-xs">
-                  ✦ {user.displayName || user.email?.split("@")[0]}
-                </span>
-                <button
-                  className="btn-premium"
-                  onClick={async () => {
-                    const docSnap = await getDoc(doc(db, "users", user.uid));
-                    if (docSnap.exists() && docSnap.data().name) {
-                      navigate("/dashboard");
-                    } else {
-                      sessionStorage.setItem("astroyou_mode", "logged_in");
-                      setShowOnboardingModal(true);
-                    }
-                  }}
-                >
-                  Enter Portal
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  className="btn-premium cursor-pointer"
-                  onClick={() => setShowAuthModal(true)}
-                >
-                  Get Started
-                </button>
-              </>
-            )}
-          </nav>
-
-          {/* Mobile Menu Toggle (Simplified for design focus) */}
-          <button className="md:hidden w-6 h-6 flex flex-col justify-center gap-1.5">
-            <div className="w-full h-px bg-content-primary"></div>
-            <div className="w-2/3 h-px bg-content-primary self-end"></div>
-          </button>
-        </div>
-      </header>
+      <Header
+        onShowAuth={() => setShowAuthModal(true)}
+        onShowOnboarding={() => setShowOnboardingModal(true)}
+      />
 
       {/* Unified Narrative Section: Hero + ScrollyStack */}
       <div className="relative" ref={stackRef}>
@@ -294,7 +243,7 @@ function Landing() {
             <InfluenceCard
               number="01"
               title="Sun (Surya)"
-              description="Represents the Atman, the eternal spark of consciousness within you. It signifies your ego, vitality, and natural leadership, determining the strength of your character and overall sense of self-authority."
+              description="Represents the Atma, the eternal spark of consciousness within you. It signifies your ego, vitality, and natural leadership, determining the strength of your character and overall sense of self-authority."
               theme="text-gold border-gold/20 shadow-[0_0_20px_rgba(197,160,89,0.1)]"
               isActive={scrollProgress > 0.06 && scrollProgress < 0.12}
               align="left"
@@ -303,7 +252,7 @@ function Landing() {
             <InfluenceCard
               number="02"
               title="Moon (Chandr)"
-              description="Represents the Mana, your emotional mind, instincts, and perceptions. It governs your mental peace and happiness, shaping how you feel and respond to the world through the lunar cycles."
+              description="Represents the Mann, your emotional mind, instincts, and perceptions. It governs your mental peace and happiness, shaping how you feel and respond to the world through the lunar cycles."
               theme="text-indigo-300 border-indigo-500/20 shadow-[0_0_20px_rgba(99,102,241,0.1)]"
               isActive={scrollProgress > 0.12 && scrollProgress < 0.22}
               align="left"
@@ -393,7 +342,6 @@ function Landing() {
 
         <div className="container mx-auto px-6 relative z-10">
           <div className="max-w-4xl mx-auto text-center mb-32">
-            <span className="section-label mb-6">Celestial Genesis</span>
             <h2 className="text-glow mb-8">
               The Birth of <br />
               <span className="text-gold italic">Your Story</span>
@@ -502,7 +450,6 @@ function Landing() {
       <section className="py-32 md:py-48 relative overflow-hidden" id="journey">
         <div className="container mx-auto px-6 relative z-10">
           <div className="text-center mb-24">
-            <span className="section-label">Where we come in</span>
             <h2 className="text-glow mb-6 text-4xl md:text-6xl text-white">
               Bridging Ancient Wisdom <br />
               <span className="text-gold italic">& Modern Clarity</span>
@@ -826,98 +773,7 @@ function Landing() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="pt-32 pb-16 relative border-t border-white/[0.03] bg-[#030308]">
-        <div className="container mx-auto px-6">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-16 mb-24">
-            {/* Brand Column */}
-            <div className="lg:col-span-1">
-              <span className="font-display text-2xl tracking-[0.2em] uppercase text-content-primary mb-6 block">
-                AstroYou
-              </span>
-              <p className="text-content-secondary text-sm leading-relaxed max-w-xs mb-8">
-                Translating ancient celestial wisdom into precise digital
-                insights for the modern seeker.
-              </p>
-              <div className="flex gap-4">
-                <a href="#" className="social-icon">
-                  𝕏
-                </a>
-                <a href="#" className="social-icon">
-                  IG
-                </a>
-                <a href="#" className="social-icon">
-                  FB
-                </a>
-              </div>
-            </div>
-
-            {/* Links Columns */}
-            <div>
-              <span className="footer-title">The Journey</span>
-              <div className="flex flex-col gap-3">
-                <a href="#journey" className="footer-link">
-                  The Journey
-                </a>
-                <a href="#features" className="footer-link">
-                  Features
-                </a>
-                <a href="#philosophy" className="footer-link">
-                  Philosophy
-                </a>
-                <a href="/synthesis" className="footer-link">
-                  Sage Synthesis
-                </a>
-              </div>
-            </div>
-
-            <div>
-              <span className="footer-title">Privacy & Legal</span>
-              <div className="flex flex-col gap-3">
-                <a href="#" className="footer-link">
-                  Privacy Policy
-                </a>
-                <a href="#" className="footer-link">
-                  Terms of Service
-                </a>
-                <a href="#" className="footer-link">
-                  Cookie Policy
-                </a>
-                <a href="#" className="footer-link">
-                  Security
-                </a>
-              </div>
-            </div>
-
-            {/* Newsletter Column */}
-            <div className="lg:col-span-1">
-              <span className="footer-title">Cosmic Updates</span>
-              <p className="text-content-secondary text-xs tracking-wider mb-6">
-                Receive astrological updates and personal guidance.
-              </p>
-              <div className="flex gap-2">
-                <input
-                  type="email"
-                  placeholder="The stars await..."
-                  className="cosmic-input"
-                />
-                <button className="bg-gold text-black px-4 py-2 text-xs font-bold uppercase transition-all hover:bg-[#dfc28c]">
-                  Join
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom Bar */}
-          <div className="pt-8 border-t border-white/[0.05] flex flex-col md:flex-row justify-between items-center gap-6 text-caption text-xs opacity-50">
-            <p>© 2026 AstroYou. All rights reserved.</p>
-            <div className="flex gap-8 italic">
-              <span>Made for the modern seeker.</span>
-              <span>Based in Ancient Wisdom.</span>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <Footer />
 
       <OnboardingModal
         isOpen={showOnboardingModal}

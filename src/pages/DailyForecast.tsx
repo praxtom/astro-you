@@ -17,55 +17,7 @@ import {
 } from "lucide-react";
 import { useUserProfile } from "../hooks";
 import { FullPageSkeleton } from "../components/ui/Skeleton";
-
-interface LifeArea {
-  area: string;
-  title: string;
-  prediction: string;
-  rating: number;
-  keywords: string[];
-  reasoning?: string;
-}
-
-interface PlanetaryInfluence {
-  planet: string;
-  aspect_type: string;
-  description: string;
-  strength: number;
-  natal_planet?: string;
-  aspect_name?: string;
-  orb?: number;
-  reasoning?: string;
-}
-
-interface ForecastData {
-  horoscope: {
-    date: string;
-    overall_theme: string;
-    overall_rating: number;
-    life_areas: LifeArea[];
-    planetary_influences: PlanetaryInfluence[];
-    lucky_elements: {
-      colors: string[];
-      numbers: number[];
-      stones: string[];
-      directions: string[];
-      times: string[];
-    };
-    moon?: {
-      phase: string;
-      sign: string;
-      prediction: string;
-      illumination: number;
-    };
-    tips: string[];
-  };
-  dasha: {
-    mahadasha: string;
-    bhukti: string;
-    ends: string;
-  };
-}
+import type { ForecastData } from "../types";
 
 const getAreaIcon = (area: string) => {
   switch (area.toLowerCase()) {
@@ -177,12 +129,8 @@ const DailyForecast: React.FC = () => {
         </button>
 
         <header className="mb-16">
-          <div className="flex items-center gap-3 text-gold/60 mb-2 font-sans tracking-[0.2em] font-black uppercase text-[10px]">
-            <Sparkles size={14} />
-            Daily Celestial Journal
-          </div>
           <h1 className="text-4xl md:text-6xl font-light mb-6 text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-white/40 leading-tight">
-            High-Precision Forecast
+            Your Daily Forecast
           </h1>
           <div className="flex flex-wrap items-center gap-6 text-white/40 font-sans italic text-sm">
             <div className="flex items-center gap-2">
@@ -223,68 +171,13 @@ const DailyForecast: React.FC = () => {
                   </span>
                 </div>
 
-                <p className="text-2xl md:text-3xl leading-relaxed text-white/90 font-light italic mb-2 first-letter:text-6xl first-letter:font-bold first-letter:text-gold first-letter:mr-3 first-letter:float-left">
-                  {h?.overall_theme ||
+                <p className="text-xl leading-relaxed text-white/90 font-light italic mb-2 first-letter:text-6xl first-letter:font-bold first-letter:text-gold first-letter:mr-3 first-letter:float-left">
+                  {forecast?.narrative ||
+                    h?.overall_theme ||
                     "The stars are aligning for your day. Focus on balance and intuitive steps forward."}
-                </p>
-                <p className="text-white/40 font-sans text-sm mt-4 font-light max-w-2xl">
-                  A high-precision analysis of your natal chart against current
-                  planetary transits.
                 </p>
               </div>
             </div>
-
-            {/* Life Areas Grid */}
-            <section>
-              <div className="flex items-center gap-4 mb-8">
-                <h2 className="text-xl font-light tracking-wide">Life Areas</h2>
-                <div className="h-[1px] flex-grow bg-white/5"></div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {h?.life_areas?.map((area, idx) => (
-                  <div
-                    key={idx}
-                    className="glass p-6 rounded-[2rem] border border-white/5 hover:border-white/10 transition-all group flex flex-col"
-                  >
-                    <div className="flex justify-between items-start mb-6">
-                      <div
-                        className={`p-3 rounded-2xl border ${getAreaColor(
-                          area.area
-                        )}`}
-                      >
-                        {getAreaIcon(area.area)}
-                      </div>
-                      <div className="flex gap-1">
-                        {[...Array(5)].map((_, i) => (
-                          <div
-                            key={i}
-                            className={`w-1.5 h-1.5 rounded-full ${
-                              i < area.rating ? "bg-gold" : "bg-white/10"
-                            }`}
-                          ></div>
-                        ))}
-                      </div>
-                    </div>
-                    <h3 className="text-lg font-medium text-white/90 mb-2 font-sans tracking-tight">
-                      {area.title}
-                    </h3>
-                    <p className="text-xs text-white/50 leading-relaxed font-sans font-light mb-auto">
-                      {area.prediction}
-                    </p>
-                    <div className="flex flex-wrap gap-2 mt-6">
-                      {area.keywords.map((kw, kidx) => (
-                        <span
-                          key={kidx}
-                          className="text-[9px] font-black uppercase tracking-tighter text-white/30 bg-white/5 px-2 py-0.5 rounded-md border border-white/5"
-                        >
-                          {kw}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
 
             {/* Planetary Influences (Transit Activations) */}
             <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -307,8 +200,7 @@ const DailyForecast: React.FC = () => {
                       <div className="flex-grow">
                         <div className="flex justify-between items-center mb-1">
                           <h4 className="text-sm font-bold font-sans text-white/90 uppercase tracking-widest">
-                            {inf.planet} {inf.aspect_name} Natal{" "}
-                            {inf.natal_planet}
+                            {inf.planet} Natal {inf.natal_planet}
                           </h4>
                           <span className="text-[10px] font-bold text- gold/60 bg-gold/5 px-2 py-0.5 rounded-full border border-gold/10">
                             Strength: {inf.strength}
@@ -317,11 +209,6 @@ const DailyForecast: React.FC = () => {
                         <p className="text-xs text-white/40 font-sans font-light leading-relaxed italic">
                           {inf.description}
                         </p>
-                        {inf.reasoning && (
-                          <p className="text-[10px] text-gold/30 font-sans mt-2 uppercase tracking-wide">
-                            Technical Logic: {inf.reasoning}
-                          </p>
-                        )}
                       </div>
                     </div>
                   ))}
@@ -452,6 +339,58 @@ const DailyForecast: React.FC = () => {
                 </div>
               </section>
             )}
+
+            {/* Life Areas Grid */}
+            <section>
+              <div className="flex items-center gap-4 mb-8">
+                <h2 className="text-xl font-light tracking-wide">Life Areas</h2>
+                <div className="h-[1px] flex-grow bg-white/5"></div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {h?.life_areas?.map((area, idx) => (
+                  <div
+                    key={idx}
+                    className="glass p-6 rounded-[2rem] border border-white/5 hover:border-white/10 transition-all group flex flex-col"
+                  >
+                    <div className="flex justify-between items-start mb-6">
+                      <div
+                        className={`p-3 rounded-2xl border ${getAreaColor(
+                          area.area
+                        )}`}
+                      >
+                        {getAreaIcon(area.area)}
+                      </div>
+                      <div className="flex gap-1">
+                        {[...Array(5)].map((_, i) => (
+                          <div
+                            key={i}
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              i < area.rating ? "bg-gold" : "bg-white/10"
+                            }`}
+                          ></div>
+                        ))}
+                      </div>
+                    </div>
+                    <h3 className="text-lg font-medium text-white/90 mb-2 font-sans tracking-tight">
+                      {area.title}
+                    </h3>
+                    <p className="text-xs text-white/50 leading-relaxed font-sans font-light mb-auto">
+                      {area.prediction}
+                    </p>
+                    <div className="flex flex-wrap gap-2 mt-6">
+                      {area.keywords.map((kw, kidx) => (
+                        <span
+                          key={kidx}
+                          className="text-[9px] font-black uppercase tracking-tighter text-white/30 bg-white/5 px-2 py-0.5 rounded-md border border-white/5"
+                        >
+                          {kw}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
 
             {/* Wisdom Footer */}
             <div className="text-center py-12 border-t border-white/5">

@@ -42,6 +42,15 @@
   --shadow-gold-glow: 0 0 30px rgba(197, 160, 89, 0.15);
 }
 
+:root {
+  background-color: #030308;
+}
+
+body {
+  background-color: #030308;
+  margin: 0;
+}
+
 /* --- Keyframe Animations --- */
 @keyframes float-slow {
   0%,
@@ -214,6 +223,10 @@ h4,
   line-height: 1.1;
 }
 
+.font-base {
+  font-family: var(--font-display);
+}
+
 h1 {
   font-size: clamp(2.25rem, 5vw, 3.75rem);
 }
@@ -254,13 +267,12 @@ p {
 .glass {
   position: relative;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
     0 2px 4px -1px rgba(0, 0, 0, 0.06);
   border: 1px solid var(--stroke-subtle);
-  border-radius: 2px;
   transition: all 700ms;
 }
 

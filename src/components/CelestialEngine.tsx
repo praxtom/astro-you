@@ -1,6 +1,6 @@
 import { useRef, useMemo } from "react";
 import { Canvas, useFrame, useLoader } from "@react-three/fiber";
-import { Stars, PerspectiveCamera, Sphere, Line } from "@react-three/drei";
+import { Stars, PerspectiveCamera, Sphere } from "@react-three/drei";
 import * as THREE from "three";
 import * as React from "react";
 
@@ -96,140 +96,6 @@ function CosmicDust() {
         blending={THREE.AdditiveBlending}
       />
     </points>
-  );
-}
-
-// --- Sacred Geometry: Enhanced Kundali Grid ---
-function KundaliGrid() {
-  const ref = useRef<THREE.Group>(null!);
-
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
-    ref.current.rotation.z = Math.sin(t * 0.08) * 0.006;
-  });
-
-  const lines = useMemo(() => {
-    const s = 1;
-    return [
-      [
-        [s, s, 0],
-        [-s, s, 0],
-      ],
-      [
-        [-s, s, 0],
-        [-s, -s, 0],
-      ],
-      [
-        [-s, -s, 0],
-        [s, -s, 0],
-      ],
-      [
-        [s, -s, 0],
-        [s, s, 0],
-      ],
-      [
-        [0, s, 0],
-        [s, 0, 0],
-      ],
-      [
-        [s, 0, 0],
-        [0, -s, 0],
-      ],
-      [
-        [0, -s, 0],
-        [-s, 0, 0],
-      ],
-      [
-        [-s, 0, 0],
-        [0, s, 0],
-      ],
-      [
-        [s, s, 0],
-        [-s, -s, 0],
-      ],
-      [
-        [-s, s, 0],
-        [s, -s, 0],
-      ],
-    ].map((pts) => pts.map((p) => new THREE.Vector3(...p)));
-  }, []);
-
-  const circles = useMemo(() => {
-    const radii = [
-      HOUSE_RADII.inner,
-      HOUSE_RADII.middle,
-      HOUSE_RADII.outer,
-      HOUSE_RADII.far,
-    ];
-    return radii.map((r) => {
-      const points: THREE.Vector3[] = [];
-      for (let i = 0; i <= 72; i++) {
-        const angle = (i / 72) * Math.PI * 2;
-        points.push(
-          new THREE.Vector3(Math.cos(angle) * r, Math.sin(angle) * r, 0)
-        );
-      }
-      return points;
-    });
-  }, []);
-
-  // 12 zodiac division lines
-  const zodiacLines = useMemo(() => {
-    const lines: THREE.Vector3[][] = [];
-    for (let i = 0; i < 12; i++) {
-      const angle = (i / 12) * Math.PI * 2;
-      lines.push([
-        new THREE.Vector3(
-          Math.cos(angle) * HOUSE_RADII.inner,
-          Math.sin(angle) * HOUSE_RADII.inner,
-          0
-        ),
-        new THREE.Vector3(
-          Math.cos(angle) * HOUSE_RADII.far,
-          Math.sin(angle) * HOUSE_RADII.far,
-          0
-        ),
-      ]);
-    }
-    return lines;
-  }, []);
-
-  return (
-    <group ref={ref} position={[0, 0, -0.8]}>
-      {/* Main grid */}
-      {lines.map((pts, i) => (
-        <Line
-          key={`line-${i}`}
-          points={pts}
-          color="#c5a059"
-          lineWidth={0.7}
-          transparent
-          opacity={0.35}
-        />
-      ))}
-      {/* Concentric circles */}
-      {circles.map((pts, i) => (
-        <Line
-          key={`circle-${i}`}
-          points={pts}
-          color="#c5a059"
-          lineWidth={0.25}
-          transparent
-          opacity={0.15 - i * 0.02}
-        />
-      ))}
-      {/* Zodiac divisions */}
-      {zodiacLines.map((pts, i) => (
-        <Line
-          key={`zodiac-${i}`}
-          points={pts}
-          color="#c5a059"
-          lineWidth={0.2}
-          transparent
-          opacity={0.1}
-        />
-      ))}
-    </group>
   );
 }
 
@@ -410,38 +276,13 @@ function ShadowPlanet({
 }
 
 // --- Enhanced Sun with Corona ---
-function VedicSun({
-  isVisible = true,
-  isPaused = false,
-}: {
-  isVisible?: boolean;
-  isPaused?: boolean;
-}) {
+function VedicSun({ isVisible = true }: { isVisible?: boolean }) {
   const meshRef = useRef<THREE.Mesh>(null!);
-  const coronaRef = useRef<THREE.Mesh>(null!);
-  const raysRef = useRef<THREE.Group>(null!);
   const texture = useLoader(THREE.TextureLoader, "/assets/planets/sun.png");
 
-  useFrame(({ clock }) => {
-    const t = isPaused ? 0 : clock.getElapsedTime();
+  useFrame(() => {
     meshRef.current.rotation.y -= 0.0006;
-    coronaRef.current.rotation.z = t * 0.05;
-    coronaRef.current.scale.setScalar(1 + Math.sin(t * 0.8) * 0.08);
-    raysRef.current.rotation.z = -t * 0.02;
   });
-
-  // God rays
-  const rays = useMemo(() => {
-    const rayCount = 12;
-    const rayData: { angle: number; length: number }[] = [];
-    for (let i = 0; i < rayCount; i++) {
-      rayData.push({
-        angle: (i / rayCount) * Math.PI * 2,
-        length: 3 + Math.random() * 2,
-      });
-    }
-    return rayData;
-  }, []);
 
   return (
     <group position={[0, 0, 0.3]}>
@@ -456,34 +297,7 @@ function VedicSun({
         />
       </Sphere>
 
-      {/* Corona & Rays - User requested removal for cleaner scrolly focus */}
-      <group visible={!isPaused}>
-        {/* Corona glow */}
-        <Sphere ref={coronaRef} args={[1.8, 32, 32]}>
-          <meshBasicMaterial
-            color="#FFD700"
-            transparent
-            opacity={0.15}
-            blending={THREE.AdditiveBlending}
-          />
-        </Sphere>
-
-        {/* God rays */}
-        <group ref={raysRef}>
-          {rays.map((ray, i) => (
-            <mesh key={i} position={[0, 0, -0.1]} rotation={[0, 0, ray.angle]}>
-              <planeGeometry args={[0.08, ray.length]} />
-              <meshBasicMaterial
-                color="#FFD700"
-                transparent
-                opacity={0.1}
-                blending={THREE.AdditiveBlending}
-                side={THREE.DoubleSide}
-              />
-            </mesh>
-          ))}
-        </group>
-      </group>
+      {/* Corona & Rays removed as requested */}
 
       <pointLight
         intensity={isVisible ? 3 : 0}
@@ -720,16 +534,8 @@ export default function CelestialEngine({
           {/* Cosmic dust */}
           <CosmicDust />
 
-          {/* Sacred geometry - fade out during focus */}
-          <group visible={progress < 0.05 || progress > 0.95}>
-            <KundaliGrid />
-          </group>
-
           {/* Central Sun */}
-          <VedicSun
-            isPaused={progress > 0}
-            isVisible={progress < 0.15 || progress > 0.95}
-          />
+          <VedicSun isVisible={progress < 0.15 || progress > 0.95} />
 
           {/* Main planets */}
           {planets.map((p, idx) => {

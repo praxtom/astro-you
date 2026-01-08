@@ -46,7 +46,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="absolute bottom-[-10%] left-[-5%] w-[60vw] h-[60vw] bg-violet/5 blur-[120px] rounded-full"></div>
           </div>
 
-          <div className="w-full max-w-lg glass p-12 relative z-10 border border-white/10 rounded-3xl text-center">
+          <div className="w-full max-w-lg glass p-8 relative z-10 border border-white/10 rounded-3xl text-center">
             {/* Icon */}
             <div className="w-20 h-20 mx-auto mb-8 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
               <AlertTriangle className="text-red-400" size={36} />
