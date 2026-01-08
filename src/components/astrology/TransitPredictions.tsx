@@ -112,7 +112,7 @@ const TransitPredictions: React.FC<TransitPredictionsProps> = ({
 
   if (itemsToShow.length === 0) {
     return (
-      <div className="p-8 rounded-3xl bg-white/5 border border-white/10 text-center">
+      <div className="p-4 rounded-3xl bg-white/5 border border-white/10 text-center">
         <Info className="mx-auto mb-4 text-white/20" size={32} />
         <p className="text-white/40 text-sm font-sans">
           No significant transit influences detected for today.
@@ -161,7 +161,7 @@ const TransitPredictions: React.FC<TransitPredictionsProps> = ({
         return (
           <div
             key={i}
-            className="group relative p-6 rounded-2xl bg-[#0a0a0f] border border-white/10 hover:border-gold/30 transition-all duration-500 overflow-hidden"
+            className="group relative p-4 rounded-2xl bg-[#0a0a0f] border border-white/10 hover:border-gold/30 transition-all duration-500 overflow-hidden"
           >
             {/* Strength Indicator Bar */}
             <div
@@ -176,11 +176,6 @@ const TransitPredictions: React.FC<TransitPredictionsProps> = ({
                 height: `${Math.min(100, (p.intensity || 5) * 10)}%`,
               }}
             />
-
-            {/* Accent decoration */}
-            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-20 transition-opacity">
-              <Sparkles size={40} className="text-gold" />
-            </div>
 
             <div className="flex items-start gap-4">
               <div

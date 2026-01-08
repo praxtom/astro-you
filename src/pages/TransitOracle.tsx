@@ -70,9 +70,6 @@ export default function TransitOracle() {
               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gold/60">
                 Celestial Status
               </span>
-              <span className="text-xs text-white/40 tracking-wider">
-                High Precision V3.4 Active
-              </span>
             </div>
             <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-gold/10 border border-gold/20">
               <Compass className="text-gold animate-spin-slow" size={24} />
@@ -116,35 +113,25 @@ export default function TransitOracle() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Left Column: Visual Chart */}
-          <div className="lg:col-span-7 space-y-8">
-            <div className="glass rounded-[3rem] border border-white/10 p-8 md:p-12 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
-                <Compass size={200} className="text-white" />
+          <div className="lg:col-span-5 space-y-8">
+            <div className="glass rounded-[3rem] border border-white/10 p-2 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                <Compass size={100} className="text-white" />
               </div>
 
               <div className="relative z-10">
-                <div className="flex items-center justify-between mb-12">
+                <div className="flex items-center ml-8 mt-8 justify-between">
                   <div>
-                    <h2 className="text-sm font-black uppercase tracking-[0.3em] text-white/60 mb-1">
+                    <h3 className="text-sm font-black tracking-[0.3em] text-white/60 mb-1">
                       Spatial Distribution
-                    </h2>
+                    </h3>
                     <p className="text-xs text-white/30 italic">
                       Lagna-centric House Mapping
                     </p>
                   </div>
-                  <div className="flex gap-4">
-                    <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-white/40">
-                      <span className="w-1.5 h-1.5 rounded-full bg-white/40"></span>{" "}
-                      Natal
-                    </span>
-                    <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gold">
-                      <span className="w-1.5 h-1.5 rounded-full bg-gold shadow-[0_0_8px_gold]"></span>{" "}
-                      Transit
-                    </span>
-                  </div>
                 </div>
 
-                <div className="max-w-[550px] mx-auto">
+                <div className=" mx-auto">
                   {loading ? (
                     <div className="aspect-square flex items-center justify-center">
                       <Compass
@@ -160,10 +147,7 @@ export default function TransitOracle() {
                       </div>
                     </div>
                   ) : (
-                    <TransitOverlay
-                      data={data}
-                      className="scale-110 md:scale-125"
-                    />
+                    <TransitOverlay data={data} className="scale-90" />
                   )}
                 </div>
               </div>
@@ -195,11 +179,11 @@ export default function TransitOracle() {
           {/* Right Column: Interpretation */}
           <div className="lg:col-span-5 space-y-8">
             <div className="flex flex-col gap-4">
-              <h2 className="text-sm font-black uppercase tracking-[0.3em] text-white/60 mb-2 px-2">
+              <h3 className="text-sm font-black uppercase tracking-[0.3em] text-white/60 mb-2 px-2">
                 Transit Analysis
-              </h2>
+              </h3>
 
-              <div className="overflow-y-auto max-h-[800px] pr-2 custom-scrollbar">
+              <div className="overflow-y-auto max-h-[755px] pr-2 custom-scrollbar">
                 <TransitPredictions
                   predictions={predictions || []}
                   fallbackAspects={data?.chart_data?.aspects}

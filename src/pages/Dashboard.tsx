@@ -10,8 +10,6 @@ import {
   Compass,
   FileText,
   ChevronRight,
-  TrendingUp,
-  Clock,
   Crown,
   Settings,
   ArrowUpRight,
@@ -30,7 +28,7 @@ const FeatureCard = ({
 }: FeatureCardProps) => (
   <button
     onClick={status === "Coming Soon" ? undefined : onClick}
-    className={`group relative overflow-hidden glass p-8 text-left transition-all duration-500 hover:scale-[1.02] active:scale-[0.98] ${
+    className={`group relative overflow-hidden glass p-6 text-left transition-all duration-500 hover:scale-[1.02] active:scale-[0.98] ${
       status === "Coming Soon"
         ? "opacity-60 cursor-default"
         : "cursor-pointer hover:border-white/20"
@@ -52,17 +50,19 @@ const FeatureCard = ({
         >
           {icon}
         </div>
-        <span
-          className={`text-xs font-bold uppercase tracking-[0.2em] px-3 py-1 rounded-full border ${
-            status === "Active"
-              ? "bg-gold/10 border-gold/30 text-gold"
-              : status === "Beta"
-              ? "bg-violet-500/10 border-violet-500/30 text-violet-400"
-              : "bg-white/5 border-white/10 text-white/40"
-          }`}
-        >
-          {status}
-        </span>
+        {status && (
+          <span
+            className={`text-xs font-bold uppercase tracking-[0.2em] px-3 py-1 rounded-full border ${
+              status === "Active"
+                ? "bg-gold/10 border-gold/30 text-gold"
+                : status === "Beta"
+                ? "bg-violet-500/10 border-violet-500/30 text-violet-400"
+                : "bg-white/5 border-white/10 text-white/40"
+            }`}
+          >
+            {status}
+          </span>
+        )}
       </div>
 
       <h3 className="text-xl font-display tracking-wider text-white mb-3 group-hover:text-gold transition-colors">
@@ -316,39 +316,14 @@ export default function Dashboard() {
               )}
 
               <div className="flex flex-wrap gap-8">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center text-gold">
-                    <TrendingUp size={18} />
-                  </div>
-                  <div>
-                    <div className="text-xs uppercase tracking-widest text-white/40">
-                      Daily Vibe
-                    </div>
-                    <div className="text-sm font-medium">Radiant Mastery</div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-violet-500/10 border border-violet-500/30 flex items-center justify-center text-violet-400">
-                    <Clock size={18} />
-                  </div>
-                  <div>
-                    <div className="text-xs uppercase tracking-widest text-white/40">
-                      Vedic Insights
-                    </div>
-                    <div className="text-sm font-medium">Coming Soon</div>
-                  </div>
-                </div>
-
-                <button className="p-4 rounded-3xl border border-white/5 bg-white/[0.02] flex items-center gap-4 hover:border-gold/30 hover:bg-gold/5 transition-all group/btn">
+                <button
+                  onClick={() => setShowOnboardingModal(true)}
+                  className="p-4 rounded-3xl border border-white/5 bg-white/[0.02] flex items-center gap-4 hover:border-gold/30 hover:bg-gold/5 transition-all group/btn"
+                >
                   <div className="h-10 w-10 rounded-2xl bg-white/5 flex items-center justify-center text-white/40 group-hover/btn:bg-gold/10 group-hover/btn:text-gold transition-colors">
                     <Settings size={18} />
                   </div>
-                  <div>
-                    <div className="text-xs uppercase tracking-widest text-white/40 group-hover/btn:text-gold/60">
-                      Settings
-                    </div>
-                    <div className="text-sm font-medium">Update Birth Data</div>
-                  </div>
+                  <div className="text-sm font-medium">Update Birth Data</div>
                 </button>
               </div>
             </div>

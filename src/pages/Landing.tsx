@@ -21,7 +21,7 @@ const InfluenceCard = ({
   align = "left",
 }: InfluenceCardProps) => (
   <div
-    className={`sticky top-[20%] p-8 md:p-12 rounded-[2rem] border border-white/10 glass transition-all duration-700 transform max-w-xl mx-auto lg:mx-0 ${
+    className={`sticky top-[20%] p-6 rounded-[2rem] border border-white/10 glass transition-all duration-700 transform max-w-xl mx-auto lg:mx-0 ${
       isActive
         ? "opacity-100 scale-100 translate-y-0"
         : "opacity-0 scale-95 translate-y-12"
@@ -43,15 +43,12 @@ const InfluenceCard = ({
     >
       {number}
     </div>
-    <h3 className="text-3xl md:text-5xl font-display text-glow mb-6 leading-tight">
+    <h3 className="text-3xl md:text-4xl font-display text-glow mb-4 leading-tight">
       {title}
     </h3>
-    <p className="text-lg md:text-xl text-content-secondary font-sans font-light leading-relaxed max-w-lg">
+    <p className="text-md md:text-lg text-content-secondary font-sans font-light leading-relaxed max-w-lg">
       {description}
     </p>
-
-    {/* Decorative cosmic element */}
-    <div className="absolute top-8 right-8 w-px h-24 bg-gradient-to-b from-gold/50 to-transparent"></div>
   </div>
 );
 
@@ -161,7 +158,7 @@ function Landing() {
       <div className="relative" ref={stackRef}>
         {/* Persistent 3D Background */}
         <div className="sticky top-0 h-screen w-full z-0 overflow-hidden bg-[#030308]">
-          <div className="w-full h-full translate-x-[10%]">
+          <div className="w-full h-full">
             <CelestialEngine progress={scrollProgress} />
           </div>
           {/* Subtle overlay to enhance text readability */}
