@@ -17,11 +17,18 @@ export const handler: Handler = async (event) => {
 
         console.log(`[DailyPrediction] Proxying request to ${url}`);
 
+        const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+        };
+
+        const apiKey = process.env.ASTROYOU_API_KEY || process.env.ASTROLOGY_API_KEY;
+        if (apiKey) {
+            headers["X-API-Key"] = apiKey;
+        }
+
         const response = await fetch(url, {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
+            headers,
             body: JSON.stringify(payload),
         });
 

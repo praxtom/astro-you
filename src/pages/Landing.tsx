@@ -782,6 +782,7 @@ function Landing() {
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
         onSuccess={handleLoginSuccess}
+        title="Secure Access"
         message="Sign in to save your profile and unlock unlimited insights."
       />
     </div>

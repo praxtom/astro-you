@@ -55,10 +55,10 @@ export interface TransitData {
 const API_BASE = "https://api.astrology-api.io/api/v3";
 
 /**
- * Get API key from environment (optional - API may not require it)
+ * Get API key from environment
  */
 function getApiKey(): string | undefined {
-    return process.env.ASTROLOGY_API_KEY;
+    return process.env.ASTROYOU_API_KEY || process.env.ASTROLOGY_API_KEY;
 }
 
 /**

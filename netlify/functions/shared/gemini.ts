@@ -40,9 +40,9 @@ let ai: GoogleGenAI | null = null;
  */
 function getClient(): GoogleGenAI {
     if (!ai) {
-        const apiKey = process.env.GEMINI_API_KEY;
+        const apiKey = process.env.ASTROYOU_API_KEY || process.env.GEMINI_API_KEY;
         if (!apiKey) {
-            throw new Error("GEMINI_API_KEY not configured");
+            throw new Error("API Key not configured (ASTROYOU_API_KEY or GEMINI_API_KEY)");
         }
         ai = new GoogleGenAI({ apiKey });
     }

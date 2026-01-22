@@ -875,8 +875,8 @@ export default function Synthesis() {
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
-        title="Create Your Profile"
-        message="Save your birth charts and access insights by creating an account."
+        title="Continue Your Journey"
+        message="Sign in to save this synthesis and access it from any device."
       />
 
       {showExpandedChart && kundaliData && (

@@ -27,6 +27,7 @@
         "npm:eslint@^9.39.2",
         "npm:firebase-admin@^13.6.0",
         "npm:firebase@^12.7.0",
+        "npm:framer-motion@^12.24.10",
         "npm:globals@17",
         "npm:html2canvas@^1.4.1",
         "npm:lucide-react@0.562",
@@ -34,14 +35,14 @@
         "npm:razorpay@^2.9.6",
         "npm:react-dom@^19.2.3",
         "npm:react-markdown@^10.1.0",
-        "npm:react-router-dom@^7.11.0",
+        "npm:react-router-dom@^7.12.0",
         "npm:react@^19.2.3",
         "npm:remark-gfm@^4.0.1",
         "npm:tailwindcss@^4.1.18",
         "npm:three@0.182",
         "npm:typescript-eslint@^8.52.0",
         "npm:typescript@~5.9.3",
-        "npm:vite@^7.3.0"
+        "npm:vite@^7.3.1"
       ]
     }
   }

@@ -43,7 +43,7 @@ export default async (req: Request, context: Context) => {
         });
 
         // Send email via Resend (or log for testing)
-        const resendApiKey = process.env.RESEND_API_KEY;
+        const resendApiKey = process.env.ASTROYOU_API_KEY || process.env.RESEND_API_KEY;
 
         if (resendApiKey) {
             await fetch("https://api.resend.com/emails", {

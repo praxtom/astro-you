@@ -39,9 +39,8 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
   return (
     <>
       <header
-        className={`fixed top-0 left-0 right-0 z-[1000] transition-all duration-500 border-b border-transparent ${
-          isVisible || isMobileMenuOpen ? "translate-y-0" : "-translate-y-full"
-        } ${scrolled ? "header-scrolled" : "py-8"}`}
+        className={`fixed top-0 left-0 right-0 z-[1000] transition-all duration-500 border-b border-transparent ${isVisible || isMobileMenuOpen ? "translate-y-0" : "-translate-y-full"
+          } ${scrolled ? "header-scrolled" : "py-8"}`}
       >
         <div className="container mx-auto px-6 flex flex-row items-center justify-between">
           <div className="flex items-center gap-8">
@@ -63,11 +62,10 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                 <>
                   <button
                     onClick={() => navigate("/dashboard")}
-                    className={`${
-                      location.pathname === "/dashboard"
-                        ? "text-gold border-b border-gold/50"
-                        : "hover:text-white"
-                    } pb-1 transition-all`}
+                    className={`${location.pathname === "/dashboard"
+                      ? "text-gold border-b border-gold/50"
+                      : "hover:text-white"
+                      } pb-1 transition-all`}
                   >
                     Dashboard
                   </button>
@@ -163,7 +161,7 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                   </div>
                 ) : (
                   <button
-                    className="px-8 py-3 bg-white text-black font-display font-bold rounded-full hover:bg-gold hover:text-black transition-all active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.15)]"
+                    className="px-8 py-3 bg-white text-black font-display font-bold! rounded-full hover:bg-gold hover:text-black transition-all active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.15)]"
                     onClick={onShowAuth}
                   >
                     Get Started
@@ -185,11 +183,10 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
 
       {/* Mobile Menu Overlay */}
       <div
-        className={`fixed inset-0 z-[999] bg-[#030308]/95 backdrop-blur-3xl transition-all duration-500 flex flex-col items-center justify-center gap-8 ${
-          isMobileMenuOpen
-            ? "opacity-100 pointer-events-auto"
-            : "opacity-0 pointer-events-none"
-        }`}
+        className={`fixed inset-0 z-[999] bg-[#030308]/95 backdrop-blur-3xl transition-all duration-500 flex flex-col items-center justify-center gap-8 ${isMobileMenuOpen
+          ? "opacity-100 pointer-events-auto"
+          : "opacity-0 pointer-events-none"
+          }`}
       >
         <nav className="flex flex-col items-center gap-6 font-display text-2xl">
           {isInternal ? (
