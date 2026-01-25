@@ -417,3 +417,52 @@ This positioning directly attacks:
 - AstroSage's generic, transactional nature
 - Astroyogi's fear-based upselling and ₹100/min pricing
 - Kundli GPT's shallow, gimmicky approach
+
+---
+ 
+ ## 🚀 Recent Achievements (Phase 3.5 Complete)
+ - **Soul Insight Card**: Implemented on the Dashboard to surface vibe shifts and growth.
+ - **Proactive Guru Toasts**: Anniversary wisdom, chaos detection, and daily intention reminders are live.
+ - **Growth Celebration**: Custom event system dispatches toasts when the AI detects behavioral evolution.
+ - **Prana Mode Polish**: Immersive 3s countdown and manual sound/breath selection.
+ 
+ ---
+ 
+ ## 🎯 Next Focus: Phase 4.5 & Level 3 Brain Model
+  ### 1. Relational Intelligence (Level 3 Roadmap) ✅ COMPLETE
+  *Goal: Move from individual guidance to contextual relational guidance.*
+  
+  - [x] **Relationship Manager UI**:
+      - Create a "Inner Circle" or "Relationships" section in Settings/Profile.
+      - Forms to add Partner, Mother, Father, Boss (Name, Birth Data, Dynamic).
+      - Store in `atman.keyRelationships` Firestore sub-collection.
+  - [x] **Relational Context Injection & Model Upgrade**:
+      - Update `buildJyotishPrompt` in `gemini.ts` to include key relationships.
+      - **Upgraded to Gemini 3 Flash Preview** across all consciousness functions (Analysis, Nudges, Path).
+      - Enable the Guru to reference these people (e.g., "Your Mars clashes with your partner's Moon today").
+  - [ ] **Daily Synastry Alerts**:
+      - Add logic to `useProactiveTriggers.ts` to fetch partner transits and compare with user's.
+      - Trigger "Relational Alert" toasts (e.g., "Patience is key today; your communication with [Partner] might be strained").
+ 
+ ### 2. Dasha Transition Preparation (Level 2.4) ✅ COMPLETE
+  *Goal: Prepare the user for major life shifts before they happen.*
+  
+  - [x] **Dasha Monitor Hook**:
+      - Create a hook to calculate precisely when the next Antardasha/Mahadasha begins.
+  - [x] **Preparation Sequence**:
+      - 30 days before transition: Trigger "A new chapter begins soon" nudge.
+      - 7 days before: Trigger "Reflecting on the [Old Dasha] phase" nudge.
+      - On Transition: Celebratory dasha shift message with new practices.
+  
+  ### 3. Spiritual Wisdom (Level 4 Roadmap) ✅ COMPLETE
+  - [x] **The Guru's Journal UI**:
+      - Transition the `KarmicJournal.tsx` into a full-page, book-like immersive view.
+      - Visual "Spiritual Radar" chart showing growth across Groundedness, Awareness, and Harmony.
+  - [x] **Karmic Thread Detection**:
+      - AI logic to connect dots across different life domains.
+ 
+ ---
+ 
+ ## 🔧 Maintenance & Polish
+ - [ ] **Real Push Notifications**: Migrate from browser-only toasts to Firebase Cloud Messaging for true mobile/background alerts.
+ - [ ] **Dasha Timeline Visualization**: Build a beautiful SVG/Canvas horizontal timeline to see current and future dasha periods.

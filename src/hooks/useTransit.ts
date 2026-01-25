@@ -5,6 +5,7 @@ import { NatalTransitData } from "../types/kundali";
 interface TransitState {
     data: NatalTransitData | null;
     predictions: any[] | null;
+    aiSummary: string | null;
     loading: boolean;
     error: string | null;
 }
@@ -14,6 +15,7 @@ export function useTransit(transitDate?: string) {
     const [state, setState] = useState<TransitState>({
         data: null,
         predictions: null,
+        aiSummary: null,
         loading: true,
         error: null,
     });
@@ -47,6 +49,7 @@ export function useTransit(transitDate?: string) {
                     setState({
                         data: result.data.positions,
                         predictions: result.data.predictions,
+                        aiSummary: result.data.aiSummary,
                         loading: false,
                         error: null,
                     });

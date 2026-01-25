@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/AuthContext";
 import { useUserProfile } from "../hooks";
+import { useConsciousness } from "../hooks/useConsciousness";
+import { useProactiveTriggers } from "../hooks/useProactiveTriggers";
 import {
   MessageSquare,
   Sun,
@@ -13,9 +15,14 @@ import {
   Crown,
   Settings,
   ArrowUpRight,
+  Sparkles,
+  Flame,
+  Brain,
 } from "lucide-react";
 import OnboardingModal from "../components/OnboardingModal";
 import Header from "../components/layout/Header";
+import { DailyAltar } from "../components/sadhana/DailyAltar";
+import { SoulInsightCard } from "../components/dashboard/SoulInsightCard";
 import type { FeatureCardProps } from "../types";
 
 const FeatureCard = ({
@@ -91,8 +98,15 @@ export default function Dashboard() {
   // also check for guest mode in sessionStorage
   const [guestData, setGuestData] = useState<any>(null);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
+  const [showDailyAltar, setShowDailyAltar] = useState(false);
   const [prediction, setPrediction] = useState<string | null>(null);
   const [isPredictionLoading, setIsPredictionLoading] = useState(false);
+
+  // Consciousness state for Atman features
+  const { atmanState, refreshAtman } = useConsciousness();
+  
+  // Enable proactive guru nudges
+  useProactiveTriggers();
 
   useEffect(() => {
     if (!user && !isLoading) {
@@ -259,6 +273,15 @@ export default function Dashboard() {
       status: "Coming Soon",
       accentColor: "rgba(236, 72, 153, 0.8)", // Pink
     },
+    {
+      title: "Daily Altar",
+      description:
+        "Your sacred space for intention, routines, and reflection. Start each day aligned.",
+      icon: <Sparkles size={24} />,
+      status: "Active",
+      accentColor: "rgba(167, 139, 250, 0.8)", // Violet
+      onClick: () => setShowDailyAltar(true),
+    },
   ];
 
   return (
@@ -325,10 +348,54 @@ export default function Dashboard() {
                   </div>
                   <div className="text-sm font-medium">Update Birth Data</div>
                 </button>
+
+                {/* Daily Altar Quick Access */}
+                <button
+                  onClick={() => setShowDailyAltar(true)}
+                  className="p-4 rounded-3xl border border-violet-500/20 bg-violet-500/5 flex items-center gap-4 hover:border-violet-500/40 hover:bg-violet-500/10 transition-all group/btn"
+                >
+                  <div className="h-10 w-10 rounded-2xl bg-violet-500/10 flex items-center justify-center text-violet-400">
+                    <Sparkles size={18} />
+                  </div>
+                  <div className="text-sm font-medium text-violet-300">Daily Altar</div>
+                </button>
+
+                {/* Consciousness Snapshot */}
+                {atmanState && (
+                  <div className="flex items-center gap-6 p-4 rounded-3xl border border-white/5 bg-white/[0.02]">
+                    {/* Meditation Streak */}
+                    {(atmanState.meditationStreak || 0) > 0 && (
+                      <div className="flex items-center gap-2 text-amber-400">
+                        <Flame size={18} />
+                        <span className="text-sm font-medium">{atmanState.meditationStreak} day streak</span>
+                      </div>
+                    )}
+                    {/* Emotional State */}
+                    <div className="flex items-center gap-2">
+                      <Brain size={16} className="text-white/40" />
+                      <span className={`text-sm capitalize ${
+                        atmanState.emotionalState === 'stable' ? 'text-emerald-400' :
+                        atmanState.emotionalState === 'anxious' ? 'text-amber-400' :
+                        atmanState.emotionalState === 'chaotic' ? 'text-red-400' :
+                        'text-white/60'
+                      }`}>
+                        {atmanState.emotionalState || 'Neutral'}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </section>
+
+        {/* Soul Insight Card */}
+        {user && atmanState && (
+          <SoulInsightCard 
+            atmanState={atmanState} 
+            onOpenSadhanaPath={() => setShowDailyAltar(true)} 
+          />
+        )}
 
         {/* Features Grid */}
         <section>
@@ -365,6 +432,17 @@ export default function Dashboard() {
           }
         }}
       />
+
+      {/* Daily Altar Modal */}
+      {user && (
+        <DailyAltar
+          isOpen={showDailyAltar}
+          onClose={() => setShowDailyAltar(false)}
+          userId={user.uid}
+          atmanState={atmanState}
+          onRefresh={refreshAtman}
+        />
+      )}
     </div>
   );
 }

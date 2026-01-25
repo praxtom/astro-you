@@ -5,9 +5,9 @@ import {
   useCallback,
   ReactNode,
 } from "react";
-import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from "lucide-react";
+import { X, CheckCircle, AlertCircle, Info, AlertTriangle, Sparkles } from "lucide-react";
 
-type ToastType = "success" | "error" | "info" | "warning";
+type ToastType = "success" | "error" | "info" | "warning" | "guru";
 
 interface Toast {
   id: string;
@@ -97,6 +97,7 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
     error: <AlertCircle className="text-red-400" size={20} />,
     info: <Info className="text-blue-400" size={20} />,
     warning: <AlertTriangle className="text-yellow-400" size={20} />,
+    guru: <Sparkles className="text-violet-400" size={20} />,
   };
 
   const borderColors = {
@@ -104,6 +105,7 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
     error: "border-red-500/30",
     info: "border-blue-500/30",
     warning: "border-yellow-500/30",
+    guru: "border-violet-500/30 bg-violet-500/5",
   };
 
   return (

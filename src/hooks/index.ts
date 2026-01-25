@@ -8,3 +8,4 @@ export { useKundali, getKundaliSummary } from './useKundali';
 export { useSubscription } from './useSubscription';
 export { useHeaderScroll } from './useHeaderScroll';
 export { useTransit } from './useTransit';
+export { useConsciousness } from './useConsciousness';

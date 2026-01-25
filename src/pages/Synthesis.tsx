@@ -39,6 +39,13 @@ import type { KundaliData, ChatMessage } from "../types";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { downloadChart } from "../lib/chartStorage";
+import { useConsciousness } from "../hooks/useConsciousness";
+import { PranaOverlay } from "../components/prana/PranaOverlay";
+import { AtmanService } from "../lib/atman";
+import { DharmaList } from "../components/dharma/DharmaList";
+import { RoutineProposal } from "../components/dharma/RoutineProposal";
+import { DailyAltar } from "../components/sadhana/DailyAltar";
+import type { UserRoutine } from "../types/user";
 
 type Message = ChatMessage;
 
@@ -49,6 +56,20 @@ export default function Synthesis() {
   const { id } = useParams();
   const { user } = useAuth();
   const isRPCLoaded = useRazorpay();
+
+  // Atman Integration
+  const { isAnxious, isChaotic, isReactive, atmanState, refreshAtman } = useConsciousness();
+  const [showPrana, setShowPrana] = useState(false);
+  const [showAltar, setShowAltar] = useState(false);
+  const [suggestedRoutine, setSuggestedRoutine] = useState<UserRoutine | null>(null);
+
+  // Trigger Prana if Anxious/Chaotic/Reactive is detected
+  useEffect(() => {
+    if (isAnxious || isChaotic || isReactive) {
+      // Only show if not recently shown to avoid spamming
+      setShowPrana(true);
+    }
+  }, [isAnxious, isChaotic, isReactive]);
 
   // Use centralized hooks for data access (when user is logged in)
   const [currentChartType, setCurrentChartType] = useState<ChartType>("D1");
@@ -416,10 +437,21 @@ export default function Synthesis() {
           birthData,
           kundaliData,
           previousInteractionId: interactionId, // Pass previous interaction for context
+          atmanData: atmanState // Pass current consciousness state to AI
         }),
       });
 
       const data = await response.json();
+
+      // Process Atman Updates from AI
+      if (user && data.atmanUpdate) {
+        await AtmanService.processAnalysisResult(user.uid, data.atmanUpdate);
+      }
+      
+      // Handle Routine Suggestion
+      if (data.suggestedRoutine) {
+          setSuggestedRoutine(data.suggestedRoutine);
+      }
 
       // Store the new interaction ID for next turn
       if (data.interactionId) {
@@ -472,420 +504,479 @@ export default function Synthesis() {
   const remainingSeconds = Math.max(0, FREE_LIMIT_SECONDS - secondsUsed);
 
   return (
-    <div className="h-screen bg-[#010103] flex flex-col text-content-primary overflow-hidden">
+    <>
       <SynthesisSEO />
 
-      {/* Header - Hidden on mobile where we have custom header */}
-      <div className="hidden md:block">
-        <Header onShowOnboarding={() => setShowOnboardingModal(true)} />
-      </div>
+      {/* Prana Overlay - Triggers on Anxiety/Chaos */}
+      <PranaOverlay
+        isOpen={showPrana}
+        onClose={() => setShowPrana(false)}
+        initialMode={isChaotic ? 'balance' : isReactive ? 'calm' : 'calm'}
+      />
 
-      {/* Main Container */}
-      <div className="flex-1 flex overflow-hidden md:pt-20">
-        {/* Leftmost: Conversation Sidebar (Hidden on mobile) */}
-        {user && (
-          <aside
-            className={`hidden md:flex ${
-              isSidebarCollapsed ? "w-0 opacity-0" : "w-72 opacity-100"
-            } border-r border-white/5 bg-black/40 backdrop-blur-md flex-col transition-all duration-300 relative overflow-hidden shrink-0`}
-          >
-            <div className="p-4 border-b border-white/5">
-              <button
-                onClick={() => {
-                  setCurrentChatId(null);
-                  navigate("/synthesis");
-                }}
-                className="w-full btn btn-outline !py-3 text-xs rounded-lg flex items-center justify-center gap-2 group whitespace-nowrap"
-              >
-                <Plus
-                  size={14}
-                  className="group-hover:rotate-90 transition-transform"
-                />
-                New Chat
-              </button>
-            </div>
+      {/* Routine Proposal Modal */}
+      <RoutineProposal
+        isOpen={!!suggestedRoutine}
+        routine={suggestedRoutine}
+        userId={user?.uid || ''}
+        onClose={() => setSuggestedRoutine(null)}
+        onAccepted={() => {
+            refreshAtman();
+            setSuggestedRoutine(null);
+        }}
+      />
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar">
-              <ConversationsList
-                userId={user.uid}
-                currentId={currentChatId}
-                onSelect={(id) => {
-                  setCurrentChatId(id);
-                  navigate(`/synthesis/${id}`);
-                }}
-                onDelete={async (id) => {
-                  try {
-                    // Delete chat document from Firestore
-                    const { deleteDoc } = await import("firebase/firestore");
-                    await deleteDoc(doc(db, "users", user.uid, "chats", id));
+      {/* Daily Altar (Sadhana Dashboard) */}
+      <DailyAltar
+        isOpen={showAltar}
+        onClose={() => setShowAltar(false)}
+        userId={user?.uid || ''}
+        atmanState={atmanState}
+        onRefresh={refreshAtman}
+      />
 
-                    // If we deleted the current chat, navigate to new chat
-                    if (currentChatId === id) {
-                      setCurrentChatId(null);
-                      navigate("/synthesis");
+      <div className="h-screen flex flex-col bg-[#010103] text-content-primary overflow-hidden relative selection:bg-gold/30 selection:text-white">
+        {/* Background Effects */}
+        <div className="fixed inset-0 pointer-events-none">
+          <div className="absolute inset-0 bg-[url('/assets/cosmic-bg.png')] opacity-20 bg-cover bg-center" />
+          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-900/10 rounded-full blur-[100px]" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-900/10 rounded-full blur-[100px]" />
+        </div>
+
+        {/* Header - Hidden on mobile or when Prana overlay is active */}
+        {!showPrana && (
+          <div className="hidden md:block">
+            <Header onShowOnboarding={() => setShowOnboardingModal(true)} />
+          </div>
+        )}
+
+        {/* Main Container */}
+        <div className={`flex-1 flex overflow-hidden relative ${!showPrana ? 'md:pt-20' : ''}`}>
+          {/* Leftmost: Conversation Sidebar (Hidden on mobile or during Prana) */}
+          {user && !showPrana && (
+            <aside
+              className={`hidden md:flex ${isSidebarCollapsed ? "w-0 opacity-0" : "w-72 opacity-100"
+                } border-r border-white/5 bg-black/40 backdrop-blur-md flex-col transition-all duration-300 relative overflow-hidden shrink-0`}
+            >
+              <div className="p-4 border-b border-white/5">
+                <button
+                  onClick={() => {
+                    setCurrentChatId(null);
+                    navigate("/synthesis");
+                  }}
+                  className="w-full btn btn-outline !py-3 text-xs rounded-lg flex items-center justify-center gap-2 group whitespace-nowrap"
+                >
+                  <Plus
+                    size={14}
+                    className="group-hover:rotate-90 transition-transform"
+                  />
+                  New Chat
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto custom-scrollbar">
+                <ConversationsList
+                  userId={user.uid}
+                  currentId={currentChatId}
+                  onSelect={(id) => {
+                    setCurrentChatId(id);
+                    navigate(`/synthesis/${id}`);
+                  }}
+                  onDelete={async (id) => {
+                    try {
+                      // Delete chat document from Firestore
+                      const { deleteDoc } = await import("firebase/firestore");
+                      await deleteDoc(doc(db, "users", user.uid, "chats", id));
+
+                      // If we deleted the current chat, navigate to new chat
+                      if (currentChatId === id) {
+                        setCurrentChatId(null);
+                        navigate("/synthesis");
+                      }
+                    } catch (err) {
+                      console.error("Failed to delete chat:", err);
                     }
-                  } catch (err) {
-                    console.error("Failed to delete chat:", err);
-                  }
-                }}
-              />
-            </div>
+                  }}
+                />
+              </div>
 
-            <div className="p-4 border-t border-white/5">
+              <div className="p-4 border-t border-white/5">
+                <button
+                  onClick={() => navigate("/dashboard")}
+                  className="flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-white/40 hover:text-gold transition-colors whitespace-nowrap"
+                >
+                  <ChevronLeft size={14} />
+                  Back to Portal
+                </button>
+              </div>
+            </aside>
+          )}
+
+          {/* Toggle Button (Floating) */}
+          {user && !showPrana && (
+            <button
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              className={`hidden md:flex absolute ${isSidebarCollapsed ? "left-4" : "left-[17rem]"
+                } top-32 z-50 p-2 rounded-full border border-white/10 bg-black/40 backdrop-blur-md text-white/40 hover:text-gold hover:border-gold/30 transition-all duration-300`}
+            >
+              {isSidebarCollapsed ? (
+                <PanelLeftOpen size={16} />
+              ) : (
+                <PanelLeftClose size={16} />
+              )}
+            </button>
+          )}
+
+          {/* Middle/Left: Celestial Blueprint (Hidden during Prana) */}
+          {!showPrana && (
+            <div className="hidden lg:flex w-[310px] border-r border-white/5 flex-col p-4 overflow-y-auto bg-black/20 backdrop-blur-sm z-10 shrink-0">
+            <header className="flex justify-between items-center mb-4">
+              <div className="flex items-center gap-3">
+                <select
+                  value={currentChartType}
+                  onChange={(e) =>
+                    setCurrentChartType(e.target.value as ChartType)
+                  }
+                  className="bg-transparent text-md font-display tracking-[0.2em] uppercase text-white/60 border-none focus:ring-0 cursor-pointer hover:text-white transition-colors p-0"
+                >
+                  <option value="D1" className="bg-black">
+                    Natal Chart (D1)
+                  </option>
+                  <option value="D9" className="bg-black">
+                    Navamsa (D9)
+                  </option>
+                </select>
+              </div>
+              <div className="flex items-center gap-3">
+                {!user ? (
+                  <div className="flex items-center gap-2 text-xs font-mono px-2 py-1 rounded-full border border-gold/30 text-gold bg-gold/5">
+                    <Clock size={10} />
+                    <span>
+                      {Math.floor(remainingSeconds / 60)}:
+                      {(remainingSeconds % 60).toString().padStart(2, "0")}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-xs font-mono px-2 py-1 rounded-full border border-gold/30 text-gold bg-gold/5">
+                    <Sparkles size={10} />
+                    <span>{credits}m</span>
+                  </div>
+                )}
+              </div>
+            </header>
+
+            {isLoadingKundali ? (
+              <div className="flex-1 flex flex-col items-center justify-center gap-4 opacity-40">
+                <Loader2 className="animate-spin" size={32} />
+                <span className="text-xs uppercase tracking-widest text-center">
+                  Calculating Planetary Alignments...
+                </span>
+              </div>
+            ) : kundaliData ? (
+              <div className="animate-in fade-in zoom-in-95 duration-1000">
+                <div id="kundali-chart-container">
+                  <button
+                    onClick={() => setShowExpandedChart(true)}
+                    className="w-full scale-90 origin-top hover:scale-[0.92] transition-transform duration-500 cursor-zoom-in relative group"
+                  >
+                    <div className="absolute inset-0 bg-gold/5 opacity-0 group-hover:opacity-100 rounded-full blur-2xl transition-opacity" />
+                    <Kundali data={kundaliData} />
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md px-2 py-3 rounded-full border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
+                      <span className="text-xs uppercase tracking-[0.2em] text-white">
+                        Expand Chart
+                      </span>
+                    </div>
+                  </button>
+                  <div className="text-center text-[10px] uppercase tracking-[0.3em] text-gold/60 font-medium">
+                    Your Kundali
+                  </div>
+                </div>
+
+                {/* Chart Action Buttons */}
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() =>
+                      downloadChart(
+                        "kundali-chart-container",
+                        `kundali-${birthData?.name || "chart"}.png`
+                      )
+                    }
+                    className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-all flex items-center justify-center group"
+                    title="Download Chart"
+                  >
+                    <Download
+                      size={16}
+                      className="text-white/60 group-hover:text-gold transition-colors"
+                    />
+                  </button>
+                  {/* Update Birth Data Button */}
+                  <button
+                    onClick={() => setShowOnboardingModal(true)}
+                    className="flex-1 p-2 rounded-lg bg-gold/10 border border-gold/20 hover:bg-gold/20 transition-all flex items-center justify-center gap-2 group"
+                    title="Update Birth Data"
+                  >
+                    <Save
+                      size={14}
+                      className="text-gold group-hover:scale-110 transition-transform"
+                    />
+                    <span className="text-xs tracking font-bold text-gold">
+                      Update Details
+                    </span>
+                  </button>
+                </div>
+
+                {/* Daily Altar Button */}
+                <button
+                    onClick={() => setShowAltar(true)}
+                    className="w-full mt-3 p-3 rounded-xl bg-gradient-to-r from-amber-500/10 to-purple-500/10 border border-white/10 hover:border-gold/30 hover:shadow-lg hover:shadow-gold/5 transition-all group relative overflow-hidden"
+                >
+                    <div className="absolute inset-0 bg-gold/5 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+                    <div className="flex items-center justify-center gap-2 relative z-10">
+                        <Sparkles size={16} className="text-gold" />
+                        <span className="text-sm font-display tracking-widest text-white/90">Open Daily Altar</span>
+                    </div>
+                </button>
+
+                <div className="mt-3 space-y-2">
+                  <div className="p-3 rounded-xl bg-white/5 border border-white/5">
+                    <h4 className="text-sm uppercase tracking-widest text-gold/60 mb-2">
+                      Chart Essence
+                    </h4>
+                    <p className="text-xs font-sans font-light opacity-60 leading-relaxed">
+                      Your chart reflects a{" "}
+                      {
+                        kundaliData.planetary_positions.find(
+                          (p) => p.name === "Sun"
+                        )?.sign
+                      }{" "}
+                      influence, guided by the wisdom of{" "}
+                      {
+                        kundaliData.planetary_positions.find(
+                          (p) => p.name === "Ascendant"
+                        )?.sign
+                      }{" "}
+                      Lagna.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => handlePurchase(60, 499)}
+                    disabled={isPaying}
+                    className="w-full p-3 rounded-xl bg-gold/5 border border-gold/10 hover:bg-gold/10 transition-all flex items-center justify-between group disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <div className="flex items-center gap-3">
+                      {isPaying ? (
+                        <Loader2 size={16} className="text-gold animate-spin" />
+                      ) : (
+                        <CreditCard size={16} className="text-gold" />
+                      )}
+                      <span className="text-sm text-white/80">
+                        {isPaying ? "Processing..." : "Add More Minutes"}
+                      </span>
+                    </div>
+                    <Plus
+                      size={14}
+                      className="text-gold group-hover:scale-125 transition-transform"
+                    />
+                  </button>
+
+                  {/* Dharma Routines List */}
+                  {user && atmanState?.routines && (
+                    <div className="mt-6 pt-4 border-t border-white/5">
+                        <DharmaList 
+                            routines={atmanState.routines} 
+                            userId={user.uid}
+                            onComplete={refreshAtman}
+                        />
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center opacity-20 text-center p-12">
+                <p className="text-xs uppercase tracking-[0.3em] font-light">
+                  Birth data required
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+          {/* Right: Synthesis Chat Area (Hidden during Prana) */}
+          {!showPrana && (
+            <div className="flex-1 flex flex-col relative bg-[#030308]">
+              <div className="absolute inset-0 z-0 pointer-events-none opacity-5">
+                <div className="absolute top-[20%] left-[10%] w-[40vw] h-[40vw] bg-violet blur-[150px] rounded-full"></div>
+                <div className="absolute bottom-[20%] right-[10%] w-[30vw] h-[30vw] bg-gold blur-[150px] rounded-full"></div>
+              </div>
+
+              {/* Mobile Header (Hidden during Prana) */}
+              <div className="md:hidden p-4 border-b border-white/5 bg-black/40 backdrop-blur-md flex justify-between items-center z-20">
               <button
                 onClick={() => navigate("/dashboard")}
-                className="flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-white/40 hover:text-gold transition-colors whitespace-nowrap"
+                className="text-white/40"
               >
-                <ChevronLeft size={14} />
-                Back to Portal
+                <ChevronLeft size={20} />
+              </button>
+              <span className="font-display tracking-[0.2em] uppercase text-xs">
+                Synthesis
+              </span>
+              <button
+                onClick={() => setCurrentChatId(null)}
+                className="text-gold"
+              >
+                <Plus size={20} />
               </button>
             </div>
-          </aside>
-        )}
 
-        {/* Toggle Button (Floating) */}
-        {user && (
-          <button
-            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            className={`hidden md:flex absolute ${
-              isSidebarCollapsed ? "left-4" : "left-[17rem]"
-            } top-32 z-50 p-2 rounded-full border border-white/10 bg-black/40 backdrop-blur-md text-white/40 hover:text-gold hover:border-gold/30 transition-all duration-300`}
-          >
-            {isSidebarCollapsed ? (
-              <PanelLeftOpen size={16} />
-            ) : (
-              <PanelLeftClose size={16} />
-            )}
-          </button>
-        )}
-
-        {/* Middle/Left: Celestial Blueprint */}
-        <div className="hidden lg:flex w-[310px] border-r border-white/5 flex-col p-4 overflow-y-auto bg-black/20 backdrop-blur-sm z-10 shrink-0">
-          <header className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-3">
-              <select
-                value={currentChartType}
-                onChange={(e) =>
-                  setCurrentChartType(e.target.value as ChartType)
-                }
-                className="bg-transparent text-md font-display tracking-[0.2em] uppercase text-white/60 border-none focus:ring-0 cursor-pointer hover:text-white transition-colors p-0"
-              >
-                <option value="D1" className="bg-black">
-                  Natal Chart (D1)
-                </option>
-                <option value="D9" className="bg-black">
-                  Navamsa (D9)
-                </option>
-              </select>
-            </div>
-            <div className="flex items-center gap-3">
-              {!user ? (
-                <div className="flex items-center gap-2 text-xs font-mono px-2 py-1 rounded-full border border-gold/30 text-gold bg-gold/5">
-                  <Clock size={10} />
-                  <span>
-                    {Math.floor(remainingSeconds / 60)}:
-                    {(remainingSeconds % 60).toString().padStart(2, "0")}
-                  </span>
+            <div
+              ref={scrollRef}
+              className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-6 space-y-4 relative z-10 custom-scrollbar"
+            >
+              {/* Atmospheric Aura */}
+              <div className="aura-bg opacity-50 absolute inset-0 -z-10 pointer-events-none" />
+              {messages.length === 0 && !isSynthesizing && (
+                <div className="h-full flex flex-col items-center justify-center opacity-30 text-center gap-6">
+                  <div className="w-16 h-16 rounded-full border border-gold/20 flex items-center justify-center text-gold">
+                    <Sparkles size={32} />
+                  </div>
+                  <div>
+                    <h4 className="font-display tracking-widest uppercase mb-2 text-xs">
+                      The Void Awaited
+                    </h4>
+                    <p className="text-xs italic">
+                      A single query illuminates the entire cosmos.
+                    </p>
+                  </div>
                 </div>
-              ) : (
-                <div className="flex items-center gap-2 text-xs font-mono px-2 py-1 rounded-full border border-gold/30 text-gold bg-gold/5">
-                  <Sparkles size={10} />
-                  <span>{credits}m</span>
+              )}
+
+              {messages.map((m) => (
+                <div
+                  key={m.id}
+                  className={`flex ${m.role === "user" ? "justify-end" : "justify-start"
+                    } ${m.role === "user"
+                      ? "animate-message-send"
+                      : "animate-reveal-progressive"
+                    }`}
+                >
+                  <div className="max-w-[90%] md:max-w-[85%] group">
+                    <div
+                      className={`text-xs uppercase tracking-widest mb-1 opacity-30 flex items-center gap-2 ${m.role === "user" ? "flex-row-reverse" : "flex-row"
+                        }`}
+                    >
+                      {m.role === "user" ? "You" : "Jyotish"}
+                      <span>•</span>
+                      <span>
+                        {m.timestamp.toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                    <div
+                      className={`px-4 py-3 rounded-2xl md:rounded-3xl border transition-all duration-300 ${m.role === "user"
+                        ? "bg-white/5 border-white/10 group-hover:bg-white/10"
+                        : "bg-surface-accent/10 border-gold/10 group-hover:border-gold/20"
+                        }`}
+                    >
+                      <div
+                        className={
+                          m.role === "assistant"
+                            ? "prose-cosmic animate-reveal-progressive"
+                            : ""
+                        }
+                      >
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={markdownComponents as any}
+                        >
+                          {m.content}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {isSynthesizing && (
+                <div className="flex justify-start animate-in fade-in duration-300">
+                  <div className="max-w-[85%]">
+                    <div className="text-xs uppercase tracking-widest mb-2 opacity-30">
+                      Jyotish
+                    </div>
+                    <div className="p-4 rounded-3xl border border-gold/10 bg-surface-accent/10 flex items-center gap-4">
+                      <Loader2 size={16} className="animate-spin text-gold" />
+                      <span className="text-xs uppercase tracking-[0.3em] text-gold/60 animate-pulse">
+                        Typing...
+                      </span>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
-          </header>
 
-          {isLoadingKundali ? (
-            <div className="flex-1 flex flex-col items-center justify-center gap-4 opacity-40">
-              <Loader2 className="animate-spin" size={32} />
-              <span className="text-xs uppercase tracking-widest text-center">
-                Calculating Planetary Alignments...
-              </span>
-            </div>
-          ) : kundaliData ? (
-            <div className="animate-in fade-in zoom-in-95 duration-1000">
-              <div id="kundali-chart-container">
-                <button
-                  onClick={() => setShowExpandedChart(true)}
-                  className="w-full scale-90 origin-top hover:scale-[0.92] transition-transform duration-500 cursor-zoom-in relative group"
-                >
-                  <div className="absolute inset-0 bg-gold/5 opacity-0 group-hover:opacity-100 rounded-full blur-2xl transition-opacity" />
-                  <Kundali data={kundaliData} />
-                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md px-2 py-3 rounded-full border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
-                    <span className="text-xs uppercase tracking-[0.2em] text-white">
-                      Expand Chart
-                    </span>
-                  </div>
-                </button>
-                <div className="text-center text-[10px] uppercase tracking-[0.3em] text-gold/60 font-medium">
-                  Your Kundali
-                </div>
-              </div>
-
-              {/* Chart Action Buttons */}
-              <div className="flex gap-2 mt-3">
-                <button
-                  onClick={() =>
-                    downloadChart(
-                      "kundali-chart-container",
-                      `kundali-${birthData?.name || "chart"}.png`
-                    )
+            {/* Input Area */}
+            <div className="p-2 md:p-5 z-10">
+              <div className="relative max-w-4xl mx-auto group">
+                <div className="absolute -inset-1 bg-gradient-to-r from-gold/20 to-violet/20 rounded-[2.5rem] blur opacity-0 group-focus-within:opacity-100 transition duration-1000"></div>
+                <textarea
+                  rows={1}
+                  placeholder="Ask the stars about your destiny..."
+                  className="relative w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 outline-none focus:border-gold/50 transition-all font-sans text-base md:text-lg pr-14 overflow-hidden resize-none"
+                  style={{ height: "auto" }}
+                  value={input}
+                  onChange={(e) => {
+                    setInput(e.target.value);
+                    e.target.style.height = "auto";
+                    e.target.style.height = e.target.scrollHeight + "px";
+                  }}
+                  onKeyDown={(e) =>
+                    e.key === "Enter" &&
+                    !e.shiftKey &&
+                    (e.preventDefault(), handleSend())
                   }
-                  className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-all flex items-center justify-center group"
-                  title="Download Chart"
-                >
-                  <Download
-                    size={16}
-                    className="text-white/60 group-hover:text-gold transition-colors"
-                  />
-                </button>
-                {/* Update Birth Data Button */}
+                />
                 <button
-                  onClick={() => setShowOnboardingModal(true)}
-                  className="flex-1 p-2 rounded-lg bg-gold/10 border border-gold/20 hover:bg-gold/20 transition-all flex items-center justify-center gap-2 group"
-                  title="Update Birth Data"
+                  onClick={handleSend}
+                  className={`absolute right-4 top-1/2 -translate-y-1/2 p-4 transition-all ${input.trim()
+                    ? "text-gold scale-110"
+                    : "text-white/20 scale-100"
+                    }`}
+                  disabled={isSynthesizing || !input.trim()}
                 >
-                  <Save
-                    size={14}
-                    className="text-gold group-hover:scale-110 transition-transform"
-                  />
-                  <span className="text-xs tracking font-bold text-gold">
-                    Update Details
-                  </span>
+                  <Send size={24} />
                 </button>
               </div>
-
-              <div className="mt-3 space-y-2">
-                <div className="p-3 rounded-xl bg-white/5 border border-white/5">
-                  <h4 className="text-sm uppercase tracking-widest text-gold/60 mb-2">
-                    Chart Essence
-                  </h4>
-                  <p className="text-xs font-sans font-light opacity-60 leading-relaxed">
-                    Your chart reflects a{" "}
-                    {
-                      kundaliData.planetary_positions.find(
-                        (p) => p.name === "Sun"
-                      )?.sign
-                    }{" "}
-                    influence, guided by the wisdom of{" "}
-                    {
-                      kundaliData.planetary_positions.find(
-                        (p) => p.name === "Ascendant"
-                      )?.sign
-                    }{" "}
-                    Lagna.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => handlePurchase(60, 499)}
-                  disabled={isPaying}
-                  className="w-full p-3 rounded-xl bg-gold/5 border border-gold/10 hover:bg-gold/10 transition-all flex items-center justify-between group disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <div className="flex items-center gap-3">
-                    {isPaying ? (
-                      <Loader2 size={16} className="text-gold animate-spin" />
-                    ) : (
-                      <CreditCard size={16} className="text-gold" />
-                    )}
-                    <span className="text-sm text-white/80">
-                      {isPaying ? "Processing..." : "Add More Minutes"}
-                    </span>
-                  </div>
-                  <Plus
-                    size={14}
-                    className="text-gold group-hover:scale-125 transition-transform"
-                  />
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center opacity-20 text-center p-12">
-              <p className="text-xs uppercase tracking-[0.3em] font-light">
-                Birth data required
+              <p className="text-center mt-2 text-xs uppercase tracking-[0.2em] text-white/20">
+                Personalized for {birthData?.name || "Seeker"}
               </p>
+            </div>
             </div>
           )}
         </div>
 
-        {/* Right: Synthesis Chat Area */}
-        <div className="flex-1 flex flex-col relative bg-[#030308]">
-          <div className="absolute inset-0 z-0 pointer-events-none opacity-5">
-            <div className="absolute top-[20%] left-[10%] w-[40vw] h-[40vw] bg-violet blur-[150px] rounded-full"></div>
-            <div className="absolute bottom-[20%] right-[10%] w-[30vw] h-[30vw] bg-gold blur-[150px] rounded-full"></div>
-          </div>
-
-          {/* Mobile Header (Hidden on Desktop) */}
-          <div className="md:hidden p-4 border-b border-white/5 bg-black/40 backdrop-blur-md flex justify-between items-center z-20">
-            <button
-              onClick={() => navigate("/dashboard")}
-              className="text-white/40"
-            >
-              <ChevronLeft size={20} />
-            </button>
-            <span className="font-display tracking-[0.2em] uppercase text-xs">
-              Synthesis
-            </span>
-            <button
-              onClick={() => setCurrentChatId(null)}
-              className="text-gold"
-            >
-              <Plus size={20} />
-            </button>
-          </div>
-
-          <div
-            ref={scrollRef}
-            className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-6 space-y-4 relative z-10 custom-scrollbar"
-          >
-            {/* Atmospheric Aura */}
-            <div className="aura-bg opacity-50 absolute inset-0 -z-10 pointer-events-none" />
-            {messages.length === 0 && !isSynthesizing && (
-              <div className="h-full flex flex-col items-center justify-center opacity-30 text-center gap-6">
-                <div className="w-16 h-16 rounded-full border border-gold/20 flex items-center justify-center text-gold">
-                  <Sparkles size={32} />
-                </div>
-                <div>
-                  <h4 className="font-display tracking-widest uppercase mb-2 text-xs">
-                    The Void Awaited
-                  </h4>
-                  <p className="text-xs italic">
-                    A single query illuminates the entire cosmos.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {messages.map((m) => (
-              <div
-                key={m.id}
-                className={`flex ${
-                  m.role === "user" ? "justify-end" : "justify-start"
-                } ${
-                  m.role === "user"
-                    ? "animate-message-send"
-                    : "animate-reveal-progressive"
-                }`}
-              >
-                <div className="max-w-[90%] md:max-w-[85%] group">
-                  <div
-                    className={`text-xs uppercase tracking-widest mb-1 opacity-30 flex items-center gap-2 ${
-                      m.role === "user" ? "flex-row-reverse" : "flex-row"
-                    }`}
-                  >
-                    {m.role === "user" ? "You" : "Jyotish"}
-                    <span>•</span>
-                    <span>
-                      {m.timestamp.toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                  </div>
-                  <div
-                    className={`px-4 py-3 rounded-2xl md:rounded-3xl border transition-all duration-300 ${
-                      m.role === "user"
-                        ? "bg-white/5 border-white/10 group-hover:bg-white/10"
-                        : "bg-surface-accent/10 border-gold/10 group-hover:border-gold/20"
-                    }`}
-                  >
-                    <div
-                      className={
-                        m.role === "assistant"
-                          ? "prose-cosmic animate-reveal-progressive"
-                          : ""
-                      }
-                    >
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={markdownComponents as any}
-                      >
-                        {m.content}
-                      </ReactMarkdown>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            {isSynthesizing && (
-              <div className="flex justify-start animate-in fade-in duration-300">
-                <div className="max-w-[85%]">
-                  <div className="text-xs uppercase tracking-widest mb-2 opacity-30">
-                    Jyotish
-                  </div>
-                  <div className="p-4 rounded-3xl border border-gold/10 bg-surface-accent/10 flex items-center gap-4">
-                    <Loader2 size={16} className="animate-spin text-gold" />
-                    <span className="text-xs uppercase tracking-[0.3em] text-gold/60 animate-pulse">
-                      Typing...
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Input Area */}
-          <div className="p-2 md:p-5 z-10">
-            <div className="relative max-w-4xl mx-auto group">
-              <div className="absolute -inset-1 bg-gradient-to-r from-gold/20 to-violet/20 rounded-[2.5rem] blur opacity-0 group-focus-within:opacity-100 transition duration-1000"></div>
-              <textarea
-                rows={1}
-                placeholder="Ask the stars about your destiny..."
-                className="relative w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 outline-none focus:border-gold/50 transition-all font-sans text-base md:text-lg pr-14 overflow-hidden resize-none"
-                style={{ height: "auto" }}
-                value={input}
-                onChange={(e) => {
-                  setInput(e.target.value);
-                  e.target.style.height = "auto";
-                  e.target.style.height = e.target.scrollHeight + "px";
-                }}
-                onKeyDown={(e) =>
-                  e.key === "Enter" &&
-                  !e.shiftKey &&
-                  (e.preventDefault(), handleSend())
-                }
-              />
-              <button
-                onClick={handleSend}
-                className={`absolute right-4 top-1/2 -translate-y-1/2 p-4 transition-all ${
-                  input.trim()
-                    ? "text-gold scale-110"
-                    : "text-white/20 scale-100"
-                }`}
-                disabled={isSynthesizing || !input.trim()}
-              >
-                <Send size={24} />
-              </button>
-            </div>
-            <p className="text-center mt-2 text-xs uppercase tracking-[0.2em] text-white/20">
-              Personalized for {birthData?.name || "Seeker"}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <OnboardingModal
-        isOpen={showOnboardingModal}
-        onClose={() => setShowOnboardingModal(false)}
-        onComplete={handleOnboardingComplete}
-      />
-
-      <AuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-        title="Continue Your Journey"
-        message="Sign in to save this synthesis and access it from any device."
-      />
-
-      {showExpandedChart && kundaliData && (
-        <CelestialChart
-          data={kundaliData}
-          onClose={() => setShowExpandedChart(false)}
+        <OnboardingModal
+          isOpen={showOnboardingModal}
+          onClose={() => setShowOnboardingModal(false)}
+          onComplete={handleOnboardingComplete}
         />
-      )}
-    </div>
+
+        <AuthModal
+          isOpen={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+          title="Continue Your Journey"
+          message="Sign in to save this synthesis and access it from any device."
+        />
+
+        {showExpandedChart && kundaliData && (
+          <CelestialChart
+            data={kundaliData}
+            onClose={() => setShowExpandedChart(false)}
+          />
+        )}
+      </div>
+    </>
   );
 }
 
@@ -1013,11 +1104,10 @@ function ConversationsList({
           {filteredChats.map((chat) => (
             <div
               key={chat.id}
-              className={`group flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-all border-l-2 cursor-pointer ${
-                currentId === chat.id
-                  ? "border-gold bg-gold/5"
-                  : "border-transparent"
-              }`}
+              className={`group flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-all border-l-2 cursor-pointer ${currentId === chat.id
+                ? "border-gold bg-gold/5"
+                : "border-transparent"
+                }`}
               onClick={() => onSelect(chat.id)}
             >
               <div className="flex-1 min-w-0">

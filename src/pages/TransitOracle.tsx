@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronLeft,
   Compass,
   Clock,
   Calendar as CalendarIcon,
   Info,
+  Sparkles,
 } from "lucide-react";
 import { useHeaderScroll } from "../hooks";
 import TransitOverlay from "../components/astrology/TransitOverlay";
@@ -16,7 +18,7 @@ export default function TransitOracle() {
   const navigate = useNavigate();
   const { isVisible } = useHeaderScroll();
   const [currentDate] = useState(new Date());
-  const { data, predictions, loading, error } = useTransit();
+  const { data, predictions, aiSummary, loading, error } = useTransit();
 
   // Format date for display
   const formattedDate = currentDate.toLocaleDateString("en-US", {
@@ -48,9 +50,8 @@ export default function TransitOracle() {
 
       {/* Header */}
       <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-700 ease-in-out ${
-          isVisible ? "translate-y-0" : "-translate-y-full"
-        } bg-black/40 backdrop-blur-xl border-b border-white/5`}
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-700 ease-in-out ${isVisible ? "translate-y-0" : "-translate-y-full"
+          } bg-black/40 backdrop-blur-xl border-b border-white/5`}
       >
         <div className="container mx-auto px-6 h-20 flex items-center justify-between">
           <button
@@ -78,7 +79,7 @@ export default function TransitOracle() {
         </div>
       </header>
 
-      <main className="container mx-auto px-6 pt-32 pb-20 relative z-10">
+      <main className="container mx-auto pt-32 pb-20 relative z-10">
         {/* Title Section */}
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-8">
           <div className="max-w-2xl">
@@ -111,7 +112,7 @@ export default function TransitOracle() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-10 gap-8 items-start">
           {/* Left Column: Visual Chart */}
           <div className="lg:col-span-5 space-y-8">
             <div className="glass rounded-[3rem] border border-white/10 p-2 relative overflow-hidden group">
@@ -147,7 +148,7 @@ export default function TransitOracle() {
                       </div>
                     </div>
                   ) : (
-                    <TransitOverlay data={data} className="scale-90" />
+                    <TransitOverlay data={data} className="scale-90 mx-auto" />
                   )}
                 </div>
               </div>
@@ -178,6 +179,65 @@ export default function TransitOracle() {
 
           {/* Right Column: Interpretation */}
           <div className="lg:col-span-5 space-y-8">
+            {/* Gemini Summary Section */}
+            <div className="flex flex-col gap-4">
+              <h3 className="text-sm font-black uppercase tracking-[0.3em] text-gold/60 mb-2 px-2 flex items-center gap-2">
+                <Sparkles size={14} className="text-gold" /> Cosmic Summary
+              </h3>
+
+              <div className="glass p-6 rounded-[2.5rem] border border-gold/20 bg-gold/5 relative overflow-hidden group">
+                {/* Background Decoration */}
+                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                  <Sparkles size={60} className="text-gold" />
+                </div>
+
+                <div className="relative z-10">
+                  <AnimatePresence mode="wait">
+                    {loading ? (
+                      <motion.div
+                        key="loading"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="flex flex-col gap-3"
+                      >
+                        <div className="h-4 w-3/4 bg-gold/10 rounded-full animate-pulse" />
+                        <div className="h-4 w-1/2 bg-gold/10 rounded-full animate-pulse" />
+                      </motion.div>
+                    ) : aiSummary ? (
+                      <motion.div
+                        key="summary"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="space-y-4"
+                      >
+                        <p className="text-lg font-sans font-light leading-relaxed text-white/90 italic">
+                          "{aiSummary}"
+                        </p>
+                        <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+                          <div className="w-6 h-6 rounded-full bg-gold/20 flex items-center justify-center">
+                            <Sparkles size={12} className="text-gold" />
+                          </div>
+                          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gold/60">
+                            AI Oracle Insight
+                          </span>
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <motion.p
+                        key="fallback"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="text-sm text-white/40 italic"
+                      >
+                        The stars are aligning. Your summary will appear shortly.
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+            </div>
+
             <div className="flex flex-col gap-4">
               <h3 className="text-sm font-black uppercase tracking-[0.3em] text-white/60 mb-2 px-2">
                 Transit Analysis
