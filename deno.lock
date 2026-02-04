@@ -12,13 +12,13 @@
     "packageJson": {
       "dependencies": [
         "npm:@eslint/js@^9.39.2",
-        "npm:@google/genai@^1.34.0",
+        "npm:@google/genai@^1.38.0",
         "npm:@netlify/functions@^5.1.2",
         "npm:@react-three/drei@^10.7.7",
         "npm:@react-three/fiber@^9.5.0",
         "npm:@tailwindcss/vite@^4.1.18",
         "npm:@types/react-dom@^19.2.3",
-        "npm:@types/react@^19.2.7",
+        "npm:@types/react@^19.2.9",
         "npm:@types/three@0.182",
         "npm:@vitejs/plugin-react@^5.1.2",
         "npm:autoprefixer@^10.4.23",
@@ -26,8 +26,8 @@
         "npm:eslint-plugin-react-refresh@~0.4.26",
         "npm:eslint@^9.39.2",
         "npm:firebase-admin@^13.6.0",
-        "npm:firebase@^12.7.0",
-        "npm:framer-motion@^12.24.10",
+        "npm:firebase@^12.8.0",
+        "npm:framer-motion@^12.28.1",
         "npm:globals@17",
         "npm:html2canvas@^1.4.1",
         "npm:lucide-react@0.562",
@@ -40,7 +40,7 @@
         "npm:remark-gfm@^4.0.1",
         "npm:tailwindcss@^4.1.18",
         "npm:three@0.182",
-        "npm:typescript-eslint@^8.52.0",
+        "npm:typescript-eslint@^8.53.1",
         "npm:typescript@~5.9.3",
         "npm:vite@^7.3.1"
       ]

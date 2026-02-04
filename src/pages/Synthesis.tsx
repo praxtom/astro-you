@@ -543,15 +543,8 @@ export default function Synthesis() {
           <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-900/10 rounded-full blur-[100px]" />
         </div>
 
-        {/* Header - Hidden on mobile or when Prana overlay is active */}
-        {!showPrana && (
-          <div className="hidden md:block">
-            <Header onShowOnboarding={() => setShowOnboardingModal(true)} />
-          </div>
-        )}
-
         {/* Main Container */}
-        <div className={`flex-1 flex overflow-hidden relative ${!showPrana ? 'md:pt-20' : ''}`}>
+        <div className="flex-1 flex overflow-hidden relative">
           {/* Leftmost: Conversation Sidebar (Hidden on mobile or during Prana) */}
           {user && !showPrana && (
             <aside
