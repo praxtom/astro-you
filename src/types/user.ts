@@ -84,6 +84,22 @@ export interface AtmanData {
 
     dailyGratitude?: string; // "Thankful for the sun"
     dailyGratitudeDate?: string; // YYYY-MM-DD
+
+    // 9. Guru Nudge History (The Whispers)
+    nudgeHistory?: Array<{
+        title: string;
+        message: string;
+        triggerType: string;
+        date: string; // ISO date
+    }>;
+
+    // 10. Advice Ledger (The Counsel)
+    adviceHistory?: Array<{
+        advice: string;
+        context: string;
+        date: string;
+        followedUp?: boolean;
+    }>;
 }
 
 export interface UserProfile {

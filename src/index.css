@@ -519,6 +519,23 @@ p {
   outline-offset: 2px;
 }
 
+/* Global focus-visible for all interactive elements */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid rgba(197, 160, 89, 0.5);
+  outline-offset: 2px;
+}
+
+/* Suppress focus-visible outline on mouse click for cleaner UX */
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible) {
+  outline: none;
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,

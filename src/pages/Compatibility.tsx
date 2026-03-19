@@ -88,6 +88,7 @@ interface MatchResult {
     title: string;
     text: string;
   }[];
+  aiNarrative?: string;
 }
 
 // Max points lookup for the compatibility breakdown (Sums to 100)
@@ -342,6 +343,16 @@ export default function Compatibility() {
                 </div>
               </div>
             </div>
+
+            {/* AI Narrative Interpretation */}
+            {matchResult.aiNarrative && (
+              <div className="mb-8 p-6 rounded-2xl bg-gradient-to-br from-gold/5 to-purple-500/5 border border-gold/10">
+                <h3 className="font-display text-sm uppercase tracking-[0.3em] text-gold/60 mb-4">Jyotish's Insight</h3>
+                <p className="text-sm md:text-base font-sans font-light leading-relaxed text-white/80 whitespace-pre-line">
+                  {matchResult.aiNarrative}
+                </p>
+              </div>
+            )}
 
             {/* Synastry Scores Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">

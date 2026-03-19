@@ -1,6 +1,6 @@
 import { Config, Context } from "@netlify/functions";
 import { initializeApp, cert, getApps } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 
 // Initialize Firebase Admin (only once)
@@ -13,6 +13,8 @@ if (!getApps().length) {
 
 const db = getFirestore();
 const auth = getAuth();
+
+const MAX_ATTEMPTS = 5;
 
 export default async (req: Request, context: Context) => {
     if (req.method !== "POST") {
@@ -41,6 +43,15 @@ export default async (req: Request, context: Context) => {
 
         const otpData = otpDoc.data();
 
+        // Check if too many failed attempts
+        if ((otpData?.attempts || 0) >= MAX_ATTEMPTS) {
+            await db.collection("otps").doc(email).delete();
+            return new Response(JSON.stringify({ error: "Too many failed attempts. Please request a new code." }), {
+                status: 429,
+                headers: { "Content-Type": "application/json" },
+            });
+        }
+
         // Check if expired
         if (Date.now() > otpData?.expiresAt) {
             await db.collection("otps").doc(email).delete();
@@ -52,7 +63,12 @@ export default async (req: Request, context: Context) => {
 
         // Verify OTP
         if (otpData?.code !== code) {
-            return new Response(JSON.stringify({ error: "Invalid code. Please try again." }), {
+            // Increment failed attempts
+            await db.collection("otps").doc(email).update({
+                attempts: FieldValue.increment(1),
+            });
+            const remaining = MAX_ATTEMPTS - (otpData?.attempts || 0) - 1;
+            return new Response(JSON.stringify({ error: `Invalid code. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.` }), {
                 status: 400,
                 headers: { "Content-Type": "application/json" },
             });
@@ -63,7 +79,6 @@ export default async (req: Request, context: Context) => {
 
         // Get or create the user
         let userRecord;
-        let isNewUser = false;
         try {
             userRecord = await auth.getUserByEmail(email);
         } catch (error: any) {
@@ -73,7 +88,6 @@ export default async (req: Request, context: Context) => {
                     email,
                     emailVerified: true,
                 });
-                isNewUser = true;
             } else {
                 throw error;
             }
@@ -86,10 +100,9 @@ export default async (req: Request, context: Context) => {
         if (!userDoc.exists || userDoc.data()?.credits === undefined) {
             await userDocRef.set({
                 email,
-                credits: 5, // Initial bonus credits
+                credits: 15, // Initial bonus credits
                 createdAt: userDoc.exists ? (userDoc.data()?.createdAt || new Date()) : new Date(),
             }, { merge: true });
-            console.log(`[Auth] Initialized credits for ${email} (UID: ${userRecord.uid})`);
         }
 
         // Create a custom token for the user
@@ -101,7 +114,7 @@ export default async (req: Request, context: Context) => {
         });
     } catch (error: any) {
         console.error("Verify OTP Error:", error);
-        return new Response(JSON.stringify({ error: error.message }), {
+        return new Response(JSON.stringify({ error: "Verification failed. Please try again." }), {
             status: 500,
             headers: { "Content-Type": "application/json" },
         });

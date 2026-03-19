@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../lib/AuthContext";
 import { NatalTransitData } from "../types/kundali";
+import { STORAGE_KEYS } from "../lib/constants";
 
 interface TransitState {
     data: NatalTransitData | null;
@@ -23,7 +24,7 @@ export function useTransit(transitDate?: string) {
     useEffect(() => {
         async function fetchTransit() {
             // Get birth data from localStorage (guest or user)
-            const storedProfile = localStorage.getItem("astroyou_profile");
+            const storedProfile = localStorage.getItem(STORAGE_KEYS.PROFILE);
             if (!storedProfile) {
                 setState(prev => ({ ...prev, loading: false, error: "No profile found" }));
                 return;

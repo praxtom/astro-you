@@ -439,6 +439,58 @@ export const AtmanService = {
     },
 
     /**
+     * Save extracted advice to the Advice Ledger (keeps last 20)
+     */
+    async saveAdvice(userId: string, advice: { advice: string; context: string }) {
+        try {
+            const userRef = doc(db, "users", userId);
+            const docSnap = await getDoc(userRef);
+            if (!docSnap.exists()) return;
+
+            const atman = docSnap.data().atman;
+            const history = atman?.adviceHistory || [];
+
+            const updated = [
+                ...history.slice(-19),
+                { ...advice, date: new Date().toISOString(), followedUp: false }
+            ];
+
+            await updateDoc(userRef, {
+                "atman.adviceHistory": updated
+            });
+            console.log(`[Atman] Saved advice: ${advice.advice.substring(0, 50)}...`);
+        } catch (error) {
+            console.error("[Atman] Failed to save advice:", error);
+        }
+    },
+
+    /**
+     * Save a Guru Nudge to history (keeps last 20)
+     */
+    async saveNudge(userId: string, nudge: { title: string; message: string; triggerType: string }) {
+        try {
+            const userRef = doc(db, "users", userId);
+            const docSnap = await getDoc(userRef);
+            if (!docSnap.exists()) return;
+
+            const atman = docSnap.data().atman;
+            const history = atman?.nudgeHistory || [];
+
+            // Keep last 20 nudges
+            const updated = [
+                ...history.slice(-19),
+                { ...nudge, date: new Date().toISOString() }
+            ];
+
+            await updateDoc(userRef, {
+                "atman.nudgeHistory": updated
+            });
+        } catch (error) {
+            console.error("[Atman] Failed to save nudge:", error);
+        }
+    },
+
+    /**
      * Initialize Atman for a new user
      */
     async initializeAtman(userId: string) {

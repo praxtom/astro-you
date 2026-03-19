@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, User, Trash2, Save } from 'lucide-react';
 import { KeyRelationship } from '../../types/user';
+import { RELATIONS, DYNAMICS, ZODIAC_SIGNS } from '../../lib/constants';
 
 interface RelationshipFormProps {
     relationship?: KeyRelationship;
@@ -9,13 +10,6 @@ interface RelationshipFormProps {
     onDelete?: () => void;
     onClose: () => void;
 }
-
-const RELATIONS = ['partner', 'parent', 'child', 'boss', 'friend'] as const;
-const DYNAMICS = ['supportive', 'conflict', 'distant', 'teacher'] as const;
-const ZODIAC_SIGNS = [
-    'Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 
-    'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'
-];
 
 export const RelationshipForm: React.FC<RelationshipFormProps> = ({
     relationship,
@@ -49,15 +43,18 @@ export const RelationshipForm: React.FC<RelationshipFormProps> = ({
             className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
         >
             <motion.div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="relationship-form-title"
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 className="bg-[#0F0F15] border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl"
             >
                 <div className="p-6 border-b border-white/5 flex items-center justify-between">
-                    <h3 className="text-xl font-display text-gold">
+                    <h3 id="relationship-form-title" className="text-xl font-display text-gold">
                         {relationship ? 'Edit Connection' : 'Add New Connection'}
                     </h3>
-                    <button onClick={onClose} className="text-white/40 hover:text-white">
+                    <button onClick={onClose} className="text-white/40 hover:text-white" aria-label="Close dialog">
                         <X size={20} />
                     </button>
                 </div>

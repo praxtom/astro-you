@@ -29,23 +29,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Handle redirect result on app load - this MUST run before we consider auth ready
   useEffect(() => {
-    console.log("[Auth] Checking for redirect result...");
-
     getRedirectResult(auth)
-      .then((result) => {
-        console.log("[Auth] Redirect result:", result);
-        if (result?.user) {
-          console.log("[Auth] User from redirect:", result.user.email);
-        } else {
-          console.log("[Auth] No redirect result (user came directly to page)");
-        }
-      })
-      .catch((error) => {
-        console.error(
-          "[Auth] Redirect result error:",
-          error.code,
-          error.message
-        );
+      .catch(() => {
+        // Redirect result errors are non-fatal (e.g. no pending redirect)
       })
       .finally(() => {
         setRedirectChecked(true);
@@ -56,10 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!redirectChecked) return;
 
-    console.log("[Auth] Setting up auth state listener...");
-
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      console.log("[Auth] Auth state changed:", currentUser?.email || "null");
       setUser(currentUser);
 
       // Initialize credits if user exists but doc/credits missing
@@ -69,15 +52,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const docSnap = await getDoc(userDocRef);
 
           if (!docSnap.exists() || docSnap.data()?.credits === undefined) {
-            console.log(
-              "[Auth] Initializing credits for user:",
-              currentUser.email
-            );
             await setDoc(
               userDocRef,
               {
                 email: currentUser.email,
-                credits: 5, // Initial bonus
+                credits: 15, // Initial bonus
                 createdAt: docSnap.exists()
                   ? docSnap.data()?.createdAt || serverTimestamp()
                   : serverTimestamp(),

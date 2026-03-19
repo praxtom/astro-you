@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { X, Loader2, ArrowLeft, Mail } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -8,6 +8,7 @@ import {
   signInWithCustomToken,
 } from "firebase/auth";
 import { auth } from "../lib/firebase";
+import { STORAGE_KEYS } from "../lib/constants";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -36,7 +37,7 @@ export default function AuthModal({
 }: AuthModalProps) {
   const [step, setStep] = useState<AuthStep>("email");
   const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState(["", "", "", ""]);
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -47,7 +48,50 @@ export default function AuthModal({
     useRef<HTMLInputElement>(null),
     useRef<HTMLInputElement>(null),
     useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
   ];
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  // Focus trap for accessibility
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      onClose();
+      return;
+    }
+    if (e.key !== "Tab" || !modalRef.current) return;
+
+    const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusable.length === 0) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }, [onClose]);
+
+  // Manage focus trap lifecycle
+  useEffect(() => {
+    if (isOpen) {
+      document.addEventListener("keydown", handleKeyDown);
+      // Focus first interactive element on open
+      setTimeout(() => {
+        const first = modalRef.current?.querySelector<HTMLElement>(
+          'button, [href], input, select, textarea'
+        );
+        first?.focus();
+      }, 100);
+    }
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, handleKeyDown]);
 
   // Countdown timer for resend
   useEffect(() => {
@@ -62,7 +106,7 @@ export default function AuthModal({
     if (!isOpen) {
       setStep("email");
       setEmail("");
-      setOtp(["", "", "", ""]);
+      setOtp(["", "", "", "", "", ""]);
       setError("");
       setCountdown(0);
     }
@@ -111,12 +155,12 @@ export default function AuthModal({
     setOtp(newOtp);
 
     // Auto-focus next input
-    if (value && index < 3) {
+    if (value && index < 5) {
       otpRefs[index + 1].current?.focus();
     }
 
     // Auto-submit when all digits are entered
-    if (value && index === 3 && newOtp.every((d) => d !== "")) {
+    if (value && index === 5 && newOtp.every((d) => d !== "")) {
       handleVerifyOTP(newOtp.join(""));
     }
   };
@@ -151,7 +195,7 @@ export default function AuthModal({
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Invalid code. Please try again.");
-      setOtp(["", "", "", ""]);
+      setOtp(["", "", "", "", "", ""]);
       otpRefs[0].current?.focus();
     } finally {
       setIsLoading(false);
@@ -170,8 +214,7 @@ export default function AuthModal({
         if (onSuccess) onSuccess();
       } else {
         // Use redirect in production (requires reverse proxy in netlify.toml)
-        console.log("[Auth] Starting redirect sign-in...");
-        sessionStorage.setItem("astroyou_login_redirect", "true");
+        sessionStorage.setItem(STORAGE_KEYS.LOGIN_REDIRECT, "true");
         await signInWithRedirect(auth, googleProvider);
         // Note: After redirect, the page will reload and getRedirectResult will handle the result
       }
@@ -204,10 +247,14 @@ export default function AuthModal({
 
           {/* Modal */}
           <motion.div
+            ref={modalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="auth-modal-title"
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            transition={{ 
+            transition={{
               type: "spring",
               duration: 0.5,
               bounce: 0.3
@@ -217,6 +264,7 @@ export default function AuthModal({
             <button
               onClick={onClose}
               className="absolute top-6 right-6 p-2 text-white/30 hover:text-white transition-colors"
+              aria-label="Close dialog"
             >
               <X size={24} />
             </button>
@@ -233,7 +281,7 @@ export default function AuthModal({
                   <span className="section-label mb-4 opacity-60">
                     Secure Login
                   </span>
-                  <h2 className="text-title text-3xl mb-4">{title}</h2>
+                  <h2 id="auth-modal-title" className="text-title text-3xl mb-4">{title}</h2>
                   <p className="text-body text-sm opacity-70 px-4">{message}</p>
                 </div>
 
@@ -344,7 +392,7 @@ export default function AuthModal({
                   </div>
                   <h2 className="text-title text-2xl mb-3">Check Your Email</h2>
                   <p className="text-body text-sm opacity-70 px-4">
-                    We sent a 4-digit code to
+                    We sent a 6-digit code to
                     <br />
                     <span className="text-gold">{email}</span>
                   </p>
@@ -357,7 +405,7 @@ export default function AuthModal({
                 )}
 
                 {/* OTP Input */}
-                <div className="flex justify-center gap-3 mb-8">
+                <div className="flex justify-center gap-2 mb-8">
                   {otp.map((digit, index) => (
                     <input
                       key={index}
@@ -368,7 +416,7 @@ export default function AuthModal({
                       value={digit}
                       onChange={(e) => handleOtpChange(index, e.target.value)}
                       onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                      className="w-14 h-16 text-center text-2xl font-bold bg-white/5 border border-white/20 rounded-xl outline-none focus:border-gold/50 focus:bg-gold/5 transition-all font-sans"
+                      className="w-11 h-14 text-center text-xl font-bold bg-white/5 border border-white/20 rounded-xl outline-none focus:border-gold/50 focus:bg-gold/5 transition-all font-sans"
                       disabled={isLoading}
                     />
                   ))}

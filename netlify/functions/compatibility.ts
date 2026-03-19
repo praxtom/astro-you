@@ -1,5 +1,6 @@
 import { Handler } from "@netlify/functions";
 import { getCompatibilityDetails } from "./shared/astro-api";
+import { generateCompatibilityNarrative } from "./shared/gemini";
 
 export const handler: Handler = async (event) => {
     if (event.httpMethod !== "POST") {
@@ -25,13 +26,29 @@ export const handler: Handler = async (event) => {
             };
         }
 
+        // Generate AI narrative interpretation of the compatibility scores
+        let aiNarrative = "";
+        try {
+            aiNarrative = await generateCompatibilityNarrative(
+                matchData,
+                maleData.name || "Person 1",
+                femaleData.name || "Person 2"
+            );
+            console.log("[Compatibility] AI narrative generated");
+        } catch (err) {
+            console.warn("[Compatibility] AI narrative failed (non-critical):", err);
+        }
+
         return {
             statusCode: 200,
             headers: {
                 "Content-Type": "application/json",
                 "Access-Control-Allow-Origin": "*",
             },
-            body: JSON.stringify(matchData),
+            body: JSON.stringify({
+                ...matchData,
+                aiNarrative,
+            }),
         };
     } catch (error: any) {
         console.error("[Compatibility] Error:", error);

@@ -6,6 +6,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
 import { LogOut, Menu, X } from "lucide-react";
 import { signOut } from "firebase/auth";
+import { STORAGE_KEYS } from "../../lib/constants";
 
 interface HeaderProps {
   onShowAuth?: () => void;
@@ -24,8 +25,11 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
 
   const handleLogout = async () => {
     await signOut(auth);
-    sessionStorage.clear();
-    localStorage.clear();
+    // Selectively clear only AstroYou-specific keys
+    Object.values(STORAGE_KEYS).forEach((key) => {
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    });
     navigate("/");
   };
 
@@ -112,7 +116,7 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                       if (docSnap.exists() && docSnap.data().name) {
                         navigate("/dashboard");
                       } else {
-                        sessionStorage.setItem("astroyou_mode", "logged_in");
+                        sessionStorage.setItem(STORAGE_KEYS.MODE, "logged_in");
                         onShowOnboarding?.();
                       }
                     }}
@@ -133,7 +137,7 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                 <button
                   onClick={handleLogout}
                   className="p-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-white/40 hover:text-white"
-                  title="Logout"
+                  aria-label="Logout"
                 >
                   <LogOut size={16} />
                 </button>
@@ -175,6 +179,8 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             className="md:hidden w-10 h-10 flex items-center justify-center rounded-full bg-white/5 border border-white/10 text-white z-[1001]"
+            aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={isMobileMenuOpen}
           >
             {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>

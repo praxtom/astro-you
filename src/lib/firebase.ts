@@ -15,8 +15,6 @@ const authDomain = isProduction
     ? window.location.hostname
     : import.meta.env.VITE_FIREBASE_AUTH_DOMAIN;
 
-console.log("[Firebase] Using authDomain:", authDomain);
-
 const firebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
     authDomain: authDomain,

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Send,
@@ -26,13 +26,14 @@ import {
   addDoc,
   query,
   orderBy,
+  limit,
   onSnapshot,
+  getDocs,
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useRazorpay } from "../hooks/useRazorpay";
 import { SynthesisSEO } from "../components/SEO";
-import Header from "../components/layout/Header";
 import Kundali from "../components/astrology/Kundali";
 import CelestialChart from "../components/astrology/CelestialChart";
 import type { KundaliData, ChatMessage } from "../types";
@@ -45,17 +46,19 @@ import { AtmanService } from "../lib/atman";
 import { DharmaList } from "../components/dharma/DharmaList";
 import { RoutineProposal } from "../components/dharma/RoutineProposal";
 import { DailyAltar } from "../components/sadhana/DailyAltar";
+import ConversationsList from "../components/synthesis/ConversationsList";
 import type { UserRoutine } from "../types/user";
+import { STORAGE_KEYS, FREE_LIMIT_SECONDS } from "../lib/constants";
+import { useErrorToast } from "../components/ui/Toast";
 
 type Message = ChatMessage;
-
-const FREE_LIMIT_SECONDS = 300; // 5 minutes
 
 export default function Synthesis() {
   const navigate = useNavigate();
   const { id } = useParams();
   const { user } = useAuth();
   const isRPCLoaded = useRazorpay();
+  const showError = useErrorToast();
 
   // Atman Integration
   const { isAnxious, isChaotic, isReactive, atmanState, refreshAtman } = useConsciousness();
@@ -63,11 +66,16 @@ export default function Synthesis() {
   const [showAltar, setShowAltar] = useState(false);
   const [suggestedRoutine, setSuggestedRoutine] = useState<UserRoutine | null>(null);
 
-  // Trigger Prana if Anxious/Chaotic/Reactive is detected
+  // Trigger Prana if Anxious/Chaotic/Reactive is detected (with 30-min cooldown)
   useEffect(() => {
     if (isAnxious || isChaotic || isReactive) {
-      // Only show if not recently shown to avoid spamming
-      setShowPrana(true);
+      const COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
+      const lastShown = sessionStorage.getItem('astroyou_prana_last');
+      const now = Date.now();
+      if (!lastShown || now - parseInt(lastShown) > COOLDOWN_MS) {
+        setShowPrana(true);
+        sessionStorage.setItem('astroyou_prana_last', now.toString());
+      }
     }
   }, [isAnxious, isChaotic, isReactive]);
 
@@ -121,8 +129,33 @@ export default function Synthesis() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showExpandedChart, setShowExpandedChart] = useState(false);
   const [interactionId, setInteractionId] = useState<string | null>(null);
+  const [streamingContent, setStreamingContent] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevChatIdRef = useRef<string | null>(null); // Track previous chat ID to detect sidebar navigation
+
+  // P0: Load recent chat summaries for guru's diary (last 3 chats with summaries)
+  const loadRecentSummaries = useCallback(async () => {
+    if (!user) return [];
+    try {
+      const chatsQuery = query(
+        collection(db, "users", user.uid, "chats"),
+        orderBy("lastUpdatedAt", "desc"),
+        limit(4) // Fetch 4 to skip current chat
+      );
+      const snapshot = await getDocs(chatsQuery);
+      return snapshot.docs
+        .filter(d => d.data().summary && d.id !== currentChatId)
+        .slice(0, 3)
+        .map(d => ({
+          title: d.data().title || "Untitled",
+          summary: d.data().summary,
+          date: d.data().lastUpdatedAt?.toDate()?.toLocaleDateString() || '',
+        }));
+    } catch (err) {
+      console.error("[Synthesis] Failed to load summaries:", err);
+      return [];
+    }
+  }, [user, currentChatId]);
 
   const WELCOME_MESSAGE: Message = {
     id: "welcome",
@@ -150,14 +183,14 @@ export default function Synthesis() {
     if (isLoadingProfile) return;
 
     if (!user) {
-      const guestData = sessionStorage.getItem("astroyou_guest_profile");
-      const guestComplete = sessionStorage.getItem("astroyou_guest_complete");
+      const guestData = sessionStorage.getItem(STORAGE_KEYS.GUEST_PROFILE);
+      const guestComplete = sessionStorage.getItem(STORAGE_KEYS.GUEST_COMPLETE);
 
       if (guestData && guestComplete) {
         setBirthData(JSON.parse(guestData));
       } else {
         // No guest data? Try localStorage before forcing onboarding
-        const localData = localStorage.getItem("astroyou_profile");
+        const localData = localStorage.getItem(STORAGE_KEYS.PROFILE);
         if (localData) {
           setBirthData(JSON.parse(localData));
         } else {
@@ -173,7 +206,7 @@ export default function Synthesis() {
   const handleOnboardingComplete = () => {
     // For guest users, we need to manually pick up the data from sessionStorage
     if (!user) {
-      const guestData = sessionStorage.getItem("astroyou_guest_profile");
+      const guestData = sessionStorage.getItem(STORAGE_KEYS.GUEST_PROFILE);
       if (guestData) {
         setBirthData(JSON.parse(guestData));
       }
@@ -199,6 +232,7 @@ export default function Synthesis() {
           setKundaliData(data);
         } catch (err) {
           console.error("Error fetching guest Kundali:", err);
+          showError("Chart Error", "Could not calculate your birth chart. Please check your birth data.");
         } finally {
           setIsLoadingKundali(false);
         }
@@ -271,7 +305,7 @@ export default function Synthesis() {
   // Initialize trial timer from localStorage
   useEffect(() => {
     if (user) return;
-    const saved = localStorage.getItem("astroyou_free_seconds");
+    const saved = localStorage.getItem(STORAGE_KEYS.FREE_SECONDS);
     if (saved) setSecondsUsed(parseInt(saved));
   }, [user]);
 
@@ -285,7 +319,7 @@ export default function Synthesis() {
     const interval = setInterval(() => {
       setSecondsUsed((prev) => {
         const next = prev + 1;
-        localStorage.setItem("astroyou_free_seconds", next.toString());
+        localStorage.setItem(STORAGE_KEYS.FREE_SECONDS, next.toString());
         return next;
       });
     }, 1000);
@@ -317,21 +351,17 @@ export default function Synthesis() {
         description: `Purchase ${minutes} Minutes`,
         order_id: order.id,
         handler: async (response: any) => {
-          // Verify payment
+          // Verify payment and add credits server-side
           const verifyResp = await fetch("/api/pay/verify", {
             method: "POST",
-            body: JSON.stringify(response),
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...response, uid: user.uid, minutes }),
           });
           const verifyData = await verifyResp.json();
 
           if (verifyData.status === "success") {
-            // Update Firestore
-            const userRef = doc(db, "users", user.uid);
-            await updateDoc(userRef, {
-              credits: increment(minutes),
-            });
             setCredits((prev) => prev + minutes);
-            alert(`Succesfully added ${minutes} minutes!`);
+            alert(`Successfully added ${minutes} minutes!`);
           }
         },
         prefill: {
@@ -347,7 +377,7 @@ export default function Synthesis() {
       rzp.open();
     } catch (err) {
       console.error(err);
-      alert("Payment failed to initialize.");
+      showError("Payment Error", "Payment failed to initialize. Please try again.");
     } finally {
       setIsPaying(false);
     }
@@ -389,13 +419,6 @@ export default function Synthesis() {
     try {
       let chatId = currentChatId;
 
-      // Deduct credit if user is logged in
-      if (user && credits > 0) {
-        const userRef = doc(db, "users", user.uid);
-        await updateDoc(userRef, { credits: increment(-1) });
-        setCredits((prev) => prev - 1);
-      }
-
       // If logged in and first message, create chat doc
       if (user && !chatId) {
         const newChatRef = await addDoc(
@@ -428,6 +451,15 @@ export default function Synthesis() {
         });
       }
 
+      // P0: Load guru's diary (recent chat summaries) for new conversations
+      const recentSummaries = !interactionId ? await loadRecentSummaries() : [];
+
+      // Build enriched chat history for summary generation
+      const chatMessagesForSummary = messages
+        .filter(m => m.id !== 'welcome')
+        .slice(-10)
+        .map(m => ({ role: m.role, content: m.content }));
+
       const response = await fetch("/api/synthesis", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -437,59 +469,140 @@ export default function Synthesis() {
           birthData,
           kundaliData,
           previousInteractionId: interactionId, // Pass previous interaction for context
-          atmanData: atmanState // Pass current consciousness state to AI
+          atmanData: atmanState, // Pass current consciousness state to AI
+          recentSummaries: recentSummaries.length > 0 ? recentSummaries : undefined,
+          chatMessages: chatMessagesForSummary.length > 0 ? chatMessagesForSummary : undefined,
+          messageCount: messages.filter(m => m.id !== 'welcome').length,
         }),
       });
 
-      const data = await response.json();
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "");
+        let errorMsg = "The cosmos is momentarily unreachable.";
+        try { errorMsg = JSON.parse(errorText)?.error || errorMsg; } catch {}
+        throw new Error(errorMsg);
+      }
+
+      // --- Real SSE Stream Consumption ---
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let fullContent = "";
+      let metadata: any = null;
+
+      setIsSynthesizing(false); // Hide loader, streaming content will show instead
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Parse SSE events from buffer
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || ""; // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr) continue;
+
+          try {
+            const event = JSON.parse(jsonStr);
+
+            if (event.type === "delta" && event.text) {
+              fullContent += event.text;
+              setStreamingContent(fullContent);
+            } else if (event.type === "done") {
+              metadata = event;
+            } else if (event.type === "error") {
+              throw new Error(event.error || "Synthesis failed");
+            }
+          } catch (parseErr: any) {
+            if (parseErr.message === "Synthesis failed" || parseErr.message?.includes("Synthesis")) {
+              throw parseErr;
+            }
+            // Ignore malformed SSE lines
+          }
+        }
+      }
+
+      if (!fullContent && !metadata) {
+        throw new Error("No response from the cosmos");
+      }
+
+      const finalContent = metadata?.content || fullContent;
+
+      // Deduct credit AFTER successful response
+      if (user && credits > 0) {
+        const userRef = doc(db, "users", user.uid);
+        updateDoc(userRef, { credits: increment(-1) }).catch(() => {});
+        setCredits((prev) => prev - 1);
+      }
 
       // Process Atman Updates from AI
-      if (user && data.atmanUpdate) {
-        await AtmanService.processAnalysisResult(user.uid, data.atmanUpdate);
+      if (user && metadata?.atmanUpdate) {
+        AtmanService.processAnalysisResult(user.uid, metadata.atmanUpdate).catch(() => {});
       }
-      
+
       // Handle Routine Suggestion
-      if (data.suggestedRoutine) {
-          setSuggestedRoutine(data.suggestedRoutine);
+      if (metadata?.suggestedRoutine) {
+        setSuggestedRoutine(metadata.suggestedRoutine);
+      }
+
+      // P0: Save conversation summary to chat doc
+      if (metadata?.conversationSummary && user && chatId) {
+        updateDoc(doc(db, "users", user.uid, "chats", chatId), {
+          summary: metadata.conversationSummary,
+        }).catch(() => {});
+      }
+
+      // P3: Save extracted advice to Atman
+      if (metadata?.extractedAdvice && user) {
+        AtmanService.saveAdvice(user.uid, metadata.extractedAdvice).catch(() => {});
       }
 
       // Store the new interaction ID for next turn
-      if (data.interactionId) {
-        setInteractionId(data.interactionId);
+      if (metadata?.interactionId) {
+        setInteractionId(metadata.interactionId);
       }
 
-      if (data.content) {
+      // Update chat title if AI generated one
+      if (metadata?.generatedTitle && user && chatId) {
+        updateDoc(doc(db, "users", user.uid, "chats", chatId), {
+          title: metadata.generatedTitle,
+        }).catch(() => {});
+      }
+
+      // Save to Firestore / local messages, then clear streaming
+      if (user && chatId) {
+        await addDoc(
+          collection(db, "users", user.uid, "chats", chatId, "messages"),
+          {
+            role: "assistant",
+            content: finalContent,
+            timestamp: serverTimestamp(),
+          }
+        );
+      } else {
         const aiMsg: Message = {
           id: (Date.now() + 1).toString(),
           role: "assistant",
-          content: data.content,
+          content: finalContent,
           timestamp: new Date(),
         };
+        setMessages((prev) => [...prev, aiMsg]);
+      }
 
-        if (user && chatId) {
-          // Save AI message to Firestore
-          await addDoc(
-            collection(db, "users", user.uid, "chats", chatId, "messages"),
-            {
-              role: "assistant",
-              content: data.content,
-              timestamp: serverTimestamp(),
-              suggestAction: data.suggestAction,
-            }
-          );
-        } else {
-          // If guest, just update state
-          const msgWithAction = { ...aiMsg, suggestAction: data.suggestAction };
-          setMessages((prev) => [...prev, msgWithAction]);
-        }
+      setStreamingContent(null);
 
-        // Auto-action if suggested
-        if (data.suggestAction === "show_chart") {
-          setTimeout(() => setShowExpandedChart(true), 1500);
-        }
+      // Auto-action if suggested
+      if (metadata?.suggestAction === "show_chart") {
+        setTimeout(() => setShowExpandedChart(true), 1500);
       }
     } catch (err) {
       console.error(err);
+      showError("Connection Lost", "Could not reach the cosmos. Please try sending your message again.");
     } finally {
       setIsSynthesizing(false);
     }
@@ -499,7 +612,7 @@ export default function Synthesis() {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, isSynthesizing]);
+  }, [messages, isSynthesizing, streamingContent]);
 
   const remainingSeconds = Math.max(0, FREE_LIMIT_SECONDS - secondsUsed);
 
@@ -588,6 +701,7 @@ export default function Synthesis() {
                       }
                     } catch (err) {
                       console.error("Failed to delete chat:", err);
+                      showError("Delete Failed", "Could not delete the conversation. Please try again.");
                     }
                   }}
                 />
@@ -609,6 +723,7 @@ export default function Synthesis() {
           {user && !showPrana && (
             <button
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              aria-label={isSidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
               className={`hidden md:flex absolute ${isSidebarCollapsed ? "left-4" : "left-[17rem]"
                 } top-32 z-50 p-2 rounded-full border border-white/10 bg-black/40 backdrop-blur-md text-white/40 hover:text-gold hover:border-gold/30 transition-all duration-300`}
             >
@@ -618,6 +733,7 @@ export default function Synthesis() {
                 <PanelLeftClose size={16} />
               )}
             </button>
+
           )}
 
           {/* Middle/Left: Celestial Blueprint (Hidden during Prana) */}
@@ -808,6 +924,7 @@ export default function Synthesis() {
               <button
                 onClick={() => navigate("/dashboard")}
                 className="text-white/40"
+                aria-label="Back to dashboard"
               >
                 <ChevronLeft size={20} />
               </button>
@@ -817,6 +934,7 @@ export default function Synthesis() {
               <button
                 onClick={() => setCurrentChatId(null)}
                 className="text-gold"
+                aria-label="New conversation"
               >
                 <Plus size={20} />
               </button>
@@ -844,7 +962,13 @@ export default function Synthesis() {
                 </div>
               )}
 
-              {messages.map((m) => (
+              {messages
+              .filter((m, i, arr) => {
+                // Hide the last assistant message while streaming — revealText handles it
+                if (streamingContent !== null && m.role === 'assistant' && i === arr.length - 1) return false;
+                return true;
+              })
+              .map((m) => (
                 <div
                   key={m.id}
                   className={`flex ${m.role === "user" ? "justify-end" : "justify-start"
@@ -892,6 +1016,30 @@ export default function Synthesis() {
                 </div>
               ))}
 
+              {/* Streaming reveal for guest messages */}
+              {streamingContent !== null && (
+                <div className="flex justify-start animate-in fade-in duration-300">
+                  <div className="max-w-[90%] md:max-w-[85%]">
+                    <div className="text-xs uppercase tracking-widest mb-1 opacity-30 flex items-center gap-2">
+                      Jyotish
+                      <span>•</span>
+                      <span>Now</span>
+                    </div>
+                    <div className="px-4 py-3 rounded-2xl md:rounded-3xl border border-gold/10 bg-surface-accent/10">
+                      <div className="prose-cosmic">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={markdownComponents as any}
+                        >
+                          {streamingContent}
+                        </ReactMarkdown>
+                        <span className="inline-block w-0.5 h-4 bg-gold/60 animate-pulse ml-0.5 align-middle" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {isSynthesizing && (
                 <div className="flex justify-start animate-in fade-in duration-300">
                   <div className="max-w-[85%]">
@@ -901,7 +1049,7 @@ export default function Synthesis() {
                     <div className="p-4 rounded-3xl border border-gold/10 bg-surface-accent/10 flex items-center gap-4">
                       <Loader2 size={16} className="animate-spin text-gold" />
                       <span className="text-xs uppercase tracking-[0.3em] text-gold/60 animate-pulse">
-                        Typing...
+                        Contemplating...
                       </span>
                     </div>
                   </div>
@@ -937,6 +1085,7 @@ export default function Synthesis() {
                     : "text-white/20 scale-100"
                     }`}
                   disabled={isSynthesizing || !input.trim()}
+                  aria-label="Send message"
                 >
                   <Send size={24} />
                 </button>
@@ -973,218 +1122,3 @@ export default function Synthesis() {
   );
 }
 
-// Sidebar Component for Conversations
-function ConversationsList({
-  userId,
-  currentId,
-  onSelect,
-  onDelete,
-}: {
-  userId: string;
-  currentId: string | null;
-  onSelect: (id: string) => void;
-  onDelete: (id: string) => void;
-}) {
-  const [chats, setChats] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-
-  useEffect(() => {
-    const q = query(
-      collection(db, "users", userId, "chats"),
-      orderBy("lastUpdatedAt", "desc")
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setChats(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-      setIsLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [userId]);
-
-  const handleDeleteClick = (e: React.MouseEvent, chatId: string) => {
-    e.stopPropagation();
-    setConfirmingDelete(chatId);
-  };
-
-  const handleConfirmDelete = (e: React.MouseEvent, chatId: string) => {
-    e.stopPropagation();
-    onDelete(chatId);
-    setConfirmingDelete(null);
-  };
-
-  const handleCancelDelete = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setConfirmingDelete(null);
-  };
-
-  // Filter chats based on search query
-  const filteredChats = useMemo(() => {
-    if (!searchQuery.trim()) return chats;
-    const lowerQuery = searchQuery.toLowerCase();
-    return chats.filter((chat) =>
-      (chat.title || "Untitled Synthesis").toLowerCase().includes(lowerQuery)
-    );
-  }, [chats, searchQuery]);
-
-  if (isLoading)
-    return (
-      <div className="p-4 text-xs uppercase tracking-widest opacity-20">
-        Aligning...
-      </div>
-    );
-
-  return (
-    <div className="flex flex-col">
-      {/* Search Input */}
-      <div className="px-3 py-2 border-b border-white/5">
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="Search conversations..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 pl-8 text-xs text-white/80 placeholder:text-white/30 focus:outline-none focus:border-gold/50 focus:ring-1 focus:ring-gold/20 transition-all"
-          />
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/30"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.3-4.3" />
-          </svg>
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Conversations List */}
-      {filteredChats.length === 0 ? (
-        <div className="p-4 text-xs tracking-widest opacity-20 italic">
-          {searchQuery ? "No matching conversations." : "No past conversation."}
-        </div>
-      ) : (
-        <div className="flex flex-col py-2">
-          {filteredChats.map((chat) => (
-            <div
-              key={chat.id}
-              className={`group flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-all border-l-2 cursor-pointer ${currentId === chat.id
-                ? "border-gold bg-gold/5"
-                : "border-transparent"
-                }`}
-              onClick={() => onSelect(chat.id)}
-            >
-              <div className="flex-1 min-w-0">
-                <div className="text-xs font-medium text-white/80 truncate mb-1">
-                  {chat.title || "Untitled Synthesis"}
-                </div>
-                <div className="text-xs text-white/30 truncate">
-                  {chat.lastUpdatedAt?.toDate?.().toLocaleDateString() ||
-                    "Recent"}
-                </div>
-              </div>
-
-              {confirmingDelete === chat.id ? (
-                // Inline confirmation UI
-                <div className="flex items-center gap-1 animate-in fade-in duration-200">
-                  <span className="text-xs text-red-400 mr-1">Delete?</span>
-                  <button
-                    onClick={(e) => handleConfirmDelete(e, chat.id)}
-                    className="p-1 rounded hover:bg-red-500/30 text-red-400 transition-all"
-                    title="Confirm delete"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={handleCancelDelete}
-                    className="p-1 rounded hover:bg-white/10 text-white/50 transition-all"
-                    title="Cancel"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-              ) : (
-                // Delete button (shows on hover)
-                <button
-                  onClick={(e) => handleDeleteClick(e, chat.id)}
-                  className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-500/20 text-white/30 hover:text-red-400 transition-all"
-                  title="Delete chat"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M3 6h18" />
-                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                  </svg>
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}

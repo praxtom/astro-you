@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "../lib/AuthContext";
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
+import { STORAGE_KEYS } from "../lib/constants";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -53,6 +54,8 @@ export default function OnboardingModal({
   const [parseError, setParseError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const modalRef = useRef<HTMLDivElement>(null);
+
   const [formData, setFormData] = useState({
     name: "",
     gender: "",
@@ -63,10 +66,48 @@ export default function OnboardingModal({
     birthTimeUnknown: false,
   });
 
+  // Focus trap for accessibility
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      onClose();
+      return;
+    }
+    if (e.key !== "Tab" || !modalRef.current) return;
+
+    const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusable.length === 0) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }, [onClose]);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.addEventListener("keydown", handleKeyDown);
+      setTimeout(() => {
+        const first = modalRef.current?.querySelector<HTMLElement>(
+          'button, [href], input, select, textarea'
+        );
+        first?.focus();
+      }, 100);
+    }
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, handleKeyDown]);
+
   // Load existing data from localStorage
   useEffect(() => {
     if (isOpen) {
-      const saved = localStorage.getItem("astroyou_profile");
+      const saved = localStorage.getItem(STORAGE_KEYS.PROFILE);
       if (saved) {
         setFormData(JSON.parse(saved));
       }
@@ -75,7 +116,7 @@ export default function OnboardingModal({
 
   const saveStepData = (data: typeof formData) => {
     setFormData(data);
-    localStorage.setItem("astroyou_profile", JSON.stringify(data));
+    localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(data));
   };
 
   const getCurrentLocation = () => {
@@ -241,17 +282,17 @@ export default function OnboardingModal({
           },
           { merge: true }
         );
-        localStorage.setItem("astroyou_profile", JSON.stringify(formData));
-        localStorage.setItem("astroyou_profile_complete", "true");
+        localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(formData));
+        localStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");
       } else {
         // Guest path
         sessionStorage.setItem(
-          "astroyou_guest_profile",
+          STORAGE_KEYS.GUEST_PROFILE,
           JSON.stringify(formData)
         );
-        sessionStorage.setItem("astroyou_guest_complete", "true");
+        sessionStorage.setItem(STORAGE_KEYS.GUEST_COMPLETE, "true");
         // Also keep in localStorage for continuity if they sign up later
-        localStorage.setItem("astroyou_profile", JSON.stringify(formData));
+        localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(formData));
       }
 
       if (onComplete) onComplete();
@@ -306,6 +347,10 @@ export default function OnboardingModal({
 
           {/* Modal */}
           <motion.div
+            ref={modalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="onboarding-modal-title"
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -322,13 +367,13 @@ export default function OnboardingModal({
                   <button
                     onClick={prevStep}
                     className="p-2 -ml-2 text-white/40 hover:text-white transition-colors"
-                    title="Back"
+                    aria-label="Go back"
                   >
                     <ArrowLeft size={20} />
                   </button>
                 )}
                 <div>
-                  <h3 className="text-xl font-display text-white">
+                  <h3 id="onboarding-modal-title" className="text-xl font-display text-white">
                     {step === "upload" && "Upload Kundali"}
                     {step === "identity" && "Personal Basis"}
                     {step === "temporal" && "Birth Time"}
@@ -340,6 +385,7 @@ export default function OnboardingModal({
               <button
                 onClick={onClose}
                 className="p-2 text-white/20 hover:text-white/60 transition-colors"
+                aria-label="Close dialog"
               >
                 <X size={24} />
               </button>
@@ -427,7 +473,7 @@ export default function OnboardingModal({
                           <div className="relative rounded-xl overflow-hidden border border-white/10 bg-black/20">
                             <img
                               src={uploadedImage}
-                              alt="Uploaded"
+                              alt="Uploaded Kundali chart"
                               className="w-full h-32 object-contain"
                             />
                             <button

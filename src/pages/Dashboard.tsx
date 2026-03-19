@@ -4,6 +4,8 @@ import { useAuth } from "../lib/AuthContext";
 import { useUserProfile } from "../hooks";
 import { useConsciousness } from "../hooks/useConsciousness";
 import { useProactiveTriggers } from "../hooks/useProactiveTriggers";
+import { STORAGE_KEYS } from "../lib/constants";
+import { useErrorToast } from "../components/ui/Toast";
 import {
   MessageSquare,
   Sun,
@@ -104,13 +106,14 @@ export default function Dashboard() {
 
   // Consciousness state for Atman features
   const { atmanState, refreshAtman } = useConsciousness();
+  const showError = useErrorToast();
   
   // Enable proactive guru nudges
   useProactiveTriggers();
 
   useEffect(() => {
     if (!user && !isLoading) {
-      const storedGuestData = sessionStorage.getItem("astroyou_guest_profile");
+      const storedGuestData = sessionStorage.getItem(STORAGE_KEYS.GUEST_PROFILE);
       if (storedGuestData) {
         setGuestData(JSON.parse(storedGuestData));
       } else {
@@ -204,6 +207,7 @@ export default function Dashboard() {
         }
       } catch (err) {
         console.error("Failed to fetch prediction:", err);
+        showError("Prediction Unavailable", "Could not load your daily forecast. Please try again later.");
       } finally {
         setIsPredictionLoading(false);
       }
@@ -427,7 +431,7 @@ export default function Dashboard() {
         onClose={() => setShowOnboardingModal(false)}
         onComplete={() => {
           if (!user) {
-            const stored = sessionStorage.getItem("astroyou_guest_profile");
+            const stored = sessionStorage.getItem(STORAGE_KEYS.GUEST_PROFILE);
             if (stored) setGuestData(JSON.parse(stored));
           }
         }}

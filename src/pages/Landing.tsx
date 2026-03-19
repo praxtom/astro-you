@@ -11,6 +11,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
 import { Sparkles, ChevronDown, ScrollText } from "lucide-react";
 import type { InfluenceCardProps } from "../types";
+import { STORAGE_KEYS } from "../lib/constants";
 
 const InfluenceCard = ({
   number,
@@ -65,6 +66,7 @@ const FAQItem = ({
       <button
         className="w-full py-6 flex items-center justify-between text-left group"
         onClick={() => setIsOpen(!isOpen)}
+        aria-expanded={isOpen}
       >
         <span className="text-lg font-sans text-content-primary group-hover:text-gold transition-colors">
           {question}
@@ -114,8 +116,8 @@ function Landing() {
 
   // Handle post-redirect login success
   useEffect(() => {
-    if (user && sessionStorage.getItem("astroyou_login_redirect")) {
-      sessionStorage.removeItem("astroyou_login_redirect");
+    if (user && sessionStorage.getItem(STORAGE_KEYS.LOGIN_REDIRECT)) {
+      sessionStorage.removeItem(STORAGE_KEYS.LOGIN_REDIRECT);
       navigate("/dashboard");
     }
   }, [user, navigate]);
@@ -128,7 +130,7 @@ function Landing() {
       if (docSnap.exists() && docSnap.data().name) {
         navigate("/dashboard");
       } else {
-        sessionStorage.setItem("astroyou_mode", "logged_in");
+        sessionStorage.setItem(STORAGE_KEYS.MODE, "logged_in");
         setShowOnboardingModal(true);
       }
     } else {
@@ -141,7 +143,7 @@ function Landing() {
       <LandingSEO />
 
       {/* Full-Screen Static Ambiance (Static) */}
-      <div className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none">
+      <div className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none" aria-hidden="true">
         <div className="blob top-[-10%] right-[-5%] w-[60vw] h-[60vw] bg-violet/5 animate-float-slow"></div>
         <div
           className="blob bottom-[-10%] left-[-5%] w-[60vw] h-[60vw] bg-indigo/5 animate-float-slow"
@@ -157,7 +159,7 @@ function Landing() {
       {/* Unified Narrative Section: Hero + ScrollyStack */}
       <div className="relative" ref={stackRef}>
         {/* Persistent 3D Background */}
-        <div className="sticky top-0 h-screen w-full z-0 overflow-hidden bg-[#030308]">
+        <div className="sticky top-0 h-screen w-full z-0 overflow-hidden bg-[#030308]" aria-hidden="true">
           <div className="w-full h-full">
             <CelestialEngine progress={scrollProgress} />
           </div>
@@ -200,7 +202,7 @@ function Landing() {
                         if (docSnap.exists() && docSnap.data().name) {
                           navigate("/dashboard");
                         } else {
-                          sessionStorage.setItem("astroyou_mode", "logged_in");
+                          sessionStorage.setItem(STORAGE_KEYS.MODE, "logged_in");
                           setShowOnboardingModal(true);
                         }
                       } else {
@@ -216,7 +218,7 @@ function Landing() {
                   <button
                     className="btn btn-outline px-12"
                     onClick={() => {
-                      sessionStorage.setItem("astroyou_mode", "guest");
+                      sessionStorage.setItem(STORAGE_KEYS.MODE, "guest");
                       setShowOnboardingModal(true);
                     }}
                   >

@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { useConsciousness } from './useConsciousness';
 import { useDashaMonitor } from './useDashaMonitor';
-// AtmanService removed as it was unused
+import { AtmanService } from '../lib/atman';
 import { useToast } from '../components/ui/Toast';
 
 /**
@@ -14,6 +14,19 @@ export function useProactiveTriggers() {
     const { addToast } = useToast();
     useDashaMonitor(); // Initialize the monitor
     const lastTriggerRef = useRef<Record<string, number>>({});
+
+    // Helper: show toast AND persist to Firestore
+    const showAndSaveNudge = useCallback((
+        title: string,
+        message: string,
+        triggerType: string,
+        duration = 8000
+    ) => {
+        addToast({ type: 'guru', title, message, duration });
+        if (user) {
+            AtmanService.saveNudge(user.uid, { title, message, triggerType });
+        }
+    }, [addToast, user]);
 
     // Listen for Growth Celebration Events
     useEffect(() => {
@@ -90,12 +103,11 @@ export function useProactiveTriggers() {
                     );
 
                     if (incompleteMorning && incompleteMorning.length > 0) {
-                        addToast({
-                            type: 'guru',
-                            title: 'Morning Sadhana',
-                            message: `The Sun has risen, ${atmanState.dailyIntention || 'Friend'}. Have you greeted it with your ${incompleteMorning[0].title}?`,
-                            duration: 8000
-                        });
+                        showAndSaveNudge(
+                            'Morning Sadhana',
+                            `The Sun has risen, ${atmanState.dailyIntention || 'Friend'}. Have you greeted it with your ${incompleteMorning[0].title}?`,
+                            'morning_routine'
+                        );
                         lastTriggerRef.current[triggerKey] = now.getTime();
                     }
                 }
@@ -105,12 +117,11 @@ export function useProactiveTriggers() {
             if (hour >= 7 && hour < 11 && !atmanState.dailyIntention) {
                 const triggerKey = `intention_missing_${today}`;
                 if (!lastTriggerRef.current[triggerKey]) {
-                    addToast({
-                        type: 'guru',
-                        title: 'Daily Sankalpa',
-                        message: "What is your intention for this beautiful new day, Ji?",
-                        duration: 8000
-                    });
+                    showAndSaveNudge(
+                        'Daily Sankalpa',
+                        "What is your intention for this beautiful new day, Ji?",
+                        'daily_intention'
+                    );
                     lastTriggerRef.current[triggerKey] = now.getTime();
                 }
             }
@@ -120,12 +131,11 @@ export function useProactiveTriggers() {
                 const triggerKey = `gratitude_evening_${today}`;
                 if (!lastTriggerRef.current[triggerKey]) {
                     if (!atmanState.dailyGratitudeDate || atmanState.dailyGratitudeDate !== today) {
-                        addToast({
-                            type: 'guru',
-                            title: 'Evening Reflection',
-                            message: "Before you rest, what are you grateful for today?",
-                            duration: 8000
-                        });
+                        showAndSaveNudge(
+                            'Evening Reflection',
+                            "Before you rest, what are you grateful for today?",
+                            'evening_gratitude'
+                        );
                         lastTriggerRef.current[triggerKey] = now.getTime();
                     }
                 }
@@ -135,12 +145,12 @@ export function useProactiveTriggers() {
             if (atmanState.emotionalState === 'chaotic') {
                 const triggerKey = `chaos_detected_${atmanState.lastEmotionalUpdate}`;
                 if (!lastTriggerRef.current[triggerKey]) {
-                    addToast({
-                        type: 'guru',
-                        title: 'A Moment of Peace',
-                        message: "I sense a storm within. Shall we take a moment for Neti-Neti reflection?",
-                        duration: 10000
-                    });
+                    showAndSaveNudge(
+                        'A Moment of Peace',
+                        "I sense a storm within. Shall we take a moment for Neti-Neti reflection?",
+                        'emotional_stabilization',
+                        10000
+                    );
                     lastTriggerRef.current[triggerKey] = now.getTime();
                 }
             }
@@ -159,12 +169,7 @@ export function useProactiveTriggers() {
                     });
                     const data = await response.json();
                     if (data.title && data.message) {
-                        addToast({
-                            type: 'guru',
-                            title: data.title,
-                            message: data.message,
-                            duration: 12000
-                        });
+                        showAndSaveNudge(data.title, data.message, 'transit_alert', 12000);
                         lastTriggerRef.current[transitKey] = now.getTime();
                     }
                 } catch (e) {
@@ -187,12 +192,7 @@ export function useProactiveTriggers() {
                         });
                         const data = await response.json();
                         if (data.title && data.message) {
-                            addToast({
-                                type: 'guru',
-                                title: data.title,
-                                message: data.message,
-                                duration: 12000
-                            });
+                            showAndSaveNudge(data.title, data.message, 'relational_management', 12000);
                             lastTriggerRef.current[relationalKey] = now.getTime();
                         }
                     } catch (e) {
@@ -210,12 +210,12 @@ export function useProactiveTriggers() {
                 if (daysDiff === 7 || daysDiff === 30) {
                     const triggerKey = `anniversary_${event.id}_${daysDiff}`;
                     if (!lastTriggerRef.current[triggerKey]) {
-                        addToast({
-                            type: 'guru',
-                            title: 'Path Reflected',
-                            message: `It has been ${daysDiff} days since "${event.title}". How has your consciousness shifted since then?`,
-                            duration: 10000
-                        });
+                        showAndSaveNudge(
+                            'Path Reflected',
+                            `It has been ${daysDiff} days since "${event.title}". How has your consciousness shifted since then?`,
+                            'anniversary_reflection',
+                            10000
+                        );
                         lastTriggerRef.current[triggerKey] = now.getTime();
                     }
                 }
@@ -227,5 +227,5 @@ export function useProactiveTriggers() {
         checkTriggers(); // Initial check
 
         return () => clearInterval(interval);
-    }, [user, atmanState, addToast]);
+    }, [user, atmanState, addToast, showAndSaveNudge]);
 }

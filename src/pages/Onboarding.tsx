@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { OnboardingSEO } from "../components/SEO";
 import LocationInput from "../components/LocationInput";
+import { STORAGE_KEYS } from "../lib/constants";
+import { useErrorToast } from "../components/ui/Toast";
 
 type Step = "upload" | "identity" | "temporal" | "spatial" | "present";
 import type { ParsedChartData } from "../types";
@@ -25,6 +27,7 @@ export default function Onboarding() {
   const [isSaving, setIsSaving] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
+  const showError = useErrorToast();
 
   // Chart upload state
   const [isUploading, setIsUploading] = useState(false);
@@ -46,7 +49,7 @@ export default function Onboarding() {
 
   // Load existing data from localStorage (persists across sessions)
   useEffect(() => {
-    const saved = localStorage.getItem("astroyou_profile");
+    const saved = localStorage.getItem(STORAGE_KEYS.PROFILE);
     if (saved) {
       setFormData(JSON.parse(saved));
     }
@@ -54,7 +57,7 @@ export default function Onboarding() {
 
   const saveStepData = (data: typeof formData) => {
     setFormData(data);
-    localStorage.setItem("astroyou_profile", JSON.stringify(data));
+    localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(data));
   };
 
   const getCurrentLocation = () => {
@@ -109,14 +112,14 @@ export default function Onboarding() {
       },
       (error) => {
         console.error(error);
-        alert("Unable to retrieve your location");
+        showError("Location Error", "Unable to retrieve your location. Please enter it manually.");
         setIsLocating(false);
       }
     );
   };
 
   const finalizeJourney = async () => {
-    const mode = sessionStorage.getItem("astroyou_mode");
+    const mode = sessionStorage.getItem(STORAGE_KEYS.MODE);
 
     if (user || mode === "logged_in") {
       // Logged-in user: Save to Firestore for permanent storage
@@ -130,19 +133,19 @@ export default function Onboarding() {
                 ...formData,
                 parsedChart: parsedChart, // Save reference to parsed chart if any
               },
-              credits: 5, // Initial bonus
+              credits: 15, // Initial bonus
               updatedAt: new Date(),
             },
             { merge: true }
           );
         }
         // Also store in localStorage as backup
-        localStorage.setItem("astroyou_profile", JSON.stringify(formData));
-        localStorage.setItem("astroyou_profile_complete", "true");
+        localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(formData));
+        localStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");
         navigate("/dashboard");
       } catch (err) {
         console.error("Error saving data:", err);
-        alert("Connection interrupted. Your progress is saved locally.");
+        showError("Save Error", "Connection interrupted. Your progress is saved locally.");
         navigate("/dashboard");
       } finally {
         setIsSaving(false);
@@ -150,10 +153,10 @@ export default function Onboarding() {
     } else {
       // Guest path: Only store in sessionStorage (clears on browser close)
       sessionStorage.setItem(
-        "astroyou_guest_profile",
+        STORAGE_KEYS.GUEST_PROFILE,
         JSON.stringify(formData)
       );
-      sessionStorage.setItem("astroyou_guest_complete", "true");
+      sessionStorage.setItem(STORAGE_KEYS.GUEST_COMPLETE, "true");
       navigate("/dashboard");
     }
   };

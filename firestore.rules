@@ -2,9 +2,37 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can only read/write their own document and subcollections
+    // Default deny all — new collections are locked unless explicitly allowed
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // OTPs — only accessible via Admin SDK (server-side)
+    match /otps/{email} {
+      allow read, write: if false;
+    }
+
+    // Users can only read/write their own document
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      // Allow creating own document with initial credits of 15
+      allow create: if request.auth != null && request.auth.uid == userId
+                    && request.resource.data.credits == 15;
+
+      // Allow updating own document with credit restrictions
+      // Credits can only decrease by exactly 1 (usage) or stay unchanged (profile edits)
+      // Credit increases (purchases) are handled server-side via Admin SDK
+      allow update: if request.auth != null && request.auth.uid == userId
+                    && (
+                      // Credits not being changed
+                      request.resource.data.credits == resource.data.credits
+                      // OR credits decremented by exactly 1, staying >= 0
+                      || (request.resource.data.credits == resource.data.credits - 1
+                          && request.resource.data.credits >= 0)
+                      // OR credits being initialized (field didn't exist before)
+                      || (!('credits' in resource.data) && request.resource.data.credits == 15)
+                    );
 
       // Chats subcollection
       match /chats/{chatId} {
