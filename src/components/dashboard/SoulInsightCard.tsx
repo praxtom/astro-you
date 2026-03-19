@@ -22,17 +22,17 @@ export const SoulInsightCard: React.FC<SoulInsightCardProps> = ({
     if (atmanState.contradictedPatterns && atmanState.contradictedPatterns.length > 0) {
         const latestGrowth = atmanState.contradictedPatterns[atmanState.contradictedPatterns.length - 1];
         return (
-            <motion.div 
+            <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 rounded-2xl border border-emerald-500/20 p-5 mb-8"
+                className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 rounded-2xl border border-emerald-500/20 p-4"
             >
                 <div className="flex items-start gap-4">
                     <div className="p-2 rounded-xl bg-emerald-500/20">
                         <Sparkles size={20} className="text-emerald-400" />
                     </div>
                     <div className="flex-1">
-                        <p className="text-[10px] uppercase tracking-widest text-emerald-400 font-bold mb-1">🎉 Soul Growth</p>
+                        <p className="text-[10px] uppercase tracking-widest text-emerald-400 font-bold mb-1">Soul Growth</p>
                         <p className="text-white/90 text-sm leading-relaxed">{latestGrowth}</p>
                     </div>
                 </div>
@@ -44,15 +44,15 @@ export const SoulInsightCard: React.FC<SoulInsightCardProps> = ({
     if (atmanState.emotionalHistory && atmanState.emotionalHistory.length >= 3) {
         const recent = atmanState.emotionalHistory.slice(-3);
         const vibeChanged = recent[0].state !== recent[2].state;
-        
+
         if (vibeChanged) {
             const fromState = recent[0].state;
             const toState = recent[2].state;
             return (
-                <motion.div 
+                <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-gradient-to-r from-violet-500/10 to-indigo-500/10 rounded-2xl border border-violet-500/20 p-5 mb-8"
+                    className="bg-gradient-to-r from-violet-500/10 to-indigo-500/10 rounded-2xl border border-violet-500/20 p-4"
                 >
                     <div className="flex items-start gap-4">
                         <div className="p-2 rounded-xl bg-violet-500/20">
@@ -74,10 +74,10 @@ export const SoulInsightCard: React.FC<SoulInsightCardProps> = ({
     const isUnstable = atmanState.emotionalState === 'anxious' || atmanState.emotionalState === 'chaotic' || atmanState.emotionalState === 'reactive';
     if (isUnstable) {
         return (
-            <motion.div 
+            <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-2xl border border-amber-500/20 p-5 mb-8"
+                className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-2xl border border-amber-500/20 p-4"
             >
                 <div className="flex items-start gap-4">
                     <div className="p-2 rounded-xl bg-amber-500/20">
@@ -88,7 +88,7 @@ export const SoulInsightCard: React.FC<SoulInsightCardProps> = ({
                         <p className="text-white/90 text-sm leading-relaxed mb-3">
                             Your recent vibe suggests a moment of stillness might help. Would you like a personalized 3-day path?
                         </p>
-                        <button 
+                        <button
                             onClick={onOpenSadhanaPath}
                             className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 rounded-lg text-amber-300 text-xs font-medium transition-colors"
                         >
@@ -103,10 +103,10 @@ export const SoulInsightCard: React.FC<SoulInsightCardProps> = ({
     // Priority 4: Gentle Affirmation (Stable state)
     if (atmanState.emotionalState === 'stable' || atmanState.emotionalState === 'spiritual') {
         return (
-            <motion.div 
+            <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-gradient-to-r from-sky-500/5 to-cyan-500/5 rounded-2xl border border-sky-500/10 p-5 mb-8"
+                className="bg-gradient-to-r from-sky-500/5 to-cyan-500/5 rounded-2xl border border-sky-500/10 p-4"
             >
                 <div className="flex items-start gap-4">
                     <div className="p-2 rounded-xl bg-sky-500/10">

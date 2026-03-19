@@ -98,11 +98,14 @@ export async function analyzeUserConsciousness(
     }
 
     RULES:
-    - "chaotic": User is panicking, overwhelmed, or very confused.
-    - "anxious": User is worried about future, fearful, or restless.
-    - "reactive": User is angry, irritated, stressed, or defensive.
-    - "stable": Normal, calm conversation.
+    - "chaotic": User is in CRISIS — panicking, overwhelmed, spiraling, or breaking down. Reserve this for severe distress ONLY.
+    - "anxious": User is clearly distressed — persistent fear, dread, can't stop worrying, losing sleep. NOT for mild concerns or casual "I'm a bit worried about X."
+    - "reactive": User is genuinely angry, hostile, lashing out, or deeply frustrated. NOT for mild irritation or venting.
+    - "stable": DEFAULT STATE. Use for normal conversation, mild concerns, casual worries, everyday stress, venting, or anything that doesn't rise to genuine distress. When in doubt, choose stable.
+    - "energetic": User is excited, motivated, or buzzing with positive energy.
     - "spiritual": User is seeking deep meaning, philosophical or meditative.
+    - "depressive": User expresses hopelessness, persistent sadness, or loss of motivation over time.
+    - IMPORTANT: Most conversations are "stable." A user mentioning a worry, concern, or stressor does NOT automatically make them "anxious." Only classify as anxious/chaotic/reactive when the emotional intensity is clearly elevated and sustained.
     - "detectedContradictions": Only include if current behavior strongly opposes a known pattern.
     - "karmicThreads": Connect dots across life areas (Work, Family, Health). Is there a unified underlying struggle?
     
@@ -194,8 +197,8 @@ export function buildGuruPrompt(context: UserContext): string {
     const age = context.birthData?.dob ? calculateAge(context.birthData.dob) : "unknown";
 
     return `
-You are "Guru," a spiritual counsellor and guide on AstroYou. 
-The user is currently in a CHAOTIC or ANXIOUS state. Your goal is NOT to give astrological predictions, but to guide them back to clarity using the "Neti Neti" (Not this, not that) method and grounding techniques.
+You are "Guru," a spiritual counsellor and guide on AstroYou.
+The user is currently in a CRISIS state — truly overwhelmed, spiraling, or deeply low. Your goal is NOT to give astrological predictions, but to guide them back to clarity using the "Neti Neti" (Not this, not that) method and grounding techniques.
 
 ### CORE PHILOSOPHY (NETI NETI):
 - You help the user detach from their overwhelming thoughts.
@@ -420,17 +423,30 @@ export type SynthesisStreamEvent =
 const ROUTINE_SUFFIX = `
 
 ### ROUTINE SUGGESTION PROTOCOL:
-If (and ONLY if) you believe the user needs a structured habit to solve their current problem, you can suggest a routine.
-Output it at the END of your response in this XML format:
+RARELY suggest routines. Only when ALL of these conditions are met:
+1. The user has explicitly asked for a practice, remedy, or habit — OR has the same recurring problem across 3+ conversations
+2. The suggestion directly addresses their specific situation (not generic "breathe more")
+3. They do NOT already have active routines covering this area
+
+When you do suggest, output it at the END of your response in XML. Include a clear description and step-by-step instructions so the user knows exactly what to do:
 <routine>
 {
-  "title": "10-min Morning Sun Salutation",
+  "title": "Morning Sun Salutation",
+  "description": "A gentle sequence of 12 poses that wakes up the body and calms the mind. Especially helpful during Saturn transits when the body feels heavy.",
+  "steps": [
+    "Stand facing east, feet together, palms at heart center. Take 3 deep breaths.",
+    "Inhale, sweep arms overhead and gently arch back.",
+    "Exhale, fold forward touching toes or shins.",
+    "Flow through the 12 poses slowly — one breath per movement.",
+    "End in prayer position. Sit quietly for 1 minute."
+  ],
   "type": "morning",
   "durationMinutes": 10,
   "frequency": "daily"
 }
 </routine>
-Do not suggest a routine if they already have too many active routines.
+
+NEVER suggest breathing exercises or meditation as a routine for casual concerns. Most conversations should NOT include a routine suggestion.
 `;
 
 /**
@@ -444,9 +460,9 @@ export async function* synthesizeStream(
 ): AsyncGenerator<SynthesisStreamEvent> {
     const client = getClient();
 
+    // Guru only activates for genuine crisis states, not mild worry
     const needsGrounding = context.atman?.emotionalState === 'chaotic'
-        || context.atman?.emotionalState === 'anxious'
-        || context.atman?.emotionalState === 'reactive';
+        || context.atman?.emotionalState === 'depressive';
 
     const systemPrompt = needsGrounding
         ? buildGuruPrompt(context)
@@ -511,9 +527,9 @@ export async function synthesize(
     const client = getClient();
 
     // Determine Persona: Guru (Chaos/Anxious/Reactive) or Jyotish (Stable/Others)
+    // Guru only activates for genuine crisis states, not mild worry
     const needsGrounding = context.atman?.emotionalState === 'chaotic'
-        || context.atman?.emotionalState === 'anxious'
-        || context.atman?.emotionalState === 'reactive';
+        || context.atman?.emotionalState === 'depressive';
 
     // Choose the appropriate system prompt
     const systemPrompt = needsGrounding

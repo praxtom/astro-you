@@ -292,6 +292,13 @@ export default function Synthesis() {
 
       // Always prepend welcome message so it appears at the start of conversation
       setMessages([WELCOME_MESSAGE, ...msgs]);
+
+      // If a new assistant message arrived from Firestore, clear streaming overlay
+      // This ensures seamless handoff: streaming bubble → persisted message
+      const lastMsg = msgs[msgs.length - 1];
+      if (lastMsg?.role === "assistant") {
+        setStreamingContent(null);
+      }
     });
 
     return () => unsubscribe();
@@ -545,9 +552,9 @@ export default function Synthesis() {
         AtmanService.processAnalysisResult(user.uid, metadata.atmanUpdate).catch(() => {});
       }
 
-      // Handle Routine Suggestion
+      // Handle Routine Suggestion — delay to let the response settle visually
       if (metadata?.suggestedRoutine) {
-        setSuggestedRoutine(metadata.suggestedRoutine);
+        setTimeout(() => setSuggestedRoutine(metadata.suggestedRoutine), 2000);
       }
 
       // P0: Save conversation summary to chat doc
@@ -574,8 +581,8 @@ export default function Synthesis() {
         }).catch(() => {});
       }
 
-      // Save to Firestore / local messages, then clear streaming
       if (user && chatId) {
+        // Write to Firestore — onSnapshot will add it to messages AND clear streamingContent
         await addDoc(
           collection(db, "users", user.uid, "chats", chatId, "messages"),
           {
@@ -585,6 +592,8 @@ export default function Synthesis() {
           }
         );
       } else {
+        // Guest: clear streaming, then add message directly
+        setStreamingContent(null);
         const aiMsg: Message = {
           id: (Date.now() + 1).toString(),
           role: "assistant",
@@ -593,8 +602,6 @@ export default function Synthesis() {
         };
         setMessages((prev) => [...prev, aiMsg]);
       }
-
-      setStreamingContent(null);
 
       // Auto-action if suggested
       if (metadata?.suggestAction === "show_chart") {
@@ -964,7 +971,8 @@ export default function Synthesis() {
 
               {messages
               .filter((m, i, arr) => {
-                // Hide the last assistant message while streaming — revealText handles it
+                // Hide the last assistant message while streaming to prevent duplicate bubbles
+                // onSnapshot may deliver the Firestore message before streamingContent clears
                 if (streamingContent !== null && m.role === 'assistant' && i === arr.length - 1) return false;
                 return true;
               })
@@ -1050,6 +1058,20 @@ export default function Synthesis() {
                       <Loader2 size={16} className="animate-spin text-gold" />
                       <span className="text-xs uppercase tracking-[0.3em] text-gold/60 animate-pulse">
                         Contemplating...
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Routine suggestion teaser — shows in chat before modal opens */}
+              {suggestedRoutine && (
+                <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-500">
+                  <div className="max-w-[85%]">
+                    <div className="px-4 py-3 rounded-2xl md:rounded-3xl border border-gold/20 bg-gold/5 flex items-center gap-3">
+                      <Sparkles size={14} className="text-gold shrink-0" />
+                      <span className="text-sm text-gold/80">
+                        Jyotish has a practice suggestion for you...
                       </span>
                     </div>
                   </div>

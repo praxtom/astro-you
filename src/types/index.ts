@@ -42,7 +42,6 @@ export type {
 
 // Component Prop types
 export type {
-    FeatureCardProps,
     InfluenceCardProps,
     ParsedChartData
 } from './components';

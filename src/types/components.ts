@@ -3,18 +3,6 @@
  * Contains all reusable component prop interfaces
  */
 
-import type { ReactNode } from 'react';
-
-// Dashboard Components
-export interface FeatureCardProps {
-    title: string;
-    description: string;
-    icon: ReactNode;
-    status: 'Active' | 'Beta' | 'Coming Soon' | null;
-    onClick?: () => void;
-    accentColor: string;
-}
-
 // Landing Page Components
 export interface InfluenceCardProps {
     number: string;

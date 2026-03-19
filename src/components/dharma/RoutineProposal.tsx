@@ -56,9 +56,22 @@ export const RoutineProposal: React.FC<RoutineProposalProps> = ({
                             Based on our conversation, the Guru suggests adding this to your daily Dharma.
                         </p>
 
-                        <div className="bg-white/5 rounded-xl p-4 mb-8 text-left border border-white/5">
-                            <h3 className="text-lg font-medium text-white mb-1">{routine.title}</h3>
-                            <div className="flex items-center gap-4 text-xs text-white/40 mt-2">
+                        <div className="bg-white/5 rounded-xl p-4 mb-6 text-left border border-white/5">
+                            <h3 className="text-lg font-medium text-white mb-2">{routine.title}</h3>
+                            {routine.description && (
+                                <p className="text-white/50 text-sm mb-3 leading-relaxed">{routine.description}</p>
+                            )}
+                            {routine.steps && routine.steps.length > 0 && (
+                                <div className="space-y-2 mb-3">
+                                    {routine.steps.map((step, i) => (
+                                        <div key={i} className="flex gap-3 text-sm">
+                                            <span className="text-gold/60 font-medium shrink-0">{i + 1}.</span>
+                                            <span className="text-white/70">{step}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            <div className="flex items-center gap-4 text-xs text-white/40 mt-3 pt-3 border-t border-white/5">
                                 <span className="flex items-center gap-1">
                                     <Clock size={12} /> {routine.durationMinutes} mins
                                 </span>

@@ -18,6 +18,8 @@ export interface BirthData {
 export interface UserRoutine {
     id: string;
     title: string;          // "Morning Sun Salutation"
+    description: string;    // Why this practice helps — 1-2 sentences
+    steps: string[];        // Step-by-step instructions (3-5 steps)
     type: 'morning' | 'evening' | 'habit';
     durationMinutes: number;
     frequency: 'daily' | 'weekly';
