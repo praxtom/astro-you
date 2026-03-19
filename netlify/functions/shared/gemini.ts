@@ -457,7 +457,7 @@ export async function* synthesizeStream(
     const lastMessage = messages[messages.length - 1].content;
 
     const stream = await client.interactions.create({
-        model: "gemini-3-flash-preview",
+        model: "gemini-3.1-flash-lite-preview",
         system_instruction: systemPrompt + ROUTINE_SUFFIX,
         input: lastMessage,
         previous_interaction_id: previousInteractionId,
@@ -492,7 +492,7 @@ export async function* synthesizeStream(
     let suggestedRoutine;
     const routineMatch = fullContent.match(/<routine>([\s\S]*?)<\/routine>/);
     if (routineMatch) {
-        try { suggestedRoutine = JSON.parse(routineMatch[1]); } catch {}
+        try { suggestedRoutine = JSON.parse(routineMatch[1]); } catch { }
         fullContent = fullContent.replace(routineMatch[0], "").trim();
     }
 
