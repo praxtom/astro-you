@@ -2,17 +2,8 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Default deny all — new collections are locked unless explicitly allowed
-    match /{document=**} {
-      allow read, write: if false;
-    }
 
-    // OTPs — only accessible via Admin SDK (server-side)
-    match /otps/{email} {
-      allow read, write: if false;
-    }
-
-    // Users can only read/write their own document
+    // ── User documents — only owner can read/write ──────────────────
     match /users/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
 
@@ -43,6 +34,42 @@ service cloud.firestore {
           allow read, write: if request.auth != null && request.auth.uid == userId;
         }
       }
+
+      // Consultations subcollection
+      match /consultations/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Consultation reviews subcollection
+      match /consultations_reviews/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Friends / inner circle subcollection
+      match /friends/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Referrals subcollection
+      match /referrals/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // ── Shared astronomical data — authenticated read, server-only write ─
+    match /panchang/{docId} {
+      allow read: if request.auth != null;
+      allow write: if false; // Admin SDK only
+    }
+
+    match /transit_reports/{docId} {
+      allow read: if request.auth != null;
+      allow write: if false; // Admin SDK only
+    }
+
+    // ── OTP collection — server-only (no client access) ──────────────
+    match /otps/{email} {
+      allow read, write: if false; // Admin SDK only
     }
   }
 }

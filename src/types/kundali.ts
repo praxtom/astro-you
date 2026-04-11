@@ -55,6 +55,8 @@ export interface Yoga {
     isAuspicious: boolean;
     strength?: 'weak' | 'moderate' | 'strong';
     planets: string[];
+    category?: string;
+    type?: string;
 }
 
 export interface NavamsaData {

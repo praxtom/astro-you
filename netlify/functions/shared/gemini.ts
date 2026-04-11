@@ -47,6 +47,9 @@ export interface UserContext {
         context: string;
         date: string;
     }>;
+    // Yoga & Panchang context (injected for daily awareness)
+    yogaData?: Array<{ name: string; strength?: string; planets?: string[] }>;
+    panchangData?: { tithi?: string; nakshatra?: string; yoga?: string; karana?: string; rahu_kaal?: string };
 }
 
 export interface HoroscopeRequest {
@@ -311,9 +314,37 @@ TRANSIT PROTOCOL: Weave these transit influences naturally when they relate to t
 `;
     }
 
+    // Build Yoga Context
+    let yogaSection = "";
+    if (context.yogaData && context.yogaData.length > 0) {
+        yogaSection = `
+### BIRTH YOGAS (Permanent Astrological Strengths):
+These are the user's innate cosmic gifts from birth:
+${context.yogaData.slice(0, 5).map(y => `- **${y.name}**${y.strength ? ` (${y.strength})` : ''}${y.planets?.length ? ` — Planets: ${y.planets.join(', ')}` : ''}`).join('\n')}
+
+Reference these when the user asks about strengths, talents, fortune, or "what am I good at?" Never dump the full list — mention the relevant yoga naturally.
+`;
+    }
+
+    // Build Panchang Context
+    let panchangSection = "";
+    if (context.panchangData) {
+        const p = context.panchangData;
+        panchangSection = `
+### TODAY'S PANCHANG (Cosmic Calendar):
+- **Tithi:** ${p.tithi || 'Unknown'}
+- **Nakshatra:** ${p.nakshatra || 'Unknown'}
+- **Yoga:** ${p.yoga || 'Unknown'}
+- **Karana:** ${p.karana || 'Unknown'}
+- **Rahu Kaal:** ${p.rahu_kaal || 'Unknown'}
+
+Use this to inform daily timing advice. If the user asks "is today good for X?", reference the Tithi and Nakshatra. Mention Rahu Kaal if they're planning something important. Weave naturally — don't list raw data.
+`;
+    }
+
     return `
 You are "Jyotish," the personal Vedic astrologer on AstroYou. You blend ancient Jyotish wisdom with a warm, reassuring tone that feels like consulting a trusted family pandit who also understands the modern world.
-${diaryContext}${atmanContext}${adviceSection}
+${diaryContext}${atmanContext}${adviceSection}${yogaSection}${panchangSection}
 ### USER PROFILE:
 - **Name:** ${context.name || 'Jataka'} ji
 - **Age:** ${age} years old
@@ -456,7 +487,8 @@ export async function* synthesizeStream(
     messages: Array<{ role: "user" | "assistant"; content: string }>,
     context: UserContext,
     kundaliSummary: string,
-    previousInteractionId?: string
+    previousInteractionId?: string,
+    personaOverride?: string
 ): AsyncGenerator<SynthesisStreamEvent> {
     const client = getClient();
 
@@ -464,9 +496,13 @@ export async function* synthesizeStream(
     const needsGrounding = context.atman?.emotionalState === 'chaotic'
         || context.atman?.emotionalState === 'depressive';
 
-    const systemPrompt = needsGrounding
+    let systemPrompt = needsGrounding
         ? buildGuruPrompt(context)
         : buildJyotishPrompt(context, kundaliSummary);
+
+    if (personaOverride) {
+        systemPrompt += personaOverride;
+    }
 
     console.log(`[Synthesis] Persona: ${needsGrounding ? 'GURU' : 'JYOTISH'} | Streaming: true`);
 
@@ -671,8 +707,8 @@ Format:
         model: "gemini-3.1-flash-lite-preview",
         system_instruction: systemPrompt,
         input: [
-            { type: "text", text: prompt },
-            { type: "image", data: imageBase64, mime_type: mimeType },
+            { type: "text" as const, text: prompt },
+            { type: "image" as const, data: imageBase64, mime_type: mimeType as any },
         ],
         response_mime_type: "application/json",
     });

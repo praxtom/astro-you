@@ -47,16 +47,16 @@ export default function Footer() {
           <div>
             <span className="footer-title">Privacy & Legal</span>
             <div className="flex flex-col gap-3">
-              <a href="#" className="footer-link">
+              <a href="/privacy" className="footer-link">
                 Privacy Policy
               </a>
-              <a href="#" className="footer-link">
+              <a href="/terms" className="footer-link">
                 Terms of Service
               </a>
-              <a href="#" className="footer-link">
+              <a href="/privacy#cookies" className="footer-link">
                 Cookie Policy
               </a>
-              <a href="#" className="footer-link">
+              <a href="/help" className="footer-link">
                 Security
               </a>
             </div>

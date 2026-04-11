@@ -4,7 +4,7 @@ import { useAuth } from "../../lib/AuthContext";
 import { useHeaderScroll, useUserProfile } from "../../hooks";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
-import { LogOut, Menu, X } from "lucide-react";
+import { LogOut, Menu, X, Settings } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { STORAGE_KEYS } from "../../lib/constants";
 
@@ -25,11 +25,14 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
 
   const handleLogout = async () => {
     await signOut(auth);
-    // Selectively clear only AstroYou-specific keys
-    Object.values(STORAGE_KEYS).forEach((key) => {
-      localStorage.removeItem(key);
-      sessionStorage.removeItem(key);
-    });
+    // Clear session-only keys. Keep PROFILE in localStorage as a cache —
+    // Firestore is the source of truth and useUserProfile will re-sync on next login.
+    sessionStorage.removeItem(STORAGE_KEYS.GUEST_PROFILE);
+    sessionStorage.removeItem(STORAGE_KEYS.GUEST_COMPLETE);
+    sessionStorage.removeItem(STORAGE_KEYS.MODE);
+    sessionStorage.removeItem(STORAGE_KEYS.LOGIN_REDIRECT);
+    // Clear non-profile localStorage keys
+    localStorage.removeItem(STORAGE_KEYS.FREE_SECONDS);
     navigate("/");
   };
 
@@ -43,8 +46,9 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
   return (
     <>
       <header
-        className={`fixed top-0 left-0 right-0 z-[1000] transition-all duration-500 border-b border-transparent ${isVisible || isMobileMenuOpen ? "translate-y-0" : "-translate-y-full"
-          } ${scrolled ? "header-scrolled" : "py-8"}`}
+        className={`fixed top-0 left-0 right-0 z-[1000] transition-all duration-500 border-b border-transparent ${
+          isVisible || isMobileMenuOpen ? "translate-y-0" : "-translate-y-full"
+        } ${scrolled ? "header-scrolled" : "py-8"}`}
       >
         <div className="container mx-auto px-6 flex flex-row items-center justify-between">
           <div className="flex items-center gap-8">
@@ -66,12 +70,23 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                 <>
                   <button
                     onClick={() => navigate("/dashboard")}
-                    className={`${location.pathname === "/dashboard"
-                      ? "text-gold border-b border-gold/50"
-                      : "hover:text-white"
-                      } pb-1 transition-all`}
+                    className={`${
+                      location.pathname === "/dashboard"
+                        ? "text-gold border-b border-gold/50"
+                        : "hover:text-white"
+                    } pb-1 transition-all`}
                   >
                     Dashboard
+                  </button>
+                  <button
+                    onClick={() => navigate("/consult")}
+                    className={`${
+                      location.pathname === "/consult"
+                        ? "text-gold border-b border-gold/50"
+                        : "hover:text-white"
+                    } pb-1 transition-all`}
+                  >
+                    Consult
                   </button>
                   <button className="hover:text-white transition-colors">
                     Calendar
@@ -135,6 +150,14 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                 </div>
 
                 <button
+                  onClick={() => navigate("/settings")}
+                  className="p-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-white/40 hover:text-white"
+                  aria-label="Settings"
+                >
+                  <Settings size={16} />
+                </button>
+
+                <button
                   onClick={handleLogout}
                   className="p-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-white/40 hover:text-white"
                   aria-label="Logout"
@@ -189,10 +212,11 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
 
       {/* Mobile Menu Overlay */}
       <div
-        className={`fixed inset-0 z-[999] bg-[#030308]/95 backdrop-blur-3xl transition-all duration-500 flex flex-col items-center justify-center gap-8 ${isMobileMenuOpen
-          ? "opacity-100 pointer-events-auto"
-          : "opacity-0 pointer-events-none"
-          }`}
+        className={`fixed inset-0 z-[999] bg-[#030308]/95 backdrop-blur-3xl transition-all duration-500 flex flex-col items-center justify-center gap-8 ${
+          isMobileMenuOpen
+            ? "opacity-100 pointer-events-auto"
+            : "opacity-0 pointer-events-none"
+        }`}
       >
         <nav className="flex flex-col items-center gap-6 font-display text-2xl">
           {isInternal ? (
@@ -202,6 +226,12 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                 className="hover:text-gold transition-colors"
               >
                 Dashboard
+              </button>
+              <button
+                onClick={() => navigate("/consult")}
+                className="hover:text-gold transition-colors"
+              >
+                Consult
               </button>
               <button className="hover:text-gold transition-colors">
                 Calendar
@@ -249,6 +279,19 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                 className="px-8 py-3 rounded-full bg-gold/10 border border-gold/30 text-gold font-bold tracking-widest uppercase text-xs"
               >
                 Go to Dashboard
+              </button>
+
+              <button
+                onClick={() => {
+                  navigate("/settings");
+                  setIsMobileMenuOpen(false);
+                }}
+                className="flex items-center gap-2 text-white/40 hover:text-white transition-colors"
+              >
+                <Settings size={16} />
+                <span className="text-sm uppercase tracking-widest">
+                  Settings
+                </span>
               </button>
 
               <button

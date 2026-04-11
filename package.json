@@ -10,7 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^1.46.0",
+    "@google/genai": "^1.47.0",
     "@netlify/functions": "^5.1.5",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
@@ -20,12 +20,12 @@
     "firebase-admin": "^13.7.0",
     "framer-motion": "^12.38.0",
     "html2canvas": "^1.4.1",
-    "lucide-react": "^0.577.0",
+    "lucide-react": "^1.7.0",
     "razorpay": "^2.9.6",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "^7.13.1",
+    "react-router-dom": "^7.13.2",
     "remark-gfm": "^4.0.1",
     "three": "^0.183.2"
   },
@@ -41,8 +41,8 @@
     "globals": "^17.4.0",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.2",
-    "typescript": "~5.9.3",
-    "typescript-eslint": "^8.57.1",
-    "vite": "^8.0.1"
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.57.2",
+    "vite": "^8.0.3"
   }
 }

@@ -51,11 +51,23 @@ export function useAudio(initialSound: SoundType = 'silence', options: UseAudioO
     const [isLoaded, setIsLoaded] = useState(false);
     const [useFallback, setUseFallback] = useState(false);
 
+    // Refs to avoid stale closures in event handlers
+    const isPlayingRef = useRef(isPlaying);
+    useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+
+    const autoPlayRef = useRef(autoPlay);
+    useEffect(() => { autoPlayRef.current = autoPlay; }, [autoPlay]);
+
     // Initialize or change audio element
     useEffect(() => {
         if (currentSound === 'silence') {
             if (audioRef.current) {
+                audioRef.current.oncanplaythrough = null;
+                audioRef.current.onerror = null;
+                audioRef.current.onplay = null;
+                audioRef.current.onpause = null;
                 audioRef.current.pause();
+                audioRef.current.src = '';
                 audioRef.current = null;
             }
             setIsPlaying(false);
@@ -66,6 +78,16 @@ export function useAudio(initialSound: SoundType = 'silence', options: UseAudioO
         const url = useFallback ? LOCAL_SOUND_URLS[currentSound] : SOUND_URLS[currentSound];
         if (!url) return;
 
+        // Cleanup previous audio element's event handlers before creating a new one
+        if (audioRef.current) {
+            audioRef.current.oncanplaythrough = null;
+            audioRef.current.onerror = null;
+            audioRef.current.onplay = null;
+            audioRef.current.onpause = null;
+            audioRef.current.pause();
+            audioRef.current.src = '';
+        }
+
         // Create new audio element
         const audio = new Audio(url);
         audio.loop = loop;
@@ -74,7 +96,7 @@ export function useAudio(initialSound: SoundType = 'silence', options: UseAudioO
 
         audio.oncanplaythrough = () => {
             setIsLoaded(true);
-            if (autoPlay || isPlaying) {
+            if (autoPlayRef.current || isPlayingRef.current) {
                 audio.play().catch(console.error);
             }
         };
@@ -89,20 +111,18 @@ export function useAudio(initialSound: SoundType = 'silence', options: UseAudioO
         audio.onplay = () => setIsPlaying(true);
         audio.onpause = () => setIsPlaying(false);
 
-        // Cleanup previous audio
-        if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.src = '';
-        }
-
         audioRef.current = audio;
         setIsLoaded(false);
 
         return () => {
+            audio.oncanplaythrough = null;
+            audio.onerror = null;
+            audio.onplay = null;
+            audio.onpause = null;
             audio.pause();
             audio.src = '';
         };
-    }, [currentSound, loop, useFallback]);
+    }, [currentSound, loop, useFallback, autoPlay]);
 
     // Update volume when it changes
     useEffect(() => {

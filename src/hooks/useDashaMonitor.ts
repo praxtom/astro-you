@@ -31,7 +31,9 @@ export function useDashaMonitor() {
                 // Get birth data from user profile
                 const userDoc = await getDoc(doc(db, "users", user.uid));
                 if (!userDoc.exists()) return;
-                const profile = userDoc.data();
+                const data = userDoc.data();
+                // Birth data is stored under the 'profile' sub-object in Firestore
+                const profile = data.profile || data;
 
                 if (!profile.dob || !profile.tob) return;
 
@@ -53,7 +55,8 @@ export function useDashaMonitor() {
                 });
 
                 if (!response.ok) return;
-                const dashas = await response.json();
+                const result = await response.json();
+                const dashas = result.periods || result;
 
                 // Find next transition in the next 35 days
                 const thirtyFiveDaysFromNow = new Date();

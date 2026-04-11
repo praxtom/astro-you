@@ -1,6 +1,6 @@
 import { Config, Context } from "@netlify/functions";
 import { synthesizeStream, analyzeUserConsciousness, generateChatTitle, generateConversationSummary, extractActionableAdvice, UserContext } from "./shared/gemini";
-import { getDashaPeriods, getTransitReport } from "./shared/astro-api";
+import { getDashaPeriods, getTransitReport, getYogaAnalysis, getPanchang } from "./shared/astro-api";
 
 export default async (req: Request, context: Context) => {
     if (req.method !== "POST") {
@@ -17,16 +17,18 @@ export default async (req: Request, context: Context) => {
         });
     }
 
-    const { messages, birthData, kundaliData, previousInteractionId, atmanData, recentSummaries, chatMessages, messageCount } = body;
+    const { messages, birthData, kundaliData, previousInteractionId, atmanData, recentSummaries, chatMessages, messageCount, yogaData, panchangData, personaPrompt, personaName } = body;
 
     // Build kundali summary for AI context
     const kundaliSummary = kundaliData?.planetary_positions?.map((p: any) =>
         `${p.name} in ${p.sign} (${p.house}th House)${p.is_retrograde ? ' [Retrograde]' : ''}`
     ).join(', ') || 'Planetary data currently veiled.';
 
-    // Fetch Dasha + Transit data for first message (with 5s timeout)
+    // Fetch Dasha + Transit + Yoga + Panchang data for first message (with 5s timeout)
     let dashaInfo: UserContext['dashaInfo'] = undefined;
     let transitContext: string | undefined = undefined;
+    let yogasResult: any = null;
+    let panchangResult: any = null;
     const withTimeout = <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<T> =>
         Promise.race([
             promise,
@@ -35,10 +37,15 @@ export default async (req: Request, context: Context) => {
 
     if (!previousInteractionId && birthData?.dob && birthData?.tob) {
         try {
-            const [dashas, transitEvents] = await Promise.all([
+            const [dashas, transitEvents, yogasRes, panchangRes] = await Promise.all([
                 withTimeout(getDashaPeriods(birthData), 5000, []),
                 withTimeout(getTransitReport(birthData), 5000, []),
+                withTimeout(getYogaAnalysis(birthData), 5000, null),
+                withTimeout(getPanchang(), 5000, null),
             ]);
+
+            yogasResult = yogasRes;
+            panchangResult = panchangRes;
 
             if (dashas && dashas.length > 0) {
                 const currentMaha = dashas.find((d: any) => d.isCurrent);
@@ -70,6 +77,8 @@ export default async (req: Request, context: Context) => {
         recentSummaries: recentSummaries || undefined,
         transitContext: transitContext || undefined,
         recentAdvice: atmanData?.adviceHistory?.slice(-5) || undefined,
+        yogaData: yogaData || yogasResult?.yogas?.slice(0, 5) || [],
+        panchangData: panchangData || panchangResult || undefined,
     };
 
     const encoder = new TextEncoder();
@@ -88,11 +97,16 @@ export default async (req: Request, context: Context) => {
                 let suggestedRoutine: any = undefined;
 
                 // Stream AI response
+                const personaOverride = personaPrompt
+                    ? `\n\nPERSONA OVERRIDE:\nYour name is ${personaName || 'Astrologer'}. ${personaPrompt}`
+                    : undefined;
+
                 for await (const event of synthesizeStream(
                     messages.map((m: any) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
                     userContext,
                     kundaliSummary,
-                    previousInteractionId
+                    previousInteractionId,
+                    personaOverride
                 )) {
                     if (event.type === 'delta') {
                         send({ type: 'delta', text: event.text });

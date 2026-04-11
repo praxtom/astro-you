@@ -13,6 +13,7 @@ import {
 } from "firebase/auth";
 import { auth, db } from "./firebase";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { STORAGE_KEYS } from "./constants";
 
 interface AuthContextType {
   user: User | null;
@@ -45,27 +46,68 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
 
-      // Initialize credits if user exists but doc/credits missing
+      // Initialize user doc + migrate guest/localStorage profile data on first login
       if (currentUser) {
         try {
           const userDocRef = doc(db, "users", currentUser.uid);
           const docSnap = await getDoc(userDocRef);
+          const existingData = docSnap.exists() ? docSnap.data() : null;
+          const hasProfile = existingData?.profile?.dob;
 
-          if (!docSnap.exists() || docSnap.data()?.credits === undefined) {
+          // Initialize credits if missing
+          if (!existingData || existingData.credits === undefined) {
             await setDoc(
               userDocRef,
               {
                 email: currentUser.email,
-                credits: 15, // Initial bonus
-                createdAt: docSnap.exists()
-                  ? docSnap.data()?.createdAt || serverTimestamp()
-                  : serverTimestamp(),
+                credits: 15,
+                createdAt: existingData?.createdAt || serverTimestamp(),
               },
               { merge: true }
             );
           }
+
+          // Migrate guest/localStorage profile to Firestore if user has no profile yet
+          if (!hasProfile) {
+            const guestData = sessionStorage.getItem(STORAGE_KEYS.GUEST_PROFILE);
+            const localData = localStorage.getItem(STORAGE_KEYS.PROFILE);
+            const profileJson = guestData || localData;
+
+            if (profileJson) {
+              try {
+                const profile = JSON.parse(profileJson);
+                if (profile.dob && profile.tob) {
+                  console.log("[Auth] Migrating guest profile to Firestore");
+                  await setDoc(
+                    userDocRef,
+                    { profile, updatedAt: new Date() },
+                    { merge: true }
+                  );
+                  // Clean up guest session data after migration
+                  sessionStorage.removeItem(STORAGE_KEYS.GUEST_PROFILE);
+                  sessionStorage.removeItem(STORAGE_KEYS.GUEST_COMPLETE);
+                }
+              } catch {
+                // Ignore invalid JSON
+              }
+            }
+          }
+          // Check for referral code in URL
+          const urlParams = new URLSearchParams(window.location.search);
+          const refCode = urlParams.get('ref');
+          if (refCode && currentUser) {
+            try {
+              const userDocRef2 = doc(db, "users", currentUser.uid);
+              const userDoc2 = await getDoc(userDocRef2);
+              if (!userDoc2.data()?.referredBy) {
+                await setDoc(userDocRef2, { referredBy: refCode }, { merge: true });
+              }
+            } catch {
+              // Ignore referral tracking errors
+            }
+          }
         } catch (err) {
-          console.error("[Auth] Error checking/initializing credits:", err);
+          console.error("[Auth] Error initializing user:", err);
         }
       }
 

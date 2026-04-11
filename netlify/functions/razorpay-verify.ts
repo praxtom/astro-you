@@ -1,19 +1,6 @@
 import { Config, Context } from "@netlify/functions";
 import crypto from "crypto";
-import { initializeApp, cert, getApps } from "firebase-admin/app";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { getAuth } from "firebase-admin/auth";
-
-// Initialize Firebase Admin (only once)
-if (!getApps().length) {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || "{}");
-    initializeApp({
-        credential: cert(serviceAccount),
-    });
-}
-
-const db = getFirestore();
-const auth = getAuth();
+import { db, auth, FieldValue } from "./shared/firebase-admin";
 
 export default async (req: Request, context: Context) => {
     if (req.method !== "POST") {

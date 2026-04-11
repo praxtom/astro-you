@@ -12,7 +12,9 @@ import {
   PanelLeftOpen,
   Download,
   Save,
+  Share2,
 } from "lucide-react";
+import { ChartShareModal } from '../components/ChartShareModal';
 import AuthModal from "../components/AuthModal";
 import OnboardingModal from "../components/OnboardingModal";
 import { useAuth } from "../lib/AuthContext";
@@ -31,7 +33,7 @@ import {
   getDocs,
   serverTimestamp,
 } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { db, trackEvent } from "../lib/firebase";
 import { useRazorpay } from "../hooks/useRazorpay";
 import { SynthesisSEO } from "../components/SEO";
 import Kundali from "../components/astrology/Kundali";
@@ -41,6 +43,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { downloadChart } from "../lib/chartStorage";
 import { useConsciousness } from "../hooks/useConsciousness";
+import { useYogas } from '../hooks/useYogas';
+import { usePanchang } from '../hooks/usePanchang';
 import { PranaOverlay } from "../components/prana/PranaOverlay";
 import { AtmanService } from "../lib/atman";
 import { DharmaList } from "../components/dharma/DharmaList";
@@ -62,6 +66,8 @@ export default function Synthesis() {
 
   // Atman Integration
   const { isAnxious, isChaotic, isReactive, atmanState, refreshAtman } = useConsciousness();
+  const { yogas } = useYogas(birthData);
+  const { panchang: panchangData } = usePanchang(birthData?.pob, birthData?.lat, birthData?.lng);
   const [showPrana, setShowPrana] = useState(false);
   const [showAltar, setShowAltar] = useState(false);
   const [suggestedRoutine, setSuggestedRoutine] = useState<UserRoutine | null>(null);
@@ -130,6 +136,7 @@ export default function Synthesis() {
   const [showExpandedChart, setShowExpandedChart] = useState(false);
   const [interactionId, setInteractionId] = useState<string | null>(null);
   const [streamingContent, setStreamingContent] = useState<string | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevChatIdRef = useRef<string | null>(null); // Track previous chat ID to detect sidebar navigation
 
@@ -346,6 +353,7 @@ export default function Synthesis() {
     try {
       const resp = await fetch("/api/pay/create-order", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount: price }),
       });
       const order = await resp.json();
@@ -368,6 +376,7 @@ export default function Synthesis() {
 
           if (verifyData.status === "success") {
             setCredits((prev) => prev + minutes);
+            trackEvent('first_payment', { amount: price });
             alert(`Successfully added ${minutes} minutes!`);
           }
         },
@@ -440,6 +449,7 @@ export default function Synthesis() {
         chatId = newChatRef.id;
         setCurrentChatId(chatId);
         navigate(`/synthesis/${chatId}`, { replace: true });
+        trackEvent('first_chat');
       }
 
       // Save user message to Firestore if logged in
@@ -480,6 +490,12 @@ export default function Synthesis() {
           recentSummaries: recentSummaries.length > 0 ? recentSummaries : undefined,
           chatMessages: chatMessagesForSummary.length > 0 ? chatMessagesForSummary : undefined,
           messageCount: messages.filter(m => m.id !== 'welcome').length,
+          yogaData: yogas?.length ? yogas.map(y => ({
+            name: y.name,
+            strength: y.strength,
+            planets: y.planets
+          })) : undefined,
+          panchangData: panchangData || undefined,
         }),
       });
 
@@ -825,6 +841,13 @@ export default function Synthesis() {
                       className="text-white/60 group-hover:text-gold transition-colors"
                     />
                   </button>
+                  <button
+                    onClick={() => setShowShareModal(true)}
+                    className="p-2 rounded-xl bg-white/5 border border-white/10 hover:border-gold/30 text-white/40 hover:text-gold transition-all"
+                    title="Share chart"
+                  >
+                    <Share2 size={16} />
+                  </button>
                   {/* Update Birth Data Button */}
                   <button
                     onClick={() => setShowOnboardingModal(true)}
@@ -1124,6 +1147,7 @@ export default function Synthesis() {
           isOpen={showOnboardingModal}
           onClose={() => setShowOnboardingModal(false)}
           onComplete={handleOnboardingComplete}
+          existingProfile={profile}
         />
 
         <AuthModal
@@ -1139,6 +1163,14 @@ export default function Synthesis() {
             onClose={() => setShowExpandedChart(false)}
           />
         )}
+
+        <ChartShareModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          elementId="kundali-chart-container"
+          title="My Birth Chart"
+          description={`Sun in ${kundaliData?.planetary_positions?.find((p: any) => p.name === 'Sun')?.sign || 'Unknown'}`}
+        />
       </div>
     </>
   );

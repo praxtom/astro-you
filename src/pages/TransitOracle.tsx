@@ -8,16 +8,59 @@ import {
   Calendar as CalendarIcon,
   Info,
   Sparkles,
+  Eye,
+  Table2,
 } from "lucide-react";
 import { useHeaderScroll } from "../hooks";
 import TransitOverlay from "../components/astrology/TransitOverlay";
 import TransitPredictions from "../components/astrology/TransitPredictions";
+import TransitPositionsTable from "../components/astrology/TransitPositionsTable";
 import { useTransit } from "../hooks/useTransit";
+import { PLANETS } from "../lib/astrology";
+
+const SIGN_NAMES: Record<string, string> = {
+  Ari: "Aries", Tau: "Taurus", Gem: "Gemini", Can: "Cancer",
+  Leo: "Leo", Vir: "Virgo", Lib: "Libra", Sco: "Scorpio",
+  Sag: "Sagittarius", Cap: "Capricorn", Aqu: "Aquarius", Pis: "Pisces",
+};
+
+function extractPositions(data: any): any[] {
+  if (!data) return [];
+  const chartData = data?.chart_data || data;
+  const subjectData = data?.subject_data || data?.positions?.subject_data;
+
+  let positions: any[] = [];
+
+  if (subjectData?.transit_subject) {
+    const subj = subjectData.transit_subject;
+    const names = [...(subj.planets_names_list || []), ...(subj.axial_cusps_names_list || [])];
+    positions = names
+      .map((n: string) => subj[n.toLowerCase()])
+      .filter((p: any) => p && p.name && !p.name.includes("Ascendant"));
+  } else {
+    const all = chartData?.planetary_positions || chartData?.positions || [];
+    positions = Array.isArray(all)
+      ? all.filter(
+          (p: any) => p.name?.toLowerCase().includes("_transit") || (!p.name?.toLowerCase().includes("_natal") && !p.name?.includes("Ascendant"))
+        )
+      : [];
+  }
+
+  const mainPlanets = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto", "Rahu", "Ketu"];
+  const mainSet = new Set(mainPlanets.flatMap(m => [m, `${m}_transit`]));
+  const filtered = positions.filter((p: any) => {
+    const clean = (p.name || "").replace("_transit", "").replace("_natal", "");
+    return mainSet.has(p.name) || mainPlanets.includes(clean);
+  });
+
+  return (filtered.length > 0 ? filtered : positions).slice(0, 12);
+}
 
 export default function TransitOracle() {
   const navigate = useNavigate();
   const { isVisible } = useHeaderScroll();
   const [currentDate] = useState(new Date());
+  const [viewMode, setViewMode] = useState<'visual' | 'table'>('visual');
   const { data, predictions, aiSummary, loading, error } = useTransit();
 
   // Format date for display
@@ -112,47 +155,152 @@ export default function TransitOracle() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-10 gap-8 items-start">
-          {/* Left Column: Visual Chart */}
-          <div className="lg:col-span-5 space-y-8">
-            <div className="glass rounded-[3rem] border border-white/10 p-2 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                <Compass size={100} className="text-white" />
-              </div>
+        {/* View Mode Toggle */}
+        <div className="flex gap-2 mb-6">
+          <button
+            onClick={() => setViewMode('visual')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest border transition-all duration-300 ${
+              viewMode === 'visual'
+                ? 'bg-gold/10 border-gold/50 text-gold'
+                : 'bg-white/5 border-white/10 text-white/40 hover:text-white/60 hover:border-white/20'
+            }`}
+          >
+            <Eye size={14} />
+            Visual
+          </button>
+          <button
+            onClick={() => setViewMode('table')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest border transition-all duration-300 ${
+              viewMode === 'table'
+                ? 'bg-gold/10 border-gold/50 text-gold'
+                : 'bg-white/5 border-white/10 text-white/40 hover:text-white/60 hover:border-white/20'
+            }`}
+          >
+            <Table2 size={14} />
+            Data Table
+          </button>
+        </div>
 
-              <div className="relative z-10">
-                <div className="flex items-center ml-8 mt-8 justify-between">
-                  <div>
-                    <h3 className="text-sm font-black tracking-[0.3em] text-white/60 mb-1">
-                      Spatial Distribution
-                    </h3>
-                    <p className="text-xs text-white/30 italic">
-                      Lagna-centric House Mapping
-                    </p>
+        {/* Current Transit Positions (visual cards, shown only in visual mode) */}
+        {viewMode === 'visual' && !loading && data && (
+          <TransitPositionsTable data={data} />
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-10 gap-8 items-start">
+          {/* Left Column: Visual Chart or Data Table */}
+          <div className="lg:col-span-5 space-y-8">
+            {viewMode === 'table' ? (
+              /* ── Full Data Table View ── */
+              <div className="glass rounded-2xl p-6 overflow-x-auto border border-white/10">
+                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gold/60 mb-5">
+                  Planetary Positions
+                </h3>
+                {loading ? (
+                  <div className="flex items-center justify-center py-16">
+                    <Compass className="animate-spin-slow text-gold opacity-20" size={48} />
+                  </div>
+                ) : error ? (
+                  <div className="text-center py-12">
+                    <Info className="mx-auto mb-4 text-red-400" size={32} />
+                    <p className="text-red-400 text-sm">{error}</p>
+                  </div>
+                ) : (() => {
+                  const positions = extractPositions(data);
+                  if (positions.length === 0) {
+                    return (
+                      <p className="text-white/40 text-sm text-center py-8">
+                        No transit position data available.
+                      </p>
+                    );
+                  }
+                  return (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-white/40 text-xs uppercase tracking-widest border-b border-white/10">
+                          <th className="text-left py-3 px-2">Planet</th>
+                          <th className="text-left py-3 px-2">Sign</th>
+                          <th className="text-right py-3 px-2">Degree</th>
+                          <th className="text-center py-3 px-2">Status</th>
+                          <th className="text-right py-3 px-2">Speed</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {positions.map((p: any, i: number) => {
+                          const cleanName = (p.name || "").replace("_transit", "").replace("_natal", "");
+                          const planetInfo = (PLANETS as any)[cleanName];
+                          const signFull = SIGN_NAMES[p.sign] || p.sign || "—";
+                          const deg = typeof p.degree === "number" ? p.degree : typeof p.abs_pos === "number" ? p.abs_pos % 30 : null;
+                          const retro = p.is_retrograde || p.retrograde;
+
+                          return (
+                            <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                              <td className="py-2.5 px-2 text-white/90 font-medium">
+                                <span className="mr-2" style={{ color: planetInfo?.color || "#FFD700" }}>
+                                  {planetInfo?.symbol || ""}
+                                </span>
+                                {cleanName}
+                              </td>
+                              <td className="py-2.5 px-2 text-white/70">{signFull}</td>
+                              <td className="py-2.5 px-2 text-white/60 text-right font-mono">
+                                {deg !== null ? `${deg.toFixed(2)}°` : "—"}
+                              </td>
+                              <td className="py-2.5 px-2 text-center">
+                                {retro
+                                  ? <span className="text-red-400 text-xs font-bold">R</span>
+                                  : <span className="text-emerald-400 text-xs">D</span>}
+                              </td>
+                              <td className="py-2.5 px-2 text-white/40 text-right font-mono text-xs">
+                                {typeof p.speed === "number" ? p.speed.toFixed(4) : "—"}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  );
+                })()}
+              </div>
+            ) : (
+              /* ── Visual Chart View (original) ── */
+              <div className="glass rounded-[3rem] border border-white/10 p-2 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                  <Compass size={100} className="text-white" />
+                </div>
+
+                <div className="relative z-10">
+                  <div className="flex items-center ml-8 mt-8 justify-between">
+                    <div>
+                      <h3 className="text-sm font-black tracking-[0.3em] text-white/60 mb-1">
+                        Spatial Distribution
+                      </h3>
+                      <p className="text-xs text-white/30 italic">
+                        Lagna-centric House Mapping
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className=" mx-auto">
+                    {loading ? (
+                      <div className="aspect-square flex items-center justify-center">
+                        <Compass
+                          className="animate-spin-slow text-gold opacity-20"
+                          size={100}
+                        />
+                      </div>
+                    ) : error ? (
+                      <div className="aspect-square flex items-center justify-center text-center p-12">
+                        <div className="p-8 rounded-3xl bg-red-500/5 border border-red-500/20">
+                          <Info className="mx-auto mb-4 text-red-400" size={32} />
+                          <p className="text-red-400 text-sm">{error}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <TransitOverlay data={data} className="scale-90 mx-auto" />
+                    )}
                   </div>
                 </div>
-
-                <div className=" mx-auto">
-                  {loading ? (
-                    <div className="aspect-square flex items-center justify-center">
-                      <Compass
-                        className="animate-spin-slow text-gold opacity-20"
-                        size={100}
-                      />
-                    </div>
-                  ) : error ? (
-                    <div className="aspect-square flex items-center justify-center text-center p-12">
-                      <div className="p-8 rounded-3xl bg-red-500/5 border border-red-500/20">
-                        <Info className="mx-auto mb-4 text-red-400" size={32} />
-                        <p className="text-red-400 text-sm">{error}</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <TransitOverlay data={data} className="scale-90 mx-auto" />
-                  )}
-                </div>
               </div>
-            </div>
+            )}
 
             {/* Educational Section */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

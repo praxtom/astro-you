@@ -1,17 +1,6 @@
 import { Config, Context } from "@netlify/functions";
-import { initializeApp, cert, getApps } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { db } from "./shared/firebase-admin";
 import { randomInt } from "crypto";
-
-// Initialize Firebase Admin (only once)
-if (!getApps().length) {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || "{}");
-    initializeApp({
-        credential: cert(serviceAccount),
-    });
-}
-
-const db = getFirestore();
 
 // Rate limit: max OTP requests per email per hour
 const MAX_REQUESTS_PER_HOUR = 5;

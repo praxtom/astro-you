@@ -34,12 +34,23 @@ interface OnboardingModalProps {
   isOpen: boolean;
   onClose: () => void;
   onComplete?: () => void;
+  /** Pre-populate form with existing profile data (e.g., from Firestore) */
+  existingProfile?: {
+    name?: string;
+    gender?: string;
+    dob?: string;
+    tob?: string;
+    pob?: string;
+    currentLocation?: string;
+    birthTimeUnknown?: boolean;
+  } | null;
 }
 
 export default function OnboardingModal({
   isOpen,
   onClose,
   onComplete,
+  existingProfile,
 }: OnboardingModalProps) {
   const { user } = useAuth();
   const [step, setStep] = useState<Step>("upload");
@@ -104,15 +115,29 @@ export default function OnboardingModal({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, handleKeyDown]);
 
-  // Load existing data from localStorage
+  // Load existing data: prefer Firestore profile prop > localStorage
   useEffect(() => {
     if (isOpen) {
-      const saved = localStorage.getItem(STORAGE_KEYS.PROFILE);
-      if (saved) {
-        setFormData(JSON.parse(saved));
+      if (existingProfile?.dob) {
+        setFormData({
+          name: existingProfile.name || "",
+          gender: existingProfile.gender || "",
+          dob: existingProfile.dob || "",
+          tob: existingProfile.tob || "",
+          pob: existingProfile.pob || "",
+          currentLocation: existingProfile.currentLocation || "",
+          birthTimeUnknown: existingProfile.birthTimeUnknown || false,
+        });
+        // If profile already exists, start at identity step (skip upload)
+        setStep("identity");
+      } else {
+        const saved = localStorage.getItem(STORAGE_KEYS.PROFILE);
+        if (saved) {
+          setFormData(JSON.parse(saved));
+        }
       }
     }
-  }, [isOpen]);
+  }, [isOpen, existingProfile]);
 
   const saveStepData = (data: typeof formData) => {
     setFormData(data);

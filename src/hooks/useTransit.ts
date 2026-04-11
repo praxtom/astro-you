@@ -22,6 +22,8 @@ export function useTransit(transitDate?: string) {
     });
 
     useEffect(() => {
+        const controller = new AbortController();
+
         async function fetchTransit() {
             // Get birth data from localStorage (guest or user)
             const storedProfile = localStorage.getItem(STORAGE_KEYS.PROFILE);
@@ -42,6 +44,7 @@ export function useTransit(transitDate?: string) {
                         birthData,
                         transitDate: transitDate || new Date().toISOString().split('T')[0]
                     }),
+                    signal: controller.signal,
                 });
 
                 const result = await response.json();
@@ -58,12 +61,14 @@ export function useTransit(transitDate?: string) {
                     throw new Error(result.error || "Failed to fetch transit data");
                 }
             } catch (err: any) {
+                if (err.name === 'AbortError') return;
                 console.error("Transit hook error:", err);
                 setState(prev => ({ ...prev, loading: false, error: err.message }));
             }
         }
 
         fetchTransit();
+        return () => controller.abort();
     }, [user, transitDate]);
 
     return state;

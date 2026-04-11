@@ -24,7 +24,7 @@ export function useKundali(birthData: BirthData | null, chartType: ChartType = '
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const fetchKundali = async () => {
+    const fetchKundali = async (signal?: AbortSignal) => {
         console.log('[useKundali] fetchKundali called with:', { birthData, chartType, userId: user?.uid });
 
         if (!birthData || !birthData.dob || !birthData.tob) {
@@ -69,6 +69,7 @@ export function useKundali(birthData: BirthData | null, chartType: ChartType = '
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ birthData, chartType }),
+                signal,
             });
 
             if (!response.ok) {
@@ -115,6 +116,7 @@ export function useKundali(birthData: BirthData | null, chartType: ChartType = '
                 await setDoc(docRef, { [cacheFieldName]: kundali }, { merge: true });
             }
         } catch (err: any) {
+            if (err.name === 'AbortError') return;
             console.error(`Error fetching ${chartType} Kundali:`, err);
             setError(err.message);
         } finally {
@@ -123,7 +125,9 @@ export function useKundali(birthData: BirthData | null, chartType: ChartType = '
     };
 
     useEffect(() => {
-        fetchKundali();
+        const controller = new AbortController();
+        fetchKundali(controller.signal);
+        return () => controller.abort();
     }, [birthData?.dob, birthData?.tob, birthData?.pob, user?.uid, chartType]);
 
     return {

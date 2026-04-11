@@ -1,52 +1,40 @@
-import { Handler } from "@netlify/functions";
+import { Config, Context } from "@netlify/functions";
+import { getDailyHoroscopeText, BirthData } from "./shared/astro-api";
 
-export const handler: Handler = async (event) => {
-    if (event.httpMethod !== "POST") {
-        return { statusCode: 405, body: "Method Not Allowed" };
+const json = (body: any, status = 200) =>
+    new Response(JSON.stringify(body), {
+        status,
+        headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+        },
+    });
+
+export default async (req: Request, _context: Context) => {
+    if (req.method !== "POST") {
+        return new Response("Method Not Allowed", { status: 405 });
     }
 
     try {
-        const payload = JSON.parse(event.body || "{}");
+        const payload = await req.json();
 
-        // Check if we received the direct API payload or our internal app format
-        // The Dashboard currently sends the Direct API Payload format
-        const hasSubject = !!payload.subject;
+        // Extract birth data — the frontend may send birthData directly,
+        // or wrap it in a subject envelope from the old raw-proxy format.
+        const birthData: BirthData = payload.birthData || payload;
 
-        // Use the official API base from their documentation
-        const url = "https://api.astrology-api.io/api/v3/horoscope/sign/daily/text";
-
-        console.log(`[DailyPrediction] Proxying request to ${url}`);
-
-        const headers: Record<string, string> = {
-            "Content-Type": "application/json",
-        };
-
-        const apiKey = process.env.ASTROYOU_API_KEY || process.env.ASTROLOGY_API_KEY;
-        if (apiKey) {
-            headers["X-API-Key"] = apiKey;
+        if (!birthData?.dob || !birthData?.tob) {
+            return json({ error: "Missing birth data (dob + tob required)" }, 400);
         }
 
-        const response = await fetch(url, {
-            method: "POST",
-            headers,
-            body: JSON.stringify(payload),
-        });
+        console.log("[DailyPrediction] Fetching via shared astro-api layer");
 
-        const result = await response.json();
+        const result = await getDailyHoroscopeText(birthData, payload.date);
 
-        return {
-            statusCode: response.status,
-            headers: {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
-            },
-            body: JSON.stringify(result),
-        };
+        return json(result);
     } catch (error: any) {
-        console.error("[DailyPrediction] Proxy error:", error);
-        return {
-            statusCode: 500,
-            body: JSON.stringify({ error: error.message }),
-        };
+        console.error("[DailyPrediction] Error:", error);
+        return json({ error: error.message }, 500);
     }
 };
+
+export const config: Config = { path: "/.netlify/functions/daily-prediction" };

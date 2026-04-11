@@ -1,41 +1,36 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 /**
  * useHeaderScroll
  * Logic for hiding/showing header based on scroll direction.
+ * Uses a ref for lastScrollY to avoid recreating the listener on every scroll.
  */
 export function useHeaderScroll(threshold = 100) {
     const [isVisible, setIsVisible] = useState(true);
     const [scrolled, setScrolled] = useState(false);
-    const [lastScrollY, setLastScrollY] = useState(0);
+    const lastScrollYRef = useRef(0);
 
     useEffect(() => {
         const handleScroll = () => {
             const currentScrollY = window.scrollY;
+            const lastScrollY = lastScrollYRef.current;
 
-            // Determine if background should change (blur/border)
             setScrolled(currentScrollY > 20);
 
-            // Early exit if scroll is within top buffer
             if (currentScrollY < threshold) {
                 setIsVisible(true);
-                setLastScrollY(currentScrollY);
-                return;
-            }
-
-            // Hide if scrolling down, show if scrolling up
-            if (currentScrollY > lastScrollY && currentScrollY > threshold) {
+            } else if (currentScrollY > lastScrollY && currentScrollY > threshold) {
                 setIsVisible(false);
             } else if (currentScrollY < lastScrollY) {
                 setIsVisible(true);
             }
 
-            setLastScrollY(currentScrollY);
+            lastScrollYRef.current = currentScrollY;
         };
 
         window.addEventListener("scroll", handleScroll, { passive: true });
         return () => window.removeEventListener("scroll", handleScroll);
-    }, [lastScrollY, threshold]);
+    }, [threshold]);
 
     return { isVisible, scrolled };
 }

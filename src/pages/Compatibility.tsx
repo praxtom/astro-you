@@ -10,6 +10,8 @@ import {
   ShieldCheck,
   Target,
   BookOpen,
+  Star,
+  Share2,
 } from "lucide-react";
 import Header from "../components/layout/Header";
 import { useUserProfile } from "../hooks";
@@ -89,6 +91,34 @@ interface MatchResult {
     text: string;
   }[];
   aiNarrative?: string;
+  vedicMatching?: {
+    total_score?: number;
+    score?: number;
+    gunas?: {
+      name: string;
+      score?: number;
+      obtained?: number;
+      max_score?: number;
+      maximum?: number;
+      description?: string;
+      interpretation?: string;
+    }[];
+    aspects?: {
+      name: string;
+      score?: number;
+      obtained?: number;
+      max_score?: number;
+      maximum?: number;
+      description?: string;
+      interpretation?: string;
+    }[];
+    manglik_male?: boolean | { is_manglik: boolean; description?: string };
+    manglik_female?: boolean | { is_manglik: boolean; description?: string };
+    groom_manglik?: boolean | { is_manglik: boolean; description?: string };
+    bride_manglik?: boolean | { is_manglik: boolean; description?: string };
+  };
+  maleData?: { name?: string };
+  femaleData?: { name?: string };
 }
 
 // Max points lookup for the compatibility breakdown (Sums to 100)
@@ -147,6 +177,7 @@ export default function Compatibility() {
     try {
       const response = await fetch("/.netlify/functions/compatibility", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           maleData: {
             name: birthData.name || "Seeker",
@@ -342,7 +373,38 @@ export default function Compatibility() {
                   </div>
                 </div>
               </div>
+              <button
+                onClick={() => {
+                  const score = matchResult.overall_score || matchResult.compatibility_score || 0;
+                  const text = `Our compatibility score: ${score}%! ✨ Check yours on AstroYou`;
+                  const url = `${window.location.origin}/free-kundali-matching`;
+                  if (navigator.share) {
+                    navigator.share({ title: 'AstroYou Compatibility', text, url });
+                  } else {
+                    window.open(`https://wa.me/?text=${encodeURIComponent(text + '\n' + url)}`, '_blank');
+                  }
+                }}
+                className="mt-4 p-2 rounded-xl border border-white/10 text-white/40 hover:text-gold hover:border-gold/30 transition-all inline-flex items-center gap-1.5"
+                title="Share result"
+              >
+                <Share2 size={16} />
+                <span className="text-xs uppercase tracking-widest">Share</span>
+              </button>
             </div>
+
+            {/* Overall Recommendation based on Guna Milan */}
+            {matchResult.vedicMatching && (() => {
+                const score = matchResult.vedicMatching.total_score ?? matchResult.vedicMatching.score ?? 0;
+                const { color } = getGunaQuality(score);
+                return (
+                    <p className={`text-sm font-medium mt-2 text-center ${color}`}>
+                        {score >= 32 ? "Highly recommended for marriage" :
+                         score >= 24 ? "Good compatibility — recommended" :
+                         score >= 18 ? "Acceptable — proceed with guidance" :
+                         "Challenging — consult an astrologer for remedies"}
+                    </p>
+                );
+            })()}
 
             {/* AI Narrative Interpretation */}
             {matchResult.aiNarrative && (
@@ -401,6 +463,15 @@ export default function Compatibility() {
                 icon={<Clock size={18} />}
               />
             </div>
+
+            {/* Vedic Guna Milan Section */}
+            {matchResult.vedicMatching && (
+              <VedicGunaMilan
+                vedicMatching={matchResult.vedicMatching}
+                maleData={matchResult.maleData}
+                femaleData={matchResult.femaleData}
+              />
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Left Column: Dynamics and Growth Kit */}
@@ -790,5 +861,166 @@ function InfluenceItem({
         </div>
       </div>
     </div>
+  );
+}
+
+function getGunaQuality(score: number): { label: string; color: string } {
+  if (score >= 32) return { label: "Excellent", color: "text-yellow-400" };
+  if (score >= 24) return { label: "Good", color: "text-emerald-400" };
+  if (score >= 18) return { label: "Acceptable", color: "text-yellow-500" };
+  return { label: "Challenging", color: "text-red-400" };
+}
+
+function VedicGunaMilan({
+  vedicMatching,
+  maleData,
+  femaleData,
+}: {
+  vedicMatching: NonNullable<MatchResult["vedicMatching"]>;
+  maleData?: { name?: string };
+  femaleData?: { name?: string };
+}) {
+  const totalScore = vedicMatching.total_score ?? vedicMatching.score ?? 0;
+  const gunaItems = vedicMatching.gunas ?? vedicMatching.aspects ?? [];
+  const quality = getGunaQuality(totalScore);
+
+  return (
+    <section className="bg-white/5 border border-white/10 rounded-[2rem] p-8 md:p-10 relative overflow-hidden">
+      <div className="absolute top-0 right-0 p-10 text-white/5 pointer-events-none">
+        <Star size={140} />
+      </div>
+
+      <div className="relative z-10">
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-8">
+          <div className="p-3 rounded-2xl bg-gold/10">
+            <Star size={22} className="text-gold" />
+          </div>
+          <div>
+            <h3 className="text-xl font-display font-bold text-gold">
+              Vedic Guna Milan
+            </h3>
+            <p className="text-xs text-white/40 font-light">
+              Traditional 36-point Kundli matching
+            </p>
+          </div>
+        </div>
+
+        {/* Total Score */}
+        <div className="flex items-baseline gap-4 mb-10">
+          <div className="text-5xl md:text-6xl font-display font-bold tracking-tight text-white">
+            {totalScore}
+            <span className="text-white/30 text-3xl md:text-4xl"> / 36</span>
+          </div>
+          <span
+            className={`text-sm font-black uppercase tracking-widest ${quality.color}`}
+          >
+            {quality.label}
+          </span>
+        </div>
+
+        {/* Guna Matrix Table */}
+        {gunaItems.length > 0 && (
+          <div className="overflow-x-auto mt-6">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-white/10">
+                  <th className="text-left py-2 px-3 text-white/40 text-xs uppercase tracking-widest">Guna</th>
+                  <th className="text-center py-2 px-3 text-white/40 text-xs uppercase tracking-widest">Score</th>
+                  <th className="text-left py-2 px-3 text-white/40 text-xs uppercase tracking-widest w-1/3">Match</th>
+                  <th className="text-left py-2 px-3 text-white/40 text-xs uppercase tracking-widest hidden md:table-cell">Interpretation</th>
+                </tr>
+              </thead>
+              <tbody>
+                {gunaItems.map((g: any, i: number) => {
+                  const obtained = g.score ?? g.obtained ?? 0;
+                  const max = g.max_score ?? g.maximum ?? g.max ?? 1;
+                  const pct = (obtained / max) * 100;
+                  return (
+                    <tr key={i} className="border-b border-white/5">
+                      <td className="py-3 px-3 text-white/90 font-medium">{g.name || g.guna || `Guna ${i+1}`}</td>
+                      <td className="py-3 px-3 text-center">
+                        <span className={`font-mono font-bold ${pct >= 75 ? 'text-emerald-400' : pct >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+                          {obtained}/{max}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="w-full bg-white/10 rounded-full h-1.5">
+                          <div className={`h-1.5 rounded-full ${pct >= 75 ? 'bg-emerald-400' : pct >= 50 ? 'bg-amber-400' : 'bg-red-400'}`} style={{ width: `${pct}%` }} />
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-white/40 text-xs hidden md:table-cell">{g.description || g.interpretation || ''}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-white/20">
+                  <td className="py-3 px-3 text-gold font-bold">Total</td>
+                  <td className="py-3 px-3 text-center text-gold font-bold font-mono">{totalScore}/36</td>
+                  <td colSpan={2}></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+
+        {/* Remedies for Low Scores */}
+        {totalScore < 18 && (
+          <div className="mt-6 p-5 rounded-2xl bg-amber-500/5 border border-amber-500/20">
+            <h4 className="text-amber-400 text-sm font-bold uppercase tracking-widest mb-3">Recommended Remedies</h4>
+            <ul className="space-y-2 text-sm text-white/60">
+              <li>Perform Navagraha Puja to strengthen weak planetary combinations</li>
+              <li>Both partners should chant their respective planet mantras daily</li>
+              <li>Consult a qualified Vedic astrologer for personalized remedies</li>
+              {totalScore < 12 && <li className="text-amber-400">Consider detailed Nadi analysis before proceeding</li>}
+            </ul>
+          </div>
+        )}
+
+        {/* Manglik Status */}
+        {(() => {
+          const manglikEntries = [
+            { label: maleData?.name || "Person 1", data: vedicMatching.manglik_male ?? vedicMatching.groom_manglik },
+            { label: femaleData?.name || "Person 2", data: vedicMatching.manglik_female ?? vedicMatching.bride_manglik },
+          ].filter(({ data }) => data !== undefined && data !== null);
+
+          if (manglikEntries.length === 0) return null;
+
+          const bothManglik = manglikEntries.length === 2 && manglikEntries.every(({ data }) => {
+            return typeof data === 'object' && data !== null ? data.is_manglik : data === true;
+          });
+
+          return (
+            <>
+              <div className="grid grid-cols-2 gap-4 mt-6">
+                {manglikEntries.map(({ label, data }) => {
+                  const isManglik = typeof data === 'object' && data !== null ? data.is_manglik : data === true;
+                  const description = typeof data === 'object' && data !== null ? data.description : undefined;
+
+                  return (
+                    <div key={label} className="p-4 rounded-xl bg-white/5 border border-white/10">
+                      <p className="text-[10px] text-white/40 uppercase tracking-widest mb-1">{label}</p>
+                      <p className={`text-sm font-medium ${isManglik ? 'text-red-400' : 'text-emerald-400'}`}>
+                        {isManglik ? 'Manglik' : 'Non-Manglik'}
+                      </p>
+                      {description && (
+                        <p className="text-xs text-white/40 mt-1">{description}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {/* If both are Manglik, show neutralization note */}
+              {bothManglik && (
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 mt-3">
+                  <p className="text-xs text-emerald-300">Both partners are Manglik — the dosha is neutralized. No adverse effects expected.</p>
+                </div>
+              )}
+            </>
+          );
+        })()}
+      </div>
+    </section>
   );
 }

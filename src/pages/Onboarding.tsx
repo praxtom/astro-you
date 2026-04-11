@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/AuthContext";
 import { doc, setDoc } from "firebase/firestore";
@@ -16,6 +16,7 @@ import { OnboardingSEO } from "../components/SEO";
 import LocationInput from "../components/LocationInput";
 import { STORAGE_KEYS } from "../lib/constants";
 import { useErrorToast } from "../components/ui/Toast";
+import { trackEvent } from "../lib/firebase";
 
 type Step = "upload" | "identity" | "temporal" | "spatial" | "present";
 import type { ParsedChartData } from "../types";
@@ -46,6 +47,22 @@ export default function Onboarding() {
     currentLocation: "",
     birthTimeUnknown: false,
   });
+
+  // Preview: background-fetch kundali data when entering "present" step
+  const [preview, setPreview] = useState<any>(null);
+
+  useEffect(() => {
+    if (step === 'present' && formData.dob && formData.tob && formData.pob && !preview) {
+      fetch('/api/kundali', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ birthData: formData, chartType: 'D1' }),
+      })
+        .then((r) => r.json())
+        .then((d) => setPreview(d))
+        .catch(() => {});
+    }
+  }, [step, formData.dob, formData.tob, formData.pob]);
 
   // Load existing data from localStorage (persists across sessions)
   useEffect(() => {
@@ -122,7 +139,7 @@ export default function Onboarding() {
     const mode = sessionStorage.getItem(STORAGE_KEYS.MODE);
 
     if (user || mode === "logged_in") {
-      // Logged-in user: Save to Firestore for permanent storage
+      // Logged-in user: Save to Firestore (authoritative), then localStorage (backup)
       setIsSaving(true);
       try {
         if (user) {
@@ -131,32 +148,34 @@ export default function Onboarding() {
             {
               profile: {
                 ...formData,
-                parsedChart: parsedChart, // Save reference to parsed chart if any
+                parsedChart: parsedChart,
               },
-              credits: 15, // Initial bonus
+              credits: 15,
               updatedAt: new Date(),
             },
             { merge: true }
           );
         }
-        // Also store in localStorage as backup
+        // Only mark complete AFTER Firestore write succeeds
         localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(formData));
         localStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");
+        trackEvent('onboarding_complete');
         navigate("/dashboard");
       } catch (err) {
         console.error("Error saving data:", err);
-        showError("Save Error", "Connection interrupted. Your progress is saved locally.");
-        navigate("/dashboard");
+        // Save locally so user doesn't lose their input, but DON'T navigate away
+        localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(formData));
+        showError("Save Error", "Could not save to cloud. Please check your connection and try again.");
+        setIsSaving(false);
       } finally {
         setIsSaving(false);
       }
     } else {
-      // Guest path: Only store in sessionStorage (clears on browser close)
-      sessionStorage.setItem(
-        STORAGE_KEYS.GUEST_PROFILE,
-        JSON.stringify(formData)
-      );
+      // Guest path: sessionStorage + localStorage backup for later sign-up migration
+      sessionStorage.setItem(STORAGE_KEYS.GUEST_PROFILE, JSON.stringify(formData));
       sessionStorage.setItem(STORAGE_KEYS.GUEST_COMPLETE, "true");
+      localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(formData));
+      trackEvent('onboarding_complete');
       navigate("/dashboard");
     }
   };
@@ -728,6 +747,18 @@ export default function Onboarding() {
             <p className="text-body mb-10 opacity-70 font-sans font-light">
               Where does your light shine in this current moment?
             </p>
+
+            {preview && (
+              <div className="mb-8 p-4 rounded-xl bg-gold/5 border border-gold/20">
+                <p className="text-[10px] text-gold uppercase tracking-widest font-bold mb-2">Quick Preview</p>
+                <p className="text-sm text-white/70">
+                  Moon Sign: <span className="text-white font-medium">{preview.ascendant?.sign || preview.moonSign || preview.ascendant || 'Calculating...'}</span>
+                  {preview.planetary_positions?.length > 0 && ` · ${preview.planetary_positions.length} planets analyzed`}
+                  {!preview.planetary_positions?.length && preview.planets?.length > 0 && ` · ${preview.planets.length} planets analyzed`}
+                </p>
+                <p className="text-xs text-white/40 mt-1">Complete your profile for full AI-powered reading</p>
+              </div>
+            )}
 
             <div className="space-y-6">
               <LocationInput

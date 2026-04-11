@@ -1,12 +1,15 @@
 /**
  * useUserProfile Hook - Centralized user data access
- * Prevents duplicate Firestore queries across components
+ * Prevents duplicate Firestore queries across components.
+ *
+ * Data priority: Firestore (authoritative) > localStorage (backup)
  */
 
 import { useState, useEffect, useMemo } from 'react';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
+import { STORAGE_KEYS } from '../lib/constants';
 import type { UserProfile, BirthData } from '../types';
 
 interface UseUserProfileResult {
@@ -15,6 +18,35 @@ interface UseUserProfileResult {
     loading: boolean;
     error: string | null;
     refetch: () => Promise<void>;
+}
+
+/**
+ * Extract a UserProfile from a Firestore document's raw data.
+ * Handles both nested (data.profile.*) and flat (data.*) structures,
+ * and always merges root-level credits/subscription.
+ */
+function extractProfile(data: Record<string, any>): UserProfile | null {
+    // Primary: nested under "profile" key (standard write path)
+    const nested = data.profile;
+    // Fallback: flat structure at root
+    const profile: UserProfile = nested && nested.dob ? { ...nested } : {
+        name: data.name,
+        dob: data.dob,
+        tob: data.tob,
+        pob: data.pob,
+        gender: data.gender,
+        currentLocation: data.currentLocation,
+        coordinates: data.coordinates,
+    };
+
+    // If we still have no dob, profile is incomplete
+    if (!profile.dob) return null;
+
+    // Root-level credits/subscription always take priority (written by AuthContext)
+    if (data.credits !== undefined) profile.credits = data.credits;
+    if (data.subscription !== undefined) profile.subscription = data.subscription;
+
+    return profile;
 }
 
 export function useUserProfile(): UseUserProfileResult {
@@ -38,21 +70,14 @@ export function useUserProfile(): UseUserProfileResult {
             const docSnap = await getDoc(docRef);
 
             if (docSnap.exists()) {
-                const data = docSnap.data();
+                const extracted = extractProfile(docSnap.data());
+                setProfile(extracted);
 
-                // Handle both flat and nested profile structures
-                const profileData: UserProfile = data.profile || {
-                    name: data.name,
-                    dob: data.dob,
-                    tob: data.tob,
-                    pob: data.pob,
-                    gender: data.gender,
-                    coordinates: data.coordinates,
-                    credits: data.credits,
-                    subscription: data.subscription,
-                };
-
-                setProfile(profileData);
+                // Sync to localStorage as backup so pages work during offline/reload
+                if (extracted) {
+                    localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(extracted));
+                    localStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, 'true');
+                }
             } else {
                 setProfile(null);
             }
@@ -75,24 +100,14 @@ export function useUserProfile(): UseUserProfileResult {
         const docRef = doc(db, 'users', user.uid);
         const unsubscribe = onSnapshot(docRef, (docSnap) => {
             if (docSnap.exists()) {
-                const data = docSnap.data();
+                const extracted = extractProfile(docSnap.data());
+                setProfile(extracted);
 
-                const profileData: UserProfile = data.profile || {
-                    name: data.name,
-                    dob: data.dob,
-                    tob: data.tob,
-                    pob: data.pob,
-                    gender: data.gender,
-                    coordinates: data.coordinates,
-                    credits: data.credits,
-                    subscription: data.subscription,
-                };
-                // Always prioritize root-level credits if available
-                if (data.credits !== undefined) {
-                    profileData.credits = data.credits;
+                // Keep localStorage in sync as backup
+                if (extracted) {
+                    localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(extracted));
+                    localStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, 'true');
                 }
-                console.log('[useUserProfile] Credits:', profileData.credits, 'from data:', data.credits);
-                setProfile(profileData);
             } else {
                 setProfile(null);
             }
@@ -107,7 +122,7 @@ export function useUserProfile(): UseUserProfileResult {
     }, [user]);
 
     // Extract birthData from profile for convenience
-    const birthData: BirthData | null = useMemo(() => profile ? {
+    const birthData: BirthData | null = useMemo(() => profile?.dob ? {
         name: profile.name,
         dob: profile.dob,
         tob: profile.tob,

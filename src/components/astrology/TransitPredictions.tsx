@@ -219,7 +219,7 @@ const TransitPredictions: React.FC<TransitPredictionsProps> = ({
                         : `Phase: ${p.aspect_type.replace("_", " ")}`}
                     </div>
                   )}
-                  {p.isFallback && typeof p.orb === "number" && (
+                  {typeof p.orb === "number" && (
                     <div className="text-[10px] uppercase tracking-widest text-gold/30 font-bold">
                       Orb: {Math.abs(p.orb).toFixed(1)}°
                     </div>

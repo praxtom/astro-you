@@ -14,6 +14,8 @@ import {
   Heart,
   Briefcase,
   Shield,
+  Download,
+  Share2,
 } from "lucide-react";
 import { useUserProfile } from "../hooks";
 import { FullPageSkeleton } from "../components/ui/Skeleton";
@@ -63,6 +65,8 @@ const DailyForecast: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [forecast, setForecast] = useState<ForecastData | null>(null);
+  const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('daily');
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     const fetchForecast = async () => {
@@ -72,9 +76,11 @@ const DailyForecast: React.FC = () => {
         setLoading(true);
         const response = await fetch("/.netlify/functions/horoscope", {
           method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             birthData,
             date: new Date().toISOString().split("T")[0],
+            period,
           }),
         });
 
@@ -92,7 +98,31 @@ const DailyForecast: React.FC = () => {
     if (!profileLoading && birthData) {
       fetchForecast();
     }
-  }, [birthData, profileLoading]);
+  }, [birthData, profileLoading, period]);
+
+  const handleDownloadPDF = async () => {
+    if (!birthData || downloading) return;
+    setDownloading(true);
+    try {
+      const response = await fetch('/api/kundali', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ birthData, chartType: 'PDF_NATAL' }),
+      });
+      if (!response.ok) throw new Error('Failed to generate PDF');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'astroyou-natal-report.pdf';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('PDF download error:', err);
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   if (profileLoading || loading) return <FullPageSkeleton />;
 
@@ -128,9 +158,55 @@ const DailyForecast: React.FC = () => {
           </span>
         </button>
 
+        <div className="flex gap-2 mb-8">
+          {(['daily', 'weekly', 'monthly', 'yearly'] as const).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={`px-6 py-2 rounded-xl border text-sm font-bold uppercase tracking-widest transition-all ${
+                period === p
+                  ? 'bg-gold/10 border-gold/50 text-gold'
+                  : 'bg-white/5 border-white/10 text-white/40 hover:border-white/30'
+              }`}
+            >
+              {p.charAt(0).toUpperCase() + p.slice(1)}
+            </button>
+          ))}
+          {forecast && !loading && (
+            <button
+              onClick={handleDownloadPDF}
+              disabled={downloading}
+              className="ml-auto px-4 py-2 rounded-xl border border-white/10 text-white/40 hover:text-gold hover:border-gold/30 text-xs uppercase tracking-widest transition-all flex items-center gap-2 disabled:opacity-50"
+            >
+              <Download size={14} />
+              {downloading ? 'Generating...' : 'PDF Report'}
+            </button>
+            <button
+              onClick={() => {
+                const text = `My ${period} forecast: ${forecast?.horoscope?.overall_theme || 'Check your stars!'}\n\nGet yours free: ${window.location.origin}/free-kundali`;
+                if (navigator.share) {
+                  navigator.share({ title: 'AstroYou Forecast', text, url: `${window.location.origin}/free-kundali` });
+                } else {
+                  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                }
+              }}
+              className="px-4 py-2 rounded-xl border border-white/10 text-white/40 hover:text-gold hover:border-gold/30 text-xs uppercase tracking-widest transition-all flex items-center gap-2"
+            >
+              <Share2 size={14} />
+              Share
+            </button>
+          )}
+        </div>
+
         <header className="mb-16">
           <h1 className="text-4xl md:text-6xl font-light mb-6 text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-white/40 leading-tight">
-            Your Daily Forecast
+            {period === 'yearly'
+              ? `Your ${new Date().getFullYear()} Forecast`
+              : period === 'monthly'
+              ? `Your Monthly Forecast — ${new Date().toLocaleDateString('en-US', { month: 'long' })}`
+              : period === 'weekly'
+              ? 'Your Weekly Forecast'
+              : 'Your Daily Forecast'}
           </h1>
           <div className="flex flex-wrap items-center gap-6 text-white/40 font-sans italic text-sm">
             <div className="flex items-center gap-2">
@@ -167,7 +243,7 @@ const DailyForecast: React.FC = () => {
                 <div className="flex items-center gap-3 text-gold mb-8 font-sans">
                   <span className="w-8 h-[1px] bg-gold/30"></span>
                   <span className="text-[10px] font-black uppercase tracking-widest">
-                    Today's Theme
+                    {period === 'yearly' ? "This Year's Theme" : period === 'monthly' ? "This Month's Theme" : period === 'weekly' ? "This Week's Theme" : "Today's Theme"}
                   </span>
                 </div>
 
@@ -178,6 +254,65 @@ const DailyForecast: React.FC = () => {
                 </p>
               </div>
             </div>
+
+            {/* Period-specific content */}
+            {period === 'weekly' && h?.key_days && (
+                <div className="glass rounded-2xl p-6 mb-6">
+                    <h3 className="text-sm uppercase tracking-widest text-white/40 font-bold mb-4">Key Days This Week</h3>
+                    <div className="space-y-3">
+                        {(h.key_days || h.day_by_day || []).map((day: any, i: number) => (
+                            <div key={i} className="flex items-start gap-3 py-2 border-b border-white/5 last:border-0">
+                                <span className="text-gold text-sm font-medium min-w-[80px]">{day.date || day.day || `Day ${i+1}`}</span>
+                                <p className="text-white/70 text-sm">{day.description || day.theme || day.prediction || ''}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {period === 'monthly' && (h?.key_dates || h?.keyDates) && (
+                <div className="glass rounded-2xl p-6 mb-6">
+                    <h3 className="text-sm uppercase tracking-widest text-white/40 font-bold mb-4">Key Dates This Month</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {(h.key_dates || h.keyDates || []).map((kd: any, i: number) => (
+                            <div key={i} className="p-3 rounded-xl bg-white/5 border border-white/10">
+                                <span className="text-gold text-xs font-bold">{kd.date || kd.day}</span>
+                                <p className="text-white/60 text-xs mt-1">{kd.description || kd.event || kd.prediction}</p>
+                                {kd.type && <span className={`text-[10px] mt-1 inline-block px-2 py-0.5 rounded-full ${kd.type === 'peak' || kd.type === 'auspicious' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}`}>{kd.type}</span>}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {period === 'yearly' && (h?.quarters || h?.major_transits) && (
+                <div className="glass rounded-2xl p-6 mb-6">
+                    <h3 className="text-sm uppercase tracking-widest text-white/40 font-bold mb-4">Yearly Overview</h3>
+                    {h.quarters && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                            {(h.quarters || []).map((q: any, i: number) => (
+                                <div key={i} className="p-4 rounded-xl bg-white/5 border border-white/10">
+                                    <span className="text-gold text-sm font-bold">Q{i+1}</span>
+                                    <p className="text-white/60 text-sm mt-2">{q.theme || q.description || q.prediction}</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    {(h.major_transits || h.retrograde_periods) && (
+                        <div>
+                            <h4 className="text-xs uppercase tracking-widest text-white/30 mb-3">Major Transits</h4>
+                            <div className="space-y-2">
+                                {(h.major_transits || h.retrograde_periods || []).slice(0, 6).map((t: any, i: number) => (
+                                    <div key={i} className="flex items-center gap-2 text-sm">
+                                        <span className="text-amber-400 min-w-[100px]">{t.date || t.period}</span>
+                                        <span className="text-white/60">{t.description || t.event || `${t.planet} ${t.type || ''}`}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Planetary Influences (Transit Activations) */}
             <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -251,6 +386,24 @@ const DailyForecast: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Rahu Kaal Warning */}
+                {forecast?.panchang?.rahu_kaal && forecast.panchang.rahu_kaal !== '—' && (
+                  <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 mb-4">
+                    <span className="text-[10px] text-red-400/60 uppercase tracking-widest font-bold">Rahu Kaal</span>
+                    <p className="text-sm text-red-300 mt-1">{forecast.panchang.rahu_kaal}</p>
+                  </div>
+                )}
+
+                {/* Moon Phase & Sign */}
+                {h?.moon && (
+                  <div className="p-3 rounded-xl bg-white/5 border border-white/10 mb-4">
+                    <span className="text-[10px] text-white/30 uppercase tracking-widest font-bold">Moon</span>
+                    <p className="text-sm text-white/70 mt-1">
+                      {h.moon.phase && `${h.moon.phase} · `}{h.moon.sign || ''}
+                    </p>
+                  </div>
+                )}
+
                 {/* Lucky Elements */}
                 <div className="glass p-6 rounded-[2rem] border border-white/5">
                   <div className="flex items-center gap-3 text-gold mb-6 font-sans">
@@ -268,7 +421,7 @@ const DailyForecast: React.FC = () => {
                         {h?.lucky_elements?.colors?.map((c, i) => (
                           <span key={i} className="text-xs text-white/70">
                             {c}
-                            {i < h.lucky_elements.colors.length - 1 ? "," : ""}
+                            {i < (h?.lucky_elements?.colors?.length ?? 0) - 1 ? "," : ""}
                           </span>
                         ))}
                       </div>

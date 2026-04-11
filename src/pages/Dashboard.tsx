@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/AuthContext";
 import { useUserProfile } from "../hooks";
 import { useConsciousness } from "../hooks/useConsciousness";
 import { useProactiveTriggers } from "../hooks/useProactiveTriggers";
+import { usePanchang } from "../hooks/usePanchang";
 import { STORAGE_KEYS } from "../lib/constants";
 import { useErrorToast } from "../components/ui/Toast";
 import {
@@ -15,20 +16,29 @@ import {
   ArrowUpRight,
   Sparkles,
   Flame,
+  Download,
+  Share2,
+  User,
+  Users,
+  Gift,
 } from "lucide-react";
-import {
-  collection,
-  query,
-  orderBy,
-  limit,
-  getDocs,
-} from "firebase/firestore";
+import { collection, query, orderBy, limit, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import OnboardingModal from "../components/OnboardingModal";
 import Header from "../components/layout/Header";
 import { DailyAltar } from "../components/sadhana/DailyAltar";
 import { SoulInsightCard } from "../components/dashboard/SoulInsightCard";
+import { PanchangCard } from "../components/dashboard/PanchangCard";
+import { YogaCard } from "../components/dashboard/YogaCard";
+import { RemediesCard } from "../components/dashboard/RemediesCard";
+import { DashaCard } from "../components/dashboard/DashaCard";
+import { DashaTimeline } from "../components/astrology/DashaTimeline";
+import { SadeSatiCard } from "../components/dashboard/SadeSatiCard";
+import { NakshatraCard } from "../components/dashboard/NakshatraCard";
+import { LunarPhaseIndicator } from "../components/dashboard/LunarPhaseIndicator";
+import { FestivalCard } from "../components/dashboard/FestivalCard";
 import { DharmaList } from "../components/dharma/DharmaList";
+import ChartShareModal from "../components/ChartShareModal";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -41,17 +51,115 @@ export default function Dashboard() {
   const [showDailyAltar, setShowDailyAltar] = useState(false);
   const [prediction, setPrediction] = useState<string | null>(null);
   const [isPredictionLoading, setIsPredictionLoading] = useState(false);
-  const [lastChat, setLastChat] = useState<{ chatId: string; title: string } | null>(null);
+  const [lastChat, setLastChat] = useState<{
+    chatId: string;
+    title: string;
+  } | null>(null);
+  const [downloadingNatal, setDownloadingNatal] = useState(false);
+  const [showChartShare, setShowChartShare] = useState(false);
+  const [dashaPeriods, setDashaPeriods] = useState<any[]>([]);
+  const [showUsernameForm, setShowUsernameForm] = useState(false);
+  const [username, setUsername] = useState("");
+  const [bio, setBio] = useState("");
+  const [isPublic, setIsPublic] = useState(false);
+  const [referralCopied, setReferralCopied] = useState(false);
+
+  const referralCode = user ? `STAR${user.uid.slice(0, 6).toUpperCase()}` : "";
+  const referralLink = user
+    ? `${window.location.origin}/?ref=${referralCode}`
+    : "";
 
   const { atmanState, refreshAtman } = useConsciousness();
   const showError = useErrorToast();
 
-  useProactiveTriggers();
+  const { panchang } = usePanchang(
+    profile?.pob,
+    profile?.coordinates?.lat,
+    profile?.coordinates?.lng,
+  );
+
+  // Load existing username/bio/isPublic from profile
+  useEffect(() => {
+    if (profile) {
+      setUsername(profile.username || "");
+      setBio(profile.bio || "");
+      setIsPublic(profile.isPublic || false);
+    }
+  }, [profile]);
+
+  const saveProfile = async () => {
+    if (!user || !username.trim()) return;
+    const { doc, setDoc } = await import("firebase/firestore");
+    await setDoc(
+      doc(db, "users", user.uid),
+      {
+        profile: {
+          ...profile,
+          username: username.trim().toLowerCase(),
+          bio,
+          isPublic,
+        },
+      },
+      { merge: true },
+    );
+    setShowUsernameForm(false);
+  };
+
+  // Gamification: badges based on user activity
+  const badges = useMemo(() => {
+    const ud = profile || guestData;
+    const earned = [];
+    if (ud?.dob)
+      earned.push({
+        id: "chart",
+        emoji: "\uD83C\uDF1F",
+        label: "Chart Generated",
+      });
+    if (atmanState?.emotionalState)
+      earned.push({ id: "aware", emoji: "\uD83E\uDDD8", label: "Self-Aware" });
+    if (atmanState?.keyRelationships?.length)
+      earned.push({
+        id: "connected",
+        emoji: "\uD83D\uDCAB",
+        label: "Connected",
+      });
+    if (atmanState?.routines?.length)
+      earned.push({
+        id: "disciplined",
+        emoji: "\uD83D\uDD25",
+        label: "Disciplined",
+      });
+    if (atmanState?.meditationStreak >= 7)
+      earned.push({ id: "streak7", emoji: "\u26A1", label: "7-Day Streak" });
+    if (atmanState?.meditationStreak >= 30)
+      earned.push({
+        id: "streak30",
+        emoji: "\uD83D\uDC51",
+        label: "30-Day Streak",
+      });
+    return earned;
+  }, [profile, guestData, atmanState]);
+
+  // Gamification: profile completion progress
+  const profileCompletion = useMemo(() => {
+    const ud = profile || guestData;
+    let done = 0;
+    const total = 4;
+    if (ud?.dob) done++; // Birth chart
+    if (atmanState?.routines?.length) done++; // Daily practice
+    if (atmanState?.keyRelationships?.length) done++; // Relationships
+    if (atmanState?.emotionalState && atmanState.emotionalState !== "stable")
+      done++; // Consciousness engaged
+    return { done, total, pct: Math.round((done / total) * 100) };
+  }, [profile, guestData, atmanState]);
+  useProactiveTriggers(panchang ?? undefined);
 
   // Guest mode fallback
   useEffect(() => {
     if (!user && !isLoading) {
-      const storedGuestData = sessionStorage.getItem(STORAGE_KEYS.GUEST_PROFILE);
+      const storedGuestData = sessionStorage.getItem(
+        STORAGE_KEYS.GUEST_PROFILE,
+      );
       if (storedGuestData) {
         setGuestData(JSON.parse(storedGuestData));
       } else {
@@ -70,7 +178,10 @@ export default function Dashboard() {
         const snap = await getDocs(q);
         if (!snap.empty) {
           const doc = snap.docs[0];
-          setLastChat({ chatId: doc.id, title: doc.data().title || "Untitled" });
+          setLastChat({
+            chatId: doc.id,
+            title: doc.data().title || "Untitled",
+          });
         }
       } catch {
         // Silently fail — hero card falls back to "Start a conversation"
@@ -81,10 +192,43 @@ export default function Dashboard() {
 
   const userData = profile || guestData;
 
+  // Fetch dasha periods for timeline
+  useEffect(() => {
+    if (!userData?.dob || !userData?.tob) return;
+    const birthData = {
+      dob: userData.dob,
+      tob: userData.tob,
+      pob: userData.pob || "Unknown",
+      lat: userData.coordinates?.lat,
+      lng: userData.coordinates?.lng,
+    };
+    fetch("/api/kundali", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ birthData, chartType: "DASHAS" }),
+    })
+      .then((r) => r.json())
+      .then((res) => {
+        const periods = res.periods || res.data?.periods || [];
+        if (Array.isArray(periods)) setDashaPeriods(periods);
+      })
+      .catch(() => {});
+  }, [userData?.dob]);
+
   const getZodiacSign = (day: number, month: number) => {
     const signs = [
-      "Capricorn", "Aquarius", "Pisces", "Aries", "Taurus", "Gemini",
-      "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius",
+      "Capricorn",
+      "Aquarius",
+      "Pisces",
+      "Aries",
+      "Taurus",
+      "Gemini",
+      "Cancer",
+      "Leo",
+      "Virgo",
+      "Libra",
+      "Scorpio",
+      "Sagittarius",
     ];
     const boundaries = [20, 19, 21, 20, 21, 21, 23, 23, 23, 23, 22, 22];
     return day < boundaries[month - 1] ? signs[month - 1] : signs[month % 12];
@@ -92,14 +236,17 @@ export default function Dashboard() {
 
   useEffect(() => {
     const fetchPrediction = async () => {
-      if (!userData || !userData.dob || prediction || isPredictionLoading) return;
+      if (!userData || !userData.dob || prediction || isPredictionLoading)
+        return;
 
       setIsPredictionLoading(true);
       try {
         const [year, month, day] = userData.dob.split("-").map(Number);
         const [hour, minute] = (userData.tob || "12:00").split(":").map(Number);
 
-        const pobParts = (userData.pob || "Unknown").split(",").map((s: string) => s.trim());
+        const pobParts = (userData.pob || "Unknown")
+          .split(",")
+          .map((s: string) => s.trim());
         const city = pobParts[0] || "Unknown";
         const countryCode = pobParts[1]?.substring(0, 2).toUpperCase() || "US";
         const zodiacSign = userData.sunSign || getZodiacSign(day, month);
@@ -112,12 +259,28 @@ export default function Dashboard() {
             format: "short",
             subject: {
               name: userData.name || "Seeker",
-              birth_data: { year, month, day, hour, minute, city, country_code: countryCode === "KA" ? "IN" : countryCode },
+              birth_data: {
+                year,
+                month,
+                day,
+                hour,
+                minute,
+                city,
+                country_code: countryCode === "KA" ? "IN" : countryCode,
+              },
             },
             options: {
               house_system: "P",
               zodiac_type: "Tropic",
-              active_points: ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn"],
+              active_points: [
+                "Sun",
+                "Moon",
+                "Mercury",
+                "Venus",
+                "Mars",
+                "Jupiter",
+                "Saturn",
+              ],
               precision: 2,
             },
           }),
@@ -129,7 +292,10 @@ export default function Dashboard() {
         }
       } catch (err) {
         console.error("Failed to fetch prediction:", err);
-        showError("Prediction Unavailable", "Could not load your daily forecast. Please try again later.");
+        showError(
+          "Prediction Unavailable",
+          "Could not load your daily forecast. Please try again later.",
+        );
       } finally {
         setIsPredictionLoading(false);
       }
@@ -137,6 +303,42 @@ export default function Dashboard() {
 
     fetchPrediction();
   }, [userData]);
+
+  const handleDownloadNatalReport = async () => {
+    if (!userData || downloadingNatal) return;
+    setDownloadingNatal(true);
+    try {
+      const birthData = {
+        name: userData.profile?.name || userData.name,
+        dob: userData.dob,
+        tob: userData.tob || "12:00",
+        pob: userData.pob || "",
+        lat: userData.coordinates?.lat,
+        lng: userData.coordinates?.lng,
+      };
+      const response = await fetch("/api/pdf-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ birthData, reportType: "natal" }),
+      });
+      if (!response.ok) throw new Error("Failed to generate PDF");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `astroyou-natal-report-${new Date().toISOString().split("T")[0]}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Natal report download error:", err);
+      showError(
+        "Download Failed",
+        "Could not generate natal report. Please try again.",
+      );
+    } finally {
+      setDownloadingNatal(false);
+    }
+  };
 
   // Loading skeleton
   if (isLoading) {
@@ -153,8 +355,11 @@ export default function Dashboard() {
                 <div className="h-10 bg-white/5 rounded-xl animate-pulse w-48 mt-4" />
               </div>
               <div className="flex gap-3">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="glass rounded-xl p-4 w-32 h-20 animate-pulse" />
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="glass rounded-xl p-4 w-32 h-20 animate-pulse"
+                  />
                 ))}
               </div>
             </div>
@@ -190,39 +395,98 @@ export default function Dashboard() {
               {userData?.profile?.name || userData?.name || "Seeker"}
             </span>
           </h2>
+          <button
+            onClick={() => {
+              const moonSign =
+                profile?.moonSign ||
+                profile?.ascendant?.sign ||
+                "a cosmic being";
+              const text = `I'm a ${moonSign} Moon ✨ What's your Moon sign? Find out free:`;
+              const url = `${window.location.origin}/free-kundali`;
+              if (navigator.share) {
+                navigator.share({ title: "My Moon Sign", text, url });
+              } else {
+                window.open(
+                  `https://wa.me/?text=${encodeURIComponent(text + "\n" + url)}`,
+                  "_blank",
+                );
+              }
+            }}
+            className="p-1.5 rounded-lg border border-white/10 text-white/30 hover:text-gold hover:border-gold/30 transition-all"
+            title="Share your sign"
+          >
+            <Share2 size={12} />
+          </button>
           {atmanState && (
             <div className="flex items-center gap-4">
-              <span className={`text-xs font-medium px-2.5 py-1 rounded-full border capitalize ${
-                atmanState.emotionalState === 'stable' ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' :
-                atmanState.emotionalState === 'anxious' ? 'text-amber-400 border-amber-500/30 bg-amber-500/10' :
-                atmanState.emotionalState === 'chaotic' ? 'text-red-400 border-red-500/30 bg-red-500/10' :
-                'text-white/60 border-white/10 bg-white/5'
-              }`}>
-                {atmanState.emotionalState || 'Neutral'}
+              <span
+                className={`text-xs font-medium px-2.5 py-1 rounded-full border capitalize ${
+                  atmanState.emotionalState === "stable"
+                    ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10"
+                    : atmanState.emotionalState === "anxious"
+                      ? "text-amber-400 border-amber-500/30 bg-amber-500/10"
+                      : atmanState.emotionalState === "chaotic"
+                        ? "text-red-400 border-red-500/30 bg-red-500/10"
+                        : "text-white/60 border-white/10 bg-white/5"
+                }`}
+              >
+                {atmanState.emotionalState || "Neutral"}
               </span>
               {(atmanState.meditationStreak || 0) > 0 && (
                 <div className="flex items-center gap-1.5 text-amber-400">
                   <Flame size={14} />
-                  <span className="text-xs font-medium">{atmanState.meditationStreak} day streak</span>
+                  <span className="text-xs font-medium">
+                    {atmanState.meditationStreak} day streak
+                  </span>
                 </div>
               )}
             </div>
           )}
+          {userData && <LunarPhaseIndicator birthData={userData} />}
         </div>
+
+        {/* Spiritual Profile Progress */}
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-32 h-1.5 bg-white/10 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gold rounded-full transition-all duration-700"
+              style={{ width: `${profileCompletion.pct}%` }}
+            />
+          </div>
+          <span className="text-[10px] text-white/30 uppercase tracking-widest">
+            {profileCompletion.pct}% complete
+          </span>
+        </div>
+
+        {/* Gamification Badges */}
+        {badges.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-6">
+            {badges.map((b) => (
+              <span
+                key={b.id}
+                title={b.label}
+                className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-xs flex items-center gap-1"
+              >
+                <span>{b.emoji}</span>
+                <span className="text-white/40">{b.label}</span>
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* Two-Zone Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6 items-start">
-
           {/* PRIMARY ZONE */}
           <div className="space-y-5">
-
             {/* Synthesis Hero Card */}
             <div className="glass rounded-2xl p-6 border-l-2 border-gold animate-reveal-progressive">
               <div className="flex items-center gap-3 mb-3">
                 <div className="p-2 rounded-xl bg-gold/10 text-gold">
                   <MessageSquare size={20} />
                 </div>
-                <h3 className="text-xl font-display tracking-wider text-white">Talk to Jyotish</h3>
+                <h3 className="text-xl font-display tracking-wider text-white">
+                  Talk to Jyotish
+                </h3>
               </div>
               <p className="text-sm text-white/50 mb-5">
                 {lastChat
@@ -235,7 +499,11 @@ export default function Dashboard() {
                     onClick={() => navigate(`/synthesis/${lastChat.chatId}`)}
                     className="px-4 py-2.5 rounded-xl bg-gold text-black font-medium text-sm hover:bg-gold/90 transition-colors"
                   >
-                    Continue: &ldquo;{lastChat.title.length > 30 ? lastChat.title.slice(0, 30) + '...' : lastChat.title}&rdquo;
+                    Continue: &ldquo;
+                    {lastChat.title.length > 30
+                      ? lastChat.title.slice(0, 30) + "..."
+                      : lastChat.title}
+                    &rdquo;
                   </button>
                 )}
                 <button
@@ -247,17 +515,37 @@ export default function Dashboard() {
                   }`}
                 >
                   {lastChat ? "New conversation" : "Start a conversation"}
-                  {!lastChat && <ArrowUpRight size={14} className="inline ml-1.5" />}
+                  {!lastChat && (
+                    <ArrowUpRight size={14} className="inline ml-1.5" />
+                  )}
                 </button>
               </div>
             </div>
 
             {/* Quick Actions Row */}
-            <nav aria-label="Quick actions" className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1">
+            <nav
+              aria-label="Quick actions"
+              className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1"
+            >
               {[
-                { icon: <Sun size={20} />, label: "Daily Forecast", route: "/forecast", color: "rgba(245, 158, 11, 0.8)" },
-                { icon: <Compass size={20} />, label: "Transit Oracle", route: "/transit", color: "rgba(59, 130, 246, 0.8)" },
-                { icon: <Heart size={20} />, label: "Compatibility", route: "/compatibility", color: "rgba(239, 68, 68, 0.8)" },
+                {
+                  icon: <Sun size={20} />,
+                  label: "Daily Forecast",
+                  route: "/forecast",
+                  color: "rgba(245, 158, 11, 0.8)",
+                },
+                {
+                  icon: <Compass size={20} />,
+                  label: "Transit Oracle",
+                  route: "/transit",
+                  color: "rgba(59, 130, 246, 0.8)",
+                },
+                {
+                  icon: <Heart size={20} />,
+                  label: "Compatibility",
+                  route: "/compatibility",
+                  color: "rgba(239, 68, 68, 0.8)",
+                },
               ].map((action) => (
                 <button
                   key={action.route}
@@ -266,11 +554,17 @@ export default function Dashboard() {
                 >
                   <div
                     className="absolute -inset-10 opacity-0 group-hover:opacity-20 transition-opacity duration-500 pointer-events-none"
-                    style={{ background: `radial-gradient(circle, ${action.color} 0%, transparent 70%)` }}
+                    style={{
+                      background: `radial-gradient(circle, ${action.color} 0%, transparent 70%)`,
+                    }}
                   />
                   <div className="relative z-10">
-                    <div className="mb-2" style={{ color: action.color }}>{action.icon}</div>
-                    <span className="text-sm font-medium text-white/80 group-hover:text-white transition-colors">{action.label}</span>
+                    <div className="mb-2" style={{ color: action.color }}>
+                      {action.icon}
+                    </div>
+                    <span className="text-sm font-medium text-white/80 group-hover:text-white transition-colors">
+                      {action.label}
+                    </span>
                   </div>
                 </button>
               ))}
@@ -286,14 +580,32 @@ export default function Dashboard() {
                 />
               </div>
             )}
+
+            {/* Vedic Insights Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <PanchangCard />
+              <YogaCard birthData={userData} />
+            </div>
+
+            {/* Dasha Timeline */}
+            {dashaPeriods.length > 0 && (
+              <DashaTimeline periods={dashaPeriods} />
+            )}
+
+            {/* Sade Sati & Nakshatra Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <SadeSatiCard birthData={userData} />
+              <NakshatraCard birthData={userData} />
+            </div>
           </div>
 
           {/* SIDE ZONE */}
           <aside className="space-y-4">
-
             {/* Today's Forecast */}
             <div className="glass rounded-2xl p-6 animate-reveal-progressive">
-              <h4 className="text-base uppercase tracking-widest text-white/40 font-bold mb-4">Today's Reading</h4>
+              <h4 className="text-base uppercase tracking-widest text-white/40 font-bold mb-4">
+                Today's Reading
+              </h4>
               {isPredictionLoading ? (
                 <div className="space-y-2">
                   <div className="h-3 bg-white/5 rounded animate-pulse w-full" />
@@ -303,7 +615,8 @@ export default function Dashboard() {
               ) : (
                 <>
                   <p className="text-lg text-white/70 leading-relaxed italic font-display">
-                    {prediction || "The cosmic tides are shifting. The stars are aligning to bring you unique insights today."}
+                    {prediction ||
+                      "The cosmic tides are shifting. The stars are aligning to bring you unique insights today."}
                   </p>
                   {prediction && (
                     <button
@@ -311,7 +624,10 @@ export default function Dashboard() {
                       className="mt-4 text-base text-gold hover:text-white transition-colors inline-flex items-center gap-1.5 group"
                     >
                       View full forecast
-                      <ArrowUpRight size={12} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                      <ArrowUpRight
+                        size={12}
+                        className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"
+                      />
                     </button>
                   )}
                 </>
@@ -326,8 +642,71 @@ export default function Dashboard() {
               />
             )}
 
+            {/* Vedic Remedies */}
+            <RemediesCard birthData={userData} />
+
+            {/* Current Dasha */}
+            <DashaCard />
+
+            {/* Festival Calendar */}
+            <FestivalCard />
+
             {/* Quick Links */}
             <div className="flex flex-col gap-2 px-1">
+              {user && (
+                <>
+                  <button
+                    onClick={() => navigate("/friends")}
+                    className="flex items-center gap-2 text-sm text-white/40 hover:text-gold transition-colors"
+                  >
+                    <Users size={14} />
+                    Friends
+                  </button>
+                  <button
+                    onClick={() => setShowUsernameForm(!showUsernameForm)}
+                    className="flex items-center gap-2 text-sm text-white/40 hover:text-gold transition-colors"
+                  >
+                    <User size={14} />
+                    {profile?.username
+                      ? `@${profile.username}`
+                      : "Set Username"}
+                  </button>
+                  {showUsernameForm && (
+                    <div className="mt-2 p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
+                      <input
+                        value={username}
+                        onChange={(e) =>
+                          setUsername(e.target.value.replace(/[^a-z0-9_]/g, ""))
+                        }
+                        placeholder="username"
+                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-gold/50"
+                      />
+                      <textarea
+                        value={bio}
+                        onChange={(e) => setBio(e.target.value)}
+                        maxLength={160}
+                        placeholder="Short bio (optional)"
+                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-gold/50 h-16 resize-none"
+                      />
+                      <label className="flex items-center gap-2 text-xs text-white/40">
+                        <input
+                          type="checkbox"
+                          checked={isPublic}
+                          onChange={(e) => setIsPublic(e.target.checked)}
+                          className="rounded"
+                        />
+                        Make profile public
+                      </label>
+                      <button
+                        onClick={saveProfile}
+                        className="px-4 py-2 rounded-lg bg-gold text-black text-xs font-bold"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
               <button
                 onClick={() => setShowOnboardingModal(true)}
                 className="flex items-center gap-2 text-sm text-white/40 hover:text-gold transition-colors"
@@ -342,6 +721,66 @@ export default function Dashboard() {
                 >
                   <Sparkles size={14} />
                   Daily Altar
+                </button>
+              )}
+              {userData?.dob && (
+                <button
+                  onClick={handleDownloadNatalReport}
+                  disabled={downloadingNatal}
+                  className="flex items-center gap-2 text-sm text-white/40 hover:text-gold transition-colors disabled:opacity-50"
+                >
+                  <Download size={14} />
+                  {downloadingNatal ? "Generating..." : "Download Natal Report"}
+                </button>
+              )}
+              {userData?.dob && (
+                <button
+                  onClick={() => setShowChartShare(true)}
+                  className="flex items-center gap-2 text-sm text-white/40 hover:text-gold transition-colors"
+                >
+                  <Share2 size={14} />
+                  Share My Chart
+                </button>
+              )}
+              {user && referralLink && (
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(referralLink);
+                    setReferralCopied(true);
+                    setTimeout(() => setReferralCopied(false), 2000);
+                  }}
+                  className="flex items-center gap-2 text-sm text-white/40 hover:text-gold transition-colors"
+                >
+                  <Gift size={14} />
+                  {referralCopied
+                    ? "Link copied!"
+                    : "Invite Friends (earn 5 min free)"}
+                </button>
+              )}
+              {user && (
+                <button
+                  onClick={async () => {
+                    if (!user) return;
+                    const token = await user.getIdToken();
+                    const res = await fetch("/api/export-data", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ idToken: token }),
+                    });
+                    if (res.ok) {
+                      const blob = await res.blob();
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = "astroyou-my-data.json";
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }
+                  }}
+                  className="flex items-center gap-2 text-sm text-white/40 hover:text-gold transition-colors"
+                >
+                  <Download size={14} />
+                  Export My Data
                 </button>
               )}
             </div>
@@ -362,6 +801,7 @@ export default function Dashboard() {
             if (stored) setGuestData(JSON.parse(stored));
           }
         }}
+        existingProfile={profile}
       />
 
       {user && (
@@ -373,6 +813,23 @@ export default function Dashboard() {
           onRefresh={refreshAtman}
         />
       )}
+
+      <ChartShareModal
+        isOpen={showChartShare}
+        onClose={() => setShowChartShare(false)}
+        birthData={
+          userData?.dob
+            ? {
+                name: userData.profile?.name || userData.name,
+                dob: userData.dob,
+                tob: userData.tob || "12:00",
+                pob: userData.pob || "",
+                lat: userData.coordinates?.lat,
+                lng: userData.coordinates?.lng,
+              }
+            : null
+        }
+      />
     </div>
   );
 }
