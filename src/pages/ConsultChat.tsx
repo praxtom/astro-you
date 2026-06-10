@@ -282,7 +282,11 @@ export default function ConsultChat() {
         }),
       });
 
-      if (!res.ok) throw new Error("Request failed");
+      if (!res.ok) {
+        // Surface the server's message (e.g. 402 "time is up — top up").
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Request failed");
+      }
 
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
