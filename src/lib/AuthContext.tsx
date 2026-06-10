@@ -23,8 +23,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Handle redirect result on app load - this MUST run before we consider auth ready
   useEffect(() => {
     getRedirectResult(auth)
-      .catch(() => {
-        // Redirect result errors are non-fatal (e.g. no pending redirect)
+      .catch((error) => {
+        console.error("[Auth] Redirect sign-in failed:", error);
+        sessionStorage.removeItem(STORAGE_KEYS.LOGIN_REDIRECT);
+        window.dispatchEvent(
+          new CustomEvent("astroyou-auth-error", {
+            detail: error?.message || "Google sign-in failed.",
+          }),
+        );
+        // Redirect result errors are non-fatal for app boot.
       })
       .finally(() => {
         setRedirectChecked(true);

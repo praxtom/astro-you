@@ -20,12 +20,6 @@ interface AuthModalProps {
 
 const googleProvider = new GoogleAuthProvider();
 
-// Check if we're in development (localhost)
-const isDev =
-  typeof window !== "undefined" &&
-  (window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1");
-
 type AuthStep = "email" | "otp";
 
 export default function AuthModal({
@@ -207,23 +201,26 @@ export default function AuthModal({
     setIsGoogleLoading(true);
 
     try {
-      if (isDev) {
-        // Use popup in development (works without Firebase Hosting)
-        await signInWithPopup(auth, googleProvider);
-        onClose();
-        if (onSuccess) onSuccess();
-      } else {
-        // Use redirect in production (requires reverse proxy in netlify.toml)
-        sessionStorage.setItem(STORAGE_KEYS.LOGIN_REDIRECT, "true");
-        await signInWithRedirect(auth, googleProvider);
-        // Note: After redirect, the page will reload and getRedirectResult will handle the result
-      }
+      await signInWithPopup(auth, googleProvider);
+      onClose();
+      if (onSuccess) onSuccess();
     } catch (err: any) {
       console.error("Google sign-in error:", err);
       if (err.code === "auth/popup-blocked") {
-        setError("Popup was blocked. Please allow popups for this site.");
+        try {
+          sessionStorage.setItem(STORAGE_KEYS.LOGIN_REDIRECT, "true");
+          await signInWithRedirect(auth, googleProvider);
+          return;
+        } catch (redirectErr: any) {
+          console.error("Google redirect sign-in error:", redirectErr);
+          setError(redirectErr.message || "Google sign-in failed.");
+        }
       } else if (err.code === "auth/popup-closed-by-user") {
         setError("Sign-in was cancelled.");
+      } else if (err.code === "auth/unauthorized-domain") {
+        setError(
+          "This domain is not allowed in Firebase Auth. Add astroyou.netlify.app to Firebase authorized domains.",
+        );
       } else {
         setError(err.message || "Google sign-in failed.");
       }

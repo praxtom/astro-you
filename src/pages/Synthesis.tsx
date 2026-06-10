@@ -657,7 +657,9 @@ export default function Synthesis() {
       console.error(err);
       showError(
         "Connection Lost",
-        "Could not reach the cosmos. Please try sending your message again.",
+        err instanceof Error
+          ? err.message
+          : "Could not reach the cosmos. Please try sending your message again.",
       );
     } finally {
       setIsSynthesizing(false);
