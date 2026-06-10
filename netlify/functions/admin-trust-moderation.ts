@@ -1,7 +1,10 @@
 import { Config, Context } from "@netlify/functions";
 import { db, FieldValue } from "./shared/firebase-admin.js";
 import { AdminAuthError, requireAdmin } from "./shared/admin-auth.js";
-import { buildTrustModerationDecision, TrustRecordError } from "./shared/trust.js";
+import {
+  buildTrustModerationDecision,
+  TrustRecordError,
+} from "./shared/trust.js";
 
 type TrustModerationAction = "list" | "approve" | "reject";
 
@@ -33,67 +36,88 @@ export default async (req: Request, _context: Context) => {
       admin,
       FieldValue.serverTimestamp(),
     );
-    const moderationRef = db.collection("trustModerationQueue").doc(decision.moderationId);
+    const moderationRef = db
+      .collection("trustModerationQueue")
+      .doc(decision.moderationId);
     const moderationSnap = await moderationRef.get();
-    if (!moderationSnap.exists) return json({ error: "Moderation record not found" }, 404);
+    if (!moderationSnap.exists)
+      return json({ error: "Moderation record not found" }, 404);
 
     const record = moderationSnap.data() || {};
     const patch = {
       ...decision.patch,
       updatedAt: FieldValue.serverTimestamp(),
     };
-    const writes: Promise<unknown>[] = [moderationRef.set(patch, { merge: true })];
+    const approved = decision.publicStatus === "approved";
 
-    if (record.kind === "testimonial" && isString(record.uid) && isString(record.testimonialId)) {
-      writes.push(
+    // All writes in one atomic batch so a partial failure can't leave the
+    // moderation queue and the public/owner copies inconsistent.
+    const batch = db.batch();
+    batch.set(moderationRef, patch, { merge: true });
+
+    if (
+      record.kind === "testimonial" &&
+      isString(record.uid) &&
+      isString(record.testimonialId)
+    ) {
+      batch.set(
         db
           .collection("users")
           .doc(record.uid)
           .collection("testimonialSubmissions")
-          .doc(record.testimonialId)
-          .set(patch, { merge: true }),
+          .doc(record.testimonialId),
+        patch,
+        { merge: true },
       );
     }
 
-    if (record.kind === "consult_review" && isString(record.uid) && isString(record.reviewId)) {
-      writes.push(
+    if (
+      record.kind === "consult_review" &&
+      isString(record.uid) &&
+      isString(record.reviewId)
+    ) {
+      batch.set(
         db
           .collection("users")
           .doc(record.uid)
           .collection("consultationReviews")
-          .doc(record.reviewId)
-          .set(patch, { merge: true }),
+          .doc(record.reviewId),
+        patch,
+        { merge: true },
       );
 
       if (isString(record.personaId)) {
-        writes.push(
-          db
-            .collection("astrologers")
-            .doc(record.personaId)
-            .collection("reviews")
-            .doc(record.reviewId)
-            .set(patch, { merge: true }),
-        );
+        const publicReviewRef = db
+          .collection("astrologers")
+          .doc(record.personaId)
+          .collection("reviews")
+          .doc(record.reviewId);
+        if (approved) {
+          // Publish the FULL review content only on approval — this is the only
+          // place a review becomes publicly visible.
+          batch.set(publicReviewRef, { ...record, ...patch }, { merge: true });
+        } else {
+          // Rejected — ensure nothing is left in the public collection.
+          batch.delete(publicReviewRef);
+        }
       }
     }
 
-    writes.push(
-      db.collection("auditLogs").add({
-        uid: isString(record.uid) ? record.uid : null,
-        action: `trust_${decision.publicStatus}`,
-        entityType: "trustModerationQueue",
-        entityId: decision.moderationId,
-        metadata: {
-          adminUid: admin.uid,
-          adminEmail: admin.email,
-          kind: record.kind || null,
-          note: decision.patch.moderationNote,
-        },
-        createdAt: FieldValue.serverTimestamp(),
-      }),
-    );
+    batch.set(db.collection("auditLogs").doc(), {
+      uid: isString(record.uid) ? record.uid : null,
+      action: `trust_${decision.publicStatus}`,
+      entityType: "trustModerationQueue",
+      entityId: decision.moderationId,
+      metadata: {
+        adminUid: admin.uid,
+        adminEmail: admin.email,
+        kind: record.kind || null,
+        note: decision.patch.moderationNote,
+      },
+      createdAt: FieldValue.serverTimestamp(),
+    });
 
-    await Promise.all(writes);
+    await batch.commit();
     return json({
       success: true,
       id: decision.moderationId,

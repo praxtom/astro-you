@@ -1,12 +1,21 @@
 import { Config, Context } from "@netlify/functions";
 import { db } from "./shared/firebase-admin.js";
 import { buildTrustSummary } from "./shared/trust.js";
+import { enforceIpRateLimit, AuthError } from "./shared/require-auth.js";
 
 interface FirestoreDataDoc {
   data(): Record<string, unknown>;
 }
 
-export default async (_req: Request, _context: Context) => {
+export default async (req: Request, _context: Context) => {
+  // Public endpoint (social proof) — IP rate-limit to bound Firestore read cost
+  // from cache-busting abuse. Fail-open (not a sensitive scope).
+  try {
+    await enforceIpRateLimit(req, "trust_summary", 60, 15 * 60 * 1000);
+  } catch (err) {
+    if (err instanceof AuthError)
+      return json({ error: err.message }, err.status);
+  }
   try {
     const [moderationSnapshot, feedbackSnapshot] = await withTimeout(
       Promise.all([
@@ -23,7 +32,10 @@ export default async (_req: Request, _context: Context) => {
 
     return json(summary, 200);
   } catch (error) {
-    console.warn("[Trust Summary] Firestore read failed; returning empty public summary.", error);
+    console.warn(
+      "[Trust Summary] Firestore read failed; returning empty public summary.",
+      error,
+    );
     return json(
       buildTrustSummary({
         moderationRecords: [],
@@ -55,7 +67,8 @@ function readDocData(doc: FirestoreDataDoc) {
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(
-      () => reject(new Error(`Trust summary read timed out after ${timeoutMs}ms`)),
+      () =>
+        reject(new Error(`Trust summary read timed out after ${timeoutMs}ms`)),
       timeoutMs,
     );
     promise
