@@ -2,10 +2,11 @@
 
 > **Vision**: The definitive AI-powered Vedic astrology platform
 > **Quality Bar**: Production-ready, premium, polished
-> **Current Score**: A (22/25) vs Competitors' A (22/25) — Sprint 0 quality hardening complete, all features A+
+> **Current Status**: Strong stakeholder-demo platform; not full public-launch complete. Verified 2026-05-29: `pnpm test` passes, `pnpm run lint` is clean, and the key route smoke test has no blank/error routes.
 > **API**: astrology-api.io v3.2.10 — 266 endpoints total, 18 wired, 248 available
 > **OpenAPI Spec**: `docs/astrology-api-openapi.json` (local copy, formatted)
-> **Last Updated**: 2026-03-29
+> **Last Updated**: 2026-05-29
+> **Current Execution Handoff**: `docs/superpowers/plans/2026-05-29-platform-handoff-plan.md`
 
 ---
 
@@ -95,7 +96,7 @@
 > "The only astrology app that **knows you, grows with you, and never scares you.**"
 
 **This positioning directly attacks:**
-- AstroTalk's ₹100/min "human astrologers" (many are bots) — We offer BETTER AI at ₹5/min, transparently
+- AstroTalk's ₹100/min "human astrologers" (many are bots) — we offer transparent AI guidance from 5 credits/min
 - AstroTalk's fear-based upselling ("Buy ₹5000 gem or suffer!") — We offer empowering guidance with free remedy practices
 - AstroSage's generic, dated, transactional experience — We offer personalized, modern, spiritual companion
 - Both competitors' lack of emotional intelligence — Our Atman system is an unreplicable moat
@@ -106,13 +107,13 @@
 > BETTER AI at 10x cheaper pricing. Same user habit, 10x better value.
 
 **Dual Strategy:**
-- **Route A (Acquisition)**: AI Astrologer Marketplace — familiar "talk to expert" UX, ₹5/min, always online
+- **Route A (Acquisition)**: AI Astrologer Marketplace — familiar "talk to expert" UX, from 5 credits/min, always online
 - **Route B (Retention)**: Spiritual Companion — Atman consciousness, Prana, Dharma, Karmic Journal
 
 **User journey:** Discovers via marketplace → gets hooked on AI quality → discovers spiritual companion → never leaves.
 
 **To win, we need (in order):**
-1. ~~**Quality hardening** (Sprint 0)~~ — ✅ DONE (all features A+)
+1. ~~**Quality hardening** (Sprint 0)~~ — ✅ Code baseline is clean; product polish remains ongoing.
 2. **AI Astrologer Marketplace** (Phase 5.6) — Match AstroTalk's UX, undercut on price, beat on quality
 3. **Content parity** (Sprint A-B) — Monthly/yearly horoscopes, doshas, SEO pages
 4. **Monetization** (Phase 6) — Per-minute billing + subscriptions + PDF reports
@@ -520,9 +521,9 @@ Competitor Comparison:
 
 ---
 
-## Sprint 0: Quality Hardening ✅ COMPLETE (2026-03-29)
+## Sprint 0: Quality Hardening ✅ BASELINE CLEAN (2026-05-29)
 
-> All quality issues identified and fixed. Every feature now at A+ quality.
+> Current verified baseline: TypeScript/function tests pass, ESLint has no warnings, and key routes render without blank/error states. This does not mean every feature is launch-polished; visual consistency, real trust volume, SEO scale, mobile/native depth, and live production checks remain ongoing.
 
 ### P0: Production Crash Prevention ✅
 
@@ -790,20 +791,21 @@ Competitor Comparison:
 
 - [x] Create `public/manifest.json` with app metadata
     - [x] App name, short name, description
-    - [ ] Icons: 192x192, 512x512 (dark cosmic themed)
+    - [x] Icons: 192x192, 512x512 (dark cosmic themed)
     - [x] Theme color: #030308, background color: #030308
     - [x] Display: standalone, orientation: portrait
 - [x] Create service worker (`public/sw.js`)
     - [x] Cache critical assets (app shell, fonts, icons)
+    - [x] Offline fallback for last visited navigations and app shell
     - [ ] Cache last-viewed horoscope + chart for offline access
     - [ ] Background sync: queue messages sent while offline
 - [x] Add install prompt component
     - [x] Detect `beforeinstallprompt` event
     - [x] Show subtle "Add to Home Screen" banner after 2nd visit
-    - [ ] "Install AstroYou" button in settings
-- [ ] Add `<meta>` tags for iOS PWA support
-    - [ ] `apple-mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style`
-    - [ ] Apple touch icons
+    - [x] "Install AstroYou" button in settings
+- [x] Add `<meta>` tags for iOS PWA support
+    - [x] `apple-mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style`
+    - [x] Apple touch icons
 
 ### Viral Sharing Mechanics
 
@@ -821,12 +823,12 @@ Competitor Comparison:
     - [x] "Share today's forecast" button on DailyForecast page
     - [x] Generates card with today's theme + rating + sign
     - [ ] Link back to free sign horoscope page (SEO + acquisition)
-- [ ] **Referral System** (early — don't wait for Phase 7)
-    - [ ] Unique referral code per user: `STAR{userId[:6]}`
-    - [ ] Share link: `astroyou.com/?ref=STAR123ABC`
-    - [ ] Reward: referrer gets 5 free consultation minutes, referee gets 3 free minutes
-    - [ ] Track referrals in `users/{uid}/referrals` sub-collection
-    - [ ] Referral dashboard: "You've invited 3 friends, earned 15 minutes"
+- [x] **Referral System** (early — don't wait for Phase 7)
+    - [x] Unique referral code per user: `STAR{userId[:6]}`
+    - [x] Share link: `astroyou.com/?ref=STAR123ABC`
+    - [x] Reward: referrer gets credits, referee gets joining credits
+    - [x] Track referrals in `users/{uid}/referrals` sub-collection
+    - [x] Referral dashboard: invited friends + credits earned
 
 ### Analytics & Conversion Funnel
 
@@ -878,11 +880,15 @@ Competitor Comparison:
 
 - [x] Create `/help` FAQ page
     - [x] Accordion-style FAQ: "How accurate is AI?", "How is my data stored?", "How do credits work?"
-    - [x] Contact form / email link
-- [ ] In-app help button (? icon in header)
-    - [ ] Opens FAQ or starts support chat
+    - [x] Support ticket CTA for logged-in users
+- [x] Add server-owned support tickets
+    - [x] `/api/support/ticket` creates account-bound tickets
+    - [x] `/api/support/tickets` returns user ticket history
+    - [x] Export includes `supportTickets`
+- [x] Add "Report Issue" option in settings
+- [x] In-app help button (? icon in header)
+    - [x] Opens support ticket path
 - [ ] Create `support@astroyou.com` email
-- [ ] Add "Report Issue" option in settings
 
 ---
 
@@ -989,8 +995,9 @@ Competitor Comparison:
 ### Competitive Pricing (AstroTalk Disruption)
 
 - [ ] Price tiers per persona complexity:
-    - [ ] Standard personas: ₹5/min (vs AstroTalk ₹15-40/min)
-    - [ ] Premium personas: ₹10/min (vs AstroTalk ₹40-100/min)
+    - [x] Standard personas: 5 credits/min
+    - [x] Specialist personas: 8 credits/min
+    - [x] Premium personas: 10 credits/min
 - [ ] First 3 minutes free (hook users)
 - [ ] Subscription benefit: Premium users get 50% off per-minute rates
 - [ ] "Why pay ₹100/min?" — comparison marketing on pricing page
@@ -1014,7 +1021,7 @@ Competitor Comparison:
 
 ### Marketing Angle
 
-> "Expert AI astrologers. ₹5/min. Always online. Actually know your chart."
+> "Expert AI astrologers. From 5 credits/min. Always online. Actually know your chart."
 >
 > Unlike other platforms where you wait 10 minutes, pay ₹100/min, and get generic answers
 > from someone who hasn't studied your chart — our AI experts have already analyzed your
@@ -1027,10 +1034,10 @@ Competitor Comparison:
 ### Subscription Tiers (Updated with Marketplace)
 
 - [ ] Define tier structure:
-    - [ ] **Free**: 5 credits, basic horoscope, 3 free consultation minutes
-    - [ ] **Premium (₹499/mo)**: Unlimited Synthesis chat, daily/weekly/monthly horoscopes, 60 consultation minutes/mo, PDF reports
-    - [ ] **Pro (₹999/mo)**: All Premium + unlimited consultation minutes, yearly reports, priority personas, astrocartography
-- [ ] Create pricing page with AstroTalk comparison ("₹5/min vs ₹100/min")
+    - [x] **Free**: 15 credits, basic horoscope, 3 standard consultation minutes
+    - [x] **Premium (₹499/mo)**: Unlimited Synthesis chat, daily/weekly/monthly horoscopes, 700 credits/mo, PDF reports
+    - [x] **Pro (₹999/mo)**: All Premium + 1,600 credits/mo, yearly reports, priority personas, astrocartography
+- [x] Create pricing page with transparent credits and plan comparison
 - [ ] Implement feature gating
 - [ ] Show upgrade prompts at right moments (after free minutes exhausted)
 

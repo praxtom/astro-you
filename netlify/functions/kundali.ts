@@ -71,6 +71,7 @@ import {
   BirthData,
 } from "./shared/astro-api";
 import { getCachedOrFetch } from "./shared/cache";
+import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit";
 
 const json = (body: any, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -96,11 +97,24 @@ export default async (req: Request, _context: Context) => {
       region,
     } = body;
 
+    const rateLimit = await checkRateLimit({
+      scope: `astro_${String(chartType).toLowerCase()}`,
+      key: getRequestIdentifier(req),
+      limit: chartType === "PANCHANG" ? 120 : 40,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!rateLimit.allowed) {
+      return json({
+        error: "Too many astrology requests. Please try again later.",
+        resetAt: rateLimit.resetAt.toISOString(),
+      }, 429);
+    }
+
     // Panchang doesn't need birthData
     if (chartType === "PANCHANG") {
       const cacheKey = date || new Date().toISOString().split("T")[0];
       const locationKey = city || `${lat ?? 28.6139}_${lng ?? 77.209}`;
-      const docId = `${cacheKey}_${locationKey}`.replace(/[\/\s]/g, "_");
+      const docId = `${cacheKey}_${locationKey}`.replace(/[/\s]/g, "_");
 
       const data = await getCachedOrFetch("panchang", docId, () =>
         getPanchang(date, city, lat, lng),

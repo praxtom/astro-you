@@ -14,16 +14,15 @@ import {
   Save,
   Share2,
 } from "lucide-react";
-import { ChartShareModal } from '../components/ChartShareModal';
+import ChartShareModal from '../components/ChartShareModal';
 import AuthModal from "../components/AuthModal";
 import OnboardingModal from "../components/OnboardingModal";
-import { useAuth } from "../lib/AuthContext";
+import { useAuth } from "../lib/useAuth";
 import { useUserProfile, useKundali } from "../hooks";
 import type { ChartType } from "../hooks/useKundali";
 import {
   doc,
   updateDoc,
-  increment,
   collection,
   addDoc,
   query,
@@ -33,7 +32,8 @@ import {
   getDocs,
   serverTimestamp,
 } from "firebase/firestore";
-import { db, trackEvent } from "../lib/firebase";
+import { db } from "../lib/firebase";
+import { trackAcquisitionEvent } from "../lib/acquisition";
 import { useRazorpay } from "../hooks/useRazorpay";
 import { SynthesisSEO } from "../components/SEO";
 import Kundali from "../components/astrology/Kundali";
@@ -46,14 +46,13 @@ import { useConsciousness } from "../hooks/useConsciousness";
 import { useYogas } from '../hooks/useYogas';
 import { usePanchang } from '../hooks/usePanchang';
 import { PranaOverlay } from "../components/prana/PranaOverlay";
-import { AtmanService } from "../lib/atman";
 import { DharmaList } from "../components/dharma/DharmaList";
 import { RoutineProposal } from "../components/dharma/RoutineProposal";
 import { DailyAltar } from "../components/sadhana/DailyAltar";
 import ConversationsList from "../components/synthesis/ConversationsList";
 import type { UserRoutine } from "../types/user";
 import { STORAGE_KEYS, FREE_LIMIT_SECONDS } from "../lib/constants";
-import { useErrorToast } from "../components/ui/Toast";
+import { useErrorToast } from "../components/ui/toast-context";
 
 type Message = ChatMessage;
 
@@ -63,6 +62,8 @@ export default function Synthesis() {
   const { user } = useAuth();
   const isRPCLoaded = useRazorpay();
   const showError = useErrorToast();
+
+  const [birthData, setBirthData] = useState<any>(null);
 
   // Atman Integration
   const { isAnxious, isChaotic, isReactive, atmanState, refreshAtman } = useConsciousness();
@@ -129,7 +130,6 @@ export default function Synthesis() {
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
-  const [birthData, setBirthData] = useState<any>(null);
   const [kundaliData, setKundaliData] = useState<KundaliData | null>(null);
   const [isLoadingKundali, setIsLoadingKundali] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -164,12 +164,17 @@ export default function Synthesis() {
     }
   }, [user, currentChatId]);
 
-  const WELCOME_MESSAGE: Message = {
-    id: "welcome",
-    role: "assistant",
-    content: `Welcome ${user?.displayName}. I am your personal Jyotish, your guide to Vedic insights. What would you like to know today?`,
-    timestamp: new Date(),
-  };
+  const welcomeName =
+    profile?.name || user?.displayName || user?.email?.split("@")[0] || "";
+  const welcomeMessage = useMemo<Message>(
+    () => ({
+      id: "welcome",
+      role: "assistant",
+      content: `${welcomeName ? `Welcome ${welcomeName}.` : "Welcome."} I am your personal Jyotish, your guide to Vedic insights. What would you like to know today?`,
+      timestamp: new Date(),
+    }),
+    [welcomeName],
+  );
 
   // 1. Sync logged-in user data to local state
   useEffect(() => {
@@ -246,7 +251,7 @@ export default function Synthesis() {
       };
       fetchGuestKundali();
     }
-  }, [birthData, user, currentChartType]);
+  }, [birthData, user, currentChartType, showError]);
 
   // Sync hook data to local state when available (for logged-in users)
   useEffect(() => {
@@ -275,12 +280,12 @@ export default function Synthesis() {
     prevChatIdRef.current = currentChatId;
 
     if (!user) {
-      setMessages([WELCOME_MESSAGE]);
+      setMessages([welcomeMessage]);
       return;
     }
 
     if (!currentChatId) {
-      setMessages([WELCOME_MESSAGE]);
+      setMessages([welcomeMessage]);
       return;
     }
 
@@ -298,7 +303,7 @@ export default function Synthesis() {
       })) as Message[];
 
       // Always prepend welcome message so it appears at the start of conversation
-      setMessages([WELCOME_MESSAGE, ...msgs]);
+      setMessages([welcomeMessage, ...msgs]);
 
       // If a new assistant message arrived from Firestore, clear streaming overlay
       // This ensures seamless handoff: streaming bubble → persisted message
@@ -309,7 +314,7 @@ export default function Synthesis() {
     });
 
     return () => unsubscribe();
-  }, [user, currentChatId]);
+  }, [user, currentChatId, welcomeMessage]);
 
   // Update currentChatId when URL param changes
   useEffect(() => {
@@ -354,7 +359,11 @@ export default function Synthesis() {
       const resp = await fetch("/api/pay/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: price }),
+        body: JSON.stringify({
+          idToken: await user.getIdToken(),
+          minutes,
+          amount: price,
+        }),
       });
       const order = await resp.json();
 
@@ -370,13 +379,16 @@ export default function Synthesis() {
           const verifyResp = await fetch("/api/pay/verify", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...response, uid: user.uid, minutes }),
+            body: JSON.stringify({
+              ...response,
+              idToken: await user.getIdToken(),
+            }),
           });
           const verifyData = await verifyResp.json();
 
           if (verifyData.status === "success") {
             setCredits((prev) => prev + minutes);
-            trackEvent('first_payment', { amount: price });
+            trackAcquisitionEvent("first_payment", { amount: price });
             alert(`Successfully added ${minutes} minutes!`);
           }
         },
@@ -449,7 +461,7 @@ export default function Synthesis() {
         chatId = newChatRef.id;
         setCurrentChatId(chatId);
         navigate(`/synthesis/${chatId}`, { replace: true });
-        trackEvent('first_chat');
+        trackAcquisitionEvent("first_chat");
       }
 
       // Save user message to Firestore if logged in
@@ -477,6 +489,7 @@ export default function Synthesis() {
         .slice(-10)
         .map(m => ({ role: m.role, content: m.content }));
 
+      const idToken = user ? await user.getIdToken() : undefined;
       const response = await fetch("/api/synthesis", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -496,13 +509,18 @@ export default function Synthesis() {
             planets: y.planets
           })) : undefined,
           panchangData: panchangData || undefined,
+          idToken,
         }),
       });
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => "");
         let errorMsg = "The cosmos is momentarily unreachable.";
-        try { errorMsg = JSON.parse(errorText)?.error || errorMsg; } catch {}
+        try {
+          errorMsg = JSON.parse(errorText)?.error || errorMsg;
+        } catch {
+          errorMsg = errorText || errorMsg;
+        }
         throw new Error(errorMsg);
       }
 
@@ -557,15 +575,21 @@ export default function Synthesis() {
       const finalContent = metadata?.content || fullContent;
 
       // Deduct credit AFTER successful response
-      if (user && credits > 0) {
-        const userRef = doc(db, "users", user.uid);
-        updateDoc(userRef, { credits: increment(-1) }).catch(() => {});
-        setCredits((prev) => prev - 1);
-      }
-
-      // Process Atman Updates from AI
-      if (user && metadata?.atmanUpdate) {
-        AtmanService.processAnalysisResult(user.uid, metadata.atmanUpdate).catch(() => {});
+      if (user && idToken && credits > 0) {
+        const creditResp = await fetch("/api/credits/use", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken, source: "synthesis_chat" }),
+        });
+        const creditData = await creditResp.json().catch(() => ({}));
+        if (!creditResp.ok) {
+          throw new Error(creditData.error || "Credit deduction failed");
+        }
+        if (typeof creditData.balanceAfter === "number") {
+          setCredits(creditData.balanceAfter);
+        } else {
+          setCredits((prev) => prev - 1);
+        }
       }
 
       // Handle Routine Suggestion — delay to let the response settle visually
@@ -578,11 +602,6 @@ export default function Synthesis() {
         updateDoc(doc(db, "users", user.uid, "chats", chatId), {
           summary: metadata.conversationSummary,
         }).catch(() => {});
-      }
-
-      // P3: Save extracted advice to Atman
-      if (metadata?.extractedAdvice && user) {
-        AtmanService.saveAdvice(user.uid, metadata.extractedAdvice).catch(() => {});
       }
 
       // Store the new interaction ID for next turn
@@ -789,10 +808,20 @@ export default function Synthesis() {
                     </span>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 text-xs font-mono px-2 py-1 rounded-full border border-gold/30 text-gold bg-gold/5">
-                    <Sparkles size={10} />
-                    <span>{credits}m</span>
-                  </div>
+                  <>
+                    <button
+                      onClick={() => navigate("/reports")}
+                      className="flex items-center gap-1 text-xs px-2 py-1 rounded-full border border-white/10 text-white/45 hover:text-gold hover:border-gold/30 transition-colors"
+                      title="My reports"
+                    >
+                      <Download size={10} />
+                      Reports
+                    </button>
+                    <div className="flex items-center gap-2 text-xs font-mono px-2 py-1 rounded-full border border-gold/30 text-gold bg-gold/5">
+                      <Sparkles size={10} />
+                      <span>{credits}m</span>
+                    </div>
+                  </>
                 )}
               </div>
             </header>
@@ -1167,12 +1196,9 @@ export default function Synthesis() {
         <ChartShareModal
           isOpen={showShareModal}
           onClose={() => setShowShareModal(false)}
-          elementId="kundali-chart-container"
-          title="My Birth Chart"
-          description={`Sun in ${kundaliData?.planetary_positions?.find((p: any) => p.name === 'Sun')?.sign || 'Unknown'}`}
+          birthData={birthData}
         />
       </div>
     </>
   );
 }
-

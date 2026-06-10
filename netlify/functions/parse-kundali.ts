@@ -86,4 +86,4 @@ export default async (req: Request, _context: Context) => {
     }
 };
 
-export const config: Config = { path: "/.netlify/functions/parse-kundali" };
+export const config: Config = { path: "/api/parse-kundali" };

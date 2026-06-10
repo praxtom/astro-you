@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Sparkles, Heart, ArrowRight, Loader2, Lock } from "lucide-react";
 import LocationInput from "../components/LocationInput";
+import SEO from "../components/SEO";
+import { captureAcquisitionSource, trackAcquisitionEvent } from "../lib/acquisition";
 
 interface PersonForm {
   name: string;
@@ -33,24 +35,6 @@ export default function FreeMatching() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // SEO
-  useEffect(() => {
-    const prevTitle = document.title;
-    document.title = "Free Kundali Matching Online | Guna Milan Calculator — AstroYou";
-    let meta = document.querySelector('meta[name="description"]');
-    const prevDesc = meta?.getAttribute("content") || "";
-    if (meta) {
-      meta.setAttribute(
-        "content",
-        "Check Kundali matching and Guna Milan score for free. See compatibility score and Ashtakoot analysis — no signup required."
-      );
-    }
-    return () => {
-      document.title = prevTitle;
-      if (meta) meta.setAttribute("content", prevDesc);
-    };
-  }, []);
-
   const handleCheck = async () => {
     if (!person1.dob || !person1.pob || !person2.dob || !person2.pob) {
       setError("Please enter date of birth and place of birth for both persons.");
@@ -60,7 +44,7 @@ export default function FreeMatching() {
     setLoading(true);
 
     try {
-      const compatRes = await fetch("/.netlify/functions/compatibility", {
+      const compatRes = await fetch("/api/compatibility", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ maleData: person1, femaleData: person2 }),
@@ -79,10 +63,35 @@ export default function FreeMatching() {
       const maxScore = compatData.maxScore ?? 36;
 
       setResult({ overallScore, maxScore, gunas });
+      trackAcquisitionEvent("seo_tool_complete", {
+        tool: "free_kundali_matching",
+        score: overallScore,
+      });
     } catch {
       setError("Something went wrong. Please try again.");
     }
     setLoading(false);
+  };
+
+  const rememberSource = (target: string) => {
+    captureAcquisitionSource({
+      source: "free-kundali-matching",
+      medium: "seo_tool",
+      campaign: "free_tool_funnel",
+    });
+    trackAcquisitionEvent("seo_cta_click", {
+      tool: "free_kundali_matching",
+      target,
+    });
+  };
+
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name: "Free Kundali Matching",
+    applicationCategory: "LifestyleApplication",
+    url: "https://astroyou.app/free-kundali-matching",
+    offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
   };
 
   const PersonFormBlock = ({
@@ -142,6 +151,13 @@ export default function FreeMatching() {
 
   return (
     <div className="min-h-screen bg-[#030308] text-white">
+      <SEO
+        title="Free Kundali Matching Online | Guna Milan Calculator"
+        description="Check Kundali matching and Guna Milan score for free. See compatibility score and Ashtakoot analysis with no signup required."
+        url="https://astroyou.app/free-kundali-matching"
+        canonical="https://astroyou.app/free-kundali-matching"
+        structuredData={structuredData}
+      />
       {/* Cosmic background */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-1/4 left-1/3 w-[500px] h-[500px] bg-pink-500/5 rounded-full blur-[120px]" />
@@ -292,6 +308,7 @@ export default function FreeMatching() {
 
             <Link
               to="/onboarding"
+              onClick={() => rememberSource("/onboarding")}
               className="block w-full py-4 rounded-xl bg-gradient-to-r from-pink-500 to-amber-500 text-black font-semibold text-lg text-center hover:from-pink-400 hover:to-amber-400 transition-all"
             >
               <span className="flex items-center justify-center gap-2">
@@ -302,6 +319,22 @@ export default function FreeMatching() {
             <p className="text-center text-white/30 text-sm mt-3">
               Free account — unlock full compatibility report
             </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+              <Link
+                to="/synthesis"
+                onClick={() => rememberSource("/synthesis")}
+                className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm text-white/60 hover:border-gold/30 hover:text-gold"
+              >
+                Ask AI about this match
+              </Link>
+              <Link
+                to="/consult/meera-devi/profile"
+                onClick={() => rememberSource("/consult/meera-devi/profile")}
+                className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm text-white/60 hover:border-gold/30 hover:text-gold"
+              >
+                Talk to relationship guide
+              </Link>
+            </div>
 
             <button
               onClick={() => setResult(null)}

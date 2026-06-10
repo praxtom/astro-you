@@ -6,7 +6,27 @@ import {
     getDoc
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { UserLifeEvent, AtmanData, UserRoutine, KeyRelationship } from "../types/user";
+import {
+    ATMAN_SCHEMA_VERSION,
+    UserLifeEvent,
+    AtmanData,
+    UserRoutine,
+    KeyRelationship,
+} from "../types/user";
+import {
+    createInitialAtmanData,
+    normalizeAtmanData,
+    validateAdviceInput,
+    validateAtmanEmotionalState,
+    validateAtmanText,
+    validateLifeEventInput,
+    validateNudgeInput,
+    validatePatternText,
+    validateRelationshipInput,
+    validateRoutineInput,
+} from "./atman-schema";
+
+export { normalizeAtmanData } from "./atman-schema";
 
 /**
  * The "Atman" Service - Handles User Consciousness & Memory
@@ -29,12 +49,17 @@ export const AtmanService = {
      */
     async updateEmotionalState(userId: string, state: AtmanData['emotionalState']) {
         try {
+            const nextState = validateAtmanEmotionalState(state);
+            const updatedAt = Timestamp.now();
             const userRef = doc(db, "users", userId);
             await updateDoc(userRef, {
-                "atman.emotionalState": state,
-                "atman.lastEmotionalUpdate": Timestamp.now()
+                "atman.schemaVersion": ATMAN_SCHEMA_VERSION,
+                "atman.emotionalState": nextState,
+                "atman.lastEmotionalUpdate": updatedAt,
+                "atman.transient.emotionalState": nextState,
+                "atman.transient.lastEmotionalUpdate": updatedAt
             });
-            console.log(`[Atman] Updated emotional state to: ${state}`);
+            console.log(`[Atman] Updated emotional state to: ${nextState}`);
         } catch (error) {
             console.error("[Atman] Failed to update emotional state:", error);
         }
@@ -45,57 +70,50 @@ export const AtmanService = {
      */
     async addPattern(userId: string, patternText: string) {
         try {
+            const safePatternText = validatePatternText(patternText);
             const userRef = doc(db, "users", userId);
             const docSnap = await getDoc(userRef);
 
             if (docSnap.exists()) {
-                const atman = docSnap.data().atman as AtmanData;
+                const atman = normalizeAtmanData(docSnap.data().atman) || createInitialAtmanData();
                 const existingPatterns = atman.knownPatterns || [];
 
                 const existingIndex = existingPatterns.findIndex(p =>
-                    typeof p === 'string' ? p === patternText : p.pattern === patternText
+                    p.pattern === safePatternText
                 );
 
                 if (existingIndex > -1) {
-                    // Update existing
                     const p = existingPatterns[existingIndex];
                     const updatedPatterns = [...existingPatterns];
 
-                    if (typeof p === 'string') {
-                        // Migrate legacy string pattern
-                        updatedPatterns[existingIndex] = {
-                            id: Math.random().toString(36).substring(7),
-                            pattern: p,
-                            frequency: 2,
-                            weightScore: 1.0,
-                            lastMentioned: new Date(),
-                            verified: false
-                        };
-                    } else {
-                        updatedPatterns[existingIndex] = {
-                            ...p,
-                            frequency: p.frequency + 1,
-                            lastMentioned: new Date(),
-                            // Weight increases with frequency but caps or scales
-                            weightScore: Math.min(5.0, p.weightScore + 0.5)
-                        };
-                    }
-                    await updateDoc(userRef, { "atman.knownPatterns": updatedPatterns });
+                    updatedPatterns[existingIndex] = {
+                        ...p,
+                        frequency: p.frequency + 1,
+                        lastMentioned: new Date(),
+                        weightScore: Math.min(5.0, p.weightScore + 0.5)
+                    };
+                    await updateDoc(userRef, {
+                        "atman.schemaVersion": ATMAN_SCHEMA_VERSION,
+                        "atman.knownPatterns": updatedPatterns,
+                        "atman.memory.knownPatterns": updatedPatterns
+                    });
                 } else {
-                    // Create new
                     const newPattern = {
                         id: Math.random().toString(36).substring(7),
-                        pattern: patternText,
+                        pattern: safePatternText,
                         frequency: 1,
                         weightScore: 1.0,
                         lastMentioned: new Date(),
                         verified: false
                     };
+                    const updatedPatterns = [...existingPatterns, newPattern];
                     await updateDoc(userRef, {
-                        "atman.knownPatterns": arrayUnion(newPattern)
+                        "atman.schemaVersion": ATMAN_SCHEMA_VERSION,
+                        "atman.knownPatterns": updatedPatterns,
+                        "atman.memory.knownPatterns": updatedPatterns
                     });
                 }
-                console.log(`[Atman] Updated pattern weight: ${patternText}`);
+                console.log(`[Atman] Updated pattern weight: ${safePatternText}`);
             }
         } catch (error) {
             console.error("[Atman] Failed to add pattern:", error);
@@ -111,14 +129,18 @@ export const AtmanService = {
             const docSnap = await getDoc(userRef);
 
             if (docSnap.exists()) {
-                const atman = docSnap.data().atman as AtmanData;
+                const atman = normalizeAtmanData(docSnap.data().atman) || createInitialAtmanData();
                 const updatedPatterns = (atman.knownPatterns || []).map(p => {
-                    if (typeof p !== 'string' && p.id === patternId) {
-                        return { ...p, verified: true, weightScore: 5.0 }; // Max weight for verified
+                    if (p.id === patternId) {
+                        return { ...p, verified: true, archived: false, weightScore: 5.0 }; // Max weight for verified
                     }
                     return p;
                 });
-                await updateDoc(userRef, { "atman.knownPatterns": updatedPatterns });
+                await updateDoc(userRef, {
+                    "atman.schemaVersion": ATMAN_SCHEMA_VERSION,
+                    "atman.knownPatterns": updatedPatterns,
+                    "atman.memory.knownPatterns": updatedPatterns
+                });
             }
         } catch (error) {
             console.error("[Atman] Failed to verify pattern:", error);
@@ -134,12 +156,13 @@ export const AtmanService = {
             const docSnap = await getDoc(userRef);
 
             if (docSnap.exists()) {
-                const atman = docSnap.data().atman as AtmanData;
-                const updatedPatterns = (atman.knownPatterns || []).filter(p => {
-                    if (typeof p === 'string') return true; // Keep legacy for manual cleanup or migration
-                    return p.id !== patternId;
+                const atman = normalizeAtmanData(docSnap.data().atman) || createInitialAtmanData();
+                const updatedPatterns = (atman.knownPatterns || []).filter(p => p.id !== patternId);
+                await updateDoc(userRef, {
+                    "atman.schemaVersion": ATMAN_SCHEMA_VERSION,
+                    "atman.knownPatterns": updatedPatterns,
+                    "atman.memory.knownPatterns": updatedPatterns
                 });
-                await updateDoc(userRef, { "atman.knownPatterns": updatedPatterns });
             }
         } catch (error) {
             console.error("[Atman] Failed to dismiss pattern:", error);
@@ -152,17 +175,49 @@ export const AtmanService = {
     async addLifeEvent(userId: string, event: Omit<UserLifeEvent, 'id'>) {
         try {
             const userRef = doc(db, "users", userId);
+            const safeEvent = validateLifeEventInput(event);
             const newEvent: UserLifeEvent = {
-                ...event,
+                ...safeEvent,
                 id: Math.random().toString(36).substring(7),
             };
 
             await updateDoc(userRef, {
-                "atman.activeEvents": arrayUnion(newEvent)
+                "atman.schemaVersion": ATMAN_SCHEMA_VERSION,
+                "atman.activeEvents": arrayUnion(newEvent),
+                "atman.lifeEvents": arrayUnion(newEvent),
+                "atman.memory.lifeEvents": arrayUnion(newEvent)
             });
-            console.log(`[Atman] Added life event: ${event.title}`);
+            console.log(`[Atman] Added life event: ${safeEvent.title}`);
         } catch (error) {
             console.error("[Atman] Failed to add life event:", error);
+        }
+    },
+
+    async updateLifeEventStatus(userId: string, eventId: string, status: UserLifeEvent['status']) {
+        try {
+            const safeStatus = validateLifeEventInput({
+                title: "status check",
+                category: "spiritual",
+                status,
+                confidence: 1,
+            }).status;
+            const userRef = doc(db, "users", userId);
+            const docSnap = await getDoc(userRef);
+            if (!docSnap.exists()) return;
+
+            const atman = normalizeAtmanData(docSnap.data().atman) || createInitialAtmanData();
+            const updatedEvents = atman.activeEvents.map((event) =>
+                event.id === eventId ? { ...event, status: safeStatus } : event,
+            );
+
+            await updateDoc(userRef, {
+                "atman.schemaVersion": ATMAN_SCHEMA_VERSION,
+                "atman.activeEvents": updatedEvents,
+                "atman.lifeEvents": updatedEvents,
+                "atman.memory.lifeEvents": updatedEvents
+            });
+        } catch (error) {
+            console.error("[Atman] Failed to update life event:", error);
         }
     },
 
@@ -172,15 +227,18 @@ export const AtmanService = {
     async addRelationship(userId: string, relationship: Omit<KeyRelationship, 'id'>) {
         try {
             const userRef = doc(db, "users", userId);
+            const safeRelationship = validateRelationshipInput(relationship);
             const newRel = {
-                ...relationship,
+                ...safeRelationship,
                 id: Math.random().toString(36).substring(7)
             };
 
             await updateDoc(userRef, {
-                "atman.keyRelationships": arrayUnion(newRel)
+                "atman.schemaVersion": ATMAN_SCHEMA_VERSION,
+                "atman.keyRelationships": arrayUnion(newRel),
+                "atman.memory.keyRelationships": arrayUnion(newRel)
             });
-            console.log(`[Atman] Added relationship: ${relationship.name}`);
+            console.log(`[Atman] Added relationship: ${safeRelationship.name}`);
             return newRel;
         } catch (error) {
             console.error("[Atman] Failed to add relationship:", error);
@@ -197,14 +255,21 @@ export const AtmanService = {
             const docSnap = await getDoc(userRef);
 
             if (docSnap.exists()) {
-                const atman = docSnap.data().atman as AtmanData;
+                const atman = normalizeAtmanData(docSnap.data().atman) || createInitialAtmanData();
                 const updatedRels = (atman.keyRelationships || []).map(r => {
                     if (r.id === relId) {
-                        return { ...r, ...updates };
+                        return {
+                            ...validateRelationshipInput({ ...r, ...updates }),
+                            id: r.id
+                        };
                     }
                     return r;
                 });
-                await updateDoc(userRef, { "atman.keyRelationships": updatedRels });
+                await updateDoc(userRef, {
+                    "atman.schemaVersion": ATMAN_SCHEMA_VERSION,
+                    "atman.keyRelationships": updatedRels,
+                    "atman.memory.keyRelationships": updatedRels
+                });
                 console.log(`[Atman] Updated relationship: ${relId}`);
             }
         } catch (error) {
@@ -221,9 +286,13 @@ export const AtmanService = {
             const docSnap = await getDoc(userRef);
 
             if (docSnap.exists()) {
-                const atman = docSnap.data().atman as AtmanData;
+                const atman = normalizeAtmanData(docSnap.data().atman) || createInitialAtmanData();
                 const updatedRels = (atman.keyRelationships || []).filter(r => r.id !== relId);
-                await updateDoc(userRef, { "atman.keyRelationships": updatedRels });
+                await updateDoc(userRef, {
+                    "atman.schemaVersion": ATMAN_SCHEMA_VERSION,
+                    "atman.keyRelationships": updatedRels,
+                    "atman.memory.keyRelationships": updatedRels
+                });
                 console.log(`[Atman] Deleted relationship: ${relId}`);
             }
         } catch (error) {
@@ -237,8 +306,9 @@ export const AtmanService = {
     async addRoutine(userId: string, routine: Omit<UserRoutine, 'id' | 'createdAt' | 'streak' | 'status'>) {
         try {
             const userRef = doc(db, "users", userId);
+            const safeRoutine = validateRoutineInput(routine);
             const newRoutine: UserRoutine = {
-                ...routine,
+                ...safeRoutine,
                 id: Math.random().toString(36).substring(7),
                 createdAt: new Date(),
                 status: 'active',
@@ -246,9 +316,11 @@ export const AtmanService = {
             };
 
             await updateDoc(userRef, {
-                "atman.routines": arrayUnion(newRoutine)
+                "atman.schemaVersion": ATMAN_SCHEMA_VERSION,
+                "atman.routines": arrayUnion(newRoutine),
+                "atman.memory.routines": arrayUnion(newRoutine)
             });
-            console.log(`[Atman] Added routine: ${routine.title}`);
+            console.log(`[Atman] Added routine: ${safeRoutine.title}`);
             return newRoutine;
         } catch (error) {
             console.error("[Atman] Failed to add routine:", error);
@@ -265,7 +337,7 @@ export const AtmanService = {
             const docSnap = await getDoc(userRef);
 
             if (docSnap.exists()) {
-                const atman = docSnap.data().atman as AtmanData;
+                const atman = normalizeAtmanData(docSnap.data().atman) || createInitialAtmanData();
                 if (!atman.routines) return;
 
                 const updatedRoutines = atman.routines.map(r => {
@@ -279,7 +351,11 @@ export const AtmanService = {
                     return r;
                 });
 
-                await updateDoc(userRef, { "atman.routines": updatedRoutines });
+                await updateDoc(userRef, {
+                    "atman.schemaVersion": ATMAN_SCHEMA_VERSION,
+                    "atman.routines": updatedRoutines,
+                    "atman.memory.routines": updatedRoutines
+                });
                 console.log(`[Atman] Completed routine: ${routineId}`);
             }
         } catch (error) {
@@ -298,20 +374,26 @@ export const AtmanService = {
 
             // 1. Update Emotional State if changed
             if (result.emotionalState) {
-                updates["atman.emotionalState"] = result.emotionalState;
-                updates["atman.lastEmotionalUpdate"] = Timestamp.now();
+                const emotionalState = validateAtmanEmotionalState(result.emotionalState);
+                const updatedAt = Timestamp.now();
+                updates["atman.schemaVersion"] = ATMAN_SCHEMA_VERSION;
+                updates["atman.emotionalState"] = emotionalState;
+                updates["atman.lastEmotionalUpdate"] = updatedAt;
+                updates["atman.transient.emotionalState"] = emotionalState;
+                updates["atman.transient.lastEmotionalUpdate"] = updatedAt;
 
                 // Track Emotional History for Trend Analysis
                 const userRef = doc(db, "users", userId);
                 const docSnap = await getDoc(userRef);
                 if (docSnap.exists()) {
-                    const atman = docSnap.data().atman as AtmanData;
+                    const atman = normalizeAtmanData(docSnap.data().atman) || createInitialAtmanData();
                     const history = atman.emotionalHistory || [];
-                    const newEntry = { state: result.emotionalState, date: new Date() };
+                    const newEntry = { state: emotionalState, date: new Date() };
 
                     // Keep last 30 entries
                     const updatedHistory = [...history, newEntry].slice(-30);
                     updates["atman.emotionalHistory"] = updatedHistory;
+                    updates["atman.transient.emotionalHistory"] = updatedHistory;
                 }
             }
 
@@ -326,14 +408,18 @@ export const AtmanService = {
             // 3. Add New Events
             if (result.newEvents && result.newEvents.length > 0) {
                 const eventsToAdd = result.newEvents.map((e: any) => ({
+                    ...validateLifeEventInput({
+                        title: e.title,
+                        category: e.category,
+                        date: new Date(),
+                        status: 'pending',
+                        confidence: 0.8
+                    }),
                     id: Math.random().toString(36).substring(7),
-                    title: e.title,
-                    category: e.category,
-                    date: new Date(),
-                    status: 'active',
-                    confidence: 0.8
                 }));
                 updates["atman.activeEvents"] = arrayUnion(...eventsToAdd);
+                updates["atman.lifeEvents"] = arrayUnion(...eventsToAdd);
+                updates["atman.memory.lifeEvents"] = arrayUnion(...eventsToAdd);
             }
 
             // 4. Handle Contradictions
@@ -372,14 +458,14 @@ export const AtmanService = {
             const docSnap = await getDoc(userRef);
 
             if (docSnap.exists()) {
-                const atman = docSnap.data().atman as AtmanData;
+                const atman = normalizeAtmanData(docSnap.data().atman) || createInitialAtmanData();
                 if (!atman.knownPatterns) return;
 
                 const now = new Date();
                 let hasChanges = false;
 
                 const updatedPatterns = atman.knownPatterns.map(p => {
-                    if (typeof p === 'string' || p.verified) return p;
+                    if (p.verified) return p;
 
                     const daysSinceLast = (now.getTime() - new Date(p.lastMentioned).getTime()) / (1000 * 60 * 60 * 24);
 
@@ -395,7 +481,11 @@ export const AtmanService = {
                 });
 
                 if (hasChanges) {
-                    await updateDoc(userRef, { "atman.knownPatterns": updatedPatterns });
+                    await updateDoc(userRef, {
+                        "atman.schemaVersion": ATMAN_SCHEMA_VERSION,
+                        "atman.knownPatterns": updatedPatterns,
+                        "atman.memory.knownPatterns": updatedPatterns
+                    });
                     console.log("[Atman] Applied weight decay to patterns.");
                 }
             }
@@ -411,9 +501,11 @@ export const AtmanService = {
         try {
             const userRef = doc(db, "users", userId);
             const today = new Date().toISOString().split('T')[0];
+            const safeIntention = validateAtmanText(intention, "dailyIntention", 240);
 
             await updateDoc(userRef, {
-                "atman.dailyIntention": intention,
+                "atman.schemaVersion": ATMAN_SCHEMA_VERSION,
+                "atman.dailyIntention": safeIntention,
                 "atman.dailyIntentionDate": today
             });
         } catch (error) {
@@ -428,9 +520,11 @@ export const AtmanService = {
         try {
             const userRef = doc(db, "users", userId);
             const today = new Date().toISOString().split('T')[0];
+            const safeGratitude = validateAtmanText(gratitude, "dailyGratitude", 240);
 
             await updateDoc(userRef, {
-                "atman.dailyGratitude": gratitude,
+                "atman.schemaVersion": ATMAN_SCHEMA_VERSION,
+                "atman.dailyGratitude": safeGratitude,
                 "atman.dailyGratitudeDate": today
             });
         } catch (error) {
@@ -447,18 +541,22 @@ export const AtmanService = {
             const docSnap = await getDoc(userRef);
             if (!docSnap.exists()) return;
 
-            const atman = docSnap.data().atman;
+            const safeAdvice = validateAdviceInput(advice);
+            const atman = normalizeAtmanData(docSnap.data().atman) || createInitialAtmanData();
             const history = atman?.adviceHistory || [];
 
             const updated = [
                 ...history.slice(-19),
-                { ...advice, date: new Date().toISOString(), followedUp: false }
+                { ...safeAdvice, date: new Date().toISOString(), followedUp: false }
             ];
 
             await updateDoc(userRef, {
-                "atman.adviceHistory": updated
+                "atman.schemaVersion": ATMAN_SCHEMA_VERSION,
+                "atman.adviceHistory": updated,
+                "atman.savedAdvice": updated,
+                "atman.memory.savedAdvice": updated
             });
-            console.log(`[Atman] Saved advice: ${advice.advice.substring(0, 50)}...`);
+            console.log(`[Atman] Saved advice: ${safeAdvice.advice.substring(0, 50)}...`);
         } catch (error) {
             console.error("[Atman] Failed to save advice:", error);
         }
@@ -473,17 +571,20 @@ export const AtmanService = {
             const docSnap = await getDoc(userRef);
             if (!docSnap.exists()) return;
 
-            const atman = docSnap.data().atman;
+            const safeNudge = validateNudgeInput(nudge);
+            const atman = normalizeAtmanData(docSnap.data().atman) || createInitialAtmanData();
             const history = atman?.nudgeHistory || [];
 
             // Keep last 20 nudges
             const updated = [
                 ...history.slice(-19),
-                { ...nudge, date: new Date().toISOString() }
+                { ...safeNudge, date: new Date().toISOString() }
             ];
 
             await updateDoc(userRef, {
-                "atman.nudgeHistory": updated
+                "atman.schemaVersion": ATMAN_SCHEMA_VERSION,
+                "atman.nudgeHistory": updated,
+                "atman.memory.nudgeHistory": updated
             });
         } catch (error) {
             console.error("[Atman] Failed to save nudge:", error);
@@ -498,22 +599,22 @@ export const AtmanService = {
             const userRef = doc(db, "users", userId);
             const docSnap = await getDoc(userRef);
 
-            if (docSnap.exists() && !docSnap.data().atman) {
-                const initialAtman: AtmanData = {
-                    emotionalState: 'stable',
-                    lastEmotionalUpdate: new Date(),
-                    knownPatterns: [],
-                    activeEvents: [],
-                    meditationStreak: 0,
-                    mantraAffinity: [],
-                    preferredPractice: 'breathwork',
-                    keyRelationships: []
-                };
+            if (!docSnap.exists()) return;
 
+            const existingAtman = docSnap.data().atman as AtmanData | undefined;
+            if (!existingAtman) {
                 await updateDoc(userRef, {
-                    atman: initialAtman
+                    atman: createInitialAtmanData()
                 });
                 console.log("[Atman] Initialized consciousness for user.");
+                return;
+            }
+
+            if (existingAtman.schemaVersion !== ATMAN_SCHEMA_VERSION) {
+                await updateDoc(userRef, {
+                    atman: normalizeAtmanData(existingAtman)
+                });
+                console.log("[Atman] Migrated consciousness schema.");
             }
         } catch (error) {
             console.error("[Atman] Initialization failed:", error);

@@ -5,8 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "test": "pnpm run test:types && pnpm run test:functions",
+    "test:types": "tsc -p tsconfig.app.json --noEmit",
+    "test:functions": "rm -rf node_modules/.tmp/functions-tests && tsc -p tsconfig.functions-test.json && node scripts/run-function-tests.mjs",
+    "build": "tsc -b && vite build && node scripts/prerender-seo-pages.mjs",
     "lint": "eslint .",
+    "check:launch": "node scripts/check-launch-readiness.mjs",
+    "check:services": "node scripts/verify-live-services.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

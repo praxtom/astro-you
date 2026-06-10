@@ -122,24 +122,24 @@ export default function TransitOracle() {
         </div>
       </header>
 
-      <main className="container mx-auto pt-32 pb-20 relative z-10">
+      <main className="container mx-auto px-4 md:px-6 pt-20 pb-8 relative z-10">
         {/* Title Section */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-8">
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-4 gap-4">
           <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-[0.2em] mb-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-[0.2em] mb-2">
               <Clock size={12} /> Live Planetary Movements
             </div>
-            <h1 className="text-5xl md:text-6xl font-display tracking-tight mb-6">
+            <h1 className="text-4xl md:text-5xl font-display tracking-tight mb-3">
               Transit <span className="text-gold">Oracle</span>
             </h1>
-            <p className="text-lg text-white/60 leading-relaxed font-light font-sans max-w-xl">
+            <p className="text-base text-white/60 leading-relaxed font-light font-sans max-w-xl">
               Observe the dance of the cosmos as planets move through your birth
               houses in real-time. Understand the current celestial energies
               shaping your path.
             </p>
           </div>
 
-          <div className="glass p-6 rounded-3xl border border-white/10 flex flex-col gap-2 min-w-[240px]">
+          <div className="glass p-4 rounded-2xl border border-white/10 flex flex-col gap-1.5 min-w-[220px]">
             <div className="flex items-center gap-2 text-gold">
               <CalendarIcon size={16} />
               <span className="text-[10px] uppercase font-black tracking-widest">
@@ -149,17 +149,17 @@ export default function TransitOracle() {
             <div className="text-lg font-display tracking-wide">
               {formattedDate}
             </div>
-            <div className="mt-2 text-[10px] text-white/30 uppercase tracking-[0.2em]">
+            <div className="mt-1 text-[10px] text-white/30 uppercase tracking-[0.2em]">
               Updates Automatically
             </div>
           </div>
         </div>
 
         {/* View Mode Toggle */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-2 mb-4">
           <button
             onClick={() => setViewMode('visual')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest border transition-all duration-300 ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border transition-all duration-300 ${
               viewMode === 'visual'
                 ? 'bg-gold/10 border-gold/50 text-gold'
                 : 'bg-white/5 border-white/10 text-white/40 hover:text-white/60 hover:border-white/20'
@@ -170,7 +170,7 @@ export default function TransitOracle() {
           </button>
           <button
             onClick={() => setViewMode('table')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest border transition-all duration-300 ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border transition-all duration-300 ${
               viewMode === 'table'
                 ? 'bg-gold/10 border-gold/50 text-gold'
                 : 'bg-white/5 border-white/10 text-white/40 hover:text-white/60 hover:border-white/20'
@@ -186,21 +186,21 @@ export default function TransitOracle() {
           <TransitPositionsTable data={data} />
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-10 gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-10 gap-4 items-start">
           {/* Left Column: Visual Chart or Data Table */}
-          <div className="lg:col-span-5 space-y-8">
+          <div className="lg:col-span-5 space-y-4">
             {viewMode === 'table' ? (
               /* ── Full Data Table View ── */
-              <div className="glass rounded-2xl p-6 overflow-x-auto border border-white/10">
+              <div className="glass rounded-2xl p-4 overflow-x-auto border border-white/10">
                 <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gold/60 mb-5">
                   Planetary Positions
                 </h3>
                 {loading ? (
-                  <div className="flex items-center justify-center py-16">
+                  <div className="flex items-center justify-center py-6">
                     <Compass className="animate-spin-slow text-gold opacity-20" size={48} />
                   </div>
                 ) : error ? (
-                  <div className="text-center py-12">
+                  <div className="text-center py-6">
                     <Info className="mx-auto mb-4 text-red-400" size={32} />
                     <p className="text-red-400 text-sm">{error}</p>
                   </div>
@@ -208,7 +208,7 @@ export default function TransitOracle() {
                   const positions = extractPositions(data);
                   if (positions.length === 0) {
                     return (
-                      <p className="text-white/40 text-sm text-center py-8">
+                      <p className="text-white/40 text-sm text-center py-6">
                         No transit position data available.
                       </p>
                     );
@@ -262,13 +262,13 @@ export default function TransitOracle() {
               </div>
             ) : (
               /* ── Visual Chart View (original) ── */
-              <div className="glass rounded-[3rem] border border-white/10 p-2 relative overflow-hidden group">
+              <div className="glass rounded-[2rem] border border-white/10 p-2 relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
                   <Compass size={100} className="text-white" />
                 </div>
 
                 <div className="relative z-10">
-                  <div className="flex items-center ml-8 mt-8 justify-between">
+                  <div className="flex items-center ml-4 mt-4 justify-between">
                     <div>
                       <h3 className="text-sm font-black tracking-[0.3em] text-white/60 mb-1">
                         Spatial Distribution
@@ -288,8 +288,8 @@ export default function TransitOracle() {
                         />
                       </div>
                     ) : error ? (
-                      <div className="aspect-square flex items-center justify-center text-center p-12">
-                        <div className="p-8 rounded-3xl bg-red-500/5 border border-red-500/20">
+                      <div className="aspect-square flex items-center justify-center text-center p-6">
+                        <div className="p-5 rounded-2xl bg-red-500/5 border border-red-500/20">
                           <Info className="mx-auto mb-4 text-red-400" size={32} />
                           <p className="text-red-400 text-sm">{error}</p>
                         </div>
@@ -303,8 +303,8 @@ export default function TransitOracle() {
             )}
 
             {/* Educational Section */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="glass p-6 rounded-3xl border border-white/5 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="glass p-4 rounded-2xl border border-white/5 space-y-2">
                 <h4 className="text-sm font-black uppercase tracking-widest text-white/80">
                   House Transits
                 </h4>
@@ -313,7 +313,7 @@ export default function TransitOracle() {
                   life—from identity in the 1st to career in the 10th.
                 </p>
               </div>
-              <div className="glass p-6 rounded-3xl border border-white/5 space-y-4">
+              <div className="glass p-4 rounded-2xl border border-white/5 space-y-2">
                 <h4 className="text-sm font-black uppercase tracking-widest text-white/80">
                   Aspect Geometry
                 </h4>
@@ -326,14 +326,14 @@ export default function TransitOracle() {
           </div>
 
           {/* Right Column: Interpretation */}
-          <div className="lg:col-span-5 space-y-8">
+          <div className="lg:col-span-5 space-y-4">
             {/* Gemini Summary Section */}
             <div className="flex flex-col gap-4">
               <h3 className="text-sm font-black uppercase tracking-[0.3em] text-gold/60 mb-2 px-2 flex items-center gap-2">
                 <Sparkles size={14} className="text-gold" /> Cosmic Summary
               </h3>
 
-              <div className="glass p-6 rounded-[2.5rem] border border-gold/20 bg-gold/5 relative overflow-hidden group">
+              <div className="glass p-4 rounded-2xl border border-gold/20 bg-gold/5 relative overflow-hidden group">
                 {/* Background Decoration */}
                 <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
                   <Sparkles size={60} className="text-gold" />

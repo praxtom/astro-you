@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../lib/AuthContext';
+import { useAuth } from '../lib/useAuth';
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { UserProfile } from '../types/user';
-import { AtmanService } from '../lib/atman';
+import { AtmanService, normalizeAtmanData } from '../lib/atman';
 
 export function useConsciousness() {
     const { user } = useAuth();
@@ -19,14 +19,12 @@ export function useConsciousness() {
 
         // Initialize Atman if missing
         AtmanService.initializeAtman(user.uid);
-        // Apply weight decay periodically
-        AtmanService.calculatePatternDecay(user.uid);
 
         // Real-time listener for consciousness updates
         const unsub = onSnapshot(doc(db, "users", user.uid), (doc) => {
             if (doc.exists()) {
                 const userData = doc.data() as UserProfile;
-                setAtmanState(userData.atman || undefined);
+                setAtmanState(normalizeAtmanData(userData.atman) || undefined);
             }
             setLoading(false);
         });
@@ -41,7 +39,7 @@ export function useConsciousness() {
             const docSnap = await getDoc(doc(db, "users", user.uid));
             if (docSnap.exists()) {
                 const userData = docSnap.data() as UserProfile;
-                setAtmanState(userData.atman || undefined);
+                setAtmanState(normalizeAtmanData(userData.atman) || undefined);
             }
         } catch (error) {
             console.error('[useConsciousness] Failed to refresh:', error);
@@ -58,4 +56,3 @@ export function useConsciousness() {
         activeEvents: atmanState?.activeEvents || []
     };
 }
-

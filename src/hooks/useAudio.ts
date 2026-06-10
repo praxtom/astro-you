@@ -55,6 +55,9 @@ export function useAudio(initialSound: SoundType = 'silence', options: UseAudioO
     const isPlayingRef = useRef(isPlaying);
     useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
 
+    const volumeRef = useRef(volume);
+    useEffect(() => { volumeRef.current = volume; }, [volume]);
+
     const autoPlayRef = useRef(autoPlay);
     useEffect(() => { autoPlayRef.current = autoPlay; }, [autoPlay]);
 
@@ -91,7 +94,7 @@ export function useAudio(initialSound: SoundType = 'silence', options: UseAudioO
         // Create new audio element
         const audio = new Audio(url);
         audio.loop = loop;
-        audio.volume = volume;
+        audio.volume = volumeRef.current;
         audio.crossOrigin = 'anonymous';
 
         audio.oncanplaythrough = () => {

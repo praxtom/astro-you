@@ -65,6 +65,8 @@
  *   POST /pdf/horoscope/weekly                  → getWeeklyHoroscopePDF()
  */
 
+import { resolveAstrologyApiKey } from "./env.js";
+
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 
 export interface BirthData {
@@ -118,7 +120,7 @@ export interface TransitData {
 const API_BASE = "https://api.astrology-api.io/api/v3";
 
 function getApiKey(): string | undefined {
-  return process.env.ASTROYOU_API_KEY || process.env.ASTROLOGY_API_KEY;
+  return resolveAstrologyApiKey();
 }
 
 function getHeaders(): Record<string, string> {

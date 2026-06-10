@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useAuth } from "../lib/AuthContext";
+import { useAuth } from "../lib/useAuth";
 import { NatalTransitData } from "../types/kundali";
 import { STORAGE_KEYS } from "../lib/constants";
 
@@ -37,7 +37,7 @@ export function useTransit(transitDate?: string) {
             try {
                 setState(prev => ({ ...prev, loading: true, error: null }));
 
-                const response = await fetch("/.netlify/functions/transit", {
+                const response = await fetch("/api/transit", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({

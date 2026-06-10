@@ -1,6 +1,6 @@
 import { Config, Context } from "@netlify/functions";
 import Razorpay from "razorpay";
-import { db, auth } from "./shared/firebase-admin";
+import { auth, db } from "./shared/firebase-admin";
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID || "",
@@ -12,15 +12,18 @@ export default async (req: Request, _context: Context) => {
     return new Response("Method Not Allowed", { status: 405 });
 
   try {
-    const { uid } = await req.json();
-    if (!uid)
-      return new Response(JSON.stringify({ error: "Missing uid" }), {
-        status: 400,
+    const { idToken } = await req.json();
+    if (!idToken)
+      return new Response(JSON.stringify({ error: "Missing auth token" }), {
+        status: 401,
         headers: { "Content-Type": "application/json" },
       });
 
+    const decoded = await auth.verifyIdToken(idToken);
+    const uid = decoded.uid;
     const userDoc = await db.collection("users").doc(uid).get();
-    const subId = userDoc.data()?.subscription?.razorpaySubscriptionId;
+    const subscription = userDoc.data()?.subscription || {};
+    const subId = subscription.razorpaySubscriptionId || subscription.razorpaySubId;
 
     if (!subId) {
       return new Response(JSON.stringify({ error: "No active subscription" }), {
@@ -37,15 +40,25 @@ export default async (req: Request, _context: Context) => {
       .doc(uid)
       .set(
         {
-          subscription: { status: "cancelling", cancelRequestedAt: new Date() },
+          subscription: {
+            status: "cancelling",
+            cancelRequestedAt: new Date(),
+            cancelAtPeriodEnd: true,
+          },
         },
         { merge: true },
       );
 
-    return new Response(JSON.stringify({ success: true }), {
+    return new Response(
+      JSON.stringify({
+        success: true,
+        currentEnd: subscription.currentEnd || null,
+      }),
+      {
       status: 200,
       headers: { "Content-Type": "application/json" },
-    });
+      },
+    );
   } catch (err: any) {
     console.error("[Subscription Cancel] Error:", err);
     return new Response(JSON.stringify({ error: err.message }), {

@@ -1,5 +1,5 @@
 import { Config, Context } from "@netlify/functions";
-import { BirthData, getTransitChart, getTransitReport } from "./shared/astro-api";
+import { getTransitChart, getTransitReport } from "./shared/astro-api";
 import { generateTransitSummary, UserContext } from "./shared/gemini";
 import { getCachedOrFetch } from "./shared/cache";
 
@@ -71,4 +71,4 @@ export default async (req: Request, _context: Context) => {
     }
 };
 
-export const config: Config = { path: "/.netlify/functions/transit" };
+export const config: Config = { path: "/api/transit" };

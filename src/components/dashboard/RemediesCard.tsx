@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Gem, Loader2, Moon, Flame, HandHeart, Plus, Check } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useRemedies, type Remedy } from '../../hooks/useRemedies';
-import { useAuth } from '../../lib/AuthContext';
+import { useAuth } from '../../lib/useAuth';
 import { AtmanService } from '../../lib/atman';
-import { useToast } from '../ui/Toast';
+import { useToast } from '../ui/toast-context';
 import type { BirthData } from '../../types';
 
 interface RemediesCardProps {
@@ -18,8 +19,8 @@ const categoryConfig: Record<string, { icon: React.ReactNode; color: string }> =
     Donation:  { icon: <HandHeart size={14} />,  color: 'bg-rose-500/20 text-rose-300' },
 };
 
-const REMEDY_ROUTINE_MAP: Record<string, { type: 'morning' | 'evening' | 'meditation' | 'exercise'; durationMinutes: number }> = {
-    Mantra:   { type: 'meditation', durationMinutes: 10 },
+const REMEDY_ROUTINE_MAP: Record<string, { type: 'morning' | 'evening' | 'habit'; durationMinutes: number }> = {
+    Mantra:   { type: 'habit',      durationMinutes: 10 },
     Fast:     { type: 'morning',    durationMinutes: 0  },
     Ritual:   { type: 'evening',    durationMinutes: 15 },
     Donation: { type: 'morning',    durationMinutes: 5  },
@@ -45,11 +46,12 @@ interface RemedyItemProps {
     remedy: Remedy;
     onAddRoutine: (remedy: Remedy) => void;
     addedRoutines: Set<string>;
+    canAddRoutine: boolean;
 }
 
-function RemedyItem({ remedy, onAddRoutine, addedRoutines }: RemedyItemProps) {
+function RemedyItem({ remedy, onAddRoutine, addedRoutines, canAddRoutine }: RemedyItemProps) {
     const style = getCategoryStyle(remedy.category);
-    const showButton = canBeRoutine(remedy.category);
+    const showButton = canAddRoutine && canBeRoutine(remedy.category);
     const isAdded = addedRoutines.has(remedy.name);
 
     return (
@@ -83,6 +85,24 @@ function RemedyItem({ remedy, onAddRoutine, addedRoutines }: RemedyItemProps) {
     );
 }
 
+const foundationalRemedies: Remedy[] = [
+    {
+        category: 'Mantra',
+        name: 'One focused mantra cycle',
+        detail: 'Choose one short mantra and repeat it with steady breath for ten minutes.',
+    },
+    {
+        category: 'Ritual',
+        name: 'Evening light practice',
+        detail: 'Light a diya or candle, sit quietly, and name one action you will release today.',
+    },
+    {
+        category: 'Donation',
+        name: 'Small act of seva',
+        detail: 'Offer food, time, or help without expecting anything back.',
+    },
+];
+
 export const RemediesCard: React.FC<RemediesCardProps> = ({ birthData }) => {
     const { remedies, loading, error } = useRemedies(birthData);
     const { user } = useAuth();
@@ -96,6 +116,8 @@ export const RemediesCard: React.FC<RemediesCardProps> = ({ birthData }) => {
         : []
     );
     const displayedRemedies = expanded ? allRemedies : allRemedies.slice(0, 3);
+    const hasBirthProfile = Boolean(birthData?.dob && birthData?.tob);
+    const showFoundation = !loading && (!hasBirthProfile || error || allRemedies.length === 0);
 
     async function handleAddRoutine(remedy: Remedy) {
         if (!user) return;
@@ -109,6 +131,7 @@ export const RemediesCard: React.FC<RemediesCardProps> = ({ birthData }) => {
             durationMinutes: config.durationMinutes,
             frequency: 'daily',
             description: remedy.detail,
+            steps: [remedy.detail],
         });
 
         if (result) {
@@ -123,27 +146,48 @@ export const RemediesCard: React.FC<RemediesCardProps> = ({ birthData }) => {
     }
 
     return (
-        <div className="bg-white/5 border border-white/10 rounded-[2rem] p-5">
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
             <div className="flex items-center gap-2 mb-4">
-                <div className="p-2 rounded-xl bg-yellow-500/10">
+                <div className="p-2 rounded-lg bg-yellow-500/10">
                     <Gem size={18} className="text-gold" />
                 </div>
-                <h3 className="text-gold text-sm font-bold tracking-wide uppercase">
-                    Your Remedies
+                <h3 className="text-gold text-xs font-bold tracking-wide uppercase">
+                    {showFoundation ? 'Daily Sadhana' : 'Your Remedies'}
                 </h3>
             </div>
 
             {loading && (
-                <div className="flex items-center justify-center py-6 gap-2 text-white/40 text-sm">
+                <div className="flex items-center justify-center py-5 gap-2 text-white/45 text-sm">
                     <Loader2 size={16} className="animate-spin" />
-                    Calculating remedies...
+                    Preparing remedies...
                 </div>
             )}
 
-            {!loading && (error || allRemedies.length === 0) && (
-                <p className="text-white/40 text-sm text-center py-6">
-                    Calculating remedies...
-                </p>
+            {showFoundation && (
+                <>
+                    <div className="divide-y divide-white/5">
+                        {foundationalRemedies.map((remedy) => (
+                            <RemedyItem
+                                key={remedy.name}
+                                remedy={remedy}
+                                onAddRoutine={handleAddRoutine}
+                                addedRoutines={addedRoutines}
+                                canAddRoutine={false}
+                            />
+                        ))}
+                    </div>
+                    <p className="mt-3 text-xs leading-relaxed text-white/35">
+                        {hasBirthProfile
+                            ? 'Personal remedies will appear here when the chart reading is available.'
+                            : 'Add birth details to receive chart-specific remedies.'}
+                    </p>
+                    <Link
+                        to="/remedies"
+                        className="mt-3 flex w-full items-center justify-center rounded-xl border border-gold/20 bg-gold/10 px-3 py-2 text-xs font-bold uppercase text-gold hover:bg-gold/15"
+                    >
+                        Open Remedy Studio
+                    </Link>
+                </>
             )}
 
             {!loading && displayedRemedies.length > 0 && (
@@ -155,6 +199,7 @@ export const RemediesCard: React.FC<RemediesCardProps> = ({ birthData }) => {
                                 remedy={remedy}
                                 onAddRoutine={handleAddRoutine}
                                 addedRoutines={addedRoutines}
+                                canAddRoutine={Boolean(user)}
                             />
                         ))}
                     </div>
@@ -166,6 +211,12 @@ export const RemediesCard: React.FC<RemediesCardProps> = ({ birthData }) => {
                             {expanded ? 'Show less' : `View all ${allRemedies.length} remedies`}
                         </button>
                     )}
+                    <Link
+                        to="/remedies"
+                        className="mt-2 flex w-full items-center justify-center rounded-xl border border-gold/20 bg-gold/10 px-3 py-2 text-xs font-bold uppercase text-gold hover:bg-gold/15"
+                    >
+                        Open Remedy Studio
+                    </Link>
                 </>
             )}
         </div>

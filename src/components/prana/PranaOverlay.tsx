@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Volume2, VolumeX, Music2, Wind, Waves, Circle, Plus } from 'lucide-react';
 import { useAudio, SoundType, SOUND_OPTIONS } from '../../hooks/useAudio';
@@ -48,15 +48,13 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
     } = useAudio(getDefaultSound(), { loop: true, autoPlay: true });
 
     // Breath timings based on mode
-    const getTimings = () => {
+    const timings = useMemo(() => {
         switch (mode) {
             case 'energize': return { inhale: 4, hold: 4, exhale: 4 };
             case 'balance': return { inhale: 5, hold: 0, exhale: 5 };
             case 'calm': default: return { inhale: 4, hold: 7, exhale: 8 };
         }
-    };
-
-    const timings = getTimings();
+    }, [mode]);
 
     // Prep Countdown Logic
     useEffect(() => {
@@ -73,7 +71,7 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
         }, 1000);
 
         return () => clearInterval(prepTimer);
-    }, [isOpen, isPreparing]);
+    }, [isOpen, isPreparing, play, stop]);
 
     // Timer countdown (Main session)
     useEffect(() => {
@@ -100,13 +98,13 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
         } else if (!isOpen) {
             stop();
         }
-    }, [isOpen, isPreparing]);
+    }, [isOpen, isPreparing, play, stop]);
 
     // Breath Cycle Logic
     useEffect(() => {
         if (!isOpen || isPreparing) return;
 
-        let timeoutId: NodeJS.Timeout;
+        let timeoutId: ReturnType<typeof setTimeout>;
 
         const runCycle = () => {
             setPhase('inhale');
@@ -127,7 +125,7 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
         runCycle();
 
         return () => clearTimeout(timeoutId);
-    }, [isOpen, mode, isPreparing]);
+    }, [isOpen, isPreparing, timings]);
 
     // Get sound icon based on type
     const getSoundIcon = (sound: SoundType) => {

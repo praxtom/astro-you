@@ -5,7 +5,9 @@ interface SEOProps {
   description?: string;
   image?: string;
   url?: string;
+  canonical?: string;
   type?: "website" | "article";
+  structuredData?: Record<string, unknown> | Array<Record<string, unknown>>;
 }
 
 const defaultMeta = {
@@ -22,7 +24,9 @@ export function SEO({
   description,
   image,
   url,
+  canonical,
   type = "website",
+  structuredData,
 }: SEOProps) {
   const meta = {
     title: title ? `${title} | AstroYou` : defaultMeta.title,
@@ -71,7 +75,25 @@ export function SEO({
     // Additional SEO tags
     updateMeta("theme-color", "#030308");
     updateMeta("author", "AstroYou");
-  }, [meta.title, meta.description, meta.image, meta.url, meta.type]);
+
+    let canonicalLink = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (!canonicalLink) {
+      canonicalLink = document.createElement("link");
+      canonicalLink.rel = "canonical";
+      document.head.appendChild(canonicalLink);
+    }
+    canonicalLink.href = canonical || meta.url;
+
+    const scriptId = "astroyou-structured-data";
+    document.getElementById(scriptId)?.remove();
+    if (structuredData) {
+      const script = document.createElement("script");
+      script.id = scriptId;
+      script.type = "application/ld+json";
+      script.textContent = JSON.stringify(structuredData);
+      document.head.appendChild(script);
+    }
+  }, [canonical, meta.title, meta.description, meta.image, meta.url, meta.type, structuredData]);
 
   return null;
 }

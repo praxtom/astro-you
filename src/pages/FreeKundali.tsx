@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Sparkles, Star, ArrowRight, Loader2, Share2 } from "lucide-react";
 import LocationInput from "../components/LocationInput";
+import SEO from "../components/SEO";
+import { captureAcquisitionSource, trackAcquisitionEvent } from "../lib/acquisition";
 
 interface KundaliResult {
   ascendant?: string;
@@ -13,29 +15,24 @@ interface KundaliResult {
   [key: string]: any;
 }
 
+const normalizeKundaliResult = (payload: any): KundaliResult => {
+  const raw = payload?.data ?? payload;
+  const planets = raw?.planets ?? raw?.planetary_positions ?? raw?.planetaryPositions ?? [];
+  return {
+    ...raw,
+    ascendant: raw?.ascendant || raw?.lagna || raw?.ascendant_sign,
+    moonSign: raw?.moonSign || raw?.moon_sign || raw?.rashi,
+    sunSign: raw?.sunSign || raw?.sun_sign,
+    planets: Array.isArray(planets) ? planets : [],
+    yogas: Array.isArray(raw?.yogas) ? raw.yogas : [],
+  };
+};
+
 export default function FreeKundali() {
   const [form, setForm] = useState({ name: "", dob: "", tob: "12:00", pob: "" });
   const [result, setResult] = useState<KundaliResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  // SEO: set document title and meta description
-  useEffect(() => {
-    const prevTitle = document.title;
-    document.title = "Free Kundali Online | Vedic Birth Chart Generator — AstroYou";
-    let meta = document.querySelector('meta[name="description"]');
-    const prevDesc = meta?.getAttribute("content") || "";
-    if (meta) {
-      meta.setAttribute(
-        "content",
-        "Generate your free Vedic Kundali birth chart instantly. Get Moon sign, Sun sign, Ascendant, and planetary positions — no signup required."
-      );
-    }
-    return () => {
-      document.title = prevTitle;
-      if (meta) meta.setAttribute("content", prevDesc);
-    };
-  }, []);
 
   const handleGenerate = async () => {
     if (!form.dob || !form.pob) {
@@ -51,7 +48,9 @@ export default function FreeKundali() {
         body: JSON.stringify({ birthData: form, chartType: "D1" }),
       });
       if (res.ok) {
-        setResult(await res.json());
+        const data = await res.json();
+        setResult(normalizeKundaliResult(data));
+        trackAcquisitionEvent("seo_tool_complete", { tool: "free_kundali" });
       } else {
         setError("Something went wrong. Please try again.");
       }
@@ -61,8 +60,56 @@ export default function FreeKundali() {
     setLoading(false);
   };
 
+  const rememberSource = (target: string) => {
+    captureAcquisitionSource({
+      source: "free-kundali",
+      medium: "seo_tool",
+      campaign: "free_tool_funnel",
+    });
+    trackAcquisitionEvent("seo_cta_click", { tool: "free_kundali", target });
+  };
+
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "Free Kundali Online",
+    applicationCategory: "LifestyleApplication",
+    operatingSystem: "Web",
+    url: "https://astroyou.app/free-kundali",
+    offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
+  };
+  const faqStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: [
+      {
+        "@type": "Question",
+        name: "Is the free Kundali online report really free?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Yes. AstroYou can generate a basic Vedic birth chart before signup.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "What details are needed for a Janam Kundali?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Date of birth, time of birth, and place of birth give the most accurate chart.",
+        },
+      },
+    ],
+  };
+
   return (
     <div className="min-h-screen bg-[#030308] text-white">
+      <SEO
+        title="Free Kundali Online | Vedic Birth Chart Generator"
+        description="Generate your free Vedic Kundali birth chart instantly. Get Moon sign, Sun sign, Ascendant, and planetary positions with no signup required."
+        url="https://astroyou.app/free-kundali"
+        canonical="https://astroyou.app/free-kundali"
+        structuredData={[structuredData, faqStructuredData]}
+      />
       {/* Subtle cosmic background glow */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-purple-500/5 rounded-full blur-[120px]" />
@@ -177,6 +224,25 @@ export default function FreeKundali() {
               <p className="text-white/40 text-sm max-w-md mx-auto leading-relaxed">
                 A Kundali (also known as Janam Kundali or birth chart) is a Vedic astrological map of the sky at the exact moment of your birth. It reveals your Ascendant (Lagna), Moon sign (Rashi), Sun sign, and the positions of all nine planets (Navagraha) across the twelve houses.
               </p>
+              <nav
+                aria-label="Related astrology tools"
+                className="mx-auto flex max-w-xl flex-wrap justify-center gap-2 pt-2"
+              >
+                {[
+                  ["Kundali Matching", "/free-kundali-matching"],
+                  ["Daily Horoscope", "/daily-horoscope"],
+                  ["Today Panchang", "/panchang"],
+                  ["Sade Sati Guide", "/sade-sati"],
+                ].map(([label, to]) => (
+                  <Link
+                    key={to}
+                    to={to}
+                    className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-white/45 transition-colors hover:border-gold/30 hover:text-gold"
+                  >
+                    {label}
+                  </Link>
+                ))}
+              </nav>
             </div>
           </motion.div>
         ) : (
@@ -206,6 +272,35 @@ export default function FreeKundali() {
                 >
                   <p className="text-white/40 text-xs uppercase tracking-wider mb-1">{item.label}</p>
                   <p className="text-xl font-display text-amber-400">{item.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
+              {[
+                {
+                  title: "Core chart",
+                  copy: "Ascendant, Moon sign, Sun sign, and Navagraha positions.",
+                },
+                {
+                  title: "Reading path",
+                  copy: "Save the chart to continue into Dashas, remedies, and reports.",
+                },
+                {
+                  title: "Consult ready",
+                  copy: "Use this chart as context when you speak to an AI astrologer.",
+                },
+                {
+                  title: "Private by default",
+                  copy: "No signup is needed until you choose to save the result.",
+                },
+              ].map((item) => (
+                <div
+                  key={item.title}
+                  className="rounded-xl border border-white/10 bg-white/[0.03] p-4"
+                >
+                  <p className="text-sm font-semibold text-white/80">{item.title}</p>
+                  <p className="mt-1 text-sm text-white/40">{item.copy}</p>
                 </div>
               ))}
             </div>
@@ -248,6 +343,7 @@ export default function FreeKundali() {
             {/* CTA */}
             <Link
               to="/onboarding"
+              onClick={() => rememberSource("/onboarding")}
               className="block w-full py-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-black font-semibold text-lg text-center hover:from-amber-400 hover:to-orange-400 transition-all"
             >
               <span className="flex items-center justify-center gap-2">
@@ -256,8 +352,24 @@ export default function FreeKundali() {
               </span>
             </Link>
             <p className="text-center text-white/30 text-sm mt-3">
-              Create a free account to unlock your full Kundali analysis
+              Create a free account to save this chart and unlock Dasha, remedies, and AI guidance
             </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+              <Link
+                to="/synthesis"
+                onClick={() => rememberSource("/synthesis")}
+                className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm text-white/60 hover:border-gold/30 hover:text-gold"
+              >
+                Ask AI about this chart
+              </Link>
+              <Link
+                to="/consult"
+                onClick={() => rememberSource("/consult")}
+                className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm text-white/60 hover:border-gold/30 hover:text-gold"
+              >
+                Talk to an AI astrologer
+              </Link>
+            </div>
 
             {/* Share & Generate another */}
             <div className="flex gap-3 mt-6 justify-center">

@@ -1,12 +1,10 @@
 import {
-  createContext,
-  useContext,
   useEffect,
   useState,
   ReactNode,
 } from "react";
 import {
-  User,
+  type User,
   onAuthStateChanged,
   signOut as firebaseSignOut,
   getRedirectResult,
@@ -14,14 +12,12 @@ import {
 import { auth, db } from "./firebase";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { STORAGE_KEYS } from "./constants";
-
-interface AuthContextType {
-  user: User | null;
-  loading: boolean;
-  signOut: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+import {
+  captureReferralFromUrl,
+  clearPendingReferralCode,
+  getPendingReferralCode,
+} from "./acquisition";
+import { AuthContext } from "./authContextValue";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -54,13 +50,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const existingData = docSnap.exists() ? docSnap.data() : null;
           const hasProfile = existingData?.profile?.dob;
 
-          // Initialize credits if missing
+          // Initialize credits server-side so the credit ledger is complete.
           if (!existingData || existingData.credits === undefined) {
+            const idToken = await currentUser.getIdToken();
+            await fetch("/api/credits/initialize", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ idToken }),
+            });
             await setDoc(
               userDocRef,
               {
                 email: currentUser.email,
-                credits: 15,
                 createdAt: existingData?.createdAt || serverTimestamp(),
               },
               { merge: true }
@@ -92,18 +93,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               }
             }
           }
-          // Check for referral code in URL
-          const urlParams = new URLSearchParams(window.location.search);
-          const refCode = urlParams.get('ref');
-          if (refCode && currentUser) {
+          const urlReferralCode = captureReferralFromUrl();
+          const pendingReferralCode = getPendingReferralCode() || urlReferralCode;
+          if (
+            pendingReferralCode &&
+            !existingData?.referredBy &&
+            !existingData?.referralClaimedAt
+          ) {
             try {
-              const userDocRef2 = doc(db, "users", currentUser.uid);
-              const userDoc2 = await getDoc(userDocRef2);
-              if (!userDoc2.data()?.referredBy) {
-                await setDoc(userDocRef2, { referredBy: refCode }, { merge: true });
+              const idToken = await currentUser.getIdToken();
+              const response = await fetch("/api/referrals/claim", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  idToken,
+                  referralCode: pendingReferralCode,
+                }),
+              });
+
+              if (response.ok || response.status === 400 || response.status === 404) {
+                clearPendingReferralCode();
               }
-            } catch {
-              // Ignore referral tracking errors
+            } catch (referralError) {
+              console.warn("[Auth] Referral claim unavailable:", referralError);
             }
           }
         } catch (err) {
@@ -127,11 +139,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     </AuthContext.Provider>
   );
 }
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
-};

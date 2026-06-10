@@ -1,20 +1,28 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ChevronDown, HelpCircle, Mail, Bug, ArrowLeft } from "lucide-react";
+import { ChevronDown, HelpCircle, LifeBuoy, ArrowLeft } from "lucide-react";
 
 const FAQS = [
   {
     q: "How accurate is the AI astrologer?",
-    a: "Our AI is powered by authentic Vedic calculations from Astrology-API.io and interpreted by Google's Gemini. It analyzes your complete birth chart with the same precision as traditional Jyotish practitioners.",
+    a: "AstroYou uses Vedic chart calculations, dasha timing, panchang, transits, and AI interpretation. It is guidance, not certainty, and should not replace professional medical, legal, financial, or mental health advice.",
   },
   {
     q: "How is my data stored?",
-    a: "Your birth data and conversations are stored securely in Firebase with end-to-end encryption. We never share your data with third parties.",
+    a: "Your account data is stored in Firebase with encryption in transit and at rest. Access is account-bound through Firebase Auth and Firestore rules.",
   },
   {
     q: "How do credits work?",
-    a: "You start with 15 free credits. Each AI chat message uses 1 credit. You can purchase more credits or subscribe for unlimited access.",
+    a: "Credits are prepaid. AI astrologer sessions are billed per minute, PDF reports have fixed credit costs, and purchases or charges appear in Wallet activity.",
+  },
+  {
+    q: "Where can I see my purchases and charges?",
+    a: "Open Wallet from the header or Settings. It shows your balance, credit packs, server-written ledger entries, recent consultations, and report charges.",
+  },
+  {
+    q: "Can I request a refund?",
+    a: "Failed payments, duplicate charges, unused-credit cases, report failures, and consultation billing mismatches can be reviewed by support. Consumed credits are normally not refundable because the service has already been delivered.",
   },
   {
     q: "Can I change my birth data?",
@@ -25,8 +33,12 @@ const FAQS = [
     a: "Synthesis is your personal AI Jyotish companion with full consciousness tracking. Consult lets you chat with specialized AI astrologers (career, love, health, etc.) at per-minute rates.",
   },
   {
+    q: "Can real astrologers apply to join?",
+    a: "Yes. Use the Expert Network application page. Applications are stored for review and should not become public profiles until identity, credentials, sample guidance, pricing, and quality checks are complete.",
+  },
+  {
     q: "How do I export my data?",
-    a: "Click 'Export My Data' in Dashboard settings to download all your data as a JSON file.",
+    a: "Open Settings and choose Export all my data to download your profile, chats, consultations, reports, credit ledger, and digest data as JSON.",
   },
   {
     q: "What is Kundali Matching?",
@@ -132,23 +144,17 @@ export default function Help() {
           className="mt-12 rounded-2xl border border-white/10 bg-white/[0.03] p-6 sm:p-8 text-center"
         >
           <h2 className="text-xl font-display text-white/80 mb-2">Still have questions?</h2>
-          <p className="text-white/40 text-sm mb-6">We are here to help.</p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <a
-              href="mailto:support@astroyou.com"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white/70 hover:text-white hover:border-white/20 transition-all text-sm"
-            >
-              <Mail className="w-4 h-4" />
-              support@astroyou.com
-            </a>
-            <a
-              href="mailto:support@astroyou.com?subject=Bug Report"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white/70 hover:text-white hover:border-white/20 transition-all text-sm"
-            >
-              <Bug className="w-4 h-4" />
-              Report an Issue
-            </a>
-          </div>
+          <p className="text-white/40 text-sm mb-6">
+            Open a ticket for payments, refunds, reports, consultation billing,
+            or account issues.
+          </p>
+          <Link
+            to="/support"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gold text-black font-bold hover:bg-gold/90 transition-all text-sm"
+          >
+            <LifeBuoy className="w-4 h-4" />
+            Open support ticket
+          </Link>
         </motion.div>
       </div>
     </div>

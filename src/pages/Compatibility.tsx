@@ -12,9 +12,11 @@ import {
   BookOpen,
   Star,
   Share2,
+  Download,
 } from "lucide-react";
 import Header from "../components/layout/Header";
 import { useUserProfile } from "../hooks";
+import { useAuth } from "../lib/useAuth";
 import LocationInput from "../components/LocationInput";
 
 interface LoveInfluence {
@@ -138,6 +140,7 @@ const normalizeScore = (value: number, key: string) => {
 };
 
 export default function Compatibility() {
+  const { user } = useAuth();
   const { birthData } = useUserProfile();
   const [partnerData, setPartnerData] = useState({
     name: "",
@@ -156,6 +159,7 @@ export default function Compatibility() {
   } | null>(null);
 
   const [isMatching, setIsMatching] = useState(false);
+  const [isDownloadingReport, setIsDownloadingReport] = useState(false);
   const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -175,7 +179,7 @@ export default function Compatibility() {
     setError(null);
 
     try {
-      const response = await fetch("/.netlify/functions/compatibility", {
+      const response = await fetch("/api/compatibility", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -208,40 +212,77 @@ export default function Compatibility() {
     }
   };
 
+  const downloadCompatibilityReport = async () => {
+    if (!user || !matchResult) return;
+    setIsDownloadingReport(true);
+    setError(null);
+    try {
+      const idToken = await user.getIdToken();
+      const response = await fetch("/api/pdf-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idToken,
+          reportType: "compatibility",
+          birthData,
+          compatibilityData: matchResult,
+          person1Name: birthData?.name || "Seeker",
+          person2Name: partnerData.name || "Partner",
+        }),
+      });
+      const errorPayload = response.ok ? null : await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(errorPayload?.error || "Could not generate report");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `astroyou-compatibility-report-${new Date().toISOString().split("T")[0]}.pdf`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error("Compatibility report error:", err);
+      setError(err.message || "Could not generate report.");
+    } finally {
+      setIsDownloadingReport(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#030308] text-white selection:bg-gold/30">
       <Header />
 
-      <main className="container mx-auto pt-32 px-6 pb-24 relative z-10">
-        <header className="max-w-4xl mx-auto text-center mb-16">
-          <div className="flex items-center justify-center gap-2 text-gold/60 mb-4 font-display tracking-[0.2em] uppercase text-sm">
+      <main className="container mx-auto pt-20 px-4 md:px-6 pb-8 relative z-10">
+        <header className="max-w-4xl mx-auto text-center mb-6">
+          <div className="flex items-center justify-center gap-2 text-gold/60 mb-2 font-display tracking-[0.2em] uppercase text-sm">
             <Heart size={16} className="text-gold" />
             Relationship Insights
           </div>
-          <h1 className="text-4xl md:text-6xl font-light mb-6 text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-white/40 leading-tight">
+          <h1 className="text-4xl md:text-5xl font-light mb-3 text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-white/40 leading-tight">
             Celestial <span className="text-gold italic">Synchronicity</span>
           </h1>
-          <p className="text-white/40 font-sans text-lg font-light max-w-2xl mx-auto italic">
+          <p className="text-white/40 font-sans text-base font-light max-w-2xl mx-auto italic">
             A professional-grade synthesis of Synastry and Composite dynamics to
             reveal the soul-level blueprint of your connection.
           </p>
         </header>
 
         {!matchResult ? (
-          <div className="max-w-2xl mx-auto glass p-8 md:p-12 rounded-[2rem] border-white/5 shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-12 text-white/5 pointer-events-none">
+          <div className="max-w-2xl mx-auto glass p-4 rounded-2xl border-white/5 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-4 text-white/5 pointer-events-none">
               <Sparkles size={120} />
             </div>
 
-            <h2 className="text-xl font-bold mb-8 flex items-center gap-3 relative z-10">
+            <h2 className="text-xl font-bold mb-3 flex items-center gap-3 relative z-10">
               <div className="p-2 rounded-lg bg-gold/10">
                 <User size={20} className="text-gold" />
               </div>
               Partner Details
             </h2>
 
-            <div className="space-y-6 relative z-10">
-              <div className="space-y-2">
+            <div className="space-y-3 relative z-10">
+              <div className="space-y-1.5">
                 <label className="text-[10px] uppercase tracking-widest text-white/40 font-black ml-1">
                   Full Name
                 </label>
@@ -252,12 +293,12 @@ export default function Compatibility() {
                     setPartnerData({ ...partnerData, name: e.target.value })
                   }
                   placeholder="Partner's Name"
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-sans text-white focus:outline-none focus:border-gold/30 transition-all placeholder:text-white/10"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 font-sans text-white focus:outline-none focus:border-gold/30 transition-all placeholder:text-white/10"
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
                   <label className="text-[10px] uppercase tracking-widest text-white/40 font-black ml-1">
                     Date of Birth
                   </label>
@@ -267,10 +308,10 @@ export default function Compatibility() {
                     onChange={(e) =>
                       setPartnerData({ ...partnerData, dob: e.target.value })
                     }
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-sans text-white focus:outline-none focus:border-gold/30 transition-all [color-scheme:dark]"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 font-sans text-white focus:outline-none focus:border-gold/30 transition-all [color-scheme:dark]"
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <label className="text-[10px] uppercase tracking-widest text-white/40 font-black ml-1">
                     Time of Birth
                   </label>
@@ -280,12 +321,12 @@ export default function Compatibility() {
                     onChange={(e) =>
                       setPartnerData({ ...partnerData, tob: e.target.value })
                     }
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-sans text-white focus:outline-none focus:border-gold/30 transition-all [color-scheme:dark]"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 font-sans text-white focus:outline-none focus:border-gold/30 transition-all [color-scheme:dark]"
                   />
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <label className="text-[10px] uppercase tracking-widest text-white/40 font-black ml-1">
                   Place of Birth
                 </label>
@@ -314,7 +355,7 @@ export default function Compatibility() {
               <button
                 onClick={handleMatch}
                 disabled={isMatching || !partnerData.name || !partnerData.pob}
-                className="w-full py-6 mt-4 bg-white text-black font-display font-bold rounded-full hover:bg-gold hover:text-black transition-all active:scale-95 shadow-[0_0_30px_rgba(255,255,255,0.1)] disabled:opacity-50 disabled:cursor-not-allowed group relative overflow-hidden"
+                className="w-full py-3 mt-2 bg-white text-black font-display font-bold rounded-xl hover:bg-gold hover:text-black transition-all active:scale-95 shadow-[0_0_30px_rgba(255,255,255,0.1)] disabled:opacity-50 disabled:cursor-not-allowed group relative overflow-hidden"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-white via-gold/20 to-white opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                 {isMatching ? (
@@ -335,7 +376,7 @@ export default function Compatibility() {
             </div>
           </div>
         ) : (
-          <div className="max-w-6xl mx-auto space-y-16 animate-in fade-in slide-in-from-bottom-8 duration-1000">
+          <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-1000">
             {/* Master Score Display */}
             <div className="text-center relative">
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gold/5 blur-[120px] rounded-full pointer-events-none" />
@@ -390,6 +431,19 @@ export default function Compatibility() {
                 <Share2 size={16} />
                 <span className="text-xs uppercase tracking-widest">Share</span>
               </button>
+              {user && (
+                <button
+                  onClick={downloadCompatibilityReport}
+                  disabled={isDownloadingReport}
+                  className="mt-3 p-2 rounded-xl border border-gold/20 text-gold hover:bg-gold/10 transition-all inline-flex items-center gap-1.5 disabled:opacity-50"
+                  title="Download paid report"
+                >
+                  <Download size={16} />
+                  <span className="text-xs uppercase tracking-widest">
+                    {isDownloadingReport ? "Generating" : "PDF Report"}
+                  </span>
+                </button>
+              )}
             </div>
 
             {/* Overall Recommendation based on Guna Milan */}
@@ -408,7 +462,7 @@ export default function Compatibility() {
 
             {/* AI Narrative Interpretation */}
             {matchResult.aiNarrative && (
-              <div className="mb-8 p-6 rounded-2xl bg-gradient-to-br from-gold/5 to-purple-500/5 border border-gold/10">
+              <div className="mb-6 p-5 rounded-2xl bg-gradient-to-br from-gold/5 to-purple-500/5 border border-gold/10">
                 <h3 className="font-display text-sm uppercase tracking-[0.3em] text-gold/60 mb-4">Jyotish's Insight</h3>
                 <p className="text-sm md:text-base font-sans font-light leading-relaxed text-white/80 whitespace-pre-line">
                   {matchResult.aiNarrative}
@@ -417,7 +471,7 @@ export default function Compatibility() {
             )}
 
             {/* Synastry Scores Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
               <ScoreMetric
                 label="Emotional"
                 value={
@@ -473,14 +527,14 @@ export default function Compatibility() {
               />
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left Column: Dynamics and Growth Kit */}
-              <div className="lg:col-span-1 space-y-8">
-                <section className="glass p-8 rounded-[2.5rem] border-white/5">
-                  <h3 className="text-sm font-black uppercase tracking-widest text-gold/60 mb-8 flex items-center gap-2">
+              <div className="lg:col-span-1 space-y-6">
+                <section className="glass p-5 md:p-6 rounded-[2rem] border-white/5">
+                  <h3 className="text-sm font-black uppercase tracking-widest text-gold/60 mb-5 flex items-center gap-2">
                     Relationship Dynamics
                   </h3>
-                  <div className="space-y-8">
+                  <div className="space-y-5">
                     <DynamicItem
                       label="Power Balance"
                       value={matchResult.dynamics?.power_dynamics?.balance}
@@ -522,11 +576,11 @@ export default function Compatibility() {
                 {/* Growth Kit (Compatibility Tips) */}
                 {(matchResult.love_languages?.person1?.compatibility_tips ||
                   matchResult.love_languages?.person2?.compatibility_tips) && (
-                  <section className="glass p-8 rounded-[2.5rem] border border-gold/10 bg-gold/[0.02]">
-                    <h3 className="text-sm font-black uppercase tracking-widest text-gold mb-6 flex items-center gap-2">
+                  <section className="glass p-5 md:p-6 rounded-[2rem] border border-gold/10 bg-gold/[0.02]">
+                    <h3 className="text-sm font-black uppercase tracking-widest text-gold mb-5 flex items-center gap-2">
                       Connection Kit
                     </h3>
-                    <ul className="space-y-4">
+                    <ul className="space-y-3">
                       {[
                         ...(matchResult.love_languages.person1
                           ?.compatibility_tips || []),
@@ -551,8 +605,8 @@ export default function Compatibility() {
               </div>
 
               {/* Middle Column: Love Blueprints and Synastry Aspects */}
-              <div className="lg:col-span-2 space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="lg:col-span-2 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <LoveLanguageCard
                     label={birthData?.name || "Member 1"}
                     lang={matchResult.love_languages?.person1}
@@ -565,8 +619,8 @@ export default function Compatibility() {
                   />
                 </div>
 
-                <section className="glass p-8 rounded-[2.5rem] border-white/5">
-                  <h3 className="text-sm font-black uppercase tracking-widest text-white/40 mb-8 flex items-center gap-2">
+                <section className="glass p-5 md:p-6 rounded-[2rem] border-white/5">
+                  <h3 className="text-sm font-black uppercase tracking-widest text-white/40 mb-5 flex items-center gap-2">
                     Celestial Aspects
                   </h3>
                   <div className="grid grid-cols-1 gap-4">
@@ -574,7 +628,7 @@ export default function Compatibility() {
                       (aspect, i) => (
                         <div
                           key={i}
-                          className="bg-white/[0.02] border border-white/5 rounded-3xl p-6 group hover:border-gold/20 hover:bg-white/[0.04] transition-all"
+                          className="bg-white/[0.02] border border-white/5 rounded-3xl p-5 group hover:border-gold/20 hover:bg-white/[0.04] transition-all"
                         >
                           <div className="text-[10px] text-gold/60 font-black uppercase tracking-widest mb-2 group-hover:text-gold transition-colors">
                             {aspect.factor}
@@ -607,21 +661,21 @@ export default function Compatibility() {
                 </section>
 
                 {/* Composite Insights */}
-                <section className="glass p-10 rounded-[2.5rem] border-white/5 relative overflow-hidden shadow-2xl">
-                  <div className="absolute top-0 right-0 p-12 text-white/5 pointer-events-none">
+                <section className="glass p-5 md:p-6 rounded-[2rem] border-white/5 relative overflow-hidden shadow-2xl">
+                  <div className="absolute top-0 right-0 p-6 text-white/5 pointer-events-none">
                     <Heart size={150} />
                   </div>
                   <div className="relative z-10">
-                    <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gold/40 mb-8">
+                    <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gold/40 mb-5">
                       Composite Soul
                     </h3>
-                    <div className="text-3xl font-display italic text-white mb-8 leading-tight">
+                    <div className="text-3xl font-display italic text-white mb-6 leading-tight">
                       "
                       {matchResult.composite?.relationship_purpose ||
                         "Building a shared legacy of growth"}
                       "
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mt-12 pt-12 border-t border-white/5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 pt-6 border-t border-white/5">
                       <div>
                         <div className="text-[10px] uppercase tracking-widest text-emerald-400 font-black mb-4 flex items-center gap-2">
                           <ShieldCheck size={12} /> Synergy Points
@@ -659,8 +713,8 @@ export default function Compatibility() {
                 {/* Cosmic Wisdom Interpretations (Generic) */}
                 {matchResult.interpretations &&
                   matchResult.interpretations.length > 0 && (
-                    <section className="space-y-8 pt-8">
-                      <div className="flex items-center gap-3 mb-8">
+                    <section className="space-y-6 pt-6">
+                      <div className="flex items-center gap-3 mb-6">
                         <div className="p-3 rounded-2xl bg-gold/10">
                           <BookOpen size={24} className="text-gold" />
                         </div>
@@ -674,11 +728,11 @@ export default function Compatibility() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {matchResult.interpretations.map((item, i) => (
                           <div
                             key={i}
-                            className="glass p-8 rounded-[2.5rem] border-white/5 group hover:border-gold/20 transition-all"
+                            className="glass p-5 md:p-6 rounded-[2rem] border-white/5 group hover:border-gold/20 transition-all"
                           >
                             <h4 className="text-lg font-display font-medium text-gold mb-4 group-hover:translate-x-1 transition-transform inline-flex items-center gap-2">
                               <Sparkles size={16} className="text-gold/40" />
@@ -720,7 +774,7 @@ function ScoreMetric({
   icon: React.ReactNode;
 }) {
   return (
-    <div className="glass p-6 rounded-3xl border border-white/5 text-center group hover:border-gold/20 transition-all">
+    <div className="glass p-5 rounded-3xl border border-white/5 text-center group hover:border-gold/20 transition-all">
       <div className="flex items-center justify-center gap-2 text-white/30 mb-4 group-hover:text-gold/60 transition-colors">
         {icon}
         <span className="text-[10px] uppercase tracking-widest font-black">
@@ -774,15 +828,15 @@ function LoveLanguageCard({
   isUser: boolean;
 }) {
   return (
-    <div className="glass p-8 rounded-[2.5rem] border border-white/5 relative overflow-hidden group/card shadow-2xl">
+    <div className="glass p-5 md:p-6 rounded-[2rem] border border-white/5 relative overflow-hidden group/card shadow-2xl">
       <div
-        className={`absolute top-0 right-0 p-10 text-white/5 pointer-events-none group-hover/card:text-gold/5 transition-colors`}
+        className={`absolute top-0 right-0 p-6 text-white/5 pointer-events-none group-hover/card:text-gold/5 transition-colors`}
       >
         <User size={120} />
       </div>
 
       <div className="relative z-10">
-        <div className="flex items-center gap-2 mb-8">
+        <div className="flex items-center gap-2 mb-5">
           <div
             className={`w-2 h-2 rounded-full ${
               isUser ? "bg-gold" : "bg-gold/40"
@@ -793,8 +847,8 @@ function LoveLanguageCard({
           </span>
         </div>
 
-        <div className="space-y-8">
-          <div className="grid grid-cols-2 gap-8">
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-5">
             <div>
               <div className="text-[10px] uppercase tracking-widest text-gold/40 font-black mb-3">
                 Primary Mode
@@ -814,7 +868,7 @@ function LoveLanguageCard({
           </div>
 
           {/* Deep Influences */}
-          <div className="pt-8 border-t border-white/5 space-y-6">
+          <div className="pt-6 border-t border-white/5 space-y-5">
             <InfluenceItem
               icon="Venus"
               sign={lang?.venus_influence?.sign}
@@ -885,14 +939,14 @@ function VedicGunaMilan({
   const quality = getGunaQuality(totalScore);
 
   return (
-    <section className="bg-white/5 border border-white/10 rounded-[2rem] p-8 md:p-10 relative overflow-hidden">
-      <div className="absolute top-0 right-0 p-10 text-white/5 pointer-events-none">
+    <section className="bg-white/5 border border-white/10 rounded-[2rem] p-5 md:p-6 relative overflow-hidden">
+      <div className="absolute top-0 right-0 p-6 text-white/5 pointer-events-none">
         <Star size={140} />
       </div>
 
       <div className="relative z-10">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-8">
+        <div className="flex items-center gap-3 mb-6">
           <div className="p-3 rounded-2xl bg-gold/10">
             <Star size={22} className="text-gold" />
           </div>
@@ -907,7 +961,7 @@ function VedicGunaMilan({
         </div>
 
         {/* Total Score */}
-        <div className="flex items-baseline gap-4 mb-10">
+        <div className="flex items-baseline gap-4 mb-6">
           <div className="text-5xl md:text-6xl font-display font-bold tracking-tight text-white">
             {totalScore}
             <span className="text-white/30 text-3xl md:text-4xl"> / 36</span>

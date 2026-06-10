@@ -29,6 +29,28 @@ export interface UserRoutine {
     createdAt: Date;
 }
 
+export type AtmanMemorySurface = 'synthesis' | 'consult' | 'manual' | 'nudge' | 'digest' | 'feedback' | 'system';
+
+export interface AtmanMemoryEvidence {
+    id: string;
+    surface: AtmanMemorySurface;
+    createdAt: Date | string;
+    sessionId?: string;
+    interactionId?: string;
+    personaId?: string;
+    messageExcerpt?: string;
+    confidence?: number;
+}
+
+export interface AtmanMemoryLedgerEntry extends AtmanMemoryEvidence {
+    emotionalState?: AtmanEmotion;
+    patternsAdded: number;
+    eventsAdded: number;
+    adviceSaved: number;
+    contradictionsDetected: number;
+    karmicThreadsDetected: number;
+}
+
 export interface WeightedPattern {
     id: string;
     pattern: string;
@@ -37,6 +59,12 @@ export interface WeightedPattern {
     lastMentioned: Date;
     verified: boolean;
     category?: 'behavioral' | 'emotional' | 'spiritual' | 'relational';
+    confidence?: number;
+    archived?: boolean;
+    firstSeen?: Date;
+    lastUsedAt?: Date;
+    sourceCount?: number;
+    evidence?: AtmanMemoryEvidence[];
 }
 
 export interface KeyRelationship {
@@ -48,14 +76,57 @@ export interface KeyRelationship {
     notes?: string;
 }
 
-export interface AtmanData {
-    // 1. Core Emotional State (The Vibe)
-    emotionalState: 'stable' | 'anxious' | 'chaotic' | 'depressive' | 'energetic' | 'spiritual' | 'reactive';
+export const ATMAN_SCHEMA_VERSION = 1;
+
+export type AtmanEmotion = 'stable' | 'anxious' | 'chaotic' | 'depressive' | 'energetic' | 'spiritual' | 'reactive';
+
+export interface AtmanEmotionalHistoryEntry {
+    state: AtmanEmotion;
+    date: Date;
+}
+
+export interface AtmanAdviceEntry {
+    advice: string;
+    context: string;
+    date: string;
+    followedUp?: boolean;
+}
+
+export interface AtmanNudgeEntry {
+    title: string;
+    message: string;
+    triggerType: string;
+    date: string;
+}
+
+export interface AtmanTransientState {
+    emotionalState: AtmanEmotion;
     lastEmotionalUpdate: Date;
-    emotionalHistory?: Array<{ state: string; date: Date }>;
+    emotionalHistory: AtmanEmotionalHistoryEntry[];
+}
+
+export interface AtmanDurableMemory {
+    knownPatterns: WeightedPattern[];
+    lifeEvents: UserLifeEvent[];
+    keyRelationships: KeyRelationship[];
+    routines: UserRoutine[];
+    savedAdvice: AtmanAdviceEntry[];
+    nudgeHistory: AtmanNudgeEntry[];
+}
+
+export interface AtmanData {
+    schemaVersion?: number;
+    transient?: AtmanTransientState;
+    memory?: AtmanDurableMemory;
+
+    // 1. Core Emotional State (The Vibe)
+    emotionalState: AtmanEmotion;
+    lastEmotionalUpdate: Date;
+    emotionalHistory?: AtmanEmotionalHistoryEntry[];
 
     // 2. The Life Context (The Story)
-    activeEvents: UserLifeEvent[]; // "Interview on Friday"
+    activeEvents: UserLifeEvent[]; // Legacy alias used by current UI.
+    lifeEvents?: UserLifeEvent[]; // Canonical bucket for new Atman schema.
 
     // 3. Psychological Profile (The Pattern)
     knownPatterns: WeightedPattern[]; // Enhanced from string[]
@@ -88,20 +159,25 @@ export interface AtmanData {
     dailyGratitudeDate?: string; // YYYY-MM-DD
 
     // 9. Guru Nudge History (The Whispers)
-    nudgeHistory?: Array<{
-        title: string;
-        message: string;
-        triggerType: string;
-        date: string; // ISO date
-    }>;
+    nudgeHistory?: AtmanNudgeEntry[];
 
     // 10. Advice Ledger (The Counsel)
-    adviceHistory?: Array<{
-        advice: string;
-        context: string;
-        date: string;
-        followedUp?: boolean;
-    }>;
+    adviceHistory?: AtmanAdviceEntry[];
+
+    savedAdvice?: AtmanAdviceEntry[];
+
+    // 11. Brain Audit Ledger (server-owned learning history)
+    memoryLedger?: AtmanMemoryLedgerEntry[];
+
+    // 12. Outcome Feedback
+    predictionFeedbackStats?: {
+        accurate: number;
+        partly: number;
+        missed: number;
+        lastSignal?: 'accurate' | 'partly' | 'missed';
+        lastSource?: string;
+        updatedAt?: Date | string;
+    };
 }
 
 export interface UserProfile {
@@ -128,11 +204,14 @@ export interface UserProfile {
     // Computed from Kundali
     moonSign?: string;
     sunSign?: string;
-    ascendant?: string;
+    ascendant?: string | { sign?: string };
 
     // Settings
     language?: 'en' | 'hi' | 'ta' | 'te' | 'bn' | 'mr';
     timezone?: string;
+    username?: string;
+    bio?: string;
+    isPublic?: boolean;
 
     // Subscription
     subscription?: SubscriptionData;
@@ -153,17 +232,31 @@ export interface UserProfile {
 
 export interface SubscriptionData {
     tier: 'free' | 'premium' | 'pro';
+    status?: 'created' | 'active' | 'pending' | 'cancelling' | 'cancelled' | 'halted';
     expiresAt?: Date;
     razorpaySubId?: string;
+    razorpaySubscriptionId?: string;
+    planId?: string;
+    priceInr?: number;
+    currentStart?: Date | string;
+    currentEnd?: Date | string;
+    chargeAt?: Date | string | null;
+    gracePeriodEnd?: Date | string;
+    cancelRequestedAt?: Date | string;
+    cancelledAt?: Date | string;
+    cancelAtPeriodEnd?: boolean;
     autoRenew?: boolean;
 }
 
 export interface NotificationPrefs {
     enabled: boolean;
     dailyInsight: boolean;
+    emailDigest?: boolean;
+    pushBrainNudges?: boolean;
     transitAlerts: boolean;
     cosmicEvents: boolean;
     weeklyForecast: boolean;
+    whatsappDigest?: boolean;
 }
 
 export interface UserLifeEvent {
@@ -173,4 +266,6 @@ export interface UserLifeEvent {
     status: 'pending' | 'completed' | 'cancelled';
     category: 'career' | 'relationship' | 'health' | 'finance' | 'spiritual';
     confidence: number; // 0-1, how sure the AI is
+    lastMentioned?: Date;
+    evidence?: AtmanMemoryEvidence[];
 }

@@ -8,7 +8,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { useAuth } from '../lib/AuthContext';
+import { useAuth } from '../lib/useAuth';
 import { STORAGE_KEYS } from '../lib/constants';
 import type { UserProfile, BirthData } from '../types';
 
@@ -49,6 +49,27 @@ function extractProfile(data: Record<string, any>): UserProfile | null {
     return profile;
 }
 
+function readStoredGuestProfile(): UserProfile | null {
+    if (typeof window === 'undefined') return null;
+
+    const candidates = [
+        sessionStorage.getItem(STORAGE_KEYS.GUEST_PROFILE),
+        localStorage.getItem(STORAGE_KEYS.PROFILE),
+    ].filter(Boolean) as string[];
+
+    for (const candidate of candidates) {
+        try {
+            const parsed = JSON.parse(candidate) as Record<string, any>;
+            const profile = extractProfile(parsed.profile ? parsed : { profile: parsed });
+            if (profile) return profile;
+        } catch {
+            // Ignore corrupt browser cache and continue to the next source.
+        }
+    }
+
+    return null;
+}
+
 export function useUserProfile(): UseUserProfileResult {
     const { user } = useAuth();
     const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -57,7 +78,7 @@ export function useUserProfile(): UseUserProfileResult {
 
     const fetchProfile = async () => {
         if (!user) {
-            setProfile(null);
+            setProfile(readStoredGuestProfile());
             setLoading(false);
             return;
         }
@@ -92,7 +113,7 @@ export function useUserProfile(): UseUserProfileResult {
     // Subscribe to real-time updates
     useEffect(() => {
         if (!user) {
-            setProfile(null);
+            setProfile(readStoredGuestProfile());
             setLoading(false);
             return;
         }

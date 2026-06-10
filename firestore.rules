@@ -2,57 +2,70 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
 
     // ── User documents — only owner can read/write ──────────────────
     match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
+      allow read: if isOwner(userId);
 
-      // Allow creating own document with initial credits of 15
-      allow create: if request.auth != null && request.auth.uid == userId
-                    && request.resource.data.credits == 15;
-
-      // Allow updating own document with credit restrictions
-      // Credits can only decrease by exactly 1 (usage) or stay unchanged (profile edits)
-      // Credit increases (purchases) are handled server-side via Admin SDK
-      allow update: if request.auth != null && request.auth.uid == userId
+      allow create: if isOwner(userId)
+                    && !('subscription' in request.resource.data)
                     && (
-                      // Credits not being changed
-                      request.resource.data.credits == resource.data.credits
-                      // OR credits decremented by exactly 1, staying >= 0
-                      || (request.resource.data.credits == resource.data.credits - 1
-                          && request.resource.data.credits >= 0)
-                      // OR credits being initialized (field didn't exist before)
-                      || (!('credits' in resource.data) && request.resource.data.credits == 15)
+                      !('credits' in request.resource.data)
+                      || request.resource.data.credits == 15
                     );
+
+      // Money and subscription state are server-owned through Admin SDK.
+      allow update: if isOwner(userId)
+                    && !request.resource.data.diff(resource.data).affectedKeys()
+                      .hasAny(['credits', 'subscription']);
 
       // Chats subcollection
       match /chats/{chatId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isOwner(userId);
 
         // Messages subcollection within chats
         match /messages/{messageId} {
-          allow read, write: if request.auth != null && request.auth.uid == userId;
+          allow read, write: if isOwner(userId);
         }
       }
 
-      // Consultations subcollection
+      // Consultations are billed server-side. Users can read receipts only.
       match /consultations/{docId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read: if isOwner(userId);
+        allow write: if false;
       }
 
       // Consultation reviews subcollection
       match /consultations_reviews/{docId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isOwner(userId);
+      }
+
+      match /creditLedger/{entryId} {
+        allow read: if isOwner(userId);
+        allow write: if false;
+      }
+
+      match /reports/{reportId} {
+        allow read: if isOwner(userId);
+        allow write: if false;
+      }
+
+      match /digests/{digestId} {
+        allow read: if isOwner(userId);
+        allow write: if false;
       }
 
       // Friends / inner circle subcollection
       match /friends/{docId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isOwner(userId);
       }
 
       // Referrals subcollection
       match /referrals/{docId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isOwner(userId);
       }
     }
 
@@ -69,6 +82,22 @@ service cloud.firestore {
 
     // ── OTP collection — server-only (no client access) ──────────────
     match /otps/{email} {
+      allow read, write: if false; // Admin SDK only
+    }
+
+    match /paymentOrders/{docId} {
+      allow read, write: if false; // Admin SDK only
+    }
+
+    match /auditLogs/{docId} {
+      allow read, write: if false; // Admin SDK only
+    }
+
+    match /rateLimits/{docId} {
+      allow read, write: if false; // Admin SDK only
+    }
+
+    match /webhookEvents/{docId} {
       allow read, write: if false; // Admin SDK only
     }
   }

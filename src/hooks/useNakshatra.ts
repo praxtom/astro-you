@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useRequestBirthData } from './useRequestBirthData';
 
 export interface NakshatraData {
     name: string;
@@ -18,9 +19,10 @@ export function useNakshatra(birthData: any): UseNakshatraResult {
     const [nakshatra, setNakshatra] = useState<NakshatraData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const requestBirthData = useRequestBirthData(birthData);
 
     useEffect(() => {
-        if (!birthData || !birthData.dob || !birthData.tob) {
+        if (!requestBirthData?.dob || !requestBirthData.tob) {
             setLoading(false);
             return;
         }
@@ -35,7 +37,7 @@ export function useNakshatra(birthData: any): UseNakshatraResult {
                 const response = await fetch('/api/kundali', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ birthData, chartType: 'NAKSHATRA' }),
+                    body: JSON.stringify({ birthData: requestBirthData, chartType: 'NAKSHATRA' }),
                     signal: controller.signal,
                 });
 
@@ -62,7 +64,7 @@ export function useNakshatra(birthData: any): UseNakshatraResult {
 
         fetchNakshatra();
         return () => controller.abort();
-    }, [birthData?.dob, birthData?.tob, birthData?.pob]);
+    }, [requestBirthData]);
 
     return { nakshatra, loading, error };
 }

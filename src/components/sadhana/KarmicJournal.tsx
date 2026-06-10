@@ -13,7 +13,8 @@ import {
     Zap,
     ShieldCheck,
     TrendingUp,
-    History
+    History,
+    PenTool
 } from 'lucide-react';
 import { AtmanData, UserLifeEvent, WeightedPattern } from '../../types/user';
 import { AtmanService } from '../../lib/atman';
@@ -44,6 +45,55 @@ const EVENT_COLORS: Record<string, string> = {
     finance: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
     spiritual: 'bg-violet-500/20 text-violet-300 border-violet-500/30'
 };
+
+interface JournalInsight {
+    id: string;
+    type: 'pattern' | 'event';
+    text: string;
+    category?: UserLifeEvent['category'];
+}
+
+function extractJournalInsights(text: string): JournalInsight[] {
+    const trimmed = text.trim();
+    if (!trimmed) return [];
+    const lower = trimmed.toLowerCase();
+    const firstSentence = trimmed.split(/[.!?]/)[0]?.slice(0, 120) || trimmed.slice(0, 120);
+    const insights: JournalInsight[] = [];
+
+    if (/\b(always|again|keep|often|every time|recurring)\b/i.test(trimmed)) {
+        insights.push({
+            id: `pattern_${Date.now()}`,
+            type: 'pattern',
+            text: firstSentence,
+        });
+    }
+
+    const eventCategory: UserLifeEvent['category'] =
+        /job|career|interview|work|boss|business/i.test(lower) ? 'career' :
+        /partner|friend|family|marriage|relationship/i.test(lower) ? 'relationship' :
+        /money|payment|loan|invest|finance/i.test(lower) ? 'finance' :
+        /health|sleep|doctor|body|anxiety/i.test(lower) ? 'health' :
+        'spiritual';
+
+    if (/\b(interview|meeting|deadline|argument|decision|exam|trip|appointment|call)\b/i.test(lower)) {
+        insights.push({
+            id: `event_${Date.now()}`,
+            type: 'event',
+            text: firstSentence,
+            category: eventCategory,
+        });
+    }
+
+    if (insights.length === 0) {
+        insights.push({
+            id: `pattern_${Date.now()}`,
+            type: 'pattern',
+            text: firstSentence,
+        });
+    }
+
+    return insights;
+}
 
 /**
  * Sadhana Path Generator Internal Component
@@ -125,6 +175,8 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
     onRefresh 
 }) => {
     const [expandedSection, setExpandedSection] = useState<string | null>('patterns');
+    const [journalText, setJournalText] = useState('');
+    const [journalInsights, setJournalInsights] = useState<JournalInsight[]>([]);
 
     if (!atmanState) {
         return (
@@ -155,9 +207,40 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
     };
 
     const handleUpdateEventStatus = async (eventId: string, status: UserLifeEvent['status']) => {
-        // TODO: Implement event status update in AtmanService
-        console.log(`[KarmicJournal] User ${userId} updated event ${eventId} to ${status}`);
-        onRefresh(); // Refresh after action
+        await AtmanService.updateLifeEventStatus(userId, eventId, status);
+        onRefresh();
+    };
+
+    const handleReviewJournal = () => {
+        setJournalInsights(extractJournalInsights(journalText));
+    };
+
+    const updateInsightText = (id: string, text: string) => {
+        setJournalInsights((items) =>
+            items.map((item) => item.id === id ? { ...item, text } : item),
+        );
+    };
+
+    const rejectInsight = (id: string) => {
+        setJournalInsights((items) => items.filter((item) => item.id !== id));
+    };
+
+    const acceptInsight = async (insight: JournalInsight) => {
+        if (!insight.text.trim()) return;
+        if (insight.type === 'pattern') {
+            await AtmanService.addPattern(userId, insight.text);
+        } else {
+            await AtmanService.addLifeEvent(userId, {
+                title: insight.text,
+                status: 'pending',
+                category: insight.category || 'spiritual',
+                confidence: 0.7,
+                date: new Date(),
+            });
+        }
+        rejectInsight(insight.id);
+        setJournalText('');
+        onRefresh();
     };
 
     const emotionalConfig = EMOTIONAL_STATES[atmanState.emotionalState] || EMOTIONAL_STATES.stable;
@@ -174,6 +257,65 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                     {emotionalConfig.icon}
                     {emotionalConfig.label}
                 </div>
+            </div>
+
+            {/* Consent-Based Journal Capture */}
+            <div className="bg-white/5 rounded-2xl border border-white/10 p-4">
+                <div className="flex items-center gap-2 text-gold mb-3">
+                    <PenTool size={16} />
+                    <h4 className="text-sm font-display uppercase tracking-widest">Journal Entry</h4>
+                </div>
+                <textarea
+                    value={journalText}
+                    onChange={(event) => setJournalText(event.target.value)}
+                    placeholder="Write what happened, how you felt, or what you are noticing..."
+                    className="w-full min-h-24 rounded-xl bg-black/20 border border-white/10 px-4 py-3 text-sm text-white/80 outline-none focus:border-gold/40 resize-none placeholder:text-white/25"
+                />
+                <div className="flex items-center justify-between mt-3 gap-3">
+                    <p className="text-xs text-white/35">
+                        Nothing is saved to memory until you accept it.
+                    </p>
+                    <button
+                        onClick={handleReviewJournal}
+                        disabled={journalText.trim().length < 12}
+                        className="px-3 py-2 rounded-xl bg-gold text-black text-xs font-bold uppercase tracking-widest disabled:opacity-40"
+                    >
+                        Notice Patterns
+                    </button>
+                </div>
+                {journalInsights.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                        <p className="text-xs uppercase tracking-widest text-white/35">
+                            What I noticed about you
+                        </p>
+                        {journalInsights.map((insight) => (
+                            <div key={insight.id} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                                <p className="text-[10px] uppercase tracking-widest text-white/30 mb-2">
+                                    {insight.type === 'pattern' ? 'Pattern' : 'Life Event'}
+                                </p>
+                                <input
+                                    value={insight.text}
+                                    onChange={(event) => updateInsightText(insight.id, event.target.value)}
+                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-gold/40"
+                                />
+                                <div className="flex justify-end gap-2 mt-3">
+                                    <button
+                                        onClick={() => rejectInsight(insight.id)}
+                                        className="px-3 py-1.5 rounded-lg border border-white/10 text-white/45 text-xs"
+                                    >
+                                        Reject
+                                    </button>
+                                    <button
+                                        onClick={() => acceptInsight(insight)}
+                                        className="px-3 py-1.5 rounded-lg bg-gold text-black text-xs font-bold"
+                                    >
+                                        Accept
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* Growth Radar (Soul Map) */}
@@ -251,21 +393,29 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                                         const patternText = isWeighted ? patternObj.pattern : patternObj;
                                         const isVerified = isWeighted ? patternObj.verified : false;
                                         const weightScore = isWeighted ? patternObj.weightScore : 1.0;
-                                        
+                                        const isArchived = isWeighted ? patternObj.archived : false;
+
                                         return (
-                                            <div 
+                                            <div
                                                 key={isWeighted ? patternObj.id : idx}
                                                 className={`p-3 border rounded-lg group transition-all ${
-                                                    isVerified 
-                                                        ? 'bg-emerald-500/5 border-emerald-500/20' 
-                                                        : 'bg-violet-500/5 border-violet-500/10'
+                                                    isArchived
+                                                        ? 'bg-white/[0.02] border-white/5'
+                                                        : isVerified
+                                                            ? 'bg-emerald-500/5 border-emerald-500/20'
+                                                            : 'bg-violet-500/5 border-violet-500/10'
                                                 }`}
                                             >
                                                 <div className="flex items-center justify-between mb-2">
                                                     <div className="flex items-center gap-2">
-                                                        <span className={`text-sm ${isVerified ? 'text-emerald-300' : 'text-white/80'}`}>
+                                                        <span className={`text-sm ${isArchived ? 'text-white/35' : isVerified ? 'text-emerald-300' : 'text-white/80'}`}>
                                                             {patternText}
                                                         </span>
+                                                        {isArchived && (
+                                                            <span className="text-[10px] uppercase text-white/30">
+                                                                Archived
+                                                            </span>
+                                                        )}
                                                         {isVerified && (
                                                             <div title="Verified by you">
                                                                 <ShieldCheck size={12} className="text-emerald-400" />
@@ -286,7 +436,7 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                                                                 <button
                                                                     onClick={() => handleVerifyPattern(patternObj.id)}
                                                                     className="p-1 rounded hover:bg-green-500/20 text-green-400/50 hover:text-green-400"
-                                                                    title="Yes, this is accurate"
+                                                                    title={isArchived ? "Bring this pattern back" : "Yes, this is accurate"}
                                                                 >
                                                                     <Check size={14} />
                                                                 </button>
@@ -499,10 +649,64 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                         </motion.div>
                     )}
                 </AnimatePresence>
-            </div>
+	            </div>
 
-            {/* Relationships Section (The Sangha) */}
-            <div className="bg-white/5 rounded-xl border border-white/10 overflow-hidden">
+	            {/* Recent Nudges Section */}
+	            <div className="bg-white/5 rounded-xl border border-white/10 overflow-hidden">
+	                <button
+	                    onClick={() => toggleSection('nudges')}
+	                    className="w-full p-4 flex items-center justify-between text-left hover:bg-white/5 transition-colors"
+	                >
+	                    <div className="flex items-center gap-2">
+	                        <History size={16} className="text-gold" />
+	                        <span className="text-white font-medium">Recent Nudges</span>
+	                        <span className="text-white/40 text-xs">
+	                            ({atmanState.nudgeHistory?.length || 0})
+	                        </span>
+	                    </div>
+	                    {expandedSection === 'nudges' ?
+	                        <ChevronUp size={16} className="text-white/40" /> :
+	                        <ChevronDown size={16} className="text-white/40" />
+	                    }
+	                </button>
+
+	                <AnimatePresence>
+	                    {expandedSection === 'nudges' && (
+	                        <motion.div
+	                            initial={{ height: 0, opacity: 0 }}
+	                            animate={{ height: 'auto', opacity: 1 }}
+	                            exit={{ height: 0, opacity: 0 }}
+	                            className="border-t border-white/5"
+	                        >
+	                            <div className="p-4 space-y-2">
+	                                {atmanState.nudgeHistory && atmanState.nudgeHistory.length > 0 ? (
+	                                    atmanState.nudgeHistory.slice(-6).reverse().map((nudge, idx) => (
+	                                        <div
+	                                            key={`${nudge.triggerType}_${nudge.date}_${idx}`}
+	                                            className="p-3 bg-white/[0.03] border border-white/10 rounded-lg"
+	                                        >
+	                                            <div className="flex items-center justify-between gap-3 mb-1">
+	                                                <p className="text-sm text-white/85 font-medium">{nudge.title}</p>
+	                                                <span className="text-[10px] text-white/30">
+	                                                    {new Date(nudge.date).toLocaleDateString()}
+	                                                </span>
+	                                            </div>
+	                                            <p className="text-sm text-white/55 leading-relaxed">{nudge.message}</p>
+	                                        </div>
+	                                    ))
+	                                ) : (
+	                                    <p className="text-white/40 text-sm text-center py-4">
+	                                        No proactive nudges yet.
+	                                    </p>
+	                                )}
+	                            </div>
+	                        </motion.div>
+	                    )}
+	                </AnimatePresence>
+	            </div>
+
+	            {/* Relationships Section (The Sangha) */}
+	            <div className="bg-white/5 rounded-xl border border-white/10 overflow-hidden">
                 <button
                     onClick={() => toggleSection('relationships')}
                     className="w-full p-4 flex items-center justify-between text-left hover:bg-white/5 transition-colors"

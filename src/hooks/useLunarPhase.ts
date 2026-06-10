@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useRequestBirthData } from './useRequestBirthData';
 
 export interface LunarPhaseData {
     phase: string;
@@ -36,9 +37,10 @@ export function useLunarPhase(birthData: any): UseLunarPhaseResult {
     const [lunar, setLunar] = useState<LunarPhaseData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const requestBirthData = useRequestBirthData(birthData);
 
     useEffect(() => {
-        if (!birthData || !birthData.dob || !birthData.tob) {
+        if (!requestBirthData?.dob || !requestBirthData.tob) {
             setLoading(false);
             return;
         }
@@ -53,7 +55,7 @@ export function useLunarPhase(birthData: any): UseLunarPhaseResult {
                 const response = await fetch('/api/kundali', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ birthData, chartType: 'LUNAR_PHASES' }),
+                    body: JSON.stringify({ birthData: requestBirthData, chartType: 'LUNAR_PHASES' }),
                     signal: controller.signal,
                 });
 
@@ -81,7 +83,7 @@ export function useLunarPhase(birthData: any): UseLunarPhaseResult {
 
         fetchLunar();
         return () => controller.abort();
-    }, [birthData?.dob, birthData?.tob, birthData?.pob]);
+    }, [requestBirthData]);
 
     return { lunar, loading, error };
 }

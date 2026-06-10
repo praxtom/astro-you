@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, Loader2, AlertCircle } from 'lucide-react';
+import { Calendar, Loader2 } from 'lucide-react';
 
 interface Festival {
     name: string;
@@ -73,9 +73,30 @@ export const FestivalCard: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 className="bg-white/5 border border-white/10 rounded-[2rem] p-6"
             >
-                <div className="flex items-center gap-2 text-white/40 text-sm">
-                    <AlertCircle size={16} />
-                    <span>Festival calendar unavailable</span>
+                <div className="flex items-center gap-2 mb-4">
+                    <div className="p-2 rounded-xl bg-violet-500/10">
+                        <Calendar size={18} className="text-violet-400" />
+                    </div>
+                    <h3 className="text-sm font-semibold text-white/90 tracking-wide">
+                        Upcoming Festivals
+                    </h3>
+                </div>
+
+                <div className="space-y-3">
+                    <div className="flex items-start gap-3">
+                        <span className="text-xs text-white/40 font-medium min-w-[48px] pt-0.5">Today</span>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm text-white/80">Daily practice</p>
+                            <p className="text-[10px] text-white/30">Light a diya, offer gratitude, keep one clear intention.</p>
+                        </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                        <span className="text-xs text-white/40 font-medium min-w-[48px] pt-0.5">This week</span>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm text-white/80">Family gratitude</p>
+                            <p className="text-[10px] text-white/30">A small ritual with family is enough until the live calendar refreshes.</p>
+                        </div>
+                    </div>
                 </div>
             </motion.div>
         );

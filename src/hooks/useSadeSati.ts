@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useRequestBirthData } from './useRequestBirthData';
 
 export interface SadeSatiData {
     isActive: boolean;
@@ -18,9 +19,10 @@ export function useSadeSati(birthData: any): UseSadeSatiResult {
     const [sadeSati, setSadeSati] = useState<SadeSatiData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const requestBirthData = useRequestBirthData(birthData);
 
     useEffect(() => {
-        if (!birthData || !birthData.dob || !birthData.tob) {
+        if (!requestBirthData?.dob || !requestBirthData.tob) {
             setLoading(false);
             return;
         }
@@ -35,7 +37,7 @@ export function useSadeSati(birthData: any): UseSadeSatiResult {
                 const response = await fetch('/api/kundali', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ birthData, chartType: 'SADE_SATI' }),
+                    body: JSON.stringify({ birthData: requestBirthData, chartType: 'SADE_SATI' }),
                     signal: controller.signal,
                 });
 
@@ -66,7 +68,7 @@ export function useSadeSati(birthData: any): UseSadeSatiResult {
 
         fetchSadeSati();
         return () => controller.abort();
-    }, [birthData?.dob, birthData?.tob, birthData?.pob]);
+    }, [requestBirthData]);
 
     return { sadeSati, loading, error };
 }

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { useAuth } from '../lib/AuthContext';
+import { useAuth } from '../lib/useAuth';
 import { useConsciousness } from './useConsciousness';
 import { useDashaMonitor } from './useDashaMonitor';
 import { AtmanService } from '../lib/atman';
-import { useToast } from '../components/ui/Toast';
+import { useToast } from '../components/ui/toast-context';
 
 /**
  * Hook to trigger proactive "Guru Nudges" based on Atman state and time

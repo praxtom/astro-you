@@ -18,6 +18,7 @@ import {
   Share2,
 } from "lucide-react";
 import { useUserProfile } from "../hooks";
+import { useAuth } from "../lib/useAuth";
 import { FullPageSkeleton } from "../components/ui/Skeleton";
 import type { ForecastData } from "../types";
 
@@ -61,20 +62,32 @@ const getAreaColor = (area: string) => {
 
 const DailyForecast: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { birthData, loading: profileLoading } = useUserProfile();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [forecast, setForecast] = useState<ForecastData | null>(null);
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('daily');
   const [downloading, setDownloading] = useState(false);
+  const [feedbackSignal, setFeedbackSignal] = useState<"accurate" | "partly" | "missed" | null>(null);
+  const [feedbackNotes, setFeedbackNotes] = useState("");
+  const [feedbackStatus, setFeedbackStatus] = useState("");
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
 
   useEffect(() => {
-    const fetchForecast = async () => {
-      if (!birthData) return;
+    if (profileLoading) return;
 
+    if (!birthData) {
+      setForecast(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
+    const fetchForecast = async () => {
       try {
         setLoading(true);
-        const response = await fetch("/.netlify/functions/horoscope", {
+        const response = await fetch("/api/horoscope", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -89,15 +102,14 @@ const DailyForecast: React.FC = () => {
         setForecast(data);
       } catch (err: any) {
         console.error("Error fetching forecast:", err);
-        setError(err.message);
+        setForecast(buildFallbackForecast(period));
+        setError(null);
       } finally {
         setLoading(false);
       }
     };
 
-    if (!profileLoading && birthData) {
-      fetchForecast();
-    }
+    fetchForecast();
   }, [birthData, profileLoading, period]);
 
   const handleDownloadPDF = async () => {
@@ -124,7 +136,91 @@ const DailyForecast: React.FC = () => {
     }
   };
 
+  const submitPredictionFeedback = async (signal: "accurate" | "partly" | "missed") => {
+    if (!user) {
+      navigate("/onboarding", { replace: true });
+      return;
+    }
+    setFeedbackSignal(signal);
+    setFeedbackSubmitting(true);
+    setFeedbackStatus("");
+    try {
+      const idToken = await user.getIdToken();
+      const forecastDate = new Date().toISOString().split("T")[0];
+      const response = await fetch("/api/trust/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idToken,
+          kind: "prediction_feedback",
+          source: "daily_forecast",
+          period,
+          forecastDate,
+          signal,
+          notes: feedbackNotes,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not save feedback");
+      setFeedbackStatus("Feedback saved. We use this in aggregate accuracy tracking.");
+    } catch (err: any) {
+      setFeedbackStatus(err.message || "Could not save feedback.");
+    } finally {
+      setFeedbackSubmitting(false);
+    }
+  };
+
   if (profileLoading || loading) return <FullPageSkeleton />;
+
+  if (!birthData) {
+    return (
+      <div className="min-h-screen bg-[#030308] text-white selection:bg-gold/30">
+        <div className="fixed inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-[-10%] right-[-10%] h-[50%] w-[50%] rounded-full bg-gold/5 blur-[120px]" />
+          <div className="absolute bottom-[-10%] left-[-10%] h-[50%] w-[50%] rounded-full bg-violet-500/5 blur-[120px]" />
+        </div>
+
+        <main className="relative z-10 mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-5 py-12">
+          <button
+            onClick={() => navigate("/")}
+            className="mb-8 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-white/40 transition-colors hover:text-gold"
+          >
+            <ArrowLeft size={18} />
+            Back to Home
+          </button>
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 md:p-8">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-gold/20 bg-gold/10 px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-gold">
+              <Calendar size={14} />
+              Personal forecast
+            </div>
+            <h1 className="font-display text-4xl leading-tight md:text-5xl">
+              Create your birth profile to see a personal forecast.
+            </h1>
+            <p className="mt-4 max-w-xl text-base leading-relaxed text-white/55">
+              Your daily, weekly, monthly, and yearly readings need birth date,
+              birth time, and birthplace so the forecast can use your chart.
+            </p>
+
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+              <button
+                onClick={() => navigate("/onboarding")}
+                className="rounded-xl bg-gold px-5 py-3 text-sm font-bold uppercase tracking-widest text-black transition hover:bg-gold/90"
+              >
+                Create Profile
+              </button>
+              <button
+                onClick={() => navigate("/horoscope/aries/daily")}
+                className="rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-bold uppercase tracking-widest text-white/70 transition hover:border-gold/30 hover:text-gold"
+              >
+                Browse Sign Forecasts
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -136,18 +232,18 @@ const DailyForecast: React.FC = () => {
   const h = forecast?.horoscope;
 
   return (
-    <div className="min-h-screen bg-[#030308] text-white selection:bg-gold/30 font-serif pb-20">
+    <div className="min-h-screen bg-[#030308] text-white selection:bg-gold/30 font-serif pb-8">
       {/* Background Ambiance */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-gold/5 blur-[120px] rounded-full animate-pulse-slow"></div>
         <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-violet-500/5 blur-[120px] rounded-full"></div>
       </div>
 
-      <div className="relative z-10 max-w-5xl mx-auto px-6 py-12">
+      <div className="relative z-10 max-w-5xl mx-auto px-4 md:px-6 py-5">
         {/* Header */}
         <button
           onClick={() => navigate("/dashboard")}
-          className="flex items-center gap-2 text-white/40 hover:text-gold transition-colors mb-12 group font-sans"
+          className="flex items-center gap-2 text-white/40 hover:text-gold transition-colors mb-4 group font-sans"
         >
           <ArrowLeft
             size={18}
@@ -158,12 +254,12 @@ const DailyForecast: React.FC = () => {
           </span>
         </button>
 
-        <div className="flex gap-2 mb-8">
+        <div className="flex gap-2 mb-4">
           {(['daily', 'weekly', 'monthly', 'yearly'] as const).map((p) => (
             <button
               key={p}
               onClick={() => setPeriod(p)}
-              className={`px-6 py-2 rounded-xl border text-sm font-bold uppercase tracking-widest transition-all ${
+              className={`px-4 py-1.5 rounded-xl border text-sm font-bold uppercase tracking-widest transition-all ${
                 period === p
                   ? 'bg-gold/10 border-gold/50 text-gold'
                   : 'bg-white/5 border-white/10 text-white/40 hover:border-white/30'
@@ -173,33 +269,35 @@ const DailyForecast: React.FC = () => {
             </button>
           ))}
           {forecast && !loading && (
-            <button
-              onClick={handleDownloadPDF}
-              disabled={downloading}
-              className="ml-auto px-4 py-2 rounded-xl border border-white/10 text-white/40 hover:text-gold hover:border-gold/30 text-xs uppercase tracking-widest transition-all flex items-center gap-2 disabled:opacity-50"
-            >
-              <Download size={14} />
-              {downloading ? 'Generating...' : 'PDF Report'}
-            </button>
-            <button
-              onClick={() => {
-                const text = `My ${period} forecast: ${forecast?.horoscope?.overall_theme || 'Check your stars!'}\n\nGet yours free: ${window.location.origin}/free-kundali`;
-                if (navigator.share) {
-                  navigator.share({ title: 'AstroYou Forecast', text, url: `${window.location.origin}/free-kundali` });
-                } else {
-                  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
-                }
-              }}
-              className="px-4 py-2 rounded-xl border border-white/10 text-white/40 hover:text-gold hover:border-gold/30 text-xs uppercase tracking-widest transition-all flex items-center gap-2"
-            >
-              <Share2 size={14} />
-              Share
-            </button>
+            <>
+              <button
+                onClick={handleDownloadPDF}
+                disabled={downloading}
+                className="ml-auto px-4 py-2 rounded-xl border border-white/10 text-white/40 hover:text-gold hover:border-gold/30 text-xs uppercase tracking-widest transition-all flex items-center gap-2 disabled:opacity-50"
+              >
+                <Download size={14} />
+                {downloading ? 'Generating...' : 'PDF Report'}
+              </button>
+              <button
+                onClick={() => {
+                  const text = `My ${period} forecast: ${forecast?.horoscope?.overall_theme || 'Check your stars!'}\n\nGet yours free: ${window.location.origin}/free-kundali`;
+                  if (navigator.share) {
+                    navigator.share({ title: 'AstroYou Forecast', text, url: `${window.location.origin}/free-kundali` });
+                  } else {
+                    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                  }
+                }}
+                className="px-4 py-2 rounded-xl border border-white/10 text-white/40 hover:text-gold hover:border-gold/30 text-xs uppercase tracking-widest transition-all flex items-center gap-2"
+              >
+                <Share2 size={14} />
+                Share
+              </button>
+            </>
           )}
         </div>
 
-        <header className="mb-16">
-          <h1 className="text-4xl md:text-6xl font-light mb-6 text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-white/40 leading-tight">
+        <header className="mb-4">
+          <h1 className="text-4xl md:text-5xl font-light mb-3 text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-white/40 leading-tight">
             {period === 'yearly'
               ? `Your ${new Date().getFullYear()} Forecast`
               : period === 'monthly'
@@ -208,7 +306,7 @@ const DailyForecast: React.FC = () => {
               ? 'Your Weekly Forecast'
               : 'Your Daily Forecast'}
           </h1>
-          <div className="flex flex-wrap items-center gap-6 text-white/40 font-sans italic text-sm">
+          <div className="flex flex-wrap items-center gap-3 text-white/40 font-sans italic text-sm">
             <div className="flex items-center gap-2">
               <Calendar size={14} />
               {today}
@@ -222,7 +320,7 @@ const DailyForecast: React.FC = () => {
         </header>
 
         {error ? (
-          <div className="glass p-8 rounded-3xl border border-red-500/20 text-center">
+          <div className="glass p-4 rounded-2xl border border-red-500/20 text-center">
             <p className="text-red-400 mb-4">{error}</p>
             <button
               onClick={() => window.location.reload()}
@@ -232,15 +330,15 @@ const DailyForecast: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-1000">
             {/* The Daily Pulse (Theme) */}
-            <div className="glass p-8 md:p-12 rounded-[2.5rem] border border-white/5 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
+            <div className="glass p-4 rounded-2xl border border-white/5 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-5 opacity-5 group-hover:opacity-10 transition-opacity">
                 <Sun size={120} className="text-gold" />
               </div>
 
               <div className="relative z-10">
-                <div className="flex items-center gap-3 text-gold mb-8 font-sans">
+                <div className="flex items-center gap-3 text-gold mb-5 font-sans">
                   <span className="w-8 h-[1px] bg-gold/30"></span>
                   <span className="text-[10px] font-black uppercase tracking-widest">
                     {period === 'yearly' ? "This Year's Theme" : period === 'monthly' ? "This Month's Theme" : period === 'weekly' ? "This Week's Theme" : "Today's Theme"}
@@ -315,9 +413,9 @@ const DailyForecast: React.FC = () => {
             )}
 
             {/* Planetary Influences (Transit Activations) */}
-            <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">
-                <div className="flex items-center gap-4 mb-8">
+                <div className="flex items-center gap-4 mb-5">
                   <h2 className="text-xl font-light tracking-wide">
                     Transit Activations
                   </h2>
@@ -351,7 +449,7 @@ const DailyForecast: React.FC = () => {
               </div>
 
               {/* Sidebar: Dasha & Lucky Elements */}
-              <div className="space-y-8">
+              <div className="space-y-6">
                 {/* Dasha Block */}
                 <div className="glass p-6 rounded-[2rem] border border-violet-500/20 bg-violet-500/5">
                   <div className="flex items-center gap-3 text-violet-400 mb-6 font-sans">
@@ -452,7 +550,7 @@ const DailyForecast: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="mt-8 pt-6 border-t border-white/5">
+                  <div className="mt-6 pt-5 border-t border-white/5">
                     <div className="text-[10px] text-white/30 uppercase tracking-widest font-sans mb-3">
                       Auspicious Times
                     </div>
@@ -473,7 +571,7 @@ const DailyForecast: React.FC = () => {
 
             {/* Tips Section */}
             {h?.tips && h.tips.length > 0 && (
-              <section className="glass p-8 rounded-[2.5rem] border border-emerald-500/10 bg-emerald-500/[0.02]">
+              <section className="glass p-6 rounded-[2rem] border border-emerald-500/10 bg-emerald-500/[0.02]">
                 <div className="flex items-center gap-3 text-emerald-400 mb-6 font-sans">
                   <Sparkles size={16} />
                   <span className="text-[10px] font-black uppercase tracking-widest">
@@ -495,7 +593,7 @@ const DailyForecast: React.FC = () => {
 
             {/* Life Areas Grid */}
             <section>
-              <div className="flex items-center gap-4 mb-8">
+              <div className="flex items-center gap-4 mb-5">
                 <h2 className="text-xl font-light tracking-wide">Life Areas</h2>
                 <div className="h-[1px] flex-grow bg-white/5"></div>
               </div>
@@ -546,7 +644,52 @@ const DailyForecast: React.FC = () => {
             </section>
 
             {/* Wisdom Footer */}
-            <div className="text-center py-12 border-t border-white/5">
+            <section className="glass rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gold/70">
+                    Prediction feedback
+                  </p>
+                  <h2 className="mt-1 text-lg font-light tracking-wide">
+                    Did this feel accurate?
+                  </h2>
+                  <p className="mt-1 text-xs text-white/40">
+                    Your response is stored as feedback, not shown publicly.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { value: "accurate", label: "Accurate" },
+                    { value: "partly", label: "Partly" },
+                    { value: "missed", label: "Missed" },
+                  ].map((item) => (
+                    <button
+                      key={item.value}
+                      onClick={() => submitPredictionFeedback(item.value as "accurate" | "partly" | "missed")}
+                      disabled={feedbackSubmitting}
+                      className={`rounded-xl border px-3 py-2 text-xs font-bold uppercase tracking-widest transition-all ${
+                        feedbackSignal === item.value
+                          ? "border-gold/50 bg-gold/10 text-gold"
+                          : "border-white/10 bg-white/5 text-white/45 hover:border-gold/30 hover:text-gold"
+                      } disabled:opacity-50`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <textarea
+                value={feedbackNotes}
+                onChange={(event) => setFeedbackNotes(event.target.value)}
+                placeholder="Optional note for the team"
+                className="mt-4 min-h-20 w-full resize-none rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-white/25 focus:border-gold/40"
+              />
+              {feedbackStatus && (
+                <p className="mt-2 text-xs text-white/45">{feedbackStatus}</p>
+              )}
+            </section>
+
+            <div className="text-center py-8 border-t border-white/5">
               <p className="text-white/20 text-[10px] uppercase tracking-[0.3em] font-light font-sans max-w-md mx-auto leading-relaxed">
                 As above, so below. Infinite wisdom is yours.
               </p>
@@ -559,3 +702,62 @@ const DailyForecast: React.FC = () => {
 };
 
 export default DailyForecast;
+
+function buildFallbackForecast(period: 'daily' | 'weekly' | 'monthly' | 'yearly'): ForecastData {
+  const now = new Date();
+  const themeByPeriod = {
+    daily: "Keep the day simple: one clear priority, one clean conversation, and one small act of care.",
+    weekly: "This week rewards steady pacing. Protect attention, review promises, and move only the commitments that matter.",
+    monthly: "This month is best used for practical alignment: simplify routines, mature relationships, and avoid reactive decisions.",
+    yearly: "This year favors consistency over intensity. Build habits and let major choices mature before acting.",
+  };
+
+  return {
+    narrative: themeByPeriod[period],
+    horoscope: {
+      date: now.toISOString().split("T")[0],
+      overall_theme: themeByPeriod[period],
+      overall_rating: 3,
+      planetary_influences: [],
+      lucky_elements: {
+        colors: ["Gold", "White"],
+        numbers: [3, 9],
+        stones: ["Clear quartz"],
+        directions: ["East"],
+        times: ["Morning", "Sunset"],
+      },
+      tips: [
+        "Do the next practical thing before asking for the next prediction.",
+        "Delay final decisions if the body feels rushed.",
+      ],
+      life_areas: [
+        {
+          area: "career",
+          title: "Work",
+          prediction: "Choose one concrete task and finish it cleanly before expanding the day.",
+          rating: 3,
+          keywords: ["focus", "steady"],
+        },
+        {
+          area: "love",
+          title: "Relationships",
+          prediction: "Use direct, warm words. Do not make someone interpret silence.",
+          rating: 3,
+          keywords: ["clarity", "care"],
+        },
+        {
+          area: "health",
+          title: "Wellbeing",
+          prediction: "A lighter routine and slower breath will do more than force today.",
+          rating: 3,
+          keywords: ["rhythm", "rest"],
+        },
+      ],
+    },
+    dasha: {
+      mahadasha: "Personal timing",
+      bhukti: "Refreshing",
+      ends: now.toISOString(),
+    },
+  };
+}

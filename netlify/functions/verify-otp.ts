@@ -1,9 +1,10 @@
 import { Config, Context } from "@netlify/functions";
 import { db, auth, FieldValue } from "./shared/firebase-admin";
+import { initializeUserCredits } from "./shared/credits";
 
 const MAX_ATTEMPTS = 5;
 
-export default async (req: Request, context: Context) => {
+export default async (req: Request, _context: Context) => {
     if (req.method !== "POST") {
         return new Response("Method Not Allowed", { status: 405 });
     }
@@ -80,17 +81,10 @@ export default async (req: Request, context: Context) => {
             }
         }
 
-        // Ensure the user has a Firestore document and initial credits
-        const userDocRef = db.collection("users").doc(userRecord.uid);
-        const userDoc = await userDocRef.get();
-
-        if (!userDoc.exists || userDoc.data()?.credits === undefined) {
-            await userDocRef.set({
-                email,
-                credits: 15, // Initial bonus credits
-                createdAt: userDoc.exists ? (userDoc.data()?.createdAt || new Date()) : new Date(),
-            }, { merge: true });
-        }
+        await initializeUserCredits(
+            { db, FieldValue },
+            { uid: userRecord.uid, email },
+        );
 
         // Create a custom token for the user
         const customToken = await auth.createCustomToken(userRecord.uid);

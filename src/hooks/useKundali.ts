@@ -3,11 +3,12 @@
  * Fetches from API if not cached, otherwise returns cached data
  */
 
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { useAuth } from '../lib/AuthContext';
+import { useAuth } from '../lib/useAuth';
 import type { KundaliData, BirthData, PlanetaryPosition } from '../types';
+import { useRequestBirthData } from './useRequestBirthData';
 
 interface UseKundaliResult {
     kundaliData: KundaliData | null;
@@ -23,15 +24,16 @@ export function useKundali(birthData: BirthData | null, chartType: ChartType = '
     const [kundaliData, setKundaliData] = useState<KundaliData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const requestBirthData = useRequestBirthData(birthData);
 
-    const fetchKundali = async (signal?: AbortSignal) => {
-        console.log('[useKundali] fetchKundali called with:', { birthData, chartType, userId: user?.uid });
+    const fetchKundali = useCallback(async (signal?: AbortSignal) => {
+        console.log('[useKundali] fetchKundali called with:', { birthData: requestBirthData, chartType, userId: user?.uid });
 
-        if (!birthData || !birthData.dob || !birthData.tob) {
+        if (!requestBirthData?.dob || !requestBirthData.tob) {
             console.log('[useKundali] Missing required fields, returning early:', {
-                hasBirthData: !!birthData,
-                dob: birthData?.dob,
-                tob: birthData?.tob
+                hasBirthData: !!requestBirthData,
+                dob: requestBirthData?.dob,
+                tob: requestBirthData?.tob
             });
             setLoading(false);
             return;
@@ -68,7 +70,7 @@ export function useKundali(birthData: BirthData | null, chartType: ChartType = '
             const response = await fetch('/api/kundali', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ birthData, chartType }),
+                body: JSON.stringify({ birthData: requestBirthData, chartType }),
                 signal,
             });
 
@@ -122,13 +124,13 @@ export function useKundali(birthData: BirthData | null, chartType: ChartType = '
         } finally {
             setLoading(false);
         }
-    };
+    }, [chartType, requestBirthData, user]);
 
     useEffect(() => {
         const controller = new AbortController();
         fetchKundali(controller.signal);
         return () => controller.abort();
-    }, [birthData?.dob, birthData?.tob, birthData?.pob, user?.uid, chartType]);
+    }, [fetchKundali]);
 
     return {
         kundaliData,

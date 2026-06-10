@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../lib/AuthContext";
+import { useAuth } from "../lib/useAuth";
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import AuthModal from "../components/AuthModal";
@@ -15,8 +15,8 @@ import {
 import { OnboardingSEO } from "../components/SEO";
 import LocationInput from "../components/LocationInput";
 import { STORAGE_KEYS } from "../lib/constants";
-import { useErrorToast } from "../components/ui/Toast";
-import { trackEvent } from "../lib/firebase";
+import { useErrorToast } from "../components/ui/toast-context";
+import { trackAcquisitionEvent } from "../lib/acquisition";
 
 type Step = "upload" | "identity" | "temporal" | "spatial" | "present";
 import type { ParsedChartData } from "../types";
@@ -50,19 +50,28 @@ export default function Onboarding() {
 
   // Preview: background-fetch kundali data when entering "present" step
   const [preview, setPreview] = useState<any>(null);
+  const { name, gender, dob, tob, pob, currentLocation, birthTimeUnknown } = formData;
 
   useEffect(() => {
-    if (step === 'present' && formData.dob && formData.tob && formData.pob && !preview) {
+    if (step !== "present" || !dob || !tob || !pob || preview) return;
+
+    const controller = new AbortController();
+    const birthData = { name, gender, dob, tob, pob, currentLocation, birthTimeUnknown };
+
       fetch('/api/kundali', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ birthData: formData, chartType: 'D1' }),
+        body: JSON.stringify({ birthData, chartType: 'D1' }),
+        signal: controller.signal,
       })
         .then((r) => r.json())
         .then((d) => setPreview(d))
-        .catch(() => {});
-    }
-  }, [step, formData.dob, formData.tob, formData.pob]);
+        .catch((err) => {
+          if (err.name !== "AbortError") console.warn("[Onboarding] Preview unavailable:", err);
+        });
+
+    return () => controller.abort();
+  }, [step, name, gender, dob, tob, pob, currentLocation, birthTimeUnknown, preview]);
 
   // Load existing data from localStorage (persists across sessions)
   useEffect(() => {
@@ -150,7 +159,6 @@ export default function Onboarding() {
                 ...formData,
                 parsedChart: parsedChart,
               },
-              credits: 15,
               updatedAt: new Date(),
             },
             { merge: true }
@@ -159,7 +167,7 @@ export default function Onboarding() {
         // Only mark complete AFTER Firestore write succeeds
         localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(formData));
         localStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");
-        trackEvent('onboarding_complete');
+        trackAcquisitionEvent("onboarding_complete");
         navigate("/dashboard");
       } catch (err) {
         console.error("Error saving data:", err);
@@ -175,7 +183,7 @@ export default function Onboarding() {
       sessionStorage.setItem(STORAGE_KEYS.GUEST_PROFILE, JSON.stringify(formData));
       sessionStorage.setItem(STORAGE_KEYS.GUEST_COMPLETE, "true");
       localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(formData));
-      trackEvent('onboarding_complete');
+      trackAcquisitionEvent("onboarding_complete");
       navigate("/dashboard");
     }
   };
@@ -212,7 +220,7 @@ export default function Onboarding() {
 
         try {
           // Call the parse-kundali API
-          const response = await fetch("/.netlify/functions/parse-kundali", {
+          const response = await fetch("/api/parse-kundali", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -301,7 +309,7 @@ export default function Onboarding() {
   };
 
   return (
-    <div className="min-h-screen bg-[#030308] flex items-center justify-center p-6 text-content-primary">
+    <div className="min-h-screen bg-[#030308] flex items-center justify-center p-3 text-content-primary">
       <OnboardingSEO />
 
       {/* Background Ambiance */}
@@ -310,9 +318,9 @@ export default function Onboarding() {
         <div className="absolute bottom-[-10%] left-[-5%] w-[60vw] h-[60vw] bg-gold/5 blur-[120px] rounded-full"></div>
       </div>
 
-      <div className="w-full max-w-xl glass p-10 md:p-14 relative z-10 border border-white/10 rounded-3xl">
+      <div className="w-full max-w-xl glass p-4 md:p-5 relative z-10 border border-white/10 rounded-2xl">
         {/* Progress Bar */}
-        <div className="flex gap-2 mb-12">
+        <div className="flex gap-1.5 mb-4">
           {["upload", "identity", "temporal", "spatial", "present"].map(
             (s, i) => {
               const steps = [
@@ -340,13 +348,13 @@ export default function Onboarding() {
         {/* Step 0: Kundali Upload (Optional) */}
         {step === "upload" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <span className="section-label mb-4 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
+            <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
               Optional
             </span>
-            <h2 className="text-title text-4xl mb-4 font-display tracking-tight">
+            <h2 className="text-title text-3xl mb-3 font-display tracking-tight">
               Upload Kundali
             </h2>
-            <p className="text-body mb-8 opacity-70 font-sans font-light">
+            <p className="text-body mb-4 opacity-70 font-sans font-light">
               Have an existing birth chart? Upload it and we'll extract your
               planetary positions automatically.
             </p>
@@ -365,7 +373,7 @@ export default function Onboarding() {
               /* Upload Zone */
               <label
                 htmlFor="chart-upload"
-                className={`relative flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${
+                className={`relative flex flex-col items-center justify-center w-full h-52 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${
                   isUploading
                     ? "border-gold/50 bg-gold/5"
                     : "border-white/20 hover:border-gold/40 hover:bg-white/5"
@@ -392,13 +400,13 @@ export default function Onboarding() {
               </label>
             ) : (
               /* Uploaded Image Preview & Results */
-              <div className="space-y-6">
+              <div className="space-y-4">
                 {/* Image Preview */}
                 <div className="relative rounded-2xl overflow-hidden border border-white/10">
                   <img
                     src={uploadedImage}
                     alt="Uploaded Kundali"
-                    className="w-full h-48 object-contain bg-black/20"
+                    className="w-full h-40 object-contain bg-black/20"
                   />
                   <button
                     onClick={clearUpload}
@@ -540,7 +548,7 @@ export default function Onboarding() {
             )}
 
             {/* Skip Option */}
-            <div className="mt-8 text-center">
+            <div className="mt-4 text-center">
               <button
                 onClick={() => setStep("identity")}
                 className="text-sm text-white/40 hover:text-white/60 transition-colors underline"
@@ -554,17 +562,17 @@ export default function Onboarding() {
         {/* Step 1: Identity */}
         {step === "identity" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <span className="section-label mb-4 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
+            <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
               Step 02 / 05
             </span>
-            <h2 className="text-title text-4xl mb-4 font-display tracking-tight">
+            <h2 className="text-title text-3xl mb-3 font-display tracking-tight">
               Personal Basis
             </h2>
-            <p className="text-body mb-10 opacity-70 font-sans font-light">
+            <p className="text-body mb-4 opacity-70 font-sans font-light">
               We'll start with your basic profile details.
             </p>
 
-            <div className="space-y-8">
+            <div className="space-y-4">
               <div>
                 <label
                   htmlFor="name-input"
@@ -578,7 +586,7 @@ export default function Onboarding() {
                   placeholder="Enter your name"
                   aria-required="true"
                   autoComplete="name"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 outline-none focus:border-gold/50 transition-all text-xl font-sans font-light focus-ring"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-gold/50 transition-all text-base font-sans font-light focus-ring"
                   value={formData.name}
                   onChange={(e) => {
                     const newData = { ...formData, name: e.target.value };
@@ -592,7 +600,7 @@ export default function Onboarding() {
                   Gender
                 </label>
                 <div
-                  className="grid grid-cols-3 gap-4"
+                  className="grid grid-cols-3 gap-3"
                   role="radiogroup"
                   aria-label="Gender selection"
                 >
@@ -625,25 +633,25 @@ export default function Onboarding() {
         {/* Step 2: Temporal */}
         {step === "temporal" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <span className="section-label mb-4 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
+            <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
               Step 02 / 04
             </span>
-            <h2 className="text-title text-4xl mb-4 font-display tracking-tight">
+            <h2 className="text-title text-3xl mb-3 font-display tracking-tight">
               The Moment
             </h2>
-            <p className="text-body mb-10 opacity-70 font-sans font-light">
+            <p className="text-body mb-4 opacity-70 font-sans font-light">
               When did your spirit first draw breath? Precision determines the
               alignment of the stars.
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-xs font-bold">
                   Birth Date
                 </label>
                 <input
                   type="date"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 outline-none focus:border-gold/50 transition-all text-xl font-sans font-light appearance-none invert-calendar-icon"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-gold/50 transition-all text-base font-sans font-light appearance-none invert-calendar-icon"
                   value={formData.dob}
                   onChange={(e) => {
                     const newData = { ...formData, dob: e.target.value };
@@ -658,7 +666,7 @@ export default function Onboarding() {
                 </label>
                 <input
                   type="time"
-                  className={`w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 outline-none focus:border-gold/50 transition-all text-xl font-sans font-light appearance-none invert-calendar-icon ${
+                  className={`w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-gold/50 transition-all text-base font-sans font-light appearance-none invert-calendar-icon ${
                     formData.birthTimeUnknown
                       ? "opacity-40 cursor-not-allowed"
                       : ""
@@ -673,7 +681,7 @@ export default function Onboarding() {
                 />
 
                 {/* Unknown birth time checkbox */}
-                <label className="flex items-center gap-3 mt-4 cursor-pointer group">
+                <label className="flex items-center gap-3 mt-3 cursor-pointer group">
                   <input
                     type="checkbox"
                     checked={formData.birthTimeUnknown}
@@ -709,18 +717,18 @@ export default function Onboarding() {
         {/* Step 3: Spatial */}
         {step === "spatial" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <span className="section-label mb-4 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
+            <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
               Step 03 / 04
             </span>
-            <h2 className="text-title text-4xl mb-4 font-display tracking-tight">
+            <h2 className="text-title text-3xl mb-3 font-display tracking-tight">
               Birth Location
             </h2>
-            <p className="text-body mb-10 opacity-70 font-sans font-light">
+            <p className="text-body mb-4 opacity-70 font-sans font-light">
               Your location of birth is essential for accurate planetary
               mapping.
             </p>
 
-            <div className="space-y-6">
+            <div className="space-y-4">
               <LocationInput
                 label="Birth Place"
                 placeholder="City, Province, Country"
@@ -738,18 +746,18 @@ export default function Onboarding() {
         {/* Step 4: Present */}
         {step === "present" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <span className="section-label mb-4 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
+            <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
               Step 04 / 04
             </span>
-            <h2 className="text-title text-4xl mb-4 font-display tracking-tight">
+            <h2 className="text-title text-3xl mb-3 font-display tracking-tight">
               The Presence
             </h2>
-            <p className="text-body mb-10 opacity-70 font-sans font-light">
+            <p className="text-body mb-4 opacity-70 font-sans font-light">
               Where does your light shine in this current moment?
             </p>
 
             {preview && (
-              <div className="mb-8 p-4 rounded-xl bg-gold/5 border border-gold/20">
+              <div className="mb-4 p-3 rounded-xl bg-gold/5 border border-gold/20">
                 <p className="text-[10px] text-gold uppercase tracking-widest font-bold mb-2">Quick Preview</p>
                 <p className="text-sm text-white/70">
                   Moon Sign: <span className="text-white font-medium">{preview.ascendant?.sign || preview.moonSign || preview.ascendant || 'Calculating...'}</span>
@@ -794,18 +802,18 @@ export default function Onboarding() {
         )}
 
         {/* Actions */}
-        <div className="flex gap-4 mt-16">
+        <div className="flex gap-3 mt-5">
           <button
             disabled={isSaving}
             onClick={prevStep}
-            className="btn btn-outline py-4 flex-1 font-bold tracking-widest text-xs uppercase"
+            className="btn btn-outline py-3 flex-1 font-bold tracking-widest text-xs uppercase"
           >
             {step === "identity" ? "Cancel" : "Back"}
           </button>
           <button
             disabled={isSaving}
             onClick={nextStep}
-            className={`btn btn-primary py-4 flex-[2] font-bold tracking-widest text-xs uppercase flex items-center justify-center gap-2 transition-all ${
+            className={`btn btn-primary py-3 flex-[2] font-bold tracking-widest text-xs uppercase flex items-center justify-center gap-2 transition-all ${
               (step === "identity" && (!formData.name || !formData.gender)) ||
               (step === "temporal" && (!formData.dob || !formData.tob)) ||
               (step === "spatial" && !formData.pob) ||

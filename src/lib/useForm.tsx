@@ -1,63 +1,8 @@
-import { useState, useCallback, ChangeEvent } from "react";
-
-type ValidationRule = {
-  validate: (value: string) => boolean;
-  message: string;
-};
-
-type FieldConfig = {
-  initialValue: string;
-  rules?: ValidationRule[];
-  validateOnChange?: boolean;
-  validateOnBlur?: boolean;
-};
-
-type FieldState = {
-  value: string;
-  error: string | null;
-  touched: boolean;
-  dirty: boolean;
-};
-
-export const rules = {
-  required: (message = "This field is required"): ValidationRule => ({
-    validate: (value) => value.trim().length > 0,
-    message,
-  }),
-
-  email: (message = "Please enter a valid email"): ValidationRule => ({
-    validate: (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value),
-    message,
-  }),
-
-  minLength: (min: number, message?: string): ValidationRule => ({
-    validate: (value) => value.length >= min,
-    message: message || `Must be at least ${min} characters`,
-  }),
-
-  maxLength: (max: number, message?: string): ValidationRule => ({
-    validate: (value) => value.length <= max,
-    message: message || `Must be no more than ${max} characters`,
-  }),
-
-  pattern: (regex: RegExp, message: string): ValidationRule => ({
-    validate: (value) => regex.test(value),
-    message,
-  }),
-
-  date: (message = "Please enter a valid date"): ValidationRule => ({
-    validate: (value) => !isNaN(Date.parse(value)),
-    message,
-  }),
-
-  time: (message = "Please enter a valid time"): ValidationRule => ({
-    validate: (value) => /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(value),
-    message,
-  }),
-};
+import { useState, useCallback, type ChangeEvent } from "react";
+import type { FieldConfig, FieldState } from "./formRules";
 
 export function useForm(config: Record<string, FieldConfig>) {
-  const getInitialState = (): Record<string, FieldState> => {
+  const getInitialState = useCallback((): Record<string, FieldState> => {
     const state: Record<string, FieldState> = {};
     for (const key in config) {
       state[key] = {
@@ -68,7 +13,7 @@ export function useForm(config: Record<string, FieldConfig>) {
       };
     }
     return state;
-  };
+  }, [config]);
 
   const [formState, setFormState] =
     useState<Record<string, FieldState>>(getInitialState);
@@ -193,7 +138,7 @@ export function useForm(config: Record<string, FieldConfig>) {
 
   const reset = useCallback(() => {
     setFormState(getInitialState());
-  }, []);
+  }, [getInitialState]);
 
   const getFieldProps = useCallback(
     (fieldName: string) => ({
@@ -227,25 +172,6 @@ export function useForm(config: Record<string, FieldConfig>) {
   };
 }
 
-export function FieldError({
-  error,
-  fieldName,
-}: {
-  error: string | null;
-  fieldName: string;
-}) {
-  if (!error) return null;
-
-  return (
-    <p
-      id={`${fieldName}-error`}
-      role="alert"
-      className="text-red-400 text-xs mt-1.5 font-sans flex items-center gap-1"
-    >
-      <span aria-hidden="true">⚠</span>
-      {error}
-    </p>
-  );
-}
-
 export default useForm;
+export { rules } from "./formRules";
+export type { FieldConfig, FieldState, ValidationRule } from "./formRules";

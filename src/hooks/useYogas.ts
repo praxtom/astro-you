@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { BirthData, Yoga } from '../types';
+import { useRequestBirthData } from './useRequestBirthData';
 
 function normalizeStrength(val: any): 'strong' | 'moderate' | 'weak' | undefined {
     if (!val) return undefined;
@@ -20,9 +21,10 @@ export function useYogas(birthData: BirthData | null): UseYogasResult {
     const [yogas, setYogas] = useState<Yoga[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const requestBirthData = useRequestBirthData(birthData);
 
     useEffect(() => {
-        if (!birthData || !birthData.dob || !birthData.tob) {
+        if (!requestBirthData?.dob || !requestBirthData.tob) {
             setLoading(false);
             return;
         }
@@ -37,7 +39,7 @@ export function useYogas(birthData: BirthData | null): UseYogasResult {
                 const response = await fetch('/api/kundali', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ birthData, chartType: 'YOGAS' }),
+                    body: JSON.stringify({ birthData: requestBirthData, chartType: 'YOGAS' }),
                     signal: controller.signal,
                 });
 
@@ -70,7 +72,7 @@ export function useYogas(birthData: BirthData | null): UseYogasResult {
 
         fetchYogas();
         return () => controller.abort();
-    }, [birthData?.dob, birthData?.tob, birthData?.pob]);
+    }, [requestBirthData]);
 
     return { yogas, loading, error };
 }

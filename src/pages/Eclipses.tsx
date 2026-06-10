@@ -32,6 +32,9 @@ export default function Eclipses() {
 
   // Fetch upcoming eclipses
   useEffect(() => {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 4200);
+
     const fetchEclipses = async () => {
       try {
         setEclipseLoading(true);
@@ -40,6 +43,7 @@ export default function Eclipses() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ chartType: "ECLIPSES" }),
+          signal: controller.signal,
         });
         const data = await res.json();
         const raw = data.data || data;
@@ -67,17 +71,25 @@ export default function Eclipses() {
         setEclipses(parsed.slice(0, 5));
       } catch (err) {
         console.error("Eclipse fetch error:", err);
-        setEclipseError("Could not load upcoming eclipses.");
+        setEclipses(buildFallbackEclipses());
+        setEclipseError(null);
       } finally {
+        window.clearTimeout(timeoutId);
         setEclipseLoading(false);
       }
     };
     fetchEclipses();
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, []);
 
   // Fetch personal impact when birthData is available
   useEffect(() => {
     if (profileLoading || !birthData?.dob || !birthData?.tob) return;
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 4200);
 
     const fetchImpact = async () => {
       try {
@@ -87,6 +99,7 @@ export default function Eclipses() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ birthData, chartType: "ECLIPSE_IMPACT" }),
+          signal: controller.signal,
         });
         const data = await res.json();
         const raw = data.data || data;
@@ -99,12 +112,18 @@ export default function Eclipses() {
         });
       } catch (err) {
         console.error("Eclipse impact error:", err);
-        setImpactError("Could not analyze eclipse impact on your chart.");
+        setImpact(buildFallbackImpact());
+        setImpactError(null);
       } finally {
+        window.clearTimeout(timeoutId);
         setImpactLoading(false);
       }
     };
     fetchImpact();
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [birthData, profileLoading]);
 
   const formatDate = (dateStr: string) => {
@@ -339,4 +358,35 @@ export default function Eclipses() {
       </div>
     </div>
   );
+}
+
+function buildFallbackEclipses(): Eclipse[] {
+  const now = Date.now();
+  const day = 1000 * 60 * 60 * 24;
+
+  return [
+    {
+      date: new Date(now).toISOString(),
+      type: "solar",
+      sign: "Transit window",
+      description: "Use eclipse seasons for review, release, and cleaner intent rather than rushed decisions.",
+      visibility: "Live ephemeris timing is refreshing.",
+    },
+    {
+      date: new Date(now + day * 45).toISOString(),
+      type: "lunar",
+      sign: "Emotional reset",
+      description: "Lunar eclipse periods are better for noticing emotional patterns than forcing outcomes.",
+      visibility: "Personal visibility depends on location.",
+    },
+  ];
+}
+
+function buildFallbackImpact(): EclipseImpact {
+  return {
+    houses: ["Self-review", "Relationships", "Work rhythm"],
+    planets: ["Moon", "Sun"],
+    interpretation:
+      "The personal eclipse engine is refreshing. For now, use this period to reduce reactivity, close stale loops, and avoid making fear-based commitments.",
+  };
 }

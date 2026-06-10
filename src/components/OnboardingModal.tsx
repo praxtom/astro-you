@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useAuth } from "../lib/AuthContext";
+import { useAuth } from "../lib/useAuth";
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { STORAGE_KEYS } from "../lib/constants";
@@ -231,7 +231,7 @@ export default function OnboardingModal({
         setIsParsing(true);
 
         try {
-          const response = await fetch("/.netlify/functions/parse-kundali", {
+          const response = await fetch("/api/parse-kundali", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -417,7 +417,7 @@ export default function OnboardingModal({
             </div>
 
             {/* Progress */}
-            <div className="flex px-8 py-2 gap-1.5">
+            <div className="flex px-4 py-2 gap-1.5">
               {["upload", "identity", "temporal", "spatial", "present"].map(
                 (s, i) => {
                   const steps = [
@@ -440,7 +440,7 @@ export default function OnboardingModal({
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-8 sm:p-10">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={step}
@@ -452,7 +452,7 @@ export default function OnboardingModal({
                   {/* Step 0: Upload */}
                   {step === "upload" && (
                     <div>
-                      <p className="text-sm text-white/50 mb-8">
+                      <p className="text-sm text-white/50 mb-4">
                         Upload an image of your Kundali to auto-fill your profile.
                       </p>
 
@@ -469,7 +469,7 @@ export default function OnboardingModal({
                       {!uploadedImage ? (
                         <label
                           htmlFor="modal-chart-upload"
-                          className={`flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${isUploading
+                            className={`flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${isUploading
                             ? "border-gold/50 bg-gold/5"
                             : "border-white/10 hover:border-gold/30 hover:bg-white/5"
                             }`}
@@ -571,7 +571,7 @@ export default function OnboardingModal({
 
                       <button
                         onClick={() => setStep("identity")}
-                        className="w-full mt-6 text-xs text-white/20 hover:text-white/40 transition-colors uppercase tracking-widest"
+                        className="w-full mt-4 text-xs text-white/20 hover:text-white/40 transition-colors uppercase tracking-widest"
                       >
                         Skip — I'll Enter Details Manually
                       </button>
@@ -580,11 +580,11 @@ export default function OnboardingModal({
                   {/* Step 1: Identity */}
                   {step === "identity" && (
                     <div>
-                      <p className="text-sm text-white/50 mb-8">
+                      <p className="text-sm text-white/50 mb-4">
                         Let's start with your basic profile details for accurate
                         analysis.
                       </p>
-                      <div className="space-y-6">
+                      <div className="space-y-4">
                         <div>
                           <label className="block text-xs uppercase tracking-[0.2em] font-bold text-white/30 mb-2">
                             Full Name
@@ -625,10 +625,10 @@ export default function OnboardingModal({
                   {/* Step 2: Temporal */}
                   {step === "temporal" && (
                     <div>
-                      <p className="text-sm text-white/50 mb-8">
+                      <p className="text-sm text-white/50 mb-4">
                         Precision is key. When exactly did your journey begin?
                       </p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                           <label className="block text-xs uppercase tracking-[0.2em] font-bold text-white/30 mb-2">
                             Birth Date
@@ -659,7 +659,7 @@ export default function OnboardingModal({
                           />
                         </div>
                       </div>
-                      <label className="flex items-center gap-3 mt-6 cursor-pointer group">
+                      <label className="flex items-center gap-3 mt-4 cursor-pointer group">
                         <input
                           type="checkbox"
                           checked={formData.birthTimeUnknown}
@@ -690,7 +690,7 @@ export default function OnboardingModal({
                   {/* Step 3: Spatial */}
                   {step === "spatial" && (
                     <div>
-                      <p className="text-sm text-white/50 mb-8">
+                      <p className="text-sm text-white/50 mb-4">
                         Precision is key. Where were you when the stars were aligned
                         this way?
                       </p>
@@ -710,10 +710,10 @@ export default function OnboardingModal({
                   {/* Step 4: Present */}
                   {step === "present" && (
                     <div>
-                      <p className="text-sm text-white/50 mb-8">
+                      <p className="text-sm text-white/50 mb-4">
                         Finally, where are you seeking guidance from today?
                       </p>
-                      <div className="space-y-6">
+                      <div className="space-y-4">
                         <div className="space-y-4">
                           <label className="block text-xs uppercase tracking-[0.2em] font-bold text-white/30">
                             Current Location
@@ -757,7 +757,7 @@ export default function OnboardingModal({
             </div>
 
             {/* Footer */}
-            <div className="p-8 sm:p-10 border-t border-white/5 bg-black/20">
+            <div className="p-4 sm:p-5 border-t border-white/5 bg-black/20">
               <button
                 onClick={nextStep}
                 disabled={
@@ -767,7 +767,7 @@ export default function OnboardingModal({
                   (step === "spatial" && !formData.pob) ||
                   (step === "present" && !formData.currentLocation)
                 }
-                className="btn btn-primary w-full py-4 rounded-xl font-bold tracking-widest uppercase flex items-center justify-center gap-2 group disabled:opacity-30 disabled:grayscale transition-all hover:scale-[1.02] active:scale-[0.98]"
+                className="btn btn-primary w-full py-3 rounded-xl font-bold tracking-widest uppercase flex items-center justify-center gap-2 group disabled:opacity-30 disabled:grayscale transition-all hover:scale-[1.02] active:scale-[0.98]"
               >
                 {isSaving ? (
                   <Loader2 className="animate-spin" size={20} />

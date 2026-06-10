@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../lib/AuthContext";
+import { useAuth } from "../lib/useAuth";
 import {
   collection,
   query,
@@ -18,7 +18,6 @@ import {
   UserPlus,
   Users,
   X,
-  Check,
   ArrowLeft,
   Loader2,
 } from "lucide-react";

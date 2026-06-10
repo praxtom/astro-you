@@ -1,4 +1,9 @@
-import { useState, useEffect } from "react";
+import {
+  createElement,
+  useEffect,
+  useState,
+  type ComponentType,
+} from "react";
 
 export type NetworkStatus = "online" | "offline" | "slow";
 
@@ -8,7 +13,7 @@ interface UseNetworkStatusOptions {
 }
 
 /**
- * Hook to detect online/offline status and connection quality
+ * Hook to detect online/offline status and connection quality.
  */
 export function useNetworkStatus(options: UseNetworkStatusOptions = {}) {
   const { slowThreshold = 3000, checkInterval = 30000 } = options;
@@ -18,7 +23,6 @@ export function useNetworkStatus(options: UseNetworkStatusOptions = {}) {
   );
   const [lastOnline, setLastOnline] = useState<Date | null>(null);
 
-  // Handle browser online/offline events
   useEffect(() => {
     const handleOnline = () => {
       setStatus("online");
@@ -38,7 +42,6 @@ export function useNetworkStatus(options: UseNetworkStatusOptions = {}) {
     };
   }, []);
 
-  // Check connection quality periodically
   useEffect(() => {
     if (status === "offline") return;
 
@@ -76,48 +79,17 @@ export function useNetworkStatus(options: UseNetworkStatusOptions = {}) {
 }
 
 /**
- * Offline indicator component
- */
-export function OfflineIndicator() {
-  const { status } = useNetworkStatus();
-
-  if (status === "online") return null;
-
-  const isOffline = status === "offline";
-
-  return (
-    <div
-      role="alert"
-      aria-live="assertive"
-      className={`fixed bottom-6 left-6 z-[9999] px-4 py-3 rounded-xl border flex items-center gap-3 ${
-        isOffline
-          ? "bg-red-500/10 border-red-500/30 text-red-400"
-          : "bg-yellow-500/10 border-yellow-500/30 text-yellow-400"
-      }`}
-    >
-      <div
-        className={`w-2 h-2 rounded-full animate-pulse ${
-          isOffline ? "bg-red-500" : "bg-yellow-500"
-        }`}
-      />
-      <span className="text-sm font-sans">
-        {isOffline
-          ? "You are offline. Some features may not work."
-          : "Slow connection detected."}
-      </span>
-    </div>
-  );
-}
-
-/**
- * HOC to wrap components that need network status
+ * HOC to wrap components that need network status.
  */
 export function withNetworkStatus<T extends object>(
-  Component: React.ComponentType<T & { networkStatus: NetworkStatus }>
+  Component: ComponentType<T & { networkStatus: NetworkStatus }>
 ) {
   return function WrappedComponent(props: T) {
     const { status } = useNetworkStatus();
-    return <Component {...props} networkStatus={status} />;
+    return createElement(Component, {
+      ...props,
+      networkStatus: status,
+    } as T & { networkStatus: NetworkStatus });
   };
 }
 

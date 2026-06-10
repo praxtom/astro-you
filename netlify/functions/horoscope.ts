@@ -119,4 +119,4 @@ export default async (req: Request, _context: Context) => {
     }
 };
 
-export const config: Config = { path: "/.netlify/functions/horoscope" };
+export const config: Config = { path: "/api/horoscope" };

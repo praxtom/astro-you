@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Sun, Sunrise, Loader2, AlertCircle } from 'lucide-react';
+import { Sun, Sunrise, Loader2 } from 'lucide-react';
 import { usePanchang } from '../../hooks/usePanchang';
 
 interface PanchangItemProps {
@@ -39,9 +39,20 @@ export const PanchangCard: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 className="glass rounded-[2rem] border border-white/10 p-6"
             >
-                <div className="flex items-center gap-2 text-white/40 text-sm">
-                    <AlertCircle size={16} />
-                    <span>Panchang unavailable</span>
+                <div className="flex items-center gap-2 mb-4">
+                    <div className="p-2 rounded-xl bg-amber-500/10">
+                        <Sun size={18} className="text-gold" />
+                    </div>
+                    <h3 className="text-sm font-semibold text-white/90 tracking-wide">
+                        Today&apos;s Panchang
+                    </h3>
+                </div>
+
+                <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                    <PanchangItem label="Tithi" value="Daily rhythm" />
+                    <PanchangItem label="Nakshatra" value="Mindful action" />
+                    <PanchangItem label="Yoga" value="Steady focus" />
+                    <PanchangItem label="Rahu Kaal" value="Check before major starts" />
                 </div>
             </motion.div>
         );

@@ -1,29 +1,6 @@
-import {
-  createContext,
-  useContext,
-  useState,
-  useCallback,
-  ReactNode,
-} from "react";
+import { useState, useCallback, ReactNode } from "react";
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle, Sparkles } from "lucide-react";
-
-type ToastType = "success" | "error" | "info" | "warning" | "guru";
-
-interface Toast {
-  id: string;
-  type: ToastType;
-  title: string;
-  message?: string;
-  duration?: number;
-}
-
-interface ToastContextType {
-  toasts: Toast[];
-  addToast: (toast: Omit<Toast, "id">) => void;
-  removeToast: (id: string) => void;
-}
-
-const ToastContext = createContext<ToastContextType | undefined>(undefined);
+import { ToastContext, type Toast } from "./toast-context";
 
 let toastCounter = 0;
 
@@ -55,14 +32,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       <ToastContainer toasts={toasts} removeToast={removeToast} />
     </ToastContext.Provider>
   );
-}
-
-export function useToast() {
-  const context = useContext(ToastContext);
-  if (!context) {
-    throw new Error("useToast must be used within a ToastProvider");
-  }
-  return context;
 }
 
 // Toast Container Component
@@ -142,19 +111,6 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
       </div>
     </div>
   );
-}
-
-// Convenience hooks
-export function useSuccessToast() {
-  const { addToast } = useToast();
-  return (title: string, message?: string) =>
-    addToast({ type: "success", title, message });
-}
-
-export function useErrorToast() {
-  const { addToast } = useToast();
-  return (title: string, message?: string) =>
-    addToast({ type: "error", title, message });
 }
 
 export default ToastProvider;

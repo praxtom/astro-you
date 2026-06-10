@@ -1,4 +1,11 @@
-export type SubscriptionTier = "free" | "premium" | "pro";
+import {
+  canUseFeature,
+  ENTITLEMENTS,
+  getEntitlements,
+  type SubscriptionTier,
+} from "./entitlements";
+
+export type { SubscriptionTier } from "./entitlements";
 
 export interface TierConfig {
   id: SubscriptionTier;
@@ -22,59 +29,60 @@ export interface TierConfig {
 export const TIERS: Record<SubscriptionTier, TierConfig> = {
   free: {
     id: "free",
-    name: "Free",
-    price: 0,
+    name: ENTITLEMENTS.free.displayName,
+    price: ENTITLEMENTS.free.monthlyPriceInr,
     badge: "✦",
     features: [
-      "5 credits to start",
+      "15 starter credits",
       "Daily horoscope",
       "Birth chart analysis",
-      "3 free consultation minutes",
+      "Up to 3 consultation minutes",
       "Basic compatibility check",
     ],
     limits: {
-      credits: 5,
-      consultMinutesPerMonth: 3,
-      synthesisUnlimited: false,
-      pdfReports: false,
-      yearlyForecast: false,
-      astrocartography: false,
-      priorityPersonas: false,
+      credits: ENTITLEMENTS.free.limits.monthlyCredits,
+      consultMinutesPerMonth: ENTITLEMENTS.free.limits.consultMinutesPerMonth,
+      synthesisUnlimited: ENTITLEMENTS.free.limits.synthesisMessagesPerDay === -1,
+      pdfReports: ENTITLEMENTS.free.features.pdf_reports,
+      yearlyForecast: ENTITLEMENTS.free.features.yearly_report,
+      astrocartography: ENTITLEMENTS.free.features.astrocartography,
+      priorityPersonas: ENTITLEMENTS.free.features.priority_personas,
     },
   },
   premium: {
     id: "premium",
-    name: "Premium",
-    price: 499,
+    name: ENTITLEMENTS.premium.displayName,
+    price: ENTITLEMENTS.premium.monthlyPriceInr,
     badge: "⭐",
     popular: true,
     features: [
       "Unlimited AI Jyotish chat",
       "Daily + Weekly + Monthly forecasts",
-      "60 consultation minutes/month",
+      "700 monthly credits",
+      "Up to 140 consultation minutes",
       "PDF natal reports",
       "Vedic remedies & doshas",
       "All dashboard widgets",
-      "50% off consultation rates",
     ],
     limits: {
-      credits: 100,
-      consultMinutesPerMonth: 60,
-      synthesisUnlimited: true,
-      pdfReports: true,
-      yearlyForecast: false,
-      astrocartography: false,
-      priorityPersonas: false,
+      credits: ENTITLEMENTS.premium.limits.monthlyCredits,
+      consultMinutesPerMonth: ENTITLEMENTS.premium.limits.consultMinutesPerMonth,
+      synthesisUnlimited: ENTITLEMENTS.premium.limits.synthesisMessagesPerDay === -1,
+      pdfReports: ENTITLEMENTS.premium.features.pdf_reports,
+      yearlyForecast: ENTITLEMENTS.premium.features.yearly_report,
+      astrocartography: ENTITLEMENTS.premium.features.astrocartography,
+      priorityPersonas: ENTITLEMENTS.premium.features.priority_personas,
     },
   },
   pro: {
     id: "pro",
-    name: "Pro",
-    price: 999,
+    name: ENTITLEMENTS.pro.displayName,
+    price: ENTITLEMENTS.pro.monthlyPriceInr,
     badge: "👑",
     features: [
       "Everything in Premium",
-      "Unlimited consultation minutes",
+      "1,600 monthly credits",
+      "Up to 320 consultation minutes",
       "Yearly forecast & predictions",
       "Astrocartography maps",
       "Priority AI personas",
@@ -82,28 +90,35 @@ export const TIERS: Record<SubscriptionTier, TierConfig> = {
       "Priority support",
     ],
     limits: {
-      credits: 999,
-      consultMinutesPerMonth: -1, // unlimited
-      synthesisUnlimited: true,
-      pdfReports: true,
-      yearlyForecast: true,
-      astrocartography: true,
-      priorityPersonas: true,
+      credits: ENTITLEMENTS.pro.limits.monthlyCredits,
+      consultMinutesPerMonth: ENTITLEMENTS.pro.limits.consultMinutesPerMonth,
+      synthesisUnlimited: ENTITLEMENTS.pro.limits.synthesisMessagesPerDay === -1,
+      pdfReports: ENTITLEMENTS.pro.features.pdf_reports,
+      yearlyForecast: ENTITLEMENTS.pro.features.yearly_report,
+      astrocartography: ENTITLEMENTS.pro.features.astrocartography,
+      priorityPersonas: ENTITLEMENTS.pro.features.priority_personas,
     },
   },
 };
 
 export function getTier(tierName?: string): TierConfig {
-  return TIERS[(tierName as SubscriptionTier) || "free"] || TIERS.free;
+  return TIERS[getEntitlements(tierName).tier];
 }
 
 export function canAccess(
   userTier: SubscriptionTier,
   feature: keyof TierConfig["limits"],
 ): boolean {
-  const tier = getTier(userTier);
-  const val = tier.limits[feature];
-  if (typeof val === "boolean") return val;
-  if (typeof val === "number") return val !== 0;
-  return false;
+  const featureMap: Record<keyof TierConfig["limits"], boolean> = {
+    credits: getEntitlements(userTier).limits.monthlyCredits > 0,
+    consultMinutesPerMonth:
+      getEntitlements(userTier).limits.consultMinutesPerMonth !== 0,
+    synthesisUnlimited:
+      getEntitlements(userTier).limits.synthesisMessagesPerDay === -1,
+    pdfReports: canUseFeature(userTier, "pdf_reports"),
+    yearlyForecast: canUseFeature(userTier, "yearly_report"),
+    astrocartography: canUseFeature(userTier, "astrocartography"),
+    priorityPersonas: canUseFeature(userTier, "priority_personas"),
+  };
+  return featureMap[feature];
 }

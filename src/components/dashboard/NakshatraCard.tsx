@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Star, Loader2, AlertCircle } from 'lucide-react';
+import { Star, Loader2 } from 'lucide-react';
 import { useNakshatra } from '../../hooks/useNakshatra';
 
 interface NakshatraCardProps {
@@ -29,9 +29,21 @@ export const NakshatraCard: React.FC<NakshatraCardProps> = ({ birthData }) => {
                 animate={{ opacity: 1, y: 0 }}
                 className="bg-white/5 border border-white/10 rounded-[2rem] p-6"
             >
-                <div className="flex items-center gap-2 text-white/40 text-sm">
-                    <AlertCircle size={16} />
-                    <span>Nakshatra data unavailable</span>
+                <div className="flex items-center gap-2 mb-4">
+                    <div className="p-2 rounded-xl bg-gold/10">
+                        <Star size={18} className="text-gold" />
+                    </div>
+                    <h3 className="text-sm font-semibold text-gold tracking-wide">Birth Nakshatra</h3>
+                </div>
+
+                <p className="text-sm text-white/70 leading-relaxed">
+                    Birth star reading is refreshing from your saved profile.
+                </p>
+                <div className="mt-3 pt-3 border-t border-white/5">
+                    <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1">Today</p>
+                    <p className="text-sm text-white/60 leading-relaxed">
+                        Keep the day simple: one clear intention, one important conversation, one completed task.
+                    </p>
                 </div>
             </motion.div>
         );

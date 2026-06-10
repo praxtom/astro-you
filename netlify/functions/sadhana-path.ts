@@ -1,7 +1,7 @@
 import { Config, Context } from "@netlify/functions";
 import { generateSadhanaPath, UserContext } from "./shared/gemini";
 
-export default async (req: Request, context: Context) => {
+export default async (req: Request, _context: Context) => {
     if (req.method !== "POST") {
         return new Response("Method Not Allowed", { status: 405 });
     }

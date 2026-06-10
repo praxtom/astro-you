@@ -6,12 +6,13 @@ import AuthModal from "../components/AuthModal";
 import OnboardingModal from "../components/OnboardingModal";
 import Header from "../components/layout/Header";
 import Footer from "../components/layout/Footer";
-import { useAuth } from "../lib/AuthContext";
+import { useAuth } from "../lib/useAuth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
 import { Sparkles, ChevronDown, ScrollText } from "lucide-react";
 import type { InfluenceCardProps } from "../types";
 import { STORAGE_KEYS } from "../lib/constants";
+import { captureReferralFromUrl } from "../lib/acquisition";
 
 const InfluenceCard = ({
   number,
@@ -91,13 +92,43 @@ const FAQItem = ({
   );
 };
 
+interface LandingTrustSummary {
+  totals?: {
+    approvedTestimonials?: number;
+    approvedReviews?: number;
+    pendingPublicSubmissions?: number;
+  };
+  predictionFeedback?: {
+    total?: number;
+    helpfulRate?: number | null;
+  };
+}
+
 function Landing() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
+  const [trustSummary, setTrustSummary] = useState<LandingTrustSummary | null>(null);
   const stackRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    captureReferralFromUrl();
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/trust/summary")
+      .then((response) => response.json())
+      .then((data) => {
+        if (alive && !data?.error) setTrustSummary(data);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -170,14 +201,14 @@ function Landing() {
         {/* Content Layers */}
         <div className="relative z-10 -mt-[100vh]">
           {/* 1. Hero Layer */}
-          <section className="min-h-[100vh] flex items-center pt-[120px] pb-24 px-6 md:px-12">
+          <section className="min-h-[92vh] flex items-center pt-20 pb-10 px-4 md:px-8">
             <div className="container mx-auto">
               <div className="max-w-4xl">
                 <div className="transition-all duration-1000">
                   <span className="section-label font-black tracking-[0.5em] opacity-80 decoration-gold/50 underline underline-offset-8">
                     Modern Clarity
                   </span>
-                  <h1 className="mb-10 text-glow !leading-[1.05] mt-6">
+                  <h1 className="mb-5 text-glow !leading-[1.05] mt-4">
                     The Stars, <br />
                     <span className="italic font-light opacity-80 h-light">
                       revealed.
@@ -185,15 +216,15 @@ function Landing() {
                   </h1>
                 </div>
                 <div>
-                  <p className="text-body text-xl mb-14 max-w-2xl text-content-secondary/90 leading-relaxed font-sans font-light">
+                  <p className="text-body text-lg mb-6 max-w-2xl text-content-secondary/90 leading-relaxed font-sans font-light">
                     AstroYou combines ancient Vedic wisdom with modern precision
                     to deliver accurate personal insights. Your birth chart,
                     instantly calculated.
                   </p>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-6">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <button
-                    className="btn btn-primary px-12 group"
+                    className="btn btn-primary px-8 md:px-10 group"
                     onClick={async () => {
                       if (user) {
                         const docSnap = await getDoc(
@@ -216,7 +247,7 @@ function Landing() {
                     </span>
                   </button>
                   <button
-                    className="btn btn-outline px-12"
+                    className="btn btn-outline px-8 md:px-10"
                     onClick={() => {
                       sessionStorage.setItem(STORAGE_KEYS.MODE, "guest");
                       setShowOnboardingModal(true);
@@ -229,16 +260,16 @@ function Landing() {
             </div>
 
             {/* Scroll Indicator */}
-            <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 opacity-40 animate-bounce">
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 opacity-40 animate-bounce">
               <span className="text-[10px] tracking-[0.3em] uppercase">
                 Descend
               </span>
-              <div className="w-px h-12 bg-gradient-to-b from-gold to-transparent"></div>
+              <div className="w-px h-8 bg-gradient-to-b from-gold to-transparent"></div>
             </div>
           </section>
 
           {/* 2. Influence Stack Layers */}
-          <section className="container mx-auto px-6 md:px-12 py-32 space-y-[120vh]">
+          <section className="container mx-auto px-4 md:px-8 py-8 md:py-10 space-y-[14vh]">
             <InfluenceCard
               number="01"
               title="Sun (Surya)"
@@ -331,21 +362,21 @@ function Landing() {
           </section>
 
           {/* Spacer to allow stack to finish scroll */}
-          <div className="h-[20vh]"></div>
+          <div className="h-[10vh]"></div>
         </div>
       </div>
 
       {/* Kundali Genesis Section */}
-      <section className="py-32 md:py-64 relative overflow-hidden border-t border-white/[0.05]">
+      <section className="py-10 md:py-14 relative overflow-hidden border-t border-white/[0.05]">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60vw] h-[60vw] bg-gold/5 blur-[120px] rounded-full pointer-events-none"></div>
 
         <div className="container mx-auto px-6 relative z-10">
-          <div className="max-w-4xl mx-auto text-center mb-32">
-            <h2 className="text-glow mb-8">
+          <div className="max-w-4xl mx-auto text-center mb-8">
+            <h2 className="text-glow mb-4">
               The Birth of <br />
               <span className="text-gold italic">Your Story</span>
             </h2>
-            <p className="text-xl text-content-secondary/80 font-sans font-light max-w-2xl mx-auto">
+            <p className="text-base text-content-secondary/80 font-sans font-light max-w-2xl mx-auto">
               A Kundali is more than a map; it is a celestial snapshot of the
               universe at the precise second of your arrival.
             </p>
@@ -355,14 +386,14 @@ function Landing() {
             {/* Connecting Line (Desktop) */}
             <div className="absolute left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-gold/10 to-transparent hidden md:block"></div>
 
-            <div className="space-y-24 md:space-y-48">
+            <div className="space-y-6 md:space-y-8">
               {/* Step 1: The Origin */}
-              <div className="relative flex flex-col md:flex-row items-center gap-12 group">
+              <div className="relative flex flex-col md:flex-row items-center gap-6 group">
                 <div className="flex-1 md:text-right order-2 md:order-1">
-                  <h3 className="text-3xl font-display text-white mb-4">
+                  <h3 className="text-2xl font-display text-white mb-2">
                     The Coordinates of Being
                   </h3>
-                  <p className="text-lg text-content-secondary font-sans font-light leading-relaxed">
+                  <p className="text-sm text-content-secondary font-sans font-light leading-relaxed">
                     Your birth is defined by a unique intersection of{" "}
                     <span className="text-gold font-bold">
                       Time, Date, and Location
@@ -385,7 +416,7 @@ function Landing() {
               </div>
 
               {/* Step 2: The Alignment */}
-              <div className="relative flex flex-col md:flex-row items-center gap-12 group">
+              <div className="relative flex flex-col md:flex-row items-center gap-6 group">
                 <div className="flex-1 hidden md:block"></div>
                 <div className="relative z-10">
                   <div className="w-24 h-24 rounded-full overflow-hidden border border-violet/20 shadow-[0_0_40px_rgba(139,92,246,0.2)] group-hover:scale-110 transition-transform duration-700">
@@ -398,10 +429,10 @@ function Landing() {
                   <div className="absolute inset-[-20px] bg-violet/5 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
                 </div>
                 <div className="flex-1 md:text-left">
-                  <h3 className="text-3xl font-display text-white mb-4">
+                  <h3 className="text-2xl font-display text-white mb-2">
                     The Celestial Imprint
                   </h3>
-                  <p className="text-lg text-content-secondary font-sans font-light leading-relaxed">
+                  <p className="text-sm text-content-secondary font-sans font-light leading-relaxed">
                     At that exact second, the{" "}
                     <span className="text-gold font-bold">
                       Planetary Alignment
@@ -413,12 +444,12 @@ function Landing() {
               </div>
 
               {/* Step 3: The Blueprint */}
-              <div className="relative flex flex-col md:flex-row items-center gap-12 group">
+              <div className="relative flex flex-col md:flex-row items-center gap-6 group">
                 <div className="flex-1 md:text-right order-2 md:order-1">
-                  <h3 className="text-3xl font-display text-white mb-4">
+                  <h3 className="text-2xl font-display text-white mb-2">
                     The Living Blueprint
                   </h3>
-                  <p className="text-lg text-content-secondary font-sans font-light leading-relaxed">
+                  <p className="text-sm text-content-secondary font-sans font-light leading-relaxed">
                     These markings unfold into a dynamic blueprint, defining
                     your{" "}
                     <span className="text-gold font-bold">
@@ -446,9 +477,9 @@ function Landing() {
       </section>
 
       {/* The Cosmic Journey */}
-      <section className="py-32 md:py-48 relative overflow-hidden" id="journey">
+      <section className="py-10 md:py-14 relative overflow-hidden" id="journey">
         <div className="container mx-auto px-6 relative z-10">
-          <div className="text-center mb-24">
+          <div className="text-center mb-8">
             <h2 className="text-glow mb-6 text-4xl md:text-6xl text-white">
               Bridging Ancient Wisdom <br />
               <span className="text-gold italic">& Modern Clarity</span>
@@ -459,10 +490,10 @@ function Landing() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 lg:gap-24 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6 items-center">
             {/* Step 1 */}
             <div className="flex flex-col items-center text-center group">
-              <div className="w-full aspect-square mb-10 relative overflow-hidden rounded-3xl border border-white/5 bg-white/[0.02]">
+              <div className="w-full aspect-square mb-5 relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02]">
                 <img
                   src="/assets/landing/alignment.png"
                   alt="Birth Alignment"
@@ -473,7 +504,7 @@ function Landing() {
               <h3 className="text-2xl mb-4 font-display text-gold">
                 Precision Math
               </h3>
-              <p className="text-sm text-content-secondary font-sans leading-relaxed px-6">
+              <p className="text-sm text-content-secondary font-sans leading-relaxed px-2">
                 We use the ancient science of the stars to calculate your exact
                 planetary positions at the second of your birth, ensuring an
                 authentic foundation.
@@ -481,8 +512,8 @@ function Landing() {
             </div>
 
             {/* Step 2 */}
-            <div className="flex flex-col items-center text-center group pt-12 lg:pt-0">
-              <div className="w-full aspect-square mb-10 relative overflow-hidden rounded-3xl border border-white/5 bg-white/[0.02]">
+            <div className="flex flex-col items-center text-center group pt-4 lg:pt-0">
+              <div className="w-full aspect-square mb-5 relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02]">
                 <img
                   src="/assets/landing/synthesis.png"
                   alt="Synthesis"
@@ -493,7 +524,7 @@ function Landing() {
               <h3 className="text-2xl mb-4 font-display text-gold">
                 Intelligent Synthesis
               </h3>
-              <p className="text-sm text-content-secondary font-sans leading-relaxed px-6">
+              <p className="text-sm text-content-secondary font-sans leading-relaxed px-2">
                 Jyotish interprets thousands of Dasha combinations and planetary
                 aspects to weave a clear, relevant narrative for the modern
                 seeker.
@@ -501,8 +532,8 @@ function Landing() {
             </div>
 
             {/* Step 3 */}
-            <div className="flex flex-col items-center text-center group pt-24 lg:pt-0">
-              <div className="w-full aspect-square mb-10 relative overflow-hidden rounded-3xl border border-white/5 bg-white/[0.02]">
+            <div className="flex flex-col items-center text-center group pt-6 lg:pt-0">
+              <div className="w-full aspect-square mb-5 relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02]">
                 <img
                   src="/assets/landing/blueprint.png"
                   alt="Cosmic Blueprint"
@@ -513,7 +544,7 @@ function Landing() {
               <h3 className="text-2xl mb-4 font-display text-gold">
                 Real-time Guidance
               </h3>
-              <p className="text-sm text-content-secondary font-sans leading-relaxed px-6">
+              <p className="text-sm text-content-secondary font-sans leading-relaxed px-2">
                 We transform static charts into living documents. Receive
                 real-time transit updates and predictions that evolve as you
                 move through time.
@@ -525,25 +556,25 @@ function Landing() {
 
       {/* Advanced Insights Grid */}
       <section
-        className="py-32 md:py-48 bg-white/[0.01] border-y border-white/[0.05]"
+        className="py-10 md:py-14 bg-white/[0.01] border-y border-white/[0.05]"
         id="features"
       >
         <div className="container mx-auto px-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-24 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 items-center">
             <div>
               <span className="section-label">Capabilities</span>
-              <h2 className="text-glow mb-8 leading-tight">
+              <h2 className="text-glow mb-4 leading-tight">
                 Infinite Depth. <br />
                 Instant Access.
               </h2>
-              <p className="text-body mb-12 opacity-70">
+              <p className="text-body mb-5 opacity-70">
                 Traditional horoscopes are static. AstroYou is dynamic,
                 adjusting its guidance as the planets move through the houses of
                 your unique chart.
               </p>
 
-              <div className="grid gap-6">
-                <div className="group p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.05] hover:border-gold/20 transition-all duration-500 flex gap-6 items-center">
+              <div className="grid gap-3">
+                <div className="group p-4 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.05] hover:border-gold/20 transition-all duration-500 flex gap-4 items-center">
                   <div className="shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-gold/10 bg-gold/5">
                     <img
                       src="/assets/landing/transits.png"
@@ -562,7 +593,7 @@ function Landing() {
                   </div>
                 </div>
 
-                <div className="group p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.05] hover:border-violet/20 transition-all duration-500 flex gap-6 items-center">
+                <div className="group p-4 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.05] hover:border-violet/20 transition-all duration-500 flex gap-4 items-center">
                   <div className="shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-violet/10 bg-violet/5">
                     <img
                       src="/assets/landing/remedies.png"
@@ -581,7 +612,7 @@ function Landing() {
                   </div>
                 </div>
 
-                <div className="group p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.05] hover:border-indigo/20 transition-all duration-500 flex gap-6 items-center">
+                <div className="group p-4 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.05] hover:border-indigo/20 transition-all duration-500 flex gap-4 items-center">
                   <div className="shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-indigo/10 bg-indigo/5">
                     <img
                       src="/assets/landing/precision.png"
@@ -600,7 +631,7 @@ function Landing() {
                   </div>
                 </div>
 
-                <div className="group p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.05] hover:border-gold/20 transition-all duration-500 flex gap-6 items-center">
+                <div className="group p-4 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.05] hover:border-gold/20 transition-all duration-500 flex gap-4 items-center">
                   <div className="shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-gold/10 bg-gold/5">
                     <img
                       src="/assets/landing/expansion.png"
@@ -621,12 +652,12 @@ function Landing() {
               </div>
             </div>
 
-            <div className="relative pt-12 lg:pt-0">
+            <div className="relative pt-4 lg:pt-0">
               <div className="absolute inset-0 bg-gold/10 blur-[120px] rounded-full animate-pulse-slow"></div>
-              <div className="glass p-8 md:p-12 relative z-10 border border-white/10 rounded-[40px] shadow-[0_40px_100px_rgba(0,0,0,0.5)]">
-                <div className="space-y-8">
-                  <div className="flex items-center justify-between border-b border-white/10 pb-8">
-                    <div className="flex items-center gap-5">
+              <div className="glass p-4 md:p-5 relative z-10 border border-white/10 rounded-2xl shadow-[0_40px_100px_rgba(0,0,0,0.5)]">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                    <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-full bg-gold/20 flex items-center justify-center text-gold font-bold border border-gold/30">
                         10
                       </div>
@@ -644,7 +675,7 @@ function Landing() {
                     </div>
                   </div>
 
-                  <div className="p-8 rounded-3xl bg-white/5 border border-white/5 relative overflow-hidden group">
+                  <div className="p-5 rounded-2xl bg-white/5 border border-white/5 relative overflow-hidden group">
                     <div className="absolute top-0 left-0 w-1 h-full bg-gold/40"></div>
                     <p className="italic text-base text-content-secondary leading-relaxed font-sans font-light">
                       "This is a period of intense creative expansion. Avoid
@@ -653,8 +684,8 @@ function Landing() {
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] transition-colors">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] transition-colors">
                       <p className="text-[10px] text-content-tertiary uppercase tracking-[0.3em] mb-2 font-bold">
                         Focus
                       </p>
@@ -662,7 +693,7 @@ function Landing() {
                         Career Peak
                       </p>
                     </div>
-                    <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] transition-colors">
+                    <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] transition-colors">
                       <p className="text-[10px] text-content-tertiary uppercase tracking-[0.3em] mb-2 font-bold">
                         Energy
                       </p>
@@ -680,24 +711,24 @@ function Landing() {
 
       {/* Philosophy */}
       <section
-        className="py-32 md:py-48 relative border-t border-white/[0.05]"
+        className="py-10 md:py-14 relative border-t border-white/[0.05]"
         id="philosophy"
       >
         <div className="container mx-auto px-6">
           <div className="max-w-4xl mx-auto text-center">
-            <div className="w-20 h-20 mx-auto mb-12 rounded-full border border-gold/30 flex items-center justify-center p-4">
+            <div className="w-16 h-16 mx-auto mb-5 rounded-full border border-gold/30 flex items-center justify-center p-3">
               <ScrollText className="text-gold" size={32} />
             </div>
-            <h2 className="text-glow mb-12">
+            <h2 className="text-glow mb-5">
               Ancient Lineage. <br />
               Modern Mindset.
             </h2>
-            <p className="text-xl text-body italic leading-relaxed opacity-90 mb-12 font-display">
+            <p className="text-lg text-body italic leading-relaxed opacity-90 mb-5 font-display">
               "Astrology is not about predicting the inevitable, but about
               understanding the potential. It is the weather map of the soul."
             </p>
-            <div className="h-px w-24 bg-gold/30 mx-auto mb-12"></div>
-            <p className="text-body opacity-70 leading-relaxed mb-16">
+            <div className="h-px w-24 bg-gold/30 mx-auto mb-5"></div>
+            <p className="text-body opacity-70 leading-relaxed mb-6">
               Vedic wisdom is the bridge between two worlds. We don't replace
               the insight of the sages; we provide the tools to navigate the
               millions of celestial permutations they once mastered, making deep
@@ -713,10 +744,45 @@ function Landing() {
         </div>
       </section>
 
+      <section className="py-10 md:py-14 border-y border-white/[0.06] bg-black/20">
+        <div className="container mx-auto px-6">
+          <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+            <div>
+              <span className="section-label">Trust</span>
+              <h2 className="text-glow mt-3 mb-4">Proof before claims.</h2>
+              <p className="max-w-xl text-content-secondary leading-relaxed">
+                Reviews and testimonials are shown only after real user submission
+                and moderation. Prediction feedback is tracked as aggregate signal,
+                not inflated social proof.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <LandingTrustMetric
+                label="Approved stories"
+                value={trustSummary?.totals?.approvedTestimonials}
+              />
+              <LandingTrustMetric
+                label="Approved reviews"
+                value={trustSummary?.totals?.approvedReviews}
+              />
+              <LandingTrustMetric
+                label="Helpful feedback"
+                value={
+                  trustSummary?.predictionFeedback?.helpfulRate !== null &&
+                  trustSummary?.predictionFeedback?.helpfulRate !== undefined
+                    ? `${trustSummary.predictionFeedback.helpfulRate}%`
+                    : "Collecting"
+                }
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* FAQ Section */}
-      <section className="py-32 md:py-48 bg-white/[0.01]">
+      <section className="py-10 md:py-14 bg-white/[0.01]">
         <div className="container mx-auto px-6 max-w-4xl">
-          <div className="text-center mb-24">
+          <div className="text-center mb-6 md:mb-8">
             <span className="section-label">Questions</span>
             <h2 className="text-glow mb-6">Clarifying the Cosmic</h2>
           </div>
@@ -743,20 +809,20 @@ function Landing() {
       </section>
 
       {/* Final CTA */}
-      <section className="py-32 md:py-64 relative overflow-hidden border-t border-white/[0.05]">
+      <section className="py-10 md:py-14 relative overflow-hidden border-t border-white/[0.05]">
         <div className="absolute inset-0 bg-gold/5 blur-[150px] pointer-events-none"></div>
         <div className="container mx-auto px-6 relative z-10 text-center">
-          <h2 className="text-5xl md:text-7xl text-glow mb-12 leading-tight">
+          <h2 className="text-4xl md:text-6xl text-glow mb-5 leading-tight">
             Your future is written <br />
             in the stars.
           </h2>
-          <p className="text-xl opacity-70 mb-16 max-w-2xl mx-auto font-sans">
-            Ready to decode the cosmic blueprint of your life? Join 10,000+
-            seekers who trust AstroYou for daily direction.
+          <p className="text-lg opacity-70 mb-6 max-w-2xl mx-auto font-sans">
+            Ready to decode the cosmic blueprint of your life? Start with a free
+            birth chart, then keep only the guidance that proves useful.
           </p>
           <div className="flex flex-col sm:flex-row gap-6 justify-center">
             <button
-              className="btn btn-primary px-16 group"
+              className="btn btn-primary px-10 group"
               onClick={() => setShowAuthModal(true)}
             >
               Begin Your Journey
@@ -792,3 +858,22 @@ function Landing() {
 }
 
 export default Landing;
+
+function LandingTrustMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value?: number | string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+      <p className="text-xs uppercase tracking-widest text-content-secondary/60">
+        {label}
+      </p>
+      <p className="mt-3 text-3xl font-display text-gold">
+        {value === undefined ? "-" : value}
+      </p>
+    </div>
+  );
+}

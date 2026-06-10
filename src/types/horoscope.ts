@@ -84,6 +84,38 @@ export interface MoonData {
     illumination: number;
 }
 
+export interface ForecastKeyDay {
+    date?: string;
+    day?: string;
+    description?: string;
+    theme?: string;
+    prediction?: string;
+}
+
+export interface ForecastKeyDate {
+    date?: string;
+    day?: string;
+    description?: string;
+    event?: string;
+    prediction?: string;
+    type?: 'peak' | 'auspicious' | 'challenging' | 'neutral' | string;
+}
+
+export interface ForecastQuarter {
+    theme?: string;
+    description?: string;
+    prediction?: string;
+}
+
+export interface ForecastTransit {
+    date?: string;
+    period?: string;
+    description?: string;
+    event?: string;
+    planet?: string;
+    type?: string;
+}
+
 export interface ForecastData {
     horoscope: {
         date: string;
@@ -94,11 +126,21 @@ export interface ForecastData {
         lucky_elements: LuckyElements;
         moon?: MoonData;
         tips: string[];
+        key_days?: ForecastKeyDay[];
+        day_by_day?: ForecastKeyDay[];
+        key_dates?: ForecastKeyDate[];
+        keyDates?: ForecastKeyDate[];
+        quarters?: ForecastQuarter[];
+        major_transits?: ForecastTransit[];
+        retrograde_periods?: ForecastTransit[];
     };
     narrative?: string;
     dasha: {
         mahadasha: string;
         bhukti: string;
         ends: string;
+    };
+    panchang?: {
+        rahu_kaal?: string;
     };
 }

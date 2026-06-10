@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../lib/AuthContext";
+import { useAuth } from "../lib/useAuth";
 import { useUserProfile } from "../hooks";
 import { useConsciousness } from "../hooks/useConsciousness";
 import { useProactiveTriggers } from "../hooks/useProactiveTriggers";
 import { usePanchang } from "../hooks/usePanchang";
 import { STORAGE_KEYS } from "../lib/constants";
-import { useErrorToast } from "../components/ui/Toast";
+import { useErrorToast } from "../components/ui/toast-context";
 import {
   MessageSquare,
   Sun,
@@ -39,6 +39,18 @@ import { LunarPhaseIndicator } from "../components/dashboard/LunarPhaseIndicator
 import { FestivalCard } from "../components/dashboard/FestivalCard";
 import { DharmaList } from "../components/dharma/DharmaList";
 import ChartShareModal from "../components/ChartShareModal";
+import {
+  buildReferralLink,
+  createClientReferralCode,
+  normalizeClientReferralCode,
+} from "../lib/referrals";
+
+interface ReferralStats {
+  invited: number;
+  creditsEarned: number;
+  referrerRewardCredits: number;
+  refereeRewardCredits: number;
+}
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -50,6 +62,7 @@ export default function Dashboard() {
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [showDailyAltar, setShowDailyAltar] = useState(false);
   const [prediction, setPrediction] = useState<string | null>(null);
+  const [predictionError, setPredictionError] = useState<string | null>(null);
   const [isPredictionLoading, setIsPredictionLoading] = useState(false);
   const [lastChat, setLastChat] = useState<{
     chatId: string;
@@ -63,20 +76,76 @@ export default function Dashboard() {
   const [bio, setBio] = useState("");
   const [isPublic, setIsPublic] = useState(false);
   const [referralCopied, setReferralCopied] = useState(false);
+  const [referralCode, setReferralCode] = useState("");
+  const [referralStats, setReferralStats] = useState<ReferralStats | null>(null);
+  const [referralLoading, setReferralLoading] = useState(false);
+  const [referralError, setReferralError] = useState<string | null>(null);
 
-  const referralCode = user ? `STAR${user.uid.slice(0, 6).toUpperCase()}` : "";
-  const referralLink = user
-    ? `${window.location.origin}/?ref=${referralCode}`
-    : "";
+  const fallbackReferralCode = useMemo(
+    () => (user ? createClientReferralCode(user.uid) : ""),
+    [user],
+  );
+  const activeReferralCode = referralCode || fallbackReferralCode;
+  const referralLink = useMemo(
+    () =>
+      typeof window === "undefined"
+        ? ""
+        : buildReferralLink(window.location.origin, activeReferralCode),
+    [activeReferralCode],
+  );
 
   const { atmanState, refreshAtman } = useConsciousness();
   const showError = useErrorToast();
 
-  const { panchang } = usePanchang(
+  const { panchang, loading: panchangLoading, error: panchangError } = usePanchang(
     profile?.pob,
     profile?.coordinates?.lat,
     profile?.coordinates?.lng,
   );
+  const hasPanchangDetails = useMemo(
+    () =>
+      Boolean(
+        panchang &&
+          [panchang.tithi, panchang.nakshatra, panchang.sunrise, panchang.sunset, panchang.rahu_kaal]
+            .some((value) => value && value !== "—"),
+      ),
+    [panchang],
+  );
+  const todayGuide = useMemo(() => {
+    const emotion = atmanState?.emotionalState || "stable";
+    const hasRoutineGap = user && (!atmanState?.routines || atmanState.routines.length === 0);
+    const energy =
+      emotion === "anxious" || emotion === "chaotic"
+        ? "Grounding and slower decisions"
+        : emotion === "energetic"
+          ? "High momentum for visible work"
+          : panchang?.nakshatra
+            ? `${panchang.nakshatra} supports focused progress`
+            : "Steady, practical movement";
+    const action = hasRoutineGap
+      ? "Set one small daily practice so guidance has a rhythm to work with."
+      : emotion === "anxious"
+        ? "Use the Daily Altar for a short grounding practice before big choices."
+        : "Ask Jyotish one concrete question and turn the answer into one action.";
+    const caution = panchang?.rahu_kaal && panchang.rahu_kaal !== "—"
+      ? `Avoid starting important commitments during Rahu Kaal (${panchang.rahu_kaal}).`
+      : "Do not turn a passing mood into a final decision.";
+    const nudge = hasRoutineGap
+      ? "No active daily practice is saved yet. Add one gentle anchor."
+      : `Your current rhythm looks ${emotion}. Let today's guidance match that pace.`;
+    const why = [
+      panchang?.nakshatra
+        ? `Panchang: ${panchang.nakshatra} nakshatra.`
+        : panchangError
+          ? "Panchang timing is refreshing."
+          : "Panchang is still loading.",
+      panchang?.rahu_kaal ? `Timing: Rahu Kaal is ${panchang.rahu_kaal}.` : "Timing: no Rahu Kaal data yet.",
+      hasRoutineGap
+        ? "Memory: no active routine is saved."
+        : `Memory: current state is ${emotion}.`,
+    ].join(" ");
+    return { energy, action, caution, nudge, why };
+  }, [atmanState, panchang, panchangError, user]);
 
   // Load existing username/bio/isPublic from profile
   useEffect(() => {
@@ -129,9 +198,9 @@ export default function Dashboard() {
         emoji: "\uD83D\uDD25",
         label: "Disciplined",
       });
-    if (atmanState?.meditationStreak >= 7)
+    if ((atmanState?.meditationStreak ?? 0) >= 7)
       earned.push({ id: "streak7", emoji: "\u26A1", label: "7-Day Streak" });
-    if (atmanState?.meditationStreak >= 30)
+    if ((atmanState?.meditationStreak ?? 0) >= 30)
       earned.push({
         id: "streak30",
         emoji: "\uD83D\uDC51",
@@ -153,6 +222,54 @@ export default function Dashboard() {
     return { done, total, pct: Math.round((done / total) * 100) };
   }, [profile, guestData, atmanState]);
   useProactiveTriggers(panchang ?? undefined);
+
+  useEffect(() => {
+    if (!user) {
+      setReferralCode("");
+      setReferralStats(null);
+      setReferralError(null);
+      return;
+    }
+
+    let cancelled = false;
+    const fallbackCode = createClientReferralCode(user.uid);
+    setReferralCode(fallbackCode);
+    setReferralLoading(true);
+    setReferralError(null);
+
+    const loadReferralInfo = async () => {
+      try {
+        const idToken = await user.getIdToken();
+        const response = await fetch("/api/referrals/info", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Could not load referrals");
+        if (cancelled) return;
+        setReferralCode(normalizeClientReferralCode(data.code) || fallbackCode);
+        setReferralStats({
+          invited: Number(data.stats?.invited) || 0,
+          creditsEarned: Number(data.stats?.creditsEarned) || 0,
+          referrerRewardCredits: Number(data.stats?.referrerRewardCredits) || 25,
+          refereeRewardCredits: Number(data.stats?.refereeRewardCredits) || 15,
+        });
+      } catch {
+        if (!cancelled) {
+          setReferralError("Stats unavailable");
+          setReferralStats(null);
+        }
+      } finally {
+        if (!cancelled) setReferralLoading(false);
+      }
+    };
+
+    loadReferralInfo();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   // Guest mode fallback
   useEffect(() => {
@@ -202,18 +319,25 @@ export default function Dashboard() {
       lat: userData.coordinates?.lat,
       lng: userData.coordinates?.lng,
     };
+    const controller = new AbortController();
+
     fetch("/api/kundali", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ birthData, chartType: "DASHAS" }),
+      signal: controller.signal,
     })
       .then((r) => r.json())
       .then((res) => {
         const periods = res.periods || res.data?.periods || [];
         if (Array.isArray(periods)) setDashaPeriods(periods);
       })
-      .catch(() => {});
-  }, [userData?.dob]);
+      .catch((err) => {
+        if (err.name !== "AbortError") console.warn("[Dashboard] Dasha timeline unavailable:", err);
+      });
+
+    return () => controller.abort();
+  }, [userData?.dob, userData?.tob, userData?.pob, userData?.coordinates?.lat, userData?.coordinates?.lng]);
 
   const getZodiacSign = (day: number, month: number) => {
     const signs = [
@@ -235,11 +359,26 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    const fetchPrediction = async () => {
-      if (!userData || !userData.dob || prediction || isPredictionLoading)
-        return;
+    setPrediction(null);
+    setPredictionError(null);
+  }, [userData?.dob, userData?.tob, userData?.pob, userData?.sunSign]);
 
-      setIsPredictionLoading(true);
+  useEffect(() => {
+    if (
+      !userData ||
+      !userData.dob ||
+      prediction ||
+      predictionError
+    ) {
+      return;
+    }
+
+    const controller = new AbortController();
+    let cancelled = false;
+    const timeoutId = window.setTimeout(() => controller.abort(), 7000);
+    setIsPredictionLoading(true);
+
+    const fetchPrediction = async () => {
       try {
         const [year, month, day] = userData.dob.split("-").map(Number);
         const [hour, minute] = (userData.tob || "12:00").split(":").map(Number);
@@ -251,7 +390,7 @@ export default function Dashboard() {
         const countryCode = pobParts[1]?.substring(0, 2).toUpperCase() || "US";
         const zodiacSign = userData.sunSign || getZodiacSign(day, month);
 
-        const response = await fetch("/.netlify/functions/daily-prediction", {
+        const response = await fetch("/api/daily-prediction", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -284,30 +423,46 @@ export default function Dashboard() {
               precision: 2,
             },
           }),
+          signal: controller.signal,
         });
 
+        if (!response.ok) throw new Error("Daily prediction request failed");
         const result = await response.json();
+        if (cancelled) return;
         if (result.success && result.data?.text) {
           setPrediction(result.data.text);
+        } else {
+          setPredictionError("Daily prediction is unavailable");
         }
       } catch (err) {
-        console.error("Failed to fetch prediction:", err);
-        showError(
-          "Prediction Unavailable",
-          "Could not load your daily forecast. Please try again later.",
-        );
+        if (cancelled) return;
+        if (err instanceof DOMException && err.name === "AbortError") {
+          setPredictionError("Daily prediction timed out");
+        } else {
+          console.warn("Failed to fetch prediction:", err);
+          setPredictionError("Daily prediction is unavailable");
+        }
       } finally {
-        setIsPredictionLoading(false);
+        window.clearTimeout(timeoutId);
+        if (!cancelled) setIsPredictionLoading(false);
       }
     };
 
-    fetchPrediction();
-  }, [userData]);
+    void fetchPrediction();
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [userData, prediction, predictionError]);
 
   const handleDownloadNatalReport = async () => {
     if (!userData || downloadingNatal) return;
     setDownloadingNatal(true);
     try {
+      const idToken = user ? await user.getIdToken() : null;
+      if (!idToken) throw new Error("Please sign in to generate reports.");
       const birthData = {
         name: userData.profile?.name || userData.name,
         dob: userData.dob,
@@ -319,9 +474,12 @@ export default function Dashboard() {
       const response = await fetch("/api/pdf-report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ birthData, reportType: "natal" }),
+        body: JSON.stringify({ idToken, birthData, reportType: "natal" }),
       });
-      if (!response.ok) throw new Error("Failed to generate PDF");
+      const errorPayload = response.ok ? null : await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(errorPayload?.error || "Failed to generate PDF");
+      }
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -333,12 +491,42 @@ export default function Dashboard() {
       console.error("Natal report download error:", err);
       showError(
         "Download Failed",
-        "Could not generate natal report. Please try again.",
+        err instanceof Error
+          ? err.message
+          : "Could not generate natal report. Please try again.",
       );
     } finally {
       setDownloadingNatal(false);
     }
   };
+
+  const atmanMemoryStats = useMemo(
+    () => [
+      {
+        label: "State",
+        value: atmanState?.emotionalState
+          ? atmanState.emotionalState.replace(/_/g, " ")
+          : "Learning",
+        detail: "Sets the tone of guidance",
+      },
+      {
+        label: "Patterns",
+        value: String(atmanState?.knownPatterns?.length ?? 0),
+        detail: "Repeated themes noticed",
+      },
+      {
+        label: "People",
+        value: String(atmanState?.keyRelationships?.length ?? 0),
+        detail: "Relationships remembered",
+      },
+      {
+        label: "Practices",
+        value: String(atmanState?.routines?.length ?? 0),
+        detail: "Daily anchors saved",
+      },
+    ],
+    [atmanState],
+  );
 
   // Loading skeleton
   if (isLoading) {
@@ -397,10 +585,12 @@ export default function Dashboard() {
           </h2>
           <button
             onClick={() => {
+              const ascendantSign =
+                typeof profile?.ascendant === "string"
+                  ? profile.ascendant
+                  : profile?.ascendant?.sign;
               const moonSign =
-                profile?.moonSign ||
-                profile?.ascendant?.sign ||
-                "a cosmic being";
+                profile?.moonSign || ascendantSign || "a cosmic being";
               const text = `I'm a ${moonSign} Moon ✨ What's your Moon sign? Find out free:`;
               const url = `${window.location.origin}/free-kundali`;
               if (navigator.share) {
@@ -472,6 +662,129 @@ export default function Dashboard() {
               </span>
             ))}
           </div>
+        )}
+
+        {/* Today Guide */}
+        <section className="glass rounded-2xl p-6 mb-6 border border-gold/10">
+          <div className="flex items-start justify-between gap-4 mb-5">
+            <div>
+              <p className="text-gold text-xs uppercase tracking-widest font-bold mb-2">
+                Today
+              </p>
+              <h3 className="text-2xl font-display">Your Daily Guide</h3>
+            </div>
+            <button
+              onClick={() => user ? setShowDailyAltar(true) : navigate("/onboarding")}
+              className="px-4 py-2 rounded-xl bg-gold text-black text-xs font-bold uppercase tracking-widest"
+            >
+              Save Intention
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+            <div className="rounded-xl bg-white/5 border border-white/10 p-4">
+              <p className="text-white/35 text-xs uppercase tracking-widest mb-2">
+                Energy
+              </p>
+              <p className="text-white/80 text-sm">{todayGuide.energy}</p>
+            </div>
+            <div className="rounded-xl bg-white/5 border border-white/10 p-4">
+              <p className="text-white/35 text-xs uppercase tracking-widest mb-2">
+                Do
+              </p>
+              <p className="text-white/80 text-sm">{todayGuide.action}</p>
+            </div>
+            <div className="rounded-xl bg-white/5 border border-white/10 p-4">
+              <p className="text-white/35 text-xs uppercase tracking-widest mb-2">
+                Careful
+              </p>
+              <p className="text-white/80 text-sm">{todayGuide.caution}</p>
+            </div>
+          </div>
+          {hasPanchangDetails ? (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
+              <div>
+                <p className="text-white/30">Tithi</p>
+                <p className="text-white/70">{panchang?.tithi || "—"}</p>
+                {panchang?.tithiEnd && <p className="text-white/25">till {panchang.tithiEnd}</p>}
+              </div>
+              <div>
+                <p className="text-white/30">Nakshatra</p>
+                <p className="text-white/70">{panchang?.nakshatra || "—"}</p>
+                {panchang?.nakshatraEnd && <p className="text-white/25">till {panchang.nakshatraEnd}</p>}
+              </div>
+              <div>
+                <p className="text-white/30">Sunrise</p>
+                <p className="text-white/70">{panchang?.sunrise || "—"}</p>
+              </div>
+              <div>
+                <p className="text-white/30">Sunset</p>
+                <p className="text-white/70">{panchang?.sunset || "—"}</p>
+              </div>
+              <div>
+                <p className="text-white/30">Personal Nudge</p>
+                <p className="text-white/70">{todayGuide.nudge}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                <p className="text-white/30">Daily timing</p>
+                <p className="mt-1 text-white/65">
+                  {panchangLoading
+                    ? "Refreshing today's panchang."
+                    : "Timing details are refreshing. Use the action cue above for now."}
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                <p className="text-white/30">Personal nudge</p>
+                <p className="mt-1 text-white/65">{todayGuide.nudge}</p>
+              </div>
+            </div>
+          )}
+          <details className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-white/45">
+            <summary className="cursor-pointer text-white/60">Why am I seeing this?</summary>
+            <p className="mt-2 leading-relaxed">{todayGuide.why}</p>
+          </details>
+        </section>
+
+        {/* Atman Memory */}
+        {user && (
+          <section className="glass rounded-2xl p-4 mb-6 border border-white/10">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-gold text-xs uppercase font-bold mb-1">
+                  Personal Memory
+                </p>
+                <h3 className="text-xl font-display">What AstroYou knows about you</h3>
+                <p className="text-sm text-white/45 mt-1 max-w-2xl">
+                  Guidance uses your chart, emotional state, saved relationships,
+                  routines, and recurring life patterns.
+                </p>
+              </div>
+              <button
+                onClick={() => navigate("/settings")}
+                className="platform-button-secondary self-start md:self-auto"
+              >
+                Manage memory
+              </button>
+            </div>
+            <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-2">
+              {atmanMemoryStats.map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-xl border border-white/10 bg-white/[0.035] p-3"
+                >
+                  <p className="text-[0.68rem] font-bold uppercase text-white/35">
+                    {item.label}
+                  </p>
+                  <p className="mt-1 text-base font-semibold capitalize text-white">
+                    {item.value}
+                  </p>
+                  <p className="mt-1 text-xs text-white/35">{item.detail}</p>
+                </div>
+              ))}
+            </div>
+          </section>
         )}
 
         {/* Two-Zone Grid */}
@@ -546,6 +859,24 @@ export default function Dashboard() {
                   route: "/compatibility",
                   color: "rgba(239, 68, 68, 0.8)",
                 },
+                {
+                  icon: <Users size={20} />,
+                  label: "AI Astrologers",
+                  route: "/consult",
+                  color: "rgba(16, 185, 129, 0.8)",
+                },
+                {
+                  icon: <Download size={20} />,
+                  label: "Reports",
+                  route: "/reports",
+                  color: "rgba(229, 185, 106, 0.9)",
+                },
+                {
+                  icon: <Gift size={20} />,
+                  label: "Remedies",
+                  route: "/remedies",
+                  color: "rgba(217, 119, 6, 0.85)",
+                },
               ].map((action) => (
                 <button
                   key={action.route}
@@ -606,30 +937,27 @@ export default function Dashboard() {
               <h4 className="text-base uppercase tracking-widest text-white/40 font-bold mb-4">
                 Today's Reading
               </h4>
-              {isPredictionLoading ? (
-                <div className="space-y-2">
-                  <div className="h-3 bg-white/5 rounded animate-pulse w-full" />
-                  <div className="h-3 bg-white/5 rounded animate-pulse w-5/6" />
-                  <div className="h-3 bg-white/5 rounded animate-pulse w-4/6" />
+              {isPredictionLoading && !prediction && !predictionError ? (
+                <div className="flex items-center gap-2 text-sm text-white/45">
+                  <Sparkles size={14} className="text-gold" />
+                  Preparing today's guidance...
                 </div>
               ) : (
                 <>
                   <p className="text-lg text-white/70 leading-relaxed italic font-display">
                     {prediction ||
-                      "The cosmic tides are shifting. The stars are aligning to bring you unique insights today."}
+                      `${todayGuide.energy}. ${todayGuide.action}`}
                   </p>
-                  {prediction && (
-                    <button
-                      onClick={() => navigate("/forecast")}
-                      className="mt-4 text-base text-gold hover:text-white transition-colors inline-flex items-center gap-1.5 group"
-                    >
-                      View full forecast
-                      <ArrowUpRight
-                        size={12}
-                        className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"
-                      />
-                    </button>
-                  )}
+                  <button
+                    onClick={() => navigate("/forecast")}
+                    className="mt-4 text-sm text-gold hover:text-white transition-colors inline-flex items-center gap-1.5 group"
+                  >
+                    Open forecast
+                    <ArrowUpRight
+                      size={12}
+                      className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"
+                    />
+                  </button>
                 </>
               )}
             </div>
@@ -733,6 +1061,15 @@ export default function Dashboard() {
                   {downloadingNatal ? "Generating..." : "Download Natal Report"}
                 </button>
               )}
+              {user && (
+                <button
+                  onClick={() => navigate("/reports")}
+                  className="flex items-center gap-2 text-sm text-white/40 hover:text-gold transition-colors"
+                >
+                  <Download size={14} />
+                  My Reports
+                </button>
+              )}
               {userData?.dob && (
                 <button
                   onClick={() => setShowChartShare(true)}
@@ -743,19 +1080,31 @@ export default function Dashboard() {
                 </button>
               )}
               {user && referralLink && (
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(referralLink);
-                    setReferralCopied(true);
-                    setTimeout(() => setReferralCopied(false), 2000);
-                  }}
-                  className="flex items-center gap-2 text-sm text-white/40 hover:text-gold transition-colors"
-                >
-                  <Gift size={14} />
-                  {referralCopied
-                    ? "Link copied!"
-                    : "Invite Friends (earn 5 min free)"}
-                </button>
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(referralLink);
+                      setReferralCopied(true);
+                      setTimeout(() => setReferralCopied(false), 2000);
+                    }}
+                    className="flex items-center gap-2 text-sm text-white/70 hover:text-gold transition-colors"
+                  >
+                    <Gift size={14} />
+                    {referralCopied ? "Invite link copied" : "Invite friends"}
+                  </button>
+                  <p className="mt-1 text-xs leading-relaxed text-white/35">
+                    {referralStats
+                      ? `${referralStats.invited} invited · ${referralStats.creditsEarned} credits earned`
+                      : referralLoading
+                        ? "Loading referral rewards..."
+                        : referralError
+                          ? "Share link works. Stats are unavailable right now."
+                          : "Earn credits when friends join."}
+                  </p>
+                  <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.2em] text-gold/70">
+                    {activeReferralCode}
+                  </p>
+                </div>
               )}
               {user && (
                 <button

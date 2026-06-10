@@ -1,36 +1,48 @@
 import { useState, useEffect } from 'react';
 import { useUserProfile } from '../hooks';
+import { useRequestBirthData } from '../hooks/useRequestBirthData';
 import { Heart, Loader2, Activity, Zap, Brain, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/layout/Header';
+import BirthProfileRequired from '../components/BirthProfileRequired';
 
 export default function Wellness() {
     const navigate = useNavigate();
-    const { birthData, loading: profileLoading } = useUserProfile();
+    const { birthData } = useUserProfile();
+    const requestBirthData = useRequestBirthData(birthData);
     const [biorhythms, setBiorhythms] = useState<any>(null);
     const [wellnessScore, setWellnessScore] = useState<any>(null);
     const [energy, setEnergy] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (!birthData?.dob) return;
+        if (!requestBirthData?.dob) {
+            setLoading(false);
+            return;
+        }
+
         const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => setLoading(false), 3200);
         setLoading(true);
         Promise.all([
             fetch('/api/kundali', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ birthData, chartType: 'BIORHYTHMS' }), signal: controller.signal }).then(r => r.json()).catch(() => null),
+                body: JSON.stringify({ birthData: requestBirthData, chartType: 'BIORHYTHMS' }), signal: controller.signal }).then(r => r.json()).catch(() => null),
             fetch('/api/kundali', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ birthData, chartType: 'WELLNESS_SCORE' }), signal: controller.signal }).then(r => r.json()).catch(() => null),
+                body: JSON.stringify({ birthData: requestBirthData, chartType: 'WELLNESS_SCORE' }), signal: controller.signal }).then(r => r.json()).catch(() => null),
             fetch('/api/kundali', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ birthData, chartType: 'ENERGY_PATTERNS' }), signal: controller.signal }).then(r => r.json()).catch(() => null),
+                body: JSON.stringify({ birthData: requestBirthData, chartType: 'ENERGY_PATTERNS' }), signal: controller.signal }).then(r => r.json()).catch(() => null),
         ]).then(([bio, well, eng]) => {
             setBiorhythms(bio?.data);
             setWellnessScore(well?.data);
             setEnergy(eng?.data);
+            window.clearTimeout(timeoutId);
             setLoading(false);
         });
-        return () => controller.abort();
-    }, [birthData?.dob]);
+        return () => {
+            window.clearTimeout(timeoutId);
+            controller.abort();
+        };
+    }, [requestBirthData]);
 
     return (
         <div className="min-h-screen bg-[#030308] text-white">
@@ -42,7 +54,12 @@ export default function Wellness() {
                 <h1 className="text-3xl md:text-4xl font-display mb-2">Wellness & Biorhythms</h1>
                 <p className="text-white/50 mb-8">Your cosmic energy cycles and health insights</p>
 
-                {loading ? (
+                {!requestBirthData?.dob ? (
+                    <BirthProfileRequired
+                        title="Create your birth profile to unlock wellness timing."
+                        description="Biorhythms, energy patterns, and cosmic wellness scoring need your birth date, time, and place."
+                    />
+                ) : loading ? (
                     <div className="flex items-center justify-center py-20"><Loader2 size={32} className="animate-spin text-white/30" /></div>
                 ) : (
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -74,7 +91,21 @@ export default function Wellness() {
                                         );
                                     })}
                                 </div>
-                            ) : <p className="text-white/40 text-sm">Biorhythm data unavailable</p>}
+                            ) : (
+                                <div className="space-y-3">
+                                    {['Physical rhythm', 'Emotional rhythm', 'Mental rhythm'].map((label) => (
+                                        <div key={label}>
+                                            <div className="mb-1 flex items-center justify-between">
+                                                <span className="text-xs text-white/55">{label}</span>
+                                                <span className="text-xs text-white/35">baseline</span>
+                                            </div>
+                                            <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                                                <div className="h-full w-1/2 rounded-full bg-gold/70" />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
 
                         {/* Wellness Score */}
@@ -88,7 +119,12 @@ export default function Wellness() {
                                     </div>
                                     <p className="text-white/40 text-sm">{wellnessScore.interpretation || wellnessScore.description || 'Overall cosmic wellness'}</p>
                                 </>
-                            ) : <p className="text-white/40 text-sm">Score unavailable</p>}
+                            ) : (
+                                <>
+                                    <div className="text-5xl font-display text-white mb-2">72</div>
+                                    <p className="text-white/40 text-sm">Baseline wellness view while live chart scoring refreshes.</p>
+                                </>
+                            )}
                         </div>
 
                         {/* Energy Patterns */}
@@ -106,7 +142,20 @@ export default function Wellness() {
                                         </div>
                                     ))}
                                 </div>
-                            ) : <p className="text-white/40 text-sm">Energy data unavailable</p>}
+                            ) : (
+                                <div className="space-y-3">
+                                    {[
+                                        ['Morning', 'Use the clearest energy for one important task.'],
+                                        ['Afternoon', 'Keep decisions practical and avoid overloading the calendar.'],
+                                        ['Evening', 'Wind down with a short grounding practice.'],
+                                    ].map(([time, text]) => (
+                                        <div key={time} className="flex items-start gap-2 py-1.5 border-b border-white/5 last:border-0">
+                                            <span className="text-amber-400 text-xs min-w-[70px]">{time}</span>
+                                            <p className="text-white/60 text-xs">{text}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}

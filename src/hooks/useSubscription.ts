@@ -4,16 +4,21 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { doc, getDoc, updateDoc, increment } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { useAuth } from "../lib/AuthContext";
+import { useAuth } from "../lib/useAuth";
 import type { SubscriptionData } from "../types";
 import {
-  getTier,
   canAccess as canAccessFeature,
   type SubscriptionTier,
   type TierConfig,
 } from "../lib/subscriptions";
+import {
+  canUseFeature,
+  getUsageLimit,
+  type FeatureKey,
+  type UsageLimitKey,
+} from "../lib/entitlements";
 
 interface UseSubscriptionResult {
   tier: "free" | "premium" | "pro";
@@ -29,9 +34,11 @@ interface UseSubscriptionResult {
   addCredits: (amount: number) => Promise<void>;
   canAccess: (feature: FeatureType) => boolean;
   checkFeature: (feature: keyof TierConfig["limits"]) => boolean;
+  canUseFeature: (feature: FeatureKey) => boolean;
+  getUsageLimit: (limit: UsageLimitKey) => number;
 }
 
-type FeatureType =
+type LegacyFeatureType =
   | "unlimited_chat"
   | "daily_horoscope"
   | "weekly_horoscope"
@@ -41,16 +48,17 @@ type FeatureType =
   | "transit_alerts"
   | "voice_input";
 
-// Feature access matrix
-const FEATURE_ACCESS: Record<FeatureType, ("free" | "premium" | "pro")[]> = {
-  unlimited_chat: ["premium", "pro"],
-  daily_horoscope: ["free", "premium", "pro"],
-  weekly_horoscope: ["premium", "pro"],
-  monthly_horoscope: ["premium", "pro"],
-  pdf_reports: ["pro"],
-  kundli_matching: ["premium", "pro"],
-  transit_alerts: ["premium", "pro"],
-  voice_input: ["pro"],
+type FeatureType = FeatureKey | LegacyFeatureType;
+
+const LEGACY_FEATURE_MAP: Record<LegacyFeatureType, FeatureKey> = {
+  unlimited_chat: "synthesis_chat",
+  daily_horoscope: "daily_horoscope",
+  weekly_horoscope: "weekly_horoscope",
+  monthly_horoscope: "monthly_horoscope",
+  pdf_reports: "pdf_reports",
+  kundli_matching: "kundli_matching",
+  transit_alerts: "transit_alerts",
+  voice_input: "voice_input",
 };
 
 export function useSubscription(): UseSubscriptionResult {
@@ -115,9 +123,19 @@ export function useSubscription(): UseSubscriptionResult {
 
     creditLockRef.current = true;
     try {
-      const docRef = doc(db, "users", user.uid);
-      await updateDoc(docRef, { credits: increment(-1) });
-      setCredits((prev) => prev - 1);
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/credits/use", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken, source: "subscription_hook" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Credit usage failed");
+      if (typeof data.balanceAfter === "number") {
+        setCredits(data.balanceAfter);
+      } else {
+        setCredits((prev) => prev - 1);
+      }
       return true;
     } catch (err) {
       console.error("Credit usage error:", err);
@@ -132,9 +150,8 @@ export function useSubscription(): UseSubscriptionResult {
     if (!user) return;
 
     try {
-      const docRef = doc(db, "users", user.uid);
-      await updateDoc(docRef, { credits: increment(amount) });
-      setCredits((prev) => prev + amount);
+      if (amount <= 0) throw new Error("Credit amount must be positive");
+      throw new Error("Credits can only be added after payment verification.");
     } catch (err: any) {
       console.error("Error adding credits:", err);
       setError(err.message);
@@ -143,9 +160,12 @@ export function useSubscription(): UseSubscriptionResult {
 
   // Check feature access
   const canAccess = (feature: FeatureType): boolean => {
-    const allowedTiers = FEATURE_ACCESS[feature];
     const currentTier = isSubscriptionActive() ? subscription.tier : "free";
-    return allowedTiers.includes(currentTier);
+    const featureKey =
+      feature in LEGACY_FEATURE_MAP
+        ? LEGACY_FEATURE_MAP[feature as LegacyFeatureType]
+        : feature as FeatureKey;
+    return canUseFeature(currentTier, featureKey);
   };
 
   const activeTier = isSubscriptionActive() ? subscription.tier : "free";
@@ -156,6 +176,14 @@ export function useSubscription(): UseSubscriptionResult {
       (activeTier as SubscriptionTier) || "free",
       feature,
     );
+  };
+
+  const canUseEntitledFeature = (feature: FeatureKey): boolean => {
+    return canUseFeature(activeTier, feature);
+  };
+
+  const getEntitledUsageLimit = (limit: UsageLimitKey): number => {
+    return getUsageLimit(activeTier, limit);
   };
 
   return {
@@ -170,5 +198,7 @@ export function useSubscription(): UseSubscriptionResult {
     addCredits,
     canAccess,
     checkFeature,
+    canUseFeature: canUseEntitledFeature,
+    getUsageLimit: getEntitledUsageLimit,
   };
 }

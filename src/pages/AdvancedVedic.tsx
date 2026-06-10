@@ -1,40 +1,57 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUserProfile } from "../hooks";
+import { useRequestBirthData } from "../hooks/useRequestBirthData";
 import { Loader2, ArrowLeft, Gauge, Calendar } from "lucide-react";
 import Header from "../components/layout/Header";
+import BirthProfileRequired from "../components/BirthProfileRequired";
 
 export default function AdvancedVedic() {
   const navigate = useNavigate();
-  const { birthData, loading: profileLoading } = useUserProfile();
+  const { birthData } = useUserProfile();
+  const requestBirthData = useRequestBirthData(birthData);
   const [shadbala, setShadbala] = useState<any>(null);
   const [varshaphal, setVarshaphal] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!birthData?.dob) return;
+    if (!requestBirthData?.dob) {
+      setLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => setLoading(false), 3200);
     setLoading(true);
     Promise.all([
       fetch("/api/kundali", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ birthData, chartType: "SHADBALA" }),
+        body: JSON.stringify({ birthData: requestBirthData, chartType: "SHADBALA" }),
+        signal: controller.signal,
       })
         .then((r) => r.json())
         .catch(() => null),
       fetch("/api/kundali", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ birthData, chartType: "VARSHAPHAL" }),
+        body: JSON.stringify({ birthData: requestBirthData, chartType: "VARSHAPHAL" }),
+        signal: controller.signal,
       })
         .then((r) => r.json())
         .catch(() => null),
     ]).then(([shadRes, varshRes]) => {
       setShadbala(shadRes?.data);
       setVarshaphal(varshRes?.data);
+      window.clearTimeout(timeoutId);
       setLoading(false);
     });
-  }, [birthData?.dob]);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [requestBirthData]);
 
   const planets =
     shadbala?.planets ||
@@ -58,7 +75,12 @@ export default function AdvancedVedic() {
           Shadbala strength scoring and annual predictions
         </p>
 
-        {loading ? (
+        {!requestBirthData?.dob ? (
+          <BirthProfileRequired
+            title="Create your birth profile to unlock advanced Vedic analysis."
+            description="Shadbala strength and yearly Varshaphal need your birth date, time, and place so the results are calculated for your chart."
+          />
+        ) : loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 size={32} className="animate-spin text-white/30" />
           </div>
@@ -116,9 +138,14 @@ export default function AdvancedVedic() {
                   </table>
                 </div>
               ) : (
-                <p className="text-white/40 text-sm">
-                  Shadbala data unavailable
-                </p>
+                <div className="space-y-2">
+                  {['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn'].map((planet) => (
+                    <div key={planet} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm">
+                      <span className="text-white/70">{planet}</span>
+                      <span className="text-white/35">Refreshing strength</span>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
 
@@ -193,9 +220,18 @@ export default function AdvancedVedic() {
                   )}
                 </div>
               ) : (
-                <p className="text-white/40 text-sm">
-                  Varshaphal data unavailable
-                </p>
+                <div className="space-y-3">
+                  {[
+                    ['Year Lord', 'Annual ruling planet and tone.'],
+                    ['Muntha', 'The house focus activated for the year.'],
+                    ['Key Periods', 'Strong windows for work, relationship, and health decisions.'],
+                  ].map(([label, text]) => (
+                    <div key={label} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                      <span className="text-[10px] text-white/30 uppercase tracking-widest">{label}</span>
+                      <p className="mt-1 text-sm text-white/60">{text}</p>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>

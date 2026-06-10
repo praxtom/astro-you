@@ -1,5 +1,6 @@
 import { Config, Context } from "@netlify/functions";
 import { db } from "./shared/firebase-admin";
+import { resolveResendApiKey } from "./shared/env.js";
 import { randomInt } from "crypto";
 
 // Rate limit: max OTP requests per email per hour
@@ -11,7 +12,7 @@ function generateOTP(): string {
     return randomInt(100000, 1000000).toString();
 }
 
-export default async (req: Request, context: Context) => {
+export default async (req: Request, _context: Context) => {
     if (req.method !== "POST") {
         return new Response("Method Not Allowed", { status: 405 });
     }
@@ -69,7 +70,7 @@ export default async (req: Request, context: Context) => {
         });
 
         // Send email via Resend
-        const resendApiKey = process.env.ASTROYOU_API_KEY || process.env.RESEND_API_KEY;
+        const resendApiKey = resolveResendApiKey();
 
         if (resendApiKey) {
             await fetch("https://api.resend.com/emails", {

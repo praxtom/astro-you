@@ -77,4 +77,4 @@ export default async (req: Request, _context: Context) => {
     }
 };
 
-export const config: Config = { path: "/.netlify/functions/compatibility" };
+export const config: Config = { path: "/api/compatibility" };

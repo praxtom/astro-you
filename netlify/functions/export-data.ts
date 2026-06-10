@@ -1,4 +1,5 @@
 import { Config, Context } from "@netlify/functions";
+import type { DocumentReference } from "firebase-admin/firestore";
 import { db, auth } from "./shared/firebase-admin";
 
 export default async (req: Request, _context: Context) => {
@@ -12,13 +13,39 @@ export default async (req: Request, _context: Context) => {
         const uid = decoded.uid;
 
         // Gather all user data
-        const userDoc = await db.collection("users").doc(uid).get();
-        const chatsSnapshot = await db.collection("users").doc(uid).collection("chats").get();
-
-        const chats = [];
-        for (const chatDoc of chatsSnapshot.docs) {
-            chats.push({ id: chatDoc.id, ...chatDoc.data() });
-        }
+        const userRef = db.collection("users").doc(uid);
+        const userDoc = await userRef.get();
+        const [
+            chats,
+            consultations,
+            reports,
+            remedyRequests,
+            supportTickets,
+            referrals,
+            referralClaims,
+            creditLedger,
+            digests,
+            brainNudges,
+            pushTokens,
+            consultationReviews,
+            predictionFeedback,
+            testimonialSubmissions,
+        ] = await Promise.all([
+            readSubcollection(userRef, "chats"),
+            readSubcollection(userRef, "consultations"),
+            readSubcollection(userRef, "reports"),
+            readSubcollection(userRef, "remedyRequests"),
+            readSubcollection(userRef, "supportTickets"),
+            readSubcollection(userRef, "referrals"),
+            readSubcollection(userRef, "referralClaims"),
+            readSubcollection(userRef, "creditLedger"),
+            readSubcollection(userRef, "digests"),
+            readSubcollection(userRef, "brainNudges"),
+            readSubcollection(userRef, "pushTokens"),
+            readSubcollection(userRef, "consultationReviews"),
+            readSubcollection(userRef, "predictionFeedback"),
+            readSubcollection(userRef, "testimonialSubmissions"),
+        ]);
 
         const exportData = {
             exportDate: new Date().toISOString(),
@@ -28,6 +55,19 @@ export default async (req: Request, _context: Context) => {
             atman: userDoc.data()?.atman || {},
             kundaliData: userDoc.data()?.kundaliData || {},
             chats,
+            consultations,
+            reports,
+            remedyRequests,
+            supportTickets,
+            referrals,
+            referralClaims,
+            creditLedger,
+            digests,
+            brainNudges,
+            pushTokens,
+            consultationReviews,
+            predictionFeedback,
+            testimonialSubmissions,
         };
 
         return new Response(JSON.stringify(exportData, null, 2), {
@@ -43,3 +83,11 @@ export default async (req: Request, _context: Context) => {
 };
 
 export const config: Config = { path: "/api/export-data" };
+
+async function readSubcollection(
+    userRef: DocumentReference,
+    name: string,
+) {
+    const snapshot = await userRef.collection(name).get();
+    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+}

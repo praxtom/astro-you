@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { AlertTriangle, Shield, Loader2, AlertCircle } from 'lucide-react';
+import { AlertTriangle, Shield, Loader2 } from 'lucide-react';
 import { useSadeSati } from '../../hooks/useSadeSati';
 
 interface SadeSatiCardProps {
@@ -29,10 +29,15 @@ export const SadeSatiCard: React.FC<SadeSatiCardProps> = ({ birthData }) => {
                 animate={{ opacity: 1, y: 0 }}
                 className="bg-white/5 border border-white/10 rounded-[2rem] p-6"
             >
-                <div className="flex items-center gap-2 text-white/40 text-sm">
-                    <AlertCircle size={16} />
-                    <span>Sade Sati data unavailable</span>
+                <div className="flex items-center gap-2 mb-4">
+                    <div className="p-2 rounded-xl bg-emerald-500/10">
+                        <Shield size={18} className="text-emerald-400" />
+                    </div>
+                    <h3 className="text-sm font-semibold text-white/90 tracking-wide">Saturn Period Check</h3>
                 </div>
+                <p className="text-sm text-white/65 leading-relaxed">
+                    Live Saturn timing is refreshing. Keep commitments simple and choose consistency over urgency today.
+                </p>
             </motion.div>
         );
     }

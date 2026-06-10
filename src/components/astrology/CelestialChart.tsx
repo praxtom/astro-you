@@ -262,12 +262,12 @@ const DiamondGrid = ({
   useFrame((state) => {
     if (visible && meshRef.current) {
       const pulse = 0.3 + Math.sin(state.clock.elapsedTime * 2) * 0.1;
-      // @ts-ignore
+      // @ts-expect-error React Three Fiber material ref is narrowed at runtime.
       meshRef.current.material.opacity = pulse;
     }
     if (visible && gridRef.current) {
       const pulse = 0.2 + Math.sin(state.clock.elapsedTime * 1.5) * 0.05;
-      // @ts-ignore
+      // @ts-expect-error React Three Fiber material ref is narrowed at runtime.
       gridRef.current.material.opacity = pulse;
     }
   });
@@ -425,7 +425,7 @@ const LinePoints = ({
   }, [points]);
 
   return (
-    // @ts-ignore
+    // @ts-expect-error React Three Fiber line geometry typing is narrower than Three.js.
     <line geometry={lineGeometry}>
       <lineBasicMaterial color={color} transparent opacity={opacity} />
     </line>
@@ -438,7 +438,7 @@ const ZodiacRing = ({ visible }: { visible: boolean }) => {
   useFrame((state) => {
     if (visible && ringRef.current) {
       const pulse = 0.6 + Math.sin(state.clock.elapsedTime) * 0.2;
-      // @ts-ignore
+      // @ts-expect-error React Three Fiber material ref is narrowed at runtime.
       ringRef.current.material.emissiveIntensity = pulse;
     }
   });
@@ -511,7 +511,6 @@ const CosmicGrid = () => {
   return (
     <group>
       <gridHelper args={[40, 40, "#FFD700", "#FFD700"]} position={[0, -2, 0]}>
-        {/* @ts-ignore */}
         <meshBasicMaterial transparent opacity={0.05} color="#FFD700" />
       </gridHelper>
       <Stars
@@ -544,7 +543,7 @@ const CameraHandler = ({ isRotating }: { isRotating: boolean }) => {
       state.camera.position.lerp(new THREE.Vector3(0, 25, 10), 0.05);
       // Reset target to center
       if (state.controls) {
-        // @ts-ignore
+        // @ts-expect-error OrbitControls target exists when controls are attached.
         state.controls.target.lerp(new THREE.Vector3(0, 0, 0), 0.05);
       }
     }

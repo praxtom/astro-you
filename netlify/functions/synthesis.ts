@@ -1,8 +1,11 @@
 import { Config, Context } from "@netlify/functions";
-import { synthesizeStream, analyzeUserConsciousness, generateChatTitle, generateConversationSummary, extractActionableAdvice, UserContext } from "./shared/gemini";
-import { getDashaPeriods, getTransitReport, getYogaAnalysis, getPanchang } from "./shared/astro-api";
+import { synthesizeStream, analyzeUserConsciousness, generateChatTitle, generateConversationSummary, extractActionableAdvice } from "./shared/gemini";
+import { auth, db } from "./shared/firebase-admin";
+import { buildUserContext } from "./shared/user-context";
+import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit";
+import { persistAtmanInsights } from "./shared/atman-brain";
 
-export default async (req: Request, context: Context) => {
+export default async (req: Request, _context: Context) => {
     if (req.method !== "POST") {
         return new Response("Method Not Allowed", { status: 405 });
     }
@@ -17,69 +20,46 @@ export default async (req: Request, context: Context) => {
         });
     }
 
-    const { messages, birthData, kundaliData, previousInteractionId, atmanData, recentSummaries, chatMessages, messageCount, yogaData, panchangData, personaPrompt, personaName } = body;
+    const { messages, birthData, kundaliData, previousInteractionId, atmanData, recentSummaries, chatMessages, messageCount, yogaData, panchangData, personaPrompt, personaName, idToken } = body;
 
-    // Build kundali summary for AI context
-    const kundaliSummary = kundaliData?.planetary_positions?.map((p: any) =>
-        `${p.name} in ${p.sign} (${p.house}th House)${p.is_retrograde ? ' [Retrograde]' : ''}`
-    ).join(', ') || 'Planetary data currently veiled.';
-
-    // Fetch Dasha + Transit + Yoga + Panchang data for first message (with 5s timeout)
-    let dashaInfo: UserContext['dashaInfo'] = undefined;
-    let transitContext: string | undefined = undefined;
-    let yogasResult: any = null;
-    let panchangResult: any = null;
-    const withTimeout = <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<T> =>
-        Promise.race([
-            promise,
-            new Promise<T>(resolve => { const t = setTimeout(() => resolve(fallback), ms); if (typeof t === 'object' && 'unref' in t) (t as any).unref(); }),
-        ]);
-
-    if (!previousInteractionId && birthData?.dob && birthData?.tob) {
+    let uid: string | undefined = undefined;
+    if (idToken) {
         try {
-            const [dashas, transitEvents, yogasRes, panchangRes] = await Promise.all([
-                withTimeout(getDashaPeriods(birthData), 5000, []),
-                withTimeout(getTransitReport(birthData), 5000, []),
-                withTimeout(getYogaAnalysis(birthData), 5000, null),
-                withTimeout(getPanchang(), 5000, null),
-            ]);
-
-            yogasResult = yogasRes;
-            panchangResult = panchangRes;
-
-            if (dashas && dashas.length > 0) {
-                const currentMaha = dashas.find((d: any) => d.isCurrent);
-                const currentAntar = currentMaha?.subPeriods?.find((s: any) => s.isCurrent);
-                dashaInfo = {
-                    currentMahadasha: currentMaha?.planet || currentMaha?.planetName,
-                    currentAntardasha: currentAntar?.planet || currentAntar?.planetName,
-                    mahadashaEnd: currentMaha?.endDate,
-                    antardashaEnd: currentAntar?.endDate,
-                };
-            }
-
-            if (transitEvents && transitEvents.length > 0) {
-                transitContext = transitEvents.slice(0, 6).map((e: any) =>
-                    `${e.transit_planet || e.planet || 'Planet'} ${e.aspect_type || e.aspect || 'aspecting'} natal ${e.natal_planet || e.natal_body || e.target || 'point'}: ${e.interpretation || e.description || e.text || 'Active transit'}`
-                ).join('\n');
-            }
-        } catch (err) {
-            console.warn("[Synthesis] Dasha/Transit fetch failed (non-critical):", err);
+            uid = (await auth.verifyIdToken(idToken)).uid;
+        } catch {
+            return new Response(JSON.stringify({ error: "Invalid auth token" }), {
+                status: 401,
+                headers: { "Content-Type": "application/json" },
+            });
         }
     }
 
-    // Build user context
-    const userContext: UserContext = {
-        name: birthData?.name || 'Jataka',
-        birthData: birthData ? { dob: birthData.dob, tob: birthData.tob, pob: birthData.pob } : undefined,
-        dashaInfo,
-        atman: atmanData,
+    const rateLimit = await checkRateLimit({
+        scope: "ai_synthesis",
+        key: uid || getRequestIdentifier(req),
+        limit: uid ? 80 : 12,
+        windowMs: 60 * 60 * 1000,
+    });
+    if (!rateLimit.allowed) {
+        return new Response(JSON.stringify({
+            error: "Too many AI requests. Please try again later.",
+            resetAt: rateLimit.resetAt.toISOString(),
+        }), {
+            status: 429,
+            headers: { "Content-Type": "application/json" },
+        });
+    }
+
+    const { userContext, kundaliSummary } = await buildUserContext({
+        uid,
+        birthData,
+        kundaliData,
+        previousInteractionId,
+        atmanData,
         recentSummaries: recentSummaries || undefined,
-        transitContext: transitContext || undefined,
-        recentAdvice: atmanData?.adviceHistory?.slice(-5) || undefined,
-        yogaData: yogaData || yogasResult?.yogas?.slice(0, 5) || [],
-        panchangData: panchangData || panchangResult || undefined,
-    };
+        yogaData,
+        panchangData,
+    });
 
     const encoder = new TextEncoder();
     const isFirstMessage = !previousInteractionId;
@@ -134,6 +114,22 @@ export default async (req: Request, context: Context) => {
                         : Promise.resolve(null)),
                     safe(extractActionableAdvice(fullContent, lastUserMessage)),
                 ]);
+                const brainResult = uid
+                    ? await safe(persistAtmanInsights(
+                        { db },
+                        {
+                            uid,
+                            analysisResult,
+                            extractedAdvice,
+                            source: {
+                                surface: "synthesis",
+                                interactionId,
+                                userMessage: lastUserMessage,
+                                assistantMessage: fullContent,
+                            },
+                        },
+                    ))
+                    : null;
 
                 // Chart request detection
                 const lowerMsg = lastUserMessage.toLowerCase();
@@ -146,10 +142,9 @@ export default async (req: Request, context: Context) => {
                     content: fullContent,
                     interactionId,
                     suggestAction: isRequestingChart ? 'show_chart' : null,
-                    atmanUpdate: analysisResult,
+                    brainUpdated: Boolean(brainResult?.persisted),
                     generatedTitle: generatedTitle || null,
                     conversationSummary: conversationSummary || null,
-                    extractedAdvice: extractedAdvice || null,
                     suggestedRoutine: suggestedRoutine || null,
                 });
 

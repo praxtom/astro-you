@@ -37,4 +37,4 @@ export default async (req: Request, _context: Context) => {
     }
 };
 
-export const config: Config = { path: "/.netlify/functions/daily-prediction" };
+export const config: Config = { path: "/api/daily-prediction" };

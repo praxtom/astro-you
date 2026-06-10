@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { BirthData } from '../types';
+import { useRequestBirthData } from './useRequestBirthData';
 
 export interface Remedy {
     category: string;
@@ -23,13 +24,22 @@ export function useRemedies(birthData: BirthData | null): UseRemediesResult {
     const [remedies, setRemedies] = useState<RemediesData | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const requestBirthData = useRequestBirthData(birthData);
 
     useEffect(() => {
-        if (!birthData || !birthData.dob || !birthData.tob) {
+        if (!requestBirthData?.dob || !requestBirthData.tob) {
+            setRemedies(null);
+            setError(null);
+            setLoading(false);
             return;
         }
 
         const controller = new AbortController();
+        let timedOut = false;
+        const timeoutId = window.setTimeout(() => {
+            timedOut = true;
+            controller.abort();
+        }, 8000);
 
         const fetchRemedies = async () => {
             try {
@@ -39,7 +49,7 @@ export function useRemedies(birthData: BirthData | null): UseRemediesResult {
                 const response = await fetch('/api/kundali', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ birthData, chartType: 'REMEDIES' }),
+                    body: JSON.stringify({ birthData: requestBirthData, chartType: 'REMEDIES' }),
                     signal: controller.signal,
                 });
 
@@ -65,17 +75,24 @@ export function useRemedies(birthData: BirthData | null): UseRemediesResult {
 
                 setRemedies({ remedies: normalized });
             } catch (err: any) {
-                if (err.name === 'AbortError') return;
+                if (err.name === 'AbortError') {
+                    if (timedOut) setError('Remedies took too long to load');
+                    return;
+                }
                 console.error('[useRemedies] Error:', err);
                 setError(err.message);
             } finally {
+                window.clearTimeout(timeoutId);
                 setLoading(false);
             }
         };
 
         fetchRemedies();
-        return () => controller.abort();
-    }, [birthData?.dob, birthData?.tob, birthData?.pob]);
+        return () => {
+            window.clearTimeout(timeoutId);
+            controller.abort();
+        };
+    }, [requestBirthData]);
 
     return { remedies, loading, error };
 }

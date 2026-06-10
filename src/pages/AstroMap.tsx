@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useUserProfile } from '../hooks';
+import { useRequestBirthData } from '../hooks/useRequestBirthData';
 import { MapPin, Globe, Loader2, Star, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/layout/Header';
+import BirthProfileRequired from '../components/BirthProfileRequired';
 
 export default function AstroMap() {
     const navigate = useNavigate();
-    const { birthData, loading: profileLoading } = useUserProfile();
+    const { birthData } = useUserProfile();
+    const requestBirthData = useRequestBirthData(birthData);
     const [powerZones, setPowerZones] = useState<any>(null);
     const [lines, setLines] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -16,24 +19,35 @@ export default function AstroMap() {
 
     // Fetch power zones + lines on mount
     useEffect(() => {
-        if (!birthData?.dob) return;
+        if (!requestBirthData?.dob) {
+            setLoading(false);
+            return;
+        }
+
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => setLoading(false), 3200);
         const fetchData = async () => {
             setLoading(true);
             const [zonesRes, linesRes] = await Promise.all([
                 fetch('/api/kundali', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ birthData, chartType: 'POWER_ZONES' }) }).then(r => r.json()).catch(() => null),
+                    body: JSON.stringify({ birthData: requestBirthData, chartType: 'POWER_ZONES' }), signal: controller.signal }).then(r => r.json()).catch(() => null),
                 fetch('/api/kundali', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ birthData, chartType: 'ASTRO_LINES' }) }).then(r => r.json()).catch(() => null),
+                    body: JSON.stringify({ birthData: requestBirthData, chartType: 'ASTRO_LINES' }), signal: controller.signal }).then(r => r.json()).catch(() => null),
             ]);
             setPowerZones(zonesRes?.data);
             setLines(linesRes?.data);
+            window.clearTimeout(timeoutId);
             setLoading(false);
         };
         fetchData();
-    }, [birthData?.dob]);
+        return () => {
+            window.clearTimeout(timeoutId);
+            controller.abort();
+        };
+    }, [requestBirthData]);
 
     const analyzeLocation = async () => {
-        if (!locationQuery.trim() || !birthData) return;
+        if (!locationQuery.trim() || !requestBirthData) return;
         setAnalyzingLocation(true);
         // Use Nominatim to geocode, then analyze
         try {
@@ -42,11 +56,13 @@ export default function AstroMap() {
             if (!geo) { setAnalyzingLocation(false); return; }
 
             const res = await fetch('/api/kundali', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ birthData, chartType: 'LOCATION_ANALYSIS', targetLat: parseFloat(geo.lat), targetLng: parseFloat(geo.lon) })
+                body: JSON.stringify({ birthData: requestBirthData, chartType: 'LOCATION_ANALYSIS', targetLat: parseFloat(geo.lat), targetLng: parseFloat(geo.lon) })
             });
             const data = await res.json();
             setLocationAnalysis({ city: locationQuery, ...data.data });
-        } catch {}
+        } catch (error) {
+            console.error("Location analysis failed:", error);
+        }
         setAnalyzingLocation(false);
     };
 
@@ -61,6 +77,13 @@ export default function AstroMap() {
                 <h1 className="text-3xl md:text-4xl font-display mb-2">Astrocartography</h1>
                 <p className="text-white/50 mb-8">Discover where on Earth your stars shine brightest</p>
 
+                {!requestBirthData?.dob ? (
+                    <BirthProfileRequired
+                        title="Create your birth profile to map your strongest places."
+                        description="Astrocartography needs your exact birth details before it can compare your chart against cities and planetary lines."
+                    />
+                ) : (
+                    <>
                 {/* Location Search */}
                 <div className="flex gap-3 mb-8 max-w-lg">
                     <input value={locationQuery} onChange={e => setLocationQuery(e.target.value)}
@@ -122,6 +145,36 @@ export default function AstroMap() {
                     )}
                 </div>
 
+                {!loading && !powerZones && !lines && (
+                    <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="glass rounded-2xl p-5">
+                            <h2 className="text-gold text-sm font-bold uppercase tracking-widest mb-3">Where to start</h2>
+                            <p className="text-white/55 text-sm leading-relaxed">
+                                Search a city above to compare it against your birth profile. The live map engine checks planetary lines, relocation themes, and practical fit.
+                            </p>
+                            <div className="mt-4 flex flex-wrap gap-2">
+                                {['Mumbai', 'London', 'Singapore', 'New York'].map((city) => (
+                                    <button
+                                        key={city}
+                                        onClick={() => setLocationQuery(city)}
+                                        className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-white/55 hover:border-gold/30 hover:text-gold"
+                                    >
+                                        {city}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="glass rounded-2xl p-5">
+                            <h2 className="text-gold text-sm font-bold uppercase tracking-widest mb-3">What the map reads</h2>
+                            <div className="grid gap-2 text-sm text-white/55">
+                                {['Sun line: visibility and confidence', 'Moon line: belonging and emotional safety', 'Jupiter line: growth and opportunity', 'Saturn line: duty and long-term work'].map((item) => (
+                                    <div key={item} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">{item}</div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Location Analysis Result */}
                 {locationAnalysis && (
                     <div className="mt-8 glass rounded-[2rem] p-6">
@@ -140,6 +193,8 @@ export default function AstroMap() {
                             <p className="text-white/60 text-sm mt-4 italic">{locationAnalysis.overall}</p>
                         )}
                     </div>
+                )}
+                    </>
                 )}
             </main>
         </div>
