@@ -10,20 +10,27 @@ export default async (req: Request, _context: Context) => {
     await requireAdmin(idToken);
 
     const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 200);
-    const snap = await db
-      .collection("auditLogs")
+    // Push uid/action filters into the query instead of filtering the most
+    // recent N in memory (which silently drops a user's older entries when they
+    // fall outside the global top-N). Requires composite indexes:
+    //   (uid, createdAt desc) and (action, createdAt desc).
+    let query: FirebaseFirestore.Query = db.collection("auditLogs");
+    if (uid) query = query.where("uid", "==", uid);
+    if (action) query = query.where("action", "==", action);
+    const snap = await query
       .orderBy("createdAt", "desc")
       .limit(safeLimit)
       .get();
 
-    const logs = snap.docs
-      .map((doc) => serializeAuditLog(doc.id, doc.data()))
-      .filter((log: any) => (!uid || log.uid === uid) && (!action || log.action === action));
+    const logs = snap.docs.map((doc) => serializeAuditLog(doc.id, doc.data()));
 
     return json({ logs });
   } catch (err: any) {
     console.error("[AdminAuditLogs] Error:", err);
-    return json({ error: err.message || "Could not load audit logs" }, err.status || 500);
+    return json(
+      { error: err.message || "Could not load audit logs" },
+      err.status || 500,
+    );
   }
 };
 
