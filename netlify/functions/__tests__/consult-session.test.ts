@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   ConsultSessionError,
   endConsultSession,
+  finalizeConsultSession,
   startConsultSession,
   type ConsultSessionDeps,
 } from "../shared/consult-session.js";
@@ -218,6 +219,39 @@ test("endConsultSession deducts credits and closes active sessions", async () =>
   assert.equal(writes[2].data.status, "ended");
   assert.equal(writes[2].data.cost, 10);
   assert.equal(writes[2].data.messageCount, 3);
+});
+
+test("finalizeConsultSession bills an abandoned session by uid without a token", async () => {
+  const now = 1_800_000;
+  const startedAt = now - 61_000;
+  const { deps, writes } = createDeps(25, now, {
+    "users/user_123/consultations/session_123": {
+      personaId: "guru-vidyanath",
+      status: "active",
+      startedAtMs: startedAt,
+      pricePerMin: 5,
+      maxBillableMinutes: 5,
+      messageCount: 4,
+    },
+  });
+
+  const result = await finalizeConsultSession(deps, {
+    uid: "user_123",
+    sessionId: "session_123",
+    reason: "auto_timeout",
+  });
+
+  assert.deepEqual(result, {
+    success: true,
+    durationSeconds: 61,
+    minutes: 2,
+    cost: 10,
+  });
+  assert.equal(writes.length, 3);
+  assert.equal(writes[2].path, "users/user_123/consultations/session_123");
+  assert.equal(writes[2].data.status, "ended");
+  assert.equal(writes[2].data.endReason, "auto_timeout");
+  assert.equal(writes[2].data.messageCount, 4);
 });
 
 test("endConsultSession lets added credits extend the billable session window", async () => {
