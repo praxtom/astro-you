@@ -8,6 +8,7 @@ import {
 } from "./shared/brain-nudges";
 import { resolveResendApiKey } from "./shared/env.js";
 import { processUsersPaged } from "./shared/scheduled-users";
+import { createPushTokenDocId } from "./shared/push-tokens";
 
 export const handler = schedule("0 * * * *", async () => {
   const maxUsers = Number(process.env.BRAIN_NUDGE_BATCH_SIZE || 500);
@@ -100,34 +101,58 @@ function createPushTokenLoader() {
 
 function createPushSender() {
   return async (push: BrainPushNotification) => {
-    await messaging.send({
-      token: push.token,
-      data: {
-        type: "brain_nudge",
-        uid: push.uid,
-        triggerType: push.triggerType,
-        url: push.url,
-      },
-      webpush: {
-        notification: {
-          title: push.title,
-          body: push.body,
-          icon: "/icon-192.png",
-          badge: "/icon-192.png",
-          tag: `brain_${push.triggerType}`,
-          requireInteraction: push.priority === "high",
+    try {
+      await messaging.send({
+        token: push.token,
+        data: {
+          type: "brain_nudge",
+          uid: push.uid,
+          triggerType: push.triggerType,
+          url: push.url,
         },
-        fcmOptions: {
-          link: `${getAppBaseUrl()}${push.url}`,
+        webpush: {
+          notification: {
+            title: push.title,
+            body: push.body,
+            icon: "/icon-192.png",
+            badge: "/icon-192.png",
+            tag: `brain_${push.triggerType}`,
+            requireInteraction: push.priority === "high",
+          },
+          fcmOptions: {
+            link: `${getAppBaseUrl()}${push.url}`,
+          },
         },
-      },
-    });
+      });
+    } catch (err: any) {
+      // Deactivate tokens FCM reports as no longer registered (uninstalled /
+      // cleared) so we stop retrying them on every run.
+      const code = err?.errorInfo?.code || err?.code;
+      if (
+        code === "messaging/registration-token-not-registered" ||
+        code === "messaging/invalid-registration-token"
+      ) {
+        await db
+          .collection("users")
+          .doc(push.uid)
+          .collection("pushTokens")
+          .doc(createPushTokenDocId(push.token))
+          .set({ active: false, deactivatedAt: new Date() }, { merge: true })
+          .catch(() => undefined);
+      }
+      throw err;
+    }
   };
 }
 
 function createWhatsAppSender() {
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  // Disabled by default: free-form `type: "text"` messages are rejected by Meta
+  // outside the 24-hour customer-service window (i.e. for ~all proactive nudges),
+  // so this silently fails. Re-enable only after switching to approved message
+  // templates and setting WHATSAPP_NUDGES_ENABLED=true.
+  if (process.env.WHATSAPP_NUDGES_ENABLED !== "true") return undefined;
   if (!accessToken || !phoneNumberId) return undefined;
 
   return async (message: BrainWhatsAppMessage) => {

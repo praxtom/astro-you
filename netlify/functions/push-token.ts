@@ -1,6 +1,9 @@
 import { Config, Context } from "@netlify/functions";
 import { db, auth, FieldValue } from "./shared/firebase-admin";
-import { buildPushTokenRecord, createPushTokenDocId } from "./shared/push-tokens";
+import {
+  buildPushTokenRecord,
+  createPushTokenDocId,
+} from "./shared/push-tokens";
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST" && req.method !== "DELETE") {
@@ -18,15 +21,23 @@ export default async (req: Request, _context: Context) => {
     if (req.method === "DELETE") {
       const token = typeof body.token === "string" ? body.token.trim() : "";
       if (token) {
-        await userRef.collection("pushTokens").doc(createPushTokenDocId(token)).set(
-          { active: false, updatedAt: new Date() },
-          { merge: true },
-        );
+        await userRef
+          .collection("pushTokens")
+          .doc(createPushTokenDocId(token))
+          .set({ active: false, updatedAt: new Date() }, { merge: true });
       } else {
-        const activeTokens = await userRef.collection("pushTokens").where("active", "==", true).limit(20).get();
+        const activeTokens = await userRef
+          .collection("pushTokens")
+          .where("active", "==", true)
+          .limit(20)
+          .get();
         const batch = db.batch();
         activeTokens.docs.forEach((doc) => {
-          batch.set(doc.ref, { active: false, updatedAt: new Date() }, { merge: true });
+          batch.set(
+            doc.ref,
+            { active: false, updatedAt: new Date() },
+            { merge: true },
+          );
         });
         await batch.commit();
       }
@@ -47,7 +58,10 @@ export default async (req: Request, _context: Context) => {
       userAgent: body.userAgent,
     });
     const docId = createPushTokenDocId(record.token);
-    await userRef.collection("pushTokens").doc(docId).set(record, { merge: true });
+    await userRef
+      .collection("pushTokens")
+      .doc(docId)
+      .set(record, { merge: true });
     await userRef.set(
       {
         fcmToken: record.token,
@@ -59,7 +73,8 @@ export default async (req: Request, _context: Context) => {
 
     return json({ ok: true, active: true });
   } catch (err: any) {
-    return json({ error: err.message || "Push token update failed" }, 400);
+    console.error("[PushToken] Error:", err);
+    return json({ error: "Push token update failed" }, 400);
   }
 };
 
