@@ -6,12 +6,23 @@ import {
   ReferralError,
   buildReferralClaimRecord,
   createReferralCode,
+  generateReferralCode,
   normalizeReferralCode,
 } from "../shared/referrals.js";
 
 test("createReferralCode creates stable public referral codes", () => {
   assert.equal(createReferralCode("abc123def456"), "STARABC123");
   assert.equal(createReferralCode("uid-with-symbols"), "STARUIDWIT");
+});
+
+test("generateReferralCode produces valid, random, non-UID-derived codes", () => {
+  const a = generateReferralCode();
+  const b = generateReferralCode();
+  assert.match(a, /^STAR[A-Z0-9]{6}$/);
+  assert.match(b, /^STAR[A-Z0-9]{6}$/);
+  assert.notEqual(a, b); // astronomically unlikely to collide
+  // No ambiguous characters in the suffix.
+  assert.ok(!/[01IO]/.test(a.slice(4)));
 });
 
 test("normalizeReferralCode accepts only AstroYou referral codes", () => {

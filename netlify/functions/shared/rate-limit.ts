@@ -39,6 +39,7 @@ const FAIL_CLOSED_SCOPES = new Set([
   "consult_start",
   "pdf_report",
   "trust_submit",
+  "referral_claim",
 ]);
 
 export async function checkRateLimit(
