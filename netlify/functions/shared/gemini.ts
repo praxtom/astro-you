@@ -329,7 +329,6 @@ export function buildJyotishPrompt(
   let atmanContext = "";
   let proactiveFollowUp = "";
   let trendContext = "";
-  let feedbackCalibration = "";
 
   if (context.atman) {
     // Build Trend Analysis Context
@@ -359,7 +358,7 @@ ${pendingEvents.map((e) => `- "${e.title}" (Status: ${e.status})`).join("\n")}
 
 Only ask about ONE event at a time. Be natural, not robotic.`;
     }
-    feedbackCalibration = buildPredictionFeedbackCalibration(
+    const feedbackCalibration = buildPredictionFeedbackCalibration(
       context.atman.predictionFeedbackStats,
     );
 
@@ -679,25 +678,37 @@ export async function* synthesizeStream(
 
   let fullContent = "";
   let interactionId = "";
+  let finalOutputText = "";
 
   for await (const event of stream as any) {
     // Stop consuming if the client disconnected.
     if (abortSignal?.aborted) break;
     const eventType = event.event_type || event.type;
 
-    if (eventType === "content.delta") {
-      const text =
-        typeof event.delta === "string" ? event.delta : event.delta?.text || "";
+    if (eventType === "step.delta" || eventType === "content.delta") {
+      const text = extractInteractionDeltaText(event.delta);
       if (text) {
         fullContent += text;
         yield { type: "delta", text };
       }
     } else if (
+      eventType === "interaction.created" ||
+      eventType === "interaction.completed" ||
       eventType === "interaction.start" ||
       eventType === "interaction.complete"
     ) {
       interactionId = event.interaction?.id || interactionId;
+      if (typeof event.interaction?.output_text === "string") {
+        finalOutputText = event.interaction.output_text;
+      }
+    } else if (eventType === "error") {
+      throw new Error(event.error?.message || "Gemini interaction failed");
     }
+  }
+
+  if (!fullContent.trim() && finalOutputText.trim()) {
+    fullContent = finalOutputText;
+    yield { type: "delta", text: finalOutputText };
   }
 
   // Parse and strip routine XML from final content
@@ -718,6 +729,19 @@ export async function* synthesizeStream(
     content: fullContent,
     suggestedRoutine,
   };
+}
+
+function extractInteractionDeltaText(delta: any): string {
+  if (typeof delta === "string") return delta;
+  if (!delta || typeof delta !== "object") return "";
+  if (typeof delta.text === "string") return delta.text;
+  if (Array.isArray(delta.content)) {
+    return delta.content
+      .map((part: any) => part?.text)
+      .filter((text: unknown): text is string => typeof text === "string")
+      .join("");
+  }
+  return "";
 }
 
 /**
