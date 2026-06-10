@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { postJson } from "../lib/apiFetch";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Moon, Sun, Sparkles, AlertTriangle } from "lucide-react";
 import { useUserProfile } from "../hooks";
@@ -39,12 +40,7 @@ export default function Eclipses() {
       try {
         setEclipseLoading(true);
         setEclipseError(null);
-        const res = await fetch("/api/kundali", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chartType: "ECLIPSES" }),
-          signal: controller.signal,
-        });
+        const res = await postJson("/api/kundali", { chartType: "ECLIPSES" }, { signal: controller.signal });
         const data = await res.json();
         const raw = data.data || data;
 
@@ -95,12 +91,7 @@ export default function Eclipses() {
       try {
         setImpactLoading(true);
         setImpactError(null);
-        const res = await fetch("/api/kundali", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ birthData, chartType: "ECLIPSE_IMPACT" }),
-          signal: controller.signal,
-        });
+        const res = await postJson("/api/kundali", { birthData, chartType: "ECLIPSE_IMPACT" }, { signal: controller.signal });
         const data = await res.json();
         const raw = data.data || data;
 

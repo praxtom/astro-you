@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { postJson } from "../lib/apiFetch";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/useAuth";
 import { useUserProfile } from "../hooks";
@@ -321,12 +322,7 @@ export default function Dashboard() {
     };
     const controller = new AbortController();
 
-    fetch("/api/kundali", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ birthData, chartType: "DASHAS" }),
-      signal: controller.signal,
-    })
+    postJson("/api/kundali", { birthData, chartType: "DASHAS" }, { signal: controller.signal })
       .then((r) => r.json())
       .then((res) => {
         const periods = res.periods || res.data?.periods || [];

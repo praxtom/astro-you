@@ -13,6 +13,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { OnboardingSEO } from "../components/SEO";
+import { postJson } from "../lib/apiFetch";
 import LocationInput from "../components/LocationInput";
 import { STORAGE_KEYS } from "../lib/constants";
 import { useErrorToast } from "../components/ui/toast-context";
@@ -50,28 +51,43 @@ export default function Onboarding() {
 
   // Preview: background-fetch kundali data when entering "present" step
   const [preview, setPreview] = useState<any>(null);
-  const { name, gender, dob, tob, pob, currentLocation, birthTimeUnknown } = formData;
+  const { name, gender, dob, tob, pob, currentLocation, birthTimeUnknown } =
+    formData;
 
   useEffect(() => {
     if (step !== "present" || !dob || !tob || !pob || preview) return;
 
     const controller = new AbortController();
-    const birthData = { name, gender, dob, tob, pob, currentLocation, birthTimeUnknown };
+    const birthData = {
+      name,
+      gender,
+      dob,
+      tob,
+      pob,
+      currentLocation,
+      birthTimeUnknown,
+    };
 
-      fetch('/api/kundali', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ birthData, chartType: 'D1' }),
-        signal: controller.signal,
-      })
-        .then((r) => r.json())
-        .then((d) => setPreview(d))
-        .catch((err) => {
-          if (err.name !== "AbortError") console.warn("[Onboarding] Preview unavailable:", err);
-        });
+    postJson("/api/kundali", { birthData, chartType: "D1" }, { signal: controller.signal })
+      .then((r) => r.json())
+      .then((d) => setPreview(d))
+      .catch((err) => {
+        if (err.name !== "AbortError")
+          console.warn("[Onboarding] Preview unavailable:", err);
+      });
 
     return () => controller.abort();
-  }, [step, name, gender, dob, tob, pob, currentLocation, birthTimeUnknown, preview]);
+  }, [
+    step,
+    name,
+    gender,
+    dob,
+    tob,
+    pob,
+    currentLocation,
+    birthTimeUnknown,
+    preview,
+  ]);
 
   // Load existing data from localStorage (persists across sessions)
   useEffect(() => {
@@ -100,7 +116,7 @@ export default function Onboarding() {
 
           // Reverse geocoding using Nominatim
           const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
           );
           const data = await response.json();
 
@@ -138,9 +154,12 @@ export default function Onboarding() {
       },
       (error) => {
         console.error(error);
-        showError("Location Error", "Unable to retrieve your location. Please enter it manually.");
+        showError(
+          "Location Error",
+          "Unable to retrieve your location. Please enter it manually.",
+        );
         setIsLocating(false);
-      }
+      },
     );
   };
 
@@ -161,7 +180,7 @@ export default function Onboarding() {
               },
               updatedAt: new Date(),
             },
-            { merge: true }
+            { merge: true },
           );
         }
         // Only mark complete AFTER Firestore write succeeds
@@ -173,14 +192,20 @@ export default function Onboarding() {
         console.error("Error saving data:", err);
         // Save locally so user doesn't lose their input, but DON'T navigate away
         localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(formData));
-        showError("Save Error", "Could not save to cloud. Please check your connection and try again.");
+        showError(
+          "Save Error",
+          "Could not save to cloud. Please check your connection and try again.",
+        );
         setIsSaving(false);
       } finally {
         setIsSaving(false);
       }
     } else {
       // Guest path: sessionStorage + localStorage backup for later sign-up migration
-      sessionStorage.setItem(STORAGE_KEYS.GUEST_PROFILE, JSON.stringify(formData));
+      sessionStorage.setItem(
+        STORAGE_KEYS.GUEST_PROFILE,
+        JSON.stringify(formData),
+      );
       sessionStorage.setItem(STORAGE_KEYS.GUEST_COMPLETE, "true");
       localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(formData));
       trackAcquisitionEvent("onboarding_complete");
@@ -237,7 +262,7 @@ export default function Onboarding() {
           } else {
             setParseError(
               result.error ||
-                "Could not parse chart. Please try a clearer image."
+                "Could not parse chart. Please try a clearer image.",
             );
             setParsedChart(null);
           }
@@ -341,7 +366,7 @@ export default function Onboarding() {
                   }`}
                 ></div>
               );
-            }
+            },
           )}
         </div>
 
@@ -758,13 +783,26 @@ export default function Onboarding() {
 
             {preview && (
               <div className="mb-4 p-3 rounded-xl bg-gold/5 border border-gold/20">
-                <p className="text-[10px] text-gold uppercase tracking-widest font-bold mb-2">Quick Preview</p>
-                <p className="text-sm text-white/70">
-                  Moon Sign: <span className="text-white font-medium">{preview.ascendant?.sign || preview.moonSign || preview.ascendant || 'Calculating...'}</span>
-                  {preview.planetary_positions?.length > 0 && ` · ${preview.planetary_positions.length} planets analyzed`}
-                  {!preview.planetary_positions?.length && preview.planets?.length > 0 && ` · ${preview.planets.length} planets analyzed`}
+                <p className="text-[10px] text-gold uppercase tracking-widest font-bold mb-2">
+                  Quick Preview
                 </p>
-                <p className="text-xs text-white/40 mt-1">Complete your profile for full AI-powered reading</p>
+                <p className="text-sm text-white/70">
+                  Moon Sign:{" "}
+                  <span className="text-white font-medium">
+                    {preview.ascendant?.sign ||
+                      preview.moonSign ||
+                      preview.ascendant ||
+                      "Calculating..."}
+                  </span>
+                  {preview.planetary_positions?.length > 0 &&
+                    ` · ${preview.planetary_positions.length} planets analyzed`}
+                  {!preview.planetary_positions?.length &&
+                    preview.planets?.length > 0 &&
+                    ` · ${preview.planets.length} planets analyzed`}
+                </p>
+                <p className="text-xs text-white/40 mt-1">
+                  Complete your profile for full AI-powered reading
+                </p>
               </div>
             )}
 

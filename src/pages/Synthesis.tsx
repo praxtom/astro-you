@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { postJson } from "../lib/apiFetch";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Send,
@@ -232,11 +233,7 @@ export default function Synthesis() {
       const fetchGuestKundali = async () => {
         setIsLoadingKundali(true);
         try {
-          const response = await fetch("/api/kundali", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ birthData, chartType: currentChartType }),
-          });
+          const response = await postJson("/api/kundali", { birthData, chartType: currentChartType });
 
           if (!response.ok) throw new Error("API error");
 

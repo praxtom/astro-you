@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { postJson } from "../lib/apiFetch";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Sparkles, RotateCw, Send } from "lucide-react";
 
@@ -31,11 +32,7 @@ export default function Tarot() {
       try {
         setDailyLoading(true);
         setDailyError(null);
-        const res = await fetch("/api/kundali", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chartType: "DAILY_TAROT" }),
-        });
+        const res = await postJson("/api/kundali", { chartType: "DAILY_TAROT" });
         const data = await res.json();
         const raw = data.data || data;
         setDailyCard({
@@ -63,14 +60,10 @@ export default function Tarot() {
       setFlippedCards(new Set());
       setReadingInterpretation(null);
 
-      const res = await fetch("/api/kundali", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const res = await postJson("/api/kundali", {
           chartType: "TAROT_THREE",
           question: question || "What does the universe want me to know today?",
-        }),
-      });
+        });
       const data = await res.json();
       const raw = data.data || data;
 

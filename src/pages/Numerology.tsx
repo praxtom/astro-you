@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { postJson } from "../lib/apiFetch";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Hash, Sparkles, Star, Heart, Target } from "lucide-react";
 import { useUserProfile } from "../hooks";
@@ -35,18 +36,8 @@ export default function Numerology() {
 
         // Fetch core numbers and full reading in parallel
         const [coreRes, readingRes] = await Promise.all([
-          fetch("/api/kundali", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ birthData, chartType: "CORE_NUMBERS" }),
-            signal: controller.signal,
-          }),
-          fetch("/api/kundali", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ birthData, chartType: "NUMEROLOGY" }),
-            signal: controller.signal,
-          }),
+          postJson("/api/kundali", { birthData, chartType: "CORE_NUMBERS" }, { signal: controller.signal }),
+          postJson("/api/kundali", { birthData, chartType: "NUMEROLOGY" }, { signal: controller.signal }),
         ]);
 
         const coreData = await coreRes.json();

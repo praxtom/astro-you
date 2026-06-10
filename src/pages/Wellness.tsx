@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { postJson } from "../lib/apiFetch";
 import { useUserProfile } from '../hooks';
 import { useRequestBirthData } from '../hooks/useRequestBirthData';
 import { Heart, Loader2, Activity, Zap, Brain, ArrowLeft } from 'lucide-react';
@@ -25,12 +26,9 @@ export default function Wellness() {
         const timeoutId = window.setTimeout(() => setLoading(false), 3200);
         setLoading(true);
         Promise.all([
-            fetch('/api/kundali', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ birthData: requestBirthData, chartType: 'BIORHYTHMS' }), signal: controller.signal }).then(r => r.json()).catch(() => null),
-            fetch('/api/kundali', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ birthData: requestBirthData, chartType: 'WELLNESS_SCORE' }), signal: controller.signal }).then(r => r.json()).catch(() => null),
-            fetch('/api/kundali', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ birthData: requestBirthData, chartType: 'ENERGY_PATTERNS' }), signal: controller.signal }).then(r => r.json()).catch(() => null),
+            postJson("/api/kundali", { birthData: requestBirthData, chartType: 'BIORHYTHMS' }, { signal: controller.signal }).then(r => r.json()).catch(() => null),
+            postJson("/api/kundali", { birthData: requestBirthData, chartType: 'WELLNESS_SCORE' }, { signal: controller.signal }).then(r => r.json()).catch(() => null),
+            postJson("/api/kundali", { birthData: requestBirthData, chartType: 'ENERGY_PATTERNS' }, { signal: controller.signal }).then(r => r.json()).catch(() => null),
         ]).then(([bio, well, eng]) => {
             setBiorhythms(bio?.data);
             setWellnessScore(well?.data);

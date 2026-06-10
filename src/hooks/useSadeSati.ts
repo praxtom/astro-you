@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { postJson } from "../lib/apiFetch";
 import { useRequestBirthData } from './useRequestBirthData';
 
 export interface SadeSatiData {
@@ -34,12 +35,7 @@ export function useSadeSati(birthData: any): UseSadeSatiResult {
                 setLoading(true);
                 setError(null);
 
-                const response = await fetch('/api/kundali', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ birthData: requestBirthData, chartType: 'SADE_SATI' }),
-                    signal: controller.signal,
-                });
+                const response = await postJson("/api/kundali", { birthData: requestBirthData, chartType: 'SADE_SATI' }, { signal: controller.signal });
 
                 if (!response.ok) throw new Error('Failed to fetch Sade Sati data');
 

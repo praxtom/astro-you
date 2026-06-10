@@ -72,12 +72,80 @@ import {
 } from "./shared/astro-api";
 import { getCachedOrFetch } from "./shared/cache";
 import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit";
+import { verifyToken, AuthError } from "./shared/require-auth";
 
 const json = (body: any, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
   });
+
+// Chart types that need no birth data and are safe for the public/landing page.
+// Everything else requires a verified Firebase ID token.
+const PUBLIC_CHART_TYPES = new Set([
+  "PANCHANG",
+  "FESTIVALS",
+  "ECLIPSES",
+  "DAILY_TAROT",
+  "TAROT_THREE",
+]);
+
+// Divisional charts handled by the default switch branch — an explicit
+// allowlist so an unknown chartType returns 400 instead of an unintended
+// (billable) upstream call.
+const DIVISIONAL_CHARTS = new Set([
+  "D2",
+  "D3",
+  "D4",
+  "D7",
+  "D9",
+  "D10",
+  "D12",
+  "D16",
+  "D20",
+  "D24",
+  "D27",
+  "D30",
+  "D40",
+  "D45",
+  "D60",
+]);
+
+const DOB_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TOB_RE = /^\d{2}:\d{2}(:\d{2})?$/;
+
+/** Validate birth data before any (paid) upstream call. Returns an error message or null. */
+function validateBirthData(bd: any): string | null {
+  if (!bd || typeof bd !== "object") return "Missing birth data";
+  if (typeof bd.dob !== "string" || !DOB_RE.test(bd.dob))
+    return "Invalid dob (expected YYYY-MM-DD)";
+  if (typeof bd.tob !== "string" || !TOB_RE.test(bd.tob))
+    return "Invalid tob (expected HH:MM)";
+  if (
+    bd.lat !== undefined &&
+    bd.lat !== null &&
+    (typeof bd.lat !== "number" ||
+      Number.isNaN(bd.lat) ||
+      bd.lat < -90 ||
+      bd.lat > 90)
+  )
+    return "lat out of range (-90..90)";
+  if (
+    bd.lng !== undefined &&
+    bd.lng !== null &&
+    (typeof bd.lng !== "number" ||
+      Number.isNaN(bd.lng) ||
+      bd.lng < -180 ||
+      bd.lng > 180)
+  )
+    return "lng out of range (-180..180)";
+  if (
+    bd.pob !== undefined &&
+    (typeof bd.pob !== "string" || bd.pob.length > 200)
+  )
+    return "Invalid pob";
+  return null;
+}
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST")
@@ -104,10 +172,26 @@ export default async (req: Request, _context: Context) => {
       windowMs: 60 * 60 * 1000,
     });
     if (!rateLimit.allowed) {
-      return json({
-        error: "Too many astrology requests. Please try again later.",
-        resetAt: rateLimit.resetAt.toISOString(),
-      }, 429);
+      return json(
+        {
+          error: "Too many astrology requests. Please try again later.",
+          resetAt: rateLimit.resetAt.toISOString(),
+        },
+        429,
+      );
+    }
+
+    // Authentication: all chart types except the public/landing ones require a
+    // verified Firebase ID token. This prevents anonymous abuse of the paid
+    // astrology API. Public types (panchang/festivals/eclipses/tarot) stay open
+    // for the marketing pages but remain rate-limited above.
+    if (!PUBLIC_CHART_TYPES.has(String(chartType))) {
+      try {
+        await verifyToken(body.idToken);
+      } catch (err) {
+        const status = err instanceof AuthError ? err.status : 401;
+        return json({ error: "Authentication required" }, status);
+      }
     }
 
     // Panchang doesn't need birthData
@@ -134,21 +218,30 @@ export default async (req: Request, _context: Context) => {
       return json({ data });
     }
 
-    // Daily tarot doesn't need birthData
+    // Daily tarot is the same card for everyone on a given day — cache it so
+    // 1,000 dashboard loads don't trigger 1,000 paid API calls.
     if (chartType === "DAILY_TAROT") {
-      const data = await getDailyTarotCard();
+      const today = new Date().toISOString().split("T")[0];
+      const data = await getCachedOrFetch("tarot_daily", today, () =>
+        getDailyTarotCard(),
+      );
       return json({ data });
     }
 
     // Three-card tarot doesn't need birthData
     if (chartType === "TAROT_THREE") {
-      const data = await getThreeCardReading(body.question);
+      const question = typeof body.question === "string" ? body.question : "";
+      if (question.length > 500) {
+        return json({ error: "Question too long (max 500 characters)" }, 400);
+      }
+      const data = await getThreeCardReading(question);
       return json({ data });
     }
 
-    // Everything else needs birthData
-    if (!birthData?.dob || !birthData?.tob) {
-      return json({ error: "Missing birth data (dob + tob required)" }, 400);
+    // Everything else needs valid birthData.
+    const validationError = validateBirthData(birthData);
+    if (validationError) {
+      return json({ error: validationError }, 400);
     }
     const bd = birthData as BirthData;
 
@@ -264,14 +357,19 @@ export default async (req: Request, _context: Context) => {
         return json(data);
       }
       default: {
-        // D9, D10, D12, etc.
+        // Divisional charts (D9, D10, …). Reject unknown chartTypes instead of
+        // forwarding an arbitrary string to the paid upstream API.
+        if (!DIVISIONAL_CHARTS.has(String(chartType))) {
+          return json({ error: `Unknown chartType: ${chartType}` }, 400);
+        }
         const data = await getNavamsaChart(bd, [chartType]);
         return json(data);
       }
     }
   } catch (error: any) {
     console.error("[Kundali] Error:", error);
-    return json({ error: error.message }, 500);
+    // Generic message — never leak upstream/Firestore internals to the client.
+    return json({ error: "Astrology request failed. Please try again." }, 500);
   }
 };
 
