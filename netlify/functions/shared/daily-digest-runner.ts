@@ -1,7 +1,7 @@
-import { db } from "./firebase-admin";
-import { buildDailyDigest } from "./digest";
+import { db } from "./firebase-admin.js";
+import { buildDailyDigest } from "./digest.js";
 import { resolveResendApiKey } from "./env.js";
-import { buildUserContext } from "./user-context";
+import { buildUserContext } from "./user-context.js";
 
 export interface DailyDigestRunResult {
   uid: string;

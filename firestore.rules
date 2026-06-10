@@ -18,9 +18,11 @@ service cloud.firestore {
                     );
 
       // Money and subscription state are server-owned through Admin SDK.
+      // Explicit field equality is more robust than diff().affectedKeys(),
+      // which only reports top-level keys and is easy to get subtly wrong.
       allow update: if isOwner(userId)
-                    && !request.resource.data.diff(resource.data).affectedKeys()
-                      .hasAny(['credits', 'subscription']);
+                    && request.resource.data.credits == resource.data.credits
+                    && request.resource.data.subscription == resource.data.subscription;
 
       // Chats subcollection
       match /chats/{chatId} {
@@ -38,9 +40,33 @@ service cloud.firestore {
         allow write: if false;
       }
 
-      // Consultation reviews subcollection
+      // Consultation reviews — written server-side only (verifies the session
+      // actually happened). Owner may read their own.
       match /consultations_reviews/{docId} {
-        allow read, write: if isOwner(userId);
+        allow read: if isOwner(userId);
+        allow write: if false;
+      }
+
+      // Server-written review/feedback records. Owner-read, server-write only.
+      match /consultationReviews/{docId} {
+        allow read: if isOwner(userId);
+        allow write: if false;
+      }
+      match /testimonialSubmissions/{docId} {
+        allow read: if isOwner(userId);
+        allow write: if false;
+      }
+      match /predictionFeedback/{docId} {
+        allow read: if isOwner(userId);
+        allow write: if false;
+      }
+      match /referralClaims/{docId} {
+        allow read: if isOwner(userId);
+        allow write: if false;
+      }
+      match /pushTokens/{docId} {
+        allow read: if isOwner(userId);
+        allow write: if false;
       }
 
       match /creditLedger/{entryId} {
@@ -63,9 +89,11 @@ service cloud.firestore {
         allow read, write: if isOwner(userId);
       }
 
-      // Referrals subcollection
+      // Referrals — reward grants are server-owned (Admin SDK) to prevent
+      // self-referral / reward farming. Owner may read their own.
       match /referrals/{docId} {
-        allow read, write: if isOwner(userId);
+        allow read: if isOwner(userId);
+        allow write: if false;
       }
     }
 
@@ -99,6 +127,16 @@ service cloud.firestore {
 
     match /webhookEvents/{docId} {
       allow read, write: if false; // Admin SDK only
+    }
+
+    // ── Default-deny catch-all ───────────────────────────────────────
+    // Any collection not explicitly matched above (analyticsEvents,
+    // expertApplications, supportTickets, remedyRequests, trustModerationQueue,
+    // predictionFeedbackAggregateQueue, astrologers, healthchecks, …) is
+    // server-only. This is defense-in-depth on top of Firestore's implicit
+    // default-deny, so a future console edit can't silently open them.
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

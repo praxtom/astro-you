@@ -2,7 +2,7 @@
  * Firestore caching helpers for shared astronomical data.
  * Prevents redundant API calls for data that's the same for all users on a given day.
  */
-import { db } from "./firebase-admin";
+import { db } from "./firebase-admin.js";
 
 /**
  * Get or set a cached document. Returns cached data if fresh, otherwise calls fetcher and caches result.

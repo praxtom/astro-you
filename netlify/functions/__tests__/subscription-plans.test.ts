@@ -26,8 +26,16 @@ test("resolveTierFromPlanId maps webhook plan ids back to tiers", () => {
 
   assert.equal(resolveTierFromPlanId("plan_premium_live", env), "premium");
   assert.equal(resolveTierFromPlanId("plan_pro_live", env), "pro");
-  assert.equal(resolveTierFromPlanId("plan_contains_pro", env), "pro");
-  assert.equal(resolveTierFromPlanId("plan_unknown", env), "premium");
+  // Unknown / unconfigured plan ids must throw, never silently grant premium.
+  assert.throws(
+    () => resolveTierFromPlanId("plan_unknown", env),
+    /Cannot resolve/,
+  );
+  assert.throws(() => resolveTierFromPlanId(undefined, env), /Cannot resolve/);
+  assert.throws(
+    () => resolveTierFromPlanId("plan_pro_live", {}),
+    /Cannot resolve/,
+  );
 });
 
 test("getSubscriptionGracePeriodEnd adds exact days", () => {
