@@ -77,6 +77,17 @@ export function buildFunnelEventRecord(
   };
 }
 
+// Redact email- and phone-shaped substrings from analytics param VALUES, so
+// PII can't slip in through a non-blocked free-form key (key-name blocklist
+// alone misses values).
+const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+const PHONE_RE = /\+?\d[\d\s().-]{7,}\d/g;
+function redactPii(value: string): string {
+  return value
+    .replace(EMAIL_RE, "[redacted-email]")
+    .replace(PHONE_RE, "[redacted-phone]");
+}
+
 function sanitizeParams(value: unknown) {
   const source = isRecord(value) ? value : {};
   const entries = Object.entries(source).slice(0, 30);
@@ -87,7 +98,7 @@ function sanitizeParams(value: unknown) {
     if (!key || isBlockedParamKey(key)) continue;
 
     if (typeof rawValue === "string") {
-      params[key] = cleanString(rawValue, 240);
+      params[key] = redactPii(cleanString(rawValue, 240));
     } else if (typeof rawValue === "number" && Number.isFinite(rawValue)) {
       params[key] = rawValue;
     } else if (typeof rawValue === "boolean" || rawValue === null) {
@@ -148,11 +159,15 @@ function cleanParamKey(value: string) {
 
 function isBlockedParamKey(key: string) {
   const normalized = key.toLowerCase();
-  return BLOCKED_PARAM_KEYS.some((blocked) => normalized.includes(blocked.toLowerCase()));
+  return BLOCKED_PARAM_KEYS.some((blocked) =>
+    normalized.includes(blocked.toLowerCase()),
+  );
 }
 
 function cleanString(value: unknown, maxLength: number) {
-  return typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, maxLength) : "";
+  return typeof value === "string"
+    ? value.trim().replace(/\s+/g, " ").slice(0, maxLength)
+    : "";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

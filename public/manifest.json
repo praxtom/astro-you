@@ -11,27 +11,43 @@
   "orientation": "portrait",
   "categories": ["lifestyle", "health", "productivity"],
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
   ],
   "shortcuts": [
     {
       "name": "Daily Guide",
       "short_name": "Today",
       "url": "/dashboard",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [
+        { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }
+      ]
     },
     {
       "name": "AI Jyotish",
       "short_name": "Jyotish",
       "url": "/synthesis",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [
+        { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }
+      ]
     },
     {
       "name": "AI Astrologers",
       "short_name": "Consult",
       "url": "/consult",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [
+        { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }
+      ]
     }
   ]
 }
