@@ -9,6 +9,7 @@ import type { UserContext } from "./gemini.js";
 import { normalizePlatformLanguage } from "./languages.js";
 import { selectBrainContext } from "./atman-brain.js";
 import { resolveAtmanContextSource } from "./user-context-source.js";
+import { sanitizeAtmanContext } from "./sanitize.js";
 import type { AtmanData } from "../../../src/types/user.js";
 
 interface BuildUserContextOptions {
@@ -27,7 +28,7 @@ export interface BuiltUserContext {
   kundaliSummary: string;
 }
 
-const withTimeout = <T,>(
+const withTimeout = <T>(
   promise: Promise<T>,
   ms: number,
   fallback: T,
@@ -63,7 +64,9 @@ export async function buildUserContext(
     clientAtman: options.atmanData,
     serverAtman: userData.atman as UserContext["atman"] | undefined,
   }) as Partial<AtmanData> | undefined;
-  const atmanContext = selectBrainContext(atmanSource);
+  // Sanitize free-text atman fields before they reach any prompt. Critical for
+  // the guest path where atman data comes straight from the request body.
+  const atmanContext = sanitizeAtmanContext(selectBrainContext(atmanSource));
 
   let dashaInfo: UserContext["dashaInfo"] = undefined;
   let transitContext: string | undefined = undefined;
@@ -85,7 +88,9 @@ export async function buildUserContext(
       if (Array.isArray(dashas) && dashas.length > 0) {
         const dashaList = dashas as any[];
         const currentMaha = dashaList.find((d: any) => d.isCurrent);
-        const currentAntar = currentMaha?.subPeriods?.find((s: any) => s.isCurrent);
+        const currentAntar = currentMaha?.subPeriods?.find(
+          (s: any) => s.isCurrent,
+        );
         dashaInfo = {
           currentMahadasha: currentMaha?.planet || currentMaha?.planetName,
           currentAntardasha: currentAntar?.planet || currentAntar?.planetName,
@@ -189,7 +194,9 @@ function normalizeYogas(value: any): UserContext["yogaData"] | undefined {
   }));
 }
 
-async function loadRecentSummaries(uid: string): Promise<UserContext["recentSummaries"]> {
+async function loadRecentSummaries(
+  uid: string,
+): Promise<UserContext["recentSummaries"]> {
   try {
     const snapshot = await db
       .collection("users")
@@ -206,7 +213,8 @@ async function loadRecentSummaries(uid: string): Promise<UserContext["recentSumm
       .map((doc) => ({
         title: doc.data().title || "Untitled",
         summary: doc.data().summary,
-        date: doc.data().lastUpdatedAt?.toDate?.()?.toLocaleDateString?.() || "",
+        date:
+          doc.data().lastUpdatedAt?.toDate?.()?.toLocaleDateString?.() || "",
       }));
   } catch (error) {
     console.warn("[UserContext] Recent summaries unavailable:", error);

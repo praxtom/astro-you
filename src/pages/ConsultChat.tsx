@@ -28,10 +28,11 @@ const getPreferredConsultLanguage = (
   profileLanguage?: string,
 ) => {
   if (!persona) return "English";
-  const requestedLanguage = new URLSearchParams(queryString).get("lang")?.trim();
+  const requestedLanguage = new URLSearchParams(queryString)
+    .get("lang")
+    ?.trim();
   const matchedLanguage = persona.languages.find(
-    (language) =>
-      language.toLowerCase() === requestedLanguage?.toLowerCase(),
+    (language) => language.toLowerCase() === requestedLanguage?.toLowerCase(),
   );
   if (matchedLanguage) return matchedLanguage;
 
@@ -39,7 +40,8 @@ const getPreferredConsultLanguage = (
     ? getPlatformLanguage(profileLanguage).label
     : "";
   const matchedProfileLanguage = persona.languages.find(
-    (language) => language.toLowerCase() === preferredProfileLanguage.toLowerCase(),
+    (language) =>
+      language.toLowerCase() === preferredProfileLanguage.toLowerCase(),
   );
   return matchedProfileLanguage || persona.languages[0] || "English";
 };
@@ -56,7 +58,8 @@ export default function ConsultChat() {
   const { buyCredits, isPaying, error: paymentError } = useCreditTopup();
   const persona = getPersonaById(personaId || "");
   const preferredLanguage = useMemo(
-    () => getPreferredConsultLanguage(persona, location.search, profile?.language),
+    () =>
+      getPreferredConsultLanguage(persona, location.search, profile?.language),
     [location.search, persona, profile?.language],
   );
 
@@ -64,7 +67,9 @@ export default function ConsultChat() {
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [interactionId, setInteractionId] = useState<string | undefined>(undefined);
+  const [interactionId, setInteractionId] = useState<string | undefined>(
+    undefined,
+  );
   const [sessionActive, setSessionActive] = useState(true);
   const [showRating, setShowRating] = useState(false);
   const [selectedRating, setSelectedRating] = useState(0);
@@ -90,6 +95,7 @@ export default function ConsultChat() {
   const startTimeRef = useRef(Date.now());
   const sessionEndedRef = useRef(false);
   const sessionStartingRef = useRef(false);
+  const idTokenRef = useRef<string | null>(null);
 
   // Start timer after the server has created the billing session.
   useEffect(() => {
@@ -136,6 +142,7 @@ export default function ConsultChat() {
     const startSession = async () => {
       try {
         const idToken = await user.getIdToken();
+        idTokenRef.current = idToken;
         const res = await fetch("/api/consult/start", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -261,6 +268,7 @@ export default function ConsultChat() {
 
     try {
       const idToken = await user.getIdToken();
+      idTokenRef.current = idToken;
       const res = await fetch("/api/consult/message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -274,7 +282,11 @@ export default function ConsultChat() {
         }),
       });
 
-      if (!res.ok) throw new Error("Request failed");
+      if (!res.ok) {
+        // Surface the server's message (e.g. 402 "time is up — top up").
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Request failed");
+      }
 
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
@@ -328,6 +340,32 @@ export default function ConsultChat() {
     }
     setIsStreaming(false);
   };
+
+  // Bill on tab close. fetch() is unreliable during unload, so fire a beacon to
+  // close the session immediately. The scheduled reaper is the server-side
+  // backstop if even this doesn't land.
+  useEffect(() => {
+    const flushOnHide = () => {
+      if (sessionEndedRef.current) return;
+      const token = idTokenRef.current;
+      const sessionId = sessionInfo?.sessionId;
+      if (!token || !sessionId || !navigator.sendBeacon) return;
+      sessionEndedRef.current = true;
+      const payload = new Blob(
+        [
+          JSON.stringify({
+            idToken: token,
+            sessionId,
+            messageCount: messages.length,
+          }),
+        ],
+        { type: "application/json" },
+      );
+      navigator.sendBeacon("/api/consult/end", payload);
+    };
+    window.addEventListener("pagehide", flushOnHide);
+    return () => window.removeEventListener("pagehide", flushOnHide);
+  }, [sessionInfo, messages.length]);
 
   // Auto-end when credits exhausted
   useEffect(() => {
@@ -529,7 +567,11 @@ export default function ConsultChat() {
             <div className="max-w-3xl mx-auto mb-3 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-red-200 text-sm">
                 <AlertCircle size={16} />
-                <span>Low balance: about {Math.max(0, Math.floor(creditsRemaining / pricePerMin))} min left.</span>
+                <span>
+                  Low balance: about{" "}
+                  {Math.max(0, Math.floor(creditsRemaining / pricePerMin))} min
+                  left.
+                </span>
               </div>
               <button
                 onClick={() => buyCredits(DEFAULT_CREDIT_PACK.minutes)}
@@ -590,9 +632,7 @@ export default function ConsultChat() {
                 </div>
                 <div>
                   <p className="text-white/35 text-xs">Paid</p>
-                  <p className="text-gold font-semibold">
-                    {displayedCost} cr
-                  </p>
+                  <p className="text-gold font-semibold">{displayedCost} cr</p>
                 </div>
               </div>
             </div>

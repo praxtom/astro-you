@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { postJson } from "../lib/apiFetch";
 import { useNavigate } from "react-router-dom";
 import { useUserProfile } from "../hooks";
 import { useRequestBirthData } from "../hooks/useRequestBirthData";
@@ -24,20 +25,10 @@ export default function AdvancedVedic() {
     const timeoutId = window.setTimeout(() => setLoading(false), 3200);
     setLoading(true);
     Promise.all([
-      fetch("/api/kundali", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ birthData: requestBirthData, chartType: "SHADBALA" }),
-        signal: controller.signal,
-      })
+      postJson("/api/kundali", { birthData: requestBirthData, chartType: "SHADBALA" }, { signal: controller.signal })
         .then((r) => r.json())
         .catch(() => null),
-      fetch("/api/kundali", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ birthData: requestBirthData, chartType: "VARSHAPHAL" }),
-        signal: controller.signal,
-      })
+      postJson("/api/kundali", { birthData: requestBirthData, chartType: "VARSHAPHAL" }, { signal: controller.signal })
         .then((r) => r.json())
         .catch(() => null),
     ]).then(([shadRes, varshRes]) => {

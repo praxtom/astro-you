@@ -1,38 +1,43 @@
 import { schedule } from "@netlify/functions";
 import { db } from "./shared/firebase-admin";
 import { persistAtmanMaintenance } from "./shared/atman-brain";
+import { processUsersPaged } from "./shared/scheduled-users";
 
 export const handler = schedule("15 2 * * *", async () => {
-  const limit = Number(process.env.BRAIN_MAINTENANCE_BATCH_SIZE || 200);
-  const users = await db.collection("users").limit(limit).get();
-  const results = [];
+  const maxUsers = Number(process.env.BRAIN_MAINTENANCE_BATCH_SIZE || 1000);
+  let changed = 0;
+  let decayedPatterns = 0;
+  let archivedPatterns = 0;
+  let failed = 0;
 
-  for (const userDoc of users.docs) {
-    try {
-      const result = await persistAtmanMaintenance({ db }, userDoc.id);
-      results.push({
-        uid: userDoc.id,
-        changed: result.changed,
-        decayedPatterns: result.decayedPatterns,
-        archivedPatterns: result.archivedPatterns,
-      });
-    } catch (err: any) {
-      console.error("[BrainMaintenanceScheduled] User failed:", userDoc.id, err);
-      results.push({
-        uid: userDoc.id,
-        changed: false,
-        error: err.message || "failed",
-      });
-    }
-  }
+  const { processed, reachedEnd } = await processUsersPaged(
+    { job: "brain-maintenance", maxUsers },
+    async (userDoc) => {
+      try {
+        const result = await persistAtmanMaintenance({ db }, userDoc.id);
+        if (result.changed) changed += 1;
+        decayedPatterns += result.decayedPatterns || 0;
+        archivedPatterns += result.archivedPatterns || 0;
+      } catch (err: any) {
+        failed += 1;
+        console.error(
+          "[BrainMaintenanceScheduled] User failed:",
+          userDoc.id,
+          err,
+        );
+      }
+    },
+  );
 
   return {
     statusCode: 200,
     body: JSON.stringify({
-      processed: results.length,
-      changed: results.filter((item) => item.changed).length,
-      decayedPatterns: results.reduce((sum, item) => sum + (item.decayedPatterns || 0), 0),
-      archivedPatterns: results.reduce((sum, item) => sum + (item.archivedPatterns || 0), 0),
+      processed,
+      reachedEnd,
+      changed,
+      decayedPatterns,
+      archivedPatterns,
+      failed,
     }),
   };
 });

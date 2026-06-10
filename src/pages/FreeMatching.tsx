@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { postJson } from "../lib/apiFetch";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Sparkles, Heart, ArrowRight, Loader2, Lock } from "lucide-react";
@@ -44,11 +45,7 @@ export default function FreeMatching() {
     setLoading(true);
 
     try {
-      const compatRes = await fetch("/api/compatibility", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ maleData: person1, femaleData: person2 }),
-      });
+      const compatRes = await postJson("/api/compatibility", { maleData: person1, femaleData: person2 });
 
       if (!compatRes.ok) throw new Error("Compatibility API failed");
 

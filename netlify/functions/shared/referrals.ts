@@ -1,3 +1,5 @@
+import { randomInt } from "crypto";
+
 export const REFERRER_REWARD_CREDITS = 25;
 export const REFEREE_REWARD_CREDITS = 15;
 
@@ -18,6 +20,24 @@ export interface ReferralClaimInput {
   refereeEmail?: string | null;
 }
 
+// Unambiguous base32 alphabet (no 0/O/1/I).
+const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+/**
+ * Generate a random, unguessable referral code. Codes used to be derived from
+ * the first 6 chars of the UID, which is predictable/enumerable — anyone who
+ * knew (or guessed) a UID could claim that user's code. Random codes are stored
+ * once in the user doc and reused thereafter.
+ */
+export function generateReferralCode(): string {
+  let suffix = "";
+  for (let i = 0; i < 6; i++) {
+    suffix += CODE_ALPHABET[randomInt(0, CODE_ALPHABET.length)];
+  }
+  return `STAR${suffix}`;
+}
+
+/** @deprecated UID-derived (guessable). Use generateReferralCode() + store-once. */
 export function createReferralCode(uid: string): string {
   const safeUid = uid.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
   return `STAR${safeUid.slice(0, 6).padEnd(6, "X")}`;
@@ -26,7 +46,10 @@ export function createReferralCode(uid: string): string {
 export function normalizeReferralCode(code: unknown): string {
   const normalized =
     typeof code === "string"
-      ? code.trim().replace(/[^a-zA-Z0-9]/g, "").toUpperCase()
+      ? code
+          .trim()
+          .replace(/[^a-zA-Z0-9]/g, "")
+          .toUpperCase()
       : "";
 
   if (!/^STAR[A-Z0-9]{6}$/.test(normalized)) {

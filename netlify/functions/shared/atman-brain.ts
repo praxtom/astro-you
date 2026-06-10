@@ -20,11 +20,30 @@ import {
 
 type BrainAnalysisResult = {
   emotionalState?: unknown;
-  newEvents?: Array<{ title?: unknown; category?: unknown; confidence?: unknown }>;
+  newEvents?: Array<{
+    title?: unknown;
+    category?: unknown;
+    confidence?: unknown;
+  }>;
   newPatterns?: unknown[];
   detectedContradictions?: unknown[];
   karmicThreads?: unknown[];
 };
+
+// Hard caps so the user's atman document can never approach Firestore's 1 MB
+// per-document limit (which would otherwise silently break every write).
+const MAX_PATTERNS = 200;
+const MAX_LIFE_EVENTS = 150;
+
+function scorePatternForRetention(p: WeightedPattern): number {
+  const recency = p.lastMentioned ? new Date(p.lastMentioned).getTime() : 0;
+  return (
+    (p.archived ? -1000 : 0) +
+    (p.weightScore || 0) * 100 +
+    (p.frequency || 0) * 10 +
+    recency / 1e10
+  );
+}
 
 type UserDocSnapshot = {
   exists: boolean;
@@ -34,7 +53,10 @@ type UserDocSnapshot = {
 type UserDocRef = {
   path?: string;
   get(): Promise<UserDocSnapshot>;
-  set(data: Record<string, unknown>, options?: { merge?: boolean }): Promise<unknown>;
+  set(
+    data: Record<string, unknown>,
+    options?: { merge?: boolean },
+  ): Promise<unknown>;
 };
 
 type UsersCollectionRef = {
@@ -44,6 +66,9 @@ type UsersCollectionRef = {
 export interface AtmanBrainDeps {
   db: {
     collection(name: string): UsersCollectionRef;
+    // Optional: when present we read-modify-write the atman doc inside a
+    // transaction so concurrent server/client writes don't clobber each other.
+    runTransaction?: <T>(fn: (tx: any) => Promise<T>) => Promise<T>;
   };
   now?: () => Date;
 }
@@ -104,9 +129,12 @@ export interface ApplyPredictionFeedbackInput {
   now?: Date;
 }
 
-export function applyBrainInsights(input: ApplyBrainInsightsInput): ApplyBrainInsightsResult {
+export function applyBrainInsights(
+  input: ApplyBrainInsightsInput,
+): ApplyBrainInsightsResult {
   const now = input.now || new Date();
-  const atman = normalizeAtmanData(input.existingAtman, now) || createInitialAtmanData(now);
+  const atman =
+    normalizeAtmanData(input.existingAtman, now) || createInitialAtmanData(now);
   const evidence = buildEvidence(input.source, now);
   const analysis = input.analysisResult || {};
   let ledgerEmotionalState: AtmanEmotion | undefined;
@@ -132,7 +160,9 @@ export function applyBrainInsights(input: ApplyBrainInsightsInput): ApplyBrainIn
         emotionalState,
         lastEmotionalUpdate: now,
         emotionalHistory: [
-          ...(atman.emotionalHistory || atman.transient?.emotionalHistory || []),
+          ...(atman.emotionalHistory ||
+            atman.transient?.emotionalHistory ||
+            []),
           { state: emotionalState, date: now },
         ].slice(-30),
       };
@@ -142,14 +172,24 @@ export function applyBrainInsights(input: ApplyBrainInsightsInput): ApplyBrainIn
   }
 
   if (Array.isArray(analysis.newPatterns)) {
-    const merged = mergePatterns(atman.knownPatterns || [], analysis.newPatterns, evidence, now);
+    const merged = mergePatterns(
+      atman.knownPatterns || [],
+      analysis.newPatterns,
+      evidence,
+      now,
+    );
     atman.knownPatterns = merged.patterns;
     patternsAdded = merged.added;
     changed = changed || merged.changed;
   }
 
   if (Array.isArray(analysis.newEvents)) {
-    const merged = mergeLifeEvents(atman.lifeEvents || atman.activeEvents || [], analysis.newEvents, evidence, now);
+    const merged = mergeLifeEvents(
+      atman.lifeEvents || atman.activeEvents || [],
+      analysis.newEvents,
+      evidence,
+      now,
+    );
     atman.lifeEvents = merged.events;
     atman.activeEvents = merged.events;
     eventsAdded = merged.added;
@@ -163,28 +203,47 @@ export function applyBrainInsights(input: ApplyBrainInsightsInput): ApplyBrainIn
       date: now.toISOString(),
       followedUp: false,
     };
-    const advice = [...(atman.savedAdvice || atman.adviceHistory || []).slice(-19), entry];
+    const advice = [
+      ...(atman.savedAdvice || atman.adviceHistory || []).slice(-19),
+      entry,
+    ];
     atman.savedAdvice = advice;
     atman.adviceHistory = advice;
     adviceSaved = 1;
     changed = true;
   }
 
-  if (Array.isArray(analysis.detectedContradictions) && analysis.detectedContradictions.length > 0) {
+  if (
+    Array.isArray(analysis.detectedContradictions) &&
+    analysis.detectedContradictions.length > 0
+  ) {
     const contradictions = analysis.detectedContradictions
       .map((value) => String(value || "").trim())
       .filter(Boolean);
-    atman.contradictedPatterns = mergeUniqueStrings(atman.contradictedPatterns || [], contradictions).slice(-50);
-    atman.knownPatterns = markContradictedPatterns(atman.knownPatterns || [], contradictions, now);
+    atman.contradictedPatterns = mergeUniqueStrings(
+      atman.contradictedPatterns || [],
+      contradictions,
+    ).slice(-50);
+    atman.knownPatterns = markContradictedPatterns(
+      atman.knownPatterns || [],
+      contradictions,
+      now,
+    );
     contradictionsDetected = contradictions.length;
     changed = changed || contradictions.length > 0;
   }
 
-  if (Array.isArray(analysis.karmicThreads) && analysis.karmicThreads.length > 0) {
+  if (
+    Array.isArray(analysis.karmicThreads) &&
+    analysis.karmicThreads.length > 0
+  ) {
     const threads = analysis.karmicThreads
       .map((value) => String(value || "").trim())
       .filter(Boolean);
-    atman.karmicThreads = mergeUniqueStrings(atman.karmicThreads || [], threads).slice(-30);
+    atman.karmicThreads = mergeUniqueStrings(
+      atman.karmicThreads || [],
+      threads,
+    ).slice(-30);
     karmicThreadsDetected = threads.length;
     changed = changed || threads.length > 0;
   }
@@ -214,6 +273,33 @@ export async function persistAtmanInsights(
   input: PersistAtmanInsightsInput,
 ): Promise<PersistAtmanInsightsResult> {
   const userRef = deps.db.collection("users").doc(input.uid);
+  const now = deps.now?.() || new Date();
+
+  // Atomic path: read + merge + write inside a transaction so a concurrent
+  // client edit to the same atman doc isn't lost (last-write-wins).
+  if (typeof deps.db.runTransaction === "function") {
+    return deps.db.runTransaction(async (tx: any) => {
+      const snap = await tx.get(userRef);
+      if (!snap.exists) return { persisted: false, changed: false };
+      const userData = snap.data() || {};
+      const result = applyBrainInsights({
+        existingAtman: userData.atman as Partial<AtmanData> | undefined,
+        analysisResult: input.analysisResult,
+        extractedAdvice: input.extractedAdvice,
+        source: input.source,
+        now,
+      });
+      if (!result.changed) return { persisted: false, changed: false };
+      tx.set(userRef, { atman: result.atman }, { merge: true });
+      return {
+        persisted: true,
+        changed: true,
+        ledgerEntry: result.ledgerEntry,
+      };
+    });
+  }
+
+  // Fallback (e.g. unit tests with a mock db lacking runTransaction).
   const userSnap = await userRef.get();
   if (!userSnap.exists) {
     return { persisted: false, changed: false };
@@ -225,7 +311,7 @@ export async function persistAtmanInsights(
     analysisResult: input.analysisResult,
     extractedAdvice: input.extractedAdvice,
     source: input.source,
-    now: deps.now?.() || new Date(),
+    now,
   });
 
   if (!result.changed) {
@@ -244,7 +330,8 @@ export function maintainAtmanMemory(
   existingAtman?: Partial<AtmanData>,
   now = new Date(),
 ): AtmanMaintenanceResult {
-  const atman = normalizeAtmanData(existingAtman, now) || createInitialAtmanData(now);
+  const atman =
+    normalizeAtmanData(existingAtman, now) || createInitialAtmanData(now);
   let decayedPatterns = 0;
   let archivedPatterns = 0;
 
@@ -255,10 +342,15 @@ export function maintainAtmanMemory(
     if (daysSinceLastMention <= 7) return pattern;
 
     const decayDays = daysSinceLastMention - 7;
-    const nextWeight = clamp(pattern.weightScore * Math.exp(-0.015 * decayDays), 0.1, 5);
+    const nextWeight = clamp(
+      pattern.weightScore * Math.exp(-0.015 * decayDays),
+      0.1,
+      5,
+    );
     const shouldArchive =
       daysSinceLastMention > 90 &&
-      (nextWeight <= 0.5 || (pattern.confidence !== undefined && pattern.confidence < 0.4));
+      (nextWeight <= 0.5 ||
+        (pattern.confidence !== undefined && pattern.confidence < 0.4));
 
     if (nextWeight !== pattern.weightScore) {
       decayedPatterns += 1;
@@ -294,12 +386,21 @@ export function maintainAtmanMemory(
   };
   atman.memoryLedger = [...(atman.memoryLedger || []).slice(-49), ledgerEntry];
 
-  return { atman, changed: true, decayedPatterns, archivedPatterns, ledgerEntry };
+  return {
+    atman,
+    changed: true,
+    decayedPatterns,
+    archivedPatterns,
+    ledgerEntry,
+  };
 }
 
-export function applyPredictionFeedbackSignal(input: ApplyPredictionFeedbackInput): ApplyBrainInsightsResult {
+export function applyPredictionFeedbackSignal(
+  input: ApplyPredictionFeedbackInput,
+): ApplyBrainInsightsResult {
   const now = input.now || new Date();
-  const atman = normalizeAtmanData(input.existingAtman, now) || createInitialAtmanData(now);
+  const atman =
+    normalizeAtmanData(input.existingAtman, now) || createInitialAtmanData(now);
   const current = atman.predictionFeedbackStats || {
     accurate: 0,
     partly: 0,
@@ -318,11 +419,20 @@ export function applyPredictionFeedbackSignal(input: ApplyPredictionFeedbackInpu
   syncAtmanBuckets(atman);
 
   const ledgerEntry: AtmanMemoryLedgerEntry = {
-    id: createMemoryId("feedback", `${input.feedback.source}:${input.feedback.forecastDate}`, now),
+    id: createMemoryId(
+      "feedback",
+      `${input.feedback.source}:${input.feedback.forecastDate}`,
+      now,
+    ),
     surface: "feedback",
     createdAt: now,
     messageExcerpt: `${input.feedback.period} ${input.feedback.source}: ${input.feedback.signal}`,
-    confidence: input.feedback.signal === "accurate" ? 1 : input.feedback.signal === "partly" ? 0.6 : 0.2,
+    confidence:
+      input.feedback.signal === "accurate"
+        ? 1
+        : input.feedback.signal === "partly"
+          ? 0.6
+          : 0.2,
     patternsAdded: 0,
     eventsAdded: 0,
     adviceSaved: 0,
@@ -356,11 +466,19 @@ export async function persistPredictionFeedbackSignal(
   return { persisted: true, changed: true, ledgerEntry: result.ledgerEntry };
 }
 
-export async function persistAtmanMaintenance(deps: AtmanBrainDeps, uid: string) {
+export async function persistAtmanMaintenance(
+  deps: AtmanBrainDeps,
+  uid: string,
+) {
   const userRef = deps.db.collection("users").doc(uid);
   const userSnap = await userRef.get();
   if (!userSnap.exists) {
-    return { persisted: false, changed: false, decayedPatterns: 0, archivedPatterns: 0 };
+    return {
+      persisted: false,
+      changed: false,
+      decayedPatterns: 0,
+      archivedPatterns: 0,
+    };
   }
 
   const userData = userSnap.data() || {};
@@ -389,7 +507,11 @@ export async function persistAtmanMaintenance(deps: AtmanBrainDeps, uid: string)
 
 export function selectBrainContext(
   rawAtman?: Partial<AtmanData>,
-  options: { maxPatterns?: number; maxEvents?: number; maxAdvice?: number } = {},
+  options: {
+    maxPatterns?: number;
+    maxEvents?: number;
+    maxAdvice?: number;
+  } = {},
 ): AtmanData | undefined {
   const atman = normalizeAtmanData(rawAtman);
   if (!atman) return undefined;
@@ -406,7 +528,9 @@ export function selectBrainContext(
   const activeEvents = [...(atman.activeEvents || atman.lifeEvents || [])]
     .sort((a, b) => scoreEvent(b) - scoreEvent(a))
     .slice(0, maxEvents);
-  const savedAdvice = [...(atman.savedAdvice || atman.adviceHistory || [])].slice(-maxAdvice);
+  const savedAdvice = [
+    ...(atman.savedAdvice || atman.adviceHistory || []),
+  ].slice(-maxAdvice);
 
   const selected: AtmanData = {
     ...atman,
@@ -457,7 +581,10 @@ function mergePatterns(
         ...pattern,
         frequency: pattern.frequency + 1,
         weightScore: clamp(pattern.weightScore + 0.5, 0.1, 5),
-        confidence: Math.max(pattern.confidence || 0.6, candidate.confidence || evidence.confidence || 0.7),
+        confidence: Math.max(
+          pattern.confidence || 0.6,
+          candidate.confidence || evidence.confidence || 0.7,
+        ),
         lastMentioned: now,
         category: pattern.category || candidate.category,
         sourceCount: (pattern.sourceCount || pattern.frequency || 1) + 1,
@@ -486,7 +613,16 @@ function mergePatterns(
     changed = true;
   }
 
-  return { patterns, changed, added };
+  // Cap retained patterns — drop the lowest-value (archived/old/weak) ones.
+  let trimmed = patterns;
+  if (patterns.length > MAX_PATTERNS) {
+    trimmed = [...patterns]
+      .sort((a, b) => scorePatternForRetention(b) - scorePatternForRetention(a))
+      .slice(0, MAX_PATTERNS);
+    changed = true;
+  }
+
+  return { patterns: trimmed, changed, added };
 }
 
 function mergeLifeEvents(
@@ -509,7 +645,10 @@ function mergeLifeEvents(
     if (existingIndex >= 0) {
       events[existingIndex] = {
         ...events[existingIndex],
-        confidence: Math.max(events[existingIndex].confidence, safeEvent.confidence),
+        confidence: Math.max(
+          events[existingIndex].confidence,
+          safeEvent.confidence,
+        ),
         lastMentioned: now,
         evidence: appendEvidence(events[existingIndex].evidence, evidence),
       };
@@ -528,7 +667,20 @@ function mergeLifeEvents(
     changed = true;
   }
 
-  return { events, changed, added };
+  // Cap retained life events — keep the most recently mentioned ones.
+  let trimmedEvents = events;
+  if (events.length > MAX_LIFE_EVENTS) {
+    trimmedEvents = [...events]
+      .sort((a, b) => {
+        const ta = a.lastMentioned ? new Date(a.lastMentioned).getTime() : 0;
+        const tb = b.lastMentioned ? new Date(b.lastMentioned).getTime() : 0;
+        return tb - ta;
+      })
+      .slice(0, MAX_LIFE_EVENTS);
+    changed = true;
+  }
+
+  return { events: trimmedEvents, changed, added };
 }
 
 function safeValidateEmotion(value: unknown): AtmanEmotion | undefined {
@@ -539,9 +691,11 @@ function safeValidateEmotion(value: unknown): AtmanEmotion | undefined {
   }
 }
 
-function normalizePatternCandidate(
-  rawPattern: unknown,
-): { text: string; category?: WeightedPattern["category"]; confidence?: number } | null {
+function normalizePatternCandidate(rawPattern: unknown): {
+  text: string;
+  category?: WeightedPattern["category"];
+  confidence?: number;
+} | null {
   try {
     if (typeof rawPattern === "string") {
       return { text: validatePatternText(rawPattern) };
@@ -557,7 +711,9 @@ function normalizePatternCandidate(
     };
 
     return {
-      text: validatePatternText(candidate.pattern ?? candidate.text ?? candidate.title),
+      text: validatePatternText(
+        candidate.pattern ?? candidate.text ?? candidate.title,
+      ),
       category: normalizePatternCategory(candidate.category),
       confidence: normalizeConfidence(candidate.confidence),
     };
@@ -566,19 +722,38 @@ function normalizePatternCandidate(
   }
 }
 
-function normalizePatternCategory(value: unknown): WeightedPattern["category"] | undefined {
+function normalizePatternCategory(
+  value: unknown,
+): WeightedPattern["category"] | undefined {
   if (typeof value !== "string") return undefined;
   const key = normalizeKey(value);
-  if (["behavior", "behaviour", "behavioral", "behavioural"].includes(key)) return "behavioral";
+  if (["behavior", "behaviour", "behavioral", "behavioural"].includes(key))
+    return "behavioral";
   if (["emotion", "emotional", "mood"].includes(key)) return "emotional";
   if (["spiritual", "sadhana", "faith"].includes(key)) return "spiritual";
-  if (["relationship", "relationships", "relational", "family", "partner"].includes(key)) return "relational";
+  if (
+    [
+      "relationship",
+      "relationships",
+      "relational",
+      "family",
+      "partner",
+    ].includes(key)
+  )
+    return "relational";
   return undefined;
 }
 
-function normalizeLifeEventCandidate(rawEvent: unknown, now: Date): Omit<UserLifeEvent, "id"> | null {
+function normalizeLifeEventCandidate(
+  rawEvent: unknown,
+  now: Date,
+): Omit<UserLifeEvent, "id"> | null {
   if (!rawEvent || typeof rawEvent !== "object") return null;
-  const event = rawEvent as { title?: unknown; category?: unknown; confidence?: unknown };
+  const event = rawEvent as {
+    title?: unknown;
+    category?: unknown;
+    confidence?: unknown;
+  };
   const category = normalizeLifeEventCategory(event.category);
   if (!category) return null;
 
@@ -595,14 +770,29 @@ function normalizeLifeEventCandidate(rawEvent: unknown, now: Date): Omit<UserLif
   }
 }
 
-function normalizeLifeEventCategory(value: unknown): UserLifeEvent["category"] | undefined {
+function normalizeLifeEventCategory(
+  value: unknown,
+): UserLifeEvent["category"] | undefined {
   if (typeof value !== "string") return undefined;
   const key = normalizeKey(value);
-  if (["career", "work", "job", "business", "profession"].includes(key)) return "career";
-  if (["relationship", "relationships", "love", "marriage", "family", "partner"].includes(key)) return "relationship";
-  if (["health", "wellness", "body", "mental health"].includes(key)) return "health";
+  if (["career", "work", "job", "business", "profession"].includes(key))
+    return "career";
+  if (
+    [
+      "relationship",
+      "relationships",
+      "love",
+      "marriage",
+      "family",
+      "partner",
+    ].includes(key)
+  )
+    return "relationship";
+  if (["health", "wellness", "body", "mental health"].includes(key))
+    return "health";
   if (["finance", "money", "wealth", "income"].includes(key)) return "finance";
-  if (["spiritual", "sadhana", "faith", "practice"].includes(key)) return "spiritual";
+  if (["spiritual", "sadhana", "faith", "practice"].includes(key))
+    return "spiritual";
   return undefined;
 }
 
@@ -614,10 +804,15 @@ function normalizeConfidence(value: unknown): number | undefined {
   return clamp(numeric, 0, 1);
 }
 
-function markContradictedPatterns(patterns: WeightedPattern[], contradictions: string[], now: Date) {
+function markContradictedPatterns(
+  patterns: WeightedPattern[],
+  contradictions: string[],
+  now: Date,
+) {
   const contradictionText = contradictions.join(" ").toLowerCase();
   return patterns.map((pattern) => {
-    if (!isPatternContradicted(pattern.pattern, contradictionText)) return pattern;
+    if (!isPatternContradicted(pattern.pattern, contradictionText))
+      return pattern;
     return {
       ...pattern,
       archived: true,
@@ -643,7 +838,10 @@ function syncAtmanBuckets(atman: AtmanData) {
   };
 }
 
-function buildEvidence(source: AtmanBrainSource, now: Date): AtmanMemoryEvidence {
+function buildEvidence(
+  source: AtmanBrainSource,
+  now: Date,
+): AtmanMemoryEvidence {
   const message = [
     source.userMessage ? `User: ${source.userMessage}` : "",
     source.assistantMessage ? `Guide: ${source.assistantMessage}` : "",
@@ -662,7 +860,10 @@ function buildEvidence(source: AtmanBrainSource, now: Date): AtmanMemoryEvidence
   };
 }
 
-function appendEvidence(existing: AtmanMemoryEvidence[] | undefined, evidence: AtmanMemoryEvidence) {
+function appendEvidence(
+  existing: AtmanMemoryEvidence[] | undefined,
+  evidence: AtmanMemoryEvidence,
+) {
   return [...(existing || []).slice(-4), evidence];
 }
 
@@ -672,11 +873,18 @@ function scorePattern(pattern: WeightedPattern, now: Date) {
   const daysSinceMention = daysBetween(pattern.lastMentioned, now);
   const recencyBoost = Math.max(0, 48 - daysSinceMention * 0.6);
   const sourceBoost = Math.min(pattern.sourceCount || 0, 6);
-  return verifiedBoost + pattern.weightScore * 10 + confidenceBoost + sourceBoost + recencyBoost;
+  return (
+    verifiedBoost +
+    pattern.weightScore * 10 +
+    confidenceBoost +
+    sourceBoost +
+    recencyBoost
+  );
 }
 
 function scoreEvent(event: UserLifeEvent) {
-  const statusBoost = event.status === "pending" ? 50 : event.status === "completed" ? 10 : 0;
+  const statusBoost =
+    event.status === "pending" ? 50 : event.status === "completed" ? 10 : 0;
   return statusBoost + event.confidence * 10;
 }
 
@@ -702,7 +910,9 @@ function isPatternContradicted(pattern: string, contradictionText: string) {
   if (patternTokens.length < 2 || contradictionTokens.length < 2) return false;
 
   const contradictionSet = new Set(contradictionTokens);
-  const shared = patternTokens.filter((token) => contradictionSet.has(token)).length;
+  const shared = patternTokens.filter((token) =>
+    contradictionSet.has(token),
+  ).length;
   return shared >= 2 && shared / patternTokens.length >= 0.45;
 }
 
@@ -716,7 +926,8 @@ function tokenizeMemoryText(value: string) {
 }
 
 function canonicalMemoryToken(token: string) {
-  const singular = token.endsWith("s") && token.length > 4 ? token.slice(0, -1) : token;
+  const singular =
+    token.endsWith("s") && token.length > 4 ? token.slice(0, -1) : token;
   return MEMORY_TOKEN_SYNONYMS[singular] || singular;
 }
 
@@ -762,7 +973,9 @@ function normalizeKey(value: string) {
 
 function truncate(value: string, maxLength: number) {
   const trimmed = value.trim();
-  return trimmed.length > maxLength ? `${trimmed.slice(0, maxLength - 3)}...` : trimmed;
+  return trimmed.length > maxLength
+    ? `${trimmed.slice(0, maxLength - 3)}...`
+    : trimmed;
 }
 
 function clamp(value: number, min: number, max: number) {

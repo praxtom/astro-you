@@ -19,7 +19,10 @@ type UserDocSnapshot = {
 };
 
 type BrainNudgeDocRef = {
-  set(data: Record<string, unknown>, options?: { merge?: boolean }): Promise<unknown>;
+  set(
+    data: Record<string, unknown>,
+    options?: { merge?: boolean },
+  ): Promise<unknown>;
 };
 
 type BrainNudgeCollectionRef = {
@@ -28,7 +31,10 @@ type BrainNudgeCollectionRef = {
 
 type UserDocRef = {
   get(): Promise<UserDocSnapshot>;
-  set(data: Record<string, unknown>, options?: { merge?: boolean }): Promise<unknown>;
+  set(
+    data: Record<string, unknown>,
+    options?: { merge?: boolean },
+  ): Promise<unknown>;
   collection(name: string): BrainNudgeCollectionRef;
 };
 
@@ -115,7 +121,9 @@ export interface RunProactiveBrainResult {
   skippedReason?: string;
 }
 
-export function buildBrainNudgeCandidates(input: BuildBrainNudgeInput): BrainNudgeCandidate[] {
+export function buildBrainNudgeCandidates(
+  input: BuildBrainNudgeInput,
+): BrainNudgeCandidate[] {
   const now = input.now || new Date();
   const timezone = input.timezone || input.profile?.timezone || "Asia/Kolkata";
   const localDate = formatLocalDate(now, timezone);
@@ -128,8 +136,13 @@ export function buildBrainNudgeCandidates(input: BuildBrainNudgeInput): BrainNud
   const candidates: BrainNudgeCandidate[] = [];
 
   if (
-    (atman.emotionalState === "chaotic" || atman.emotionalState === "depressive") &&
-    !hasNudgeForLocalDay(atman, "emotional_stabilization", localDate, timezone)
+    (atman.emotionalState === "chaotic" ||
+      atman.emotionalState === "depressive") &&
+    // Respect quiet hours (08:00–21:00 local) and cap to once every 3 days so a
+    // user whose state stays low isn't nudged across every channel daily.
+    localHour >= 8 &&
+    localHour < 21 &&
+    !hasNudgeWithinDays(atman, "emotional_stabilization", 3, now)
   ) {
     candidates.push({
       title: "A Moment of Ground",
@@ -142,7 +155,12 @@ export function buildBrainNudgeCandidates(input: BuildBrainNudgeInput): BrainNud
     });
   }
 
-  const morningRoutine = findIncompleteRoutine(atman.routines || [], "morning", localDate, timezone);
+  const morningRoutine = findIncompleteRoutine(
+    atman.routines || [],
+    "morning",
+    localDate,
+    timezone,
+  );
   if (
     morningRoutine &&
     localHour >= 8 &&
@@ -194,10 +212,18 @@ export function buildBrainNudgeCandidates(input: BuildBrainNudgeInput): BrainNud
     });
   }
 
-  const pendingEvent = findPendingEventForFollowup(atman.activeEvents || atman.lifeEvents || [], now);
+  const pendingEvent = findPendingEventForFollowup(
+    atman.activeEvents || atman.lifeEvents || [],
+    now,
+  );
   if (
     pendingEvent &&
-    !hasNudgeForLocalDay(atman, `life_event_followup_${pendingEvent.id}`, localDate, timezone)
+    !hasNudgeForLocalDay(
+      atman,
+      `life_event_followup_${pendingEvent.id}`,
+      localDate,
+      timezone,
+    )
   ) {
     candidates.push({
       title: "Path Check-In",
@@ -230,7 +256,9 @@ export function buildBrainNudgeCandidates(input: BuildBrainNudgeInput): BrainNud
     });
   }
 
-  return candidates.sort((a, b) => priorityScore(b.priority) - priorityScore(a.priority));
+  return candidates.sort(
+    (a, b) => priorityScore(b.priority) - priorityScore(a.priority),
+  );
 }
 
 export async function runProactiveBrainForUser(
@@ -272,7 +300,11 @@ export async function runProactiveBrainForUser(
     };
   }
 
-  const atman = appendNudgeToAtman(userData.atman as Partial<AtmanData> | undefined, candidate, now);
+  const atman = appendNudgeToAtman(
+    userData.atman as Partial<AtmanData> | undefined,
+    candidate,
+    now,
+  );
   const docId = createNudgeDocId(candidate.localDate, candidate.triggerType);
   const record = {
     uid: input.uid,
@@ -287,9 +319,15 @@ export async function runProactiveBrainForUser(
 
   let emailSent = false;
   let emailError: string | undefined;
-  if (shouldEmailNudge(candidate, profile, input.sendEmail) && deps.sendEmail && profile.email) {
+  if (
+    shouldEmailNudge(candidate, profile, input.sendEmail) &&
+    deps.sendEmail &&
+    profile.email
+  ) {
     try {
-      await deps.sendEmail(buildNudgeEmail(profile.email, profile.name || "Friend", candidate));
+      await deps.sendEmail(
+        buildNudgeEmail(profile.email, profile.name || "Friend", candidate),
+      );
       emailSent = true;
     } catch (error: any) {
       emailError = error?.message || "email_failed";
@@ -299,7 +337,11 @@ export async function runProactiveBrainForUser(
   let pushSent = false;
   let pushTokenCount = 0;
   let pushError: string | undefined;
-  if (shouldPushNudge(candidate, profile) && deps.loadPushTokens && deps.sendPush) {
+  if (
+    shouldPushNudge(candidate, profile) &&
+    deps.loadPushTokens &&
+    deps.sendPush
+  ) {
     try {
       const tokens = await deps.loadPushTokens(input.uid);
       pushTokenCount = tokens.length;
@@ -315,9 +357,15 @@ export async function runProactiveBrainForUser(
   let whatsappSent = false;
   let whatsappError: string | undefined;
   const whatsappNumber = profile.whatsappNumber || profile.phoneE164;
-  if (shouldWhatsAppNudge(candidate, profile) && deps.sendWhatsApp && whatsappNumber) {
+  if (
+    shouldWhatsAppNudge(candidate, profile) &&
+    deps.sendWhatsApp &&
+    whatsappNumber
+  ) {
     try {
-      await deps.sendWhatsApp(buildWhatsAppMessage(input.uid, whatsappNumber, candidate));
+      await deps.sendWhatsApp(
+        buildWhatsAppMessage(input.uid, whatsappNumber, candidate),
+      );
       whatsappSent = true;
     } catch (error: any) {
       whatsappError = error?.message || "whatsapp_failed";
@@ -325,27 +373,30 @@ export async function runProactiveBrainForUser(
   }
 
   await userRef.set({ atman }, { merge: true });
-  await userRef.collection("brainNudges").doc(docId).set(
-    {
-      ...record,
-      emailSent,
-      pushSent,
-      pushTokenCount,
-      whatsappSent,
-      deliveryStatus: resolveDeliveryStatus({
+  await userRef
+    .collection("brainNudges")
+    .doc(docId)
+    .set(
+      {
+        ...record,
         emailSent,
         pushSent,
+        pushTokenCount,
         whatsappSent,
-        emailError,
-        pushError,
-        whatsappError,
-      }),
-      emailError: emailError || null,
-      pushError: pushError || null,
-      whatsappError: whatsappError || null,
-    },
-    { merge: true },
-  );
+        deliveryStatus: resolveDeliveryStatus({
+          emailSent,
+          pushSent,
+          whatsappSent,
+          emailError,
+          pushError,
+          whatsappError,
+        }),
+        emailError: emailError || null,
+        pushError: pushError || null,
+        whatsappError: whatsappError || null,
+      },
+      { merge: true },
+    );
 
   return {
     uid: input.uid,
@@ -363,13 +414,16 @@ export function appendNudgeToAtman(
   candidate: BrainNudgeCandidate,
   now = new Date(),
 ): AtmanData {
-  const atman = normalizeAtmanData(existingAtman, now) || createInitialAtmanData(now);
+  const atman =
+    normalizeAtmanData(existingAtman, now) || createInitialAtmanData(now);
   const safeNudge = validateNudgeInput(candidate);
   const entry: AtmanNudgeEntry = {
     ...safeNudge,
     date: now.toISOString(),
   };
-  atman.nudgeHistory = [...(atman.nudgeHistory || []).slice(-19), entry];
+  // Keep a wider window so per-trigger dedup/frequency checks see enough
+  // history across multiple days and trigger types (was 20 — too small).
+  atman.nudgeHistory = [...(atman.nudgeHistory || []).slice(-79), entry];
   atman.memory = {
     knownPatterns: atman.knownPatterns || [],
     lifeEvents: atman.activeEvents || atman.lifeEvents || [],
@@ -384,7 +438,12 @@ export function appendNudgeToAtman(
     surface: "nudge",
     createdAt: now,
     messageExcerpt: `${candidate.title}: ${candidate.reason}`,
-    confidence: candidate.priority === "high" ? 1 : candidate.priority === "normal" ? 0.75 : 0.5,
+    confidence:
+      candidate.priority === "high"
+        ? 1
+        : candidate.priority === "normal"
+          ? 0.75
+          : 0.5,
     patternsAdded: 0,
     eventsAdded: 0,
     adviceSaved: 0,
@@ -395,10 +454,15 @@ export function appendNudgeToAtman(
   return atman;
 }
 
-export function buildNudgeEmail(to: string, name: string, candidate: BrainNudgeCandidate): BrainNudgeEmail {
+export function buildNudgeEmail(
+  to: string,
+  name: string,
+  candidate: BrainNudgeCandidate,
+): BrainNudgeEmail {
   const subject = `${name}, ${candidate.title}`;
-  const text = `${candidate.message}\n\nWhy this now: ${candidate.reason}`;
-  const html = `<div style="font-family:Inter,Arial,sans-serif;line-height:1.6;color:#f8f5ee;background:#08080d;padding:24px;border-radius:16px"><h2 style="color:#E5B96A;margin-top:0">${escapeHtml(candidate.title)}</h2><p>${escapeHtml(candidate.message)}</p><p style="color:#a7a2b8;font-size:13px">Why this now: ${escapeHtml(candidate.reason)}</p></div>`;
+  const settingsUrl = `${(process.env.APP_BASE_URL || "https://astroyou.app").replace(/\/$/, "")}/settings`;
+  const text = `${candidate.message}\n\nWhy this now: ${candidate.reason}\n\nManage notifications: ${settingsUrl}`;
+  const html = `<div style="font-family:Inter,Arial,sans-serif;line-height:1.6;color:#f8f5ee;background:#08080d;padding:24px;border-radius:16px"><h2 style="color:#E5B96A;margin-top:0">${escapeHtml(candidate.title)}</h2><p>${escapeHtml(candidate.message)}</p><p style="color:#a7a2b8;font-size:13px">Why this now: ${escapeHtml(candidate.reason)}</p><p style="color:#6b6780;font-size:12px;margin-top:24px">You're receiving this because you enabled spiritual nudges. <a href="${settingsUrl}" style="color:#8a86a0">Manage or turn off notifications</a>.</p></div>`;
   return { to, subject, text, html };
 }
 
@@ -433,32 +497,48 @@ export function buildWhatsAppMessage(
 }
 
 function buildProfile(userData: Record<string, unknown>): BrainNudgeProfile {
-  const profile = (userData.profile && typeof userData.profile === "object"
-    ? userData.profile
-    : userData) as Record<string, any>;
+  const profile = (
+    userData.profile && typeof userData.profile === "object"
+      ? userData.profile
+      : userData
+  ) as Record<string, any>;
   return {
-    name: profile.name || userData.name as string | undefined,
-    email: profile.email || userData.email as string | undefined,
-    phoneE164: profile.phoneE164 || profile.phone || userData.phoneE164 as string | undefined,
-    whatsappNumber: profile.whatsappNumber || userData.whatsappNumber as string | undefined,
-    timezone: profile.timezone || userData.timezone as string | undefined,
+    name: profile.name || (userData.name as string | undefined),
+    email: profile.email || (userData.email as string | undefined),
+    phoneE164:
+      profile.phoneE164 ||
+      profile.phone ||
+      (userData.phoneE164 as string | undefined),
+    whatsappNumber:
+      profile.whatsappNumber || (userData.whatsappNumber as string | undefined),
+    timezone: profile.timezone || (userData.timezone as string | undefined),
     notificationPrefs: profile.notificationPrefs || userData.notificationPrefs,
   };
 }
 
-function shouldEmailNudge(candidate: BrainNudgeCandidate, profile: BrainNudgeProfile, sendEmail: boolean) {
+function shouldEmailNudge(
+  candidate: BrainNudgeCandidate,
+  profile: BrainNudgeProfile,
+  sendEmail: boolean,
+) {
   if (!sendEmail || candidate.priority !== "high") return false;
   if (!candidate.channels.includes("email")) return false;
   if (!profile.email) return false;
   return profile.notificationPrefs?.emailDigest !== false;
 }
 
-function shouldPushNudge(candidate: BrainNudgeCandidate, profile: BrainNudgeProfile) {
+function shouldPushNudge(
+  candidate: BrainNudgeCandidate,
+  profile: BrainNudgeProfile,
+) {
   if (!candidate.channels.includes("push")) return false;
   return profile.notificationPrefs?.pushBrainNudges !== false;
 }
 
-function shouldWhatsAppNudge(candidate: BrainNudgeCandidate, profile: BrainNudgeProfile) {
+function shouldWhatsAppNudge(
+  candidate: BrainNudgeCandidate,
+  profile: BrainNudgeProfile,
+) {
   if (!candidate.channels.includes("whatsapp")) return false;
   if (!(profile.whatsappNumber || profile.phoneE164)) return false;
   return profile.notificationPrefs?.whatsappDigest === true;
@@ -472,16 +552,38 @@ function resolveDeliveryStatus(input: {
   pushError?: string;
   whatsappError?: string;
 }) {
-  if (input.emailSent || input.pushSent || input.whatsappSent) return "delivered";
-  if (input.emailError || input.pushError || input.whatsappError) return "delivery_failed";
+  if (input.emailSent || input.pushSent || input.whatsappSent)
+    return "delivered";
+  if (input.emailError || input.pushError || input.whatsappError)
+    return "delivery_failed";
   return "stored";
 }
 
-function hasNudgeForLocalDay(atman: AtmanData, triggerType: string, localDate: string, timezone: string) {
+function hasNudgeForLocalDay(
+  atman: AtmanData,
+  triggerType: string,
+  localDate: string,
+  timezone: string,
+) {
   return (atman.nudgeHistory || []).some((entry) => {
     if (entry.triggerType !== triggerType) return false;
     return formatLocalDate(new Date(entry.date), timezone) === localDate;
   });
+}
+
+/** True if a nudge of this type was sent within the last `days` (frequency cap). */
+function hasNudgeWithinDays(
+  atman: AtmanData,
+  triggerType: string,
+  days: number,
+  now: Date,
+) {
+  const cutoff = now.getTime() - days * 24 * 60 * 60 * 1000;
+  return (atman.nudgeHistory || []).some(
+    (entry) =>
+      entry.triggerType === triggerType &&
+      new Date(entry.date).getTime() >= cutoff,
+  );
 }
 
 function findIncompleteRoutine(
@@ -493,7 +595,9 @@ function findIncompleteRoutine(
   return routines.find((routine) => {
     if (routine.type !== type || routine.status !== "active") return false;
     if (!routine.lastCompletedAt) return true;
-    return formatLocalDate(new Date(routine.lastCompletedAt), timezone) !== localDate;
+    return (
+      formatLocalDate(new Date(routine.lastCompletedAt), timezone) !== localDate
+    );
   });
 }
 
@@ -516,7 +620,11 @@ function createNudgeDocId(localDate: string, triggerType: string) {
 }
 
 function sanitizeId(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 120);
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 120);
 }
 
 export function formatLocalDate(date: Date, timezone: string) {

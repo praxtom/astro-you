@@ -33,7 +33,9 @@ export function buildDailyDigest(input: DigestInput) {
     input.transitContext
       ? `Transit: ${input.transitContext.split("\n")[0]}`
       : "Transit: no major transit note loaded yet.",
-    input.panchang?.rahu_kaal ? `Careful: Rahu Kaal is ${input.panchang.rahu_kaal}.` : "Careful: keep major starts intentional.",
+    input.panchang?.rahu_kaal
+      ? `Careful: Rahu Kaal is ${input.panchang.rahu_kaal}.`
+      : "Careful: keep major starts intentional.",
     routine
       ? `Practice: continue ${routine.title}${routine.streak ? ` (${routine.streak}-day streak)` : ""}.`
       : "Practice: set one small intention before the day gets noisy.",
@@ -41,13 +43,16 @@ export function buildDailyDigest(input: DigestInput) {
     "One step: choose the most important conversation or decision today and prepare before reacting.",
   ];
 
+  const settingsUrl = `${(process.env.APP_BASE_URL || "https://astroyou.app").replace(/\/$/, "")}/settings`;
   return {
     subject,
-    text: lines.join("\n"),
+    text: `${lines.join("\n")}\n\nManage or turn off your daily digest: ${settingsUrl}`,
     html: `<div style="font-family:Inter,Arial,sans-serif;line-height:1.6;color:#f8f5ee;background:#08080d;padding:24px;border-radius:16px"><h2 style="color:#E5B96A;margin-top:0">${subject}</h2>${lines
       .slice(2)
       .map((line) => `<p>${escapeHtml(line)}</p>`)
-      .join("")}</div>`,
+      .join(
+        "",
+      )}<p style="color:#6b6780;font-size:12px;margin-top:24px">You're receiving your AstroYou daily digest. <a href="${settingsUrl}" style="color:#8a86a0">Manage or turn this off</a>.</p></div>`,
   };
 }
 

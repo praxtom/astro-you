@@ -5,6 +5,7 @@ import {
   buildReferralClaimRecord,
   normalizeReferralCode,
 } from "./shared/referrals";
+import { enforceIpRateLimit, AuthError } from "./shared/require-auth";
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
@@ -18,6 +19,14 @@ export default async (req: Request, _context: Context) => {
     }
 
     const decoded = await auth.verifyIdToken(body.idToken);
+    // Rate-limit to prevent brute-forcing the referral-code space.
+    try {
+      await enforceIpRateLimit(req, "referral_claim", 10, 60 * 60 * 1000);
+    } catch (err) {
+      if (err instanceof AuthError)
+        return json({ error: err.message }, err.status);
+      throw err;
+    }
     const code = normalizeReferralCode(body.referralCode);
     const referrerSnap = await db
       .collection("users")
@@ -46,7 +55,9 @@ export default async (req: Request, _context: Context) => {
       const referrerRef = db.collection("users").doc(referrerUid);
       const refereeRef = db.collection("users").doc(decoded.uid);
       const refereeClaimRef = refereeRef.collection("referralClaims").doc(code);
-      const referrerReferralRef = referrerRef.collection("referrals").doc(decoded.uid);
+      const referrerReferralRef = referrerRef
+        .collection("referrals")
+        .doc(decoded.uid);
       const referrerLedgerRef = referrerRef
         .collection("creditLedger")
         .doc(`referral_referrer_${decoded.uid}`);
@@ -64,8 +75,15 @@ export default async (req: Request, _context: Context) => {
         return { duplicate: true };
       }
 
+      // A user may be referred at most once, ever. Without this a referee could
+      // claim many different codes to farm the signup reward.
+      const refereeData = refereeUserSnap.data() || {};
+      if (refereeData.referredBy) {
+        throw new ReferralError("You have already used a referral code", 409);
+      }
+
       const referrerBalance = referrerUserSnap.data()?.credits ?? 0;
-      const refereeBalance = refereeUserSnap.data()?.credits ?? 0;
+      const refereeBalance = refereeData.credits ?? 0;
 
       tx.set(refereeClaimRef, claim);
       tx.set(referrerReferralRef, claim);

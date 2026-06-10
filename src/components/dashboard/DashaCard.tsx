@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { postJson } from "../../lib/apiFetch";
 import { Clock } from 'lucide-react';
 import { useUserProfile } from '../../hooks';
 
@@ -22,11 +23,7 @@ export function DashaCard() {
       pob: profile.pob || "Unknown",
       lat: profile.coordinates?.lat, lng: profile.coordinates?.lng,
     };
-    fetch('/api/kundali', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ birthData, chartType: 'DASHAS' }),
-    })
+    postJson("/api/kundali", { birthData, chartType: 'DASHAS' })
       .then(r => r.json())
       .then(res => {
         const periods: DashaPeriod[] = res.periods || res.data?.periods || res || [];

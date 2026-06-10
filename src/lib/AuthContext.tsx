@@ -1,8 +1,4 @@
-import {
-  useEffect,
-  useState,
-  ReactNode,
-} from "react";
+import { useEffect, useState, ReactNode } from "react";
 import {
   type User,
   onAuthStateChanged,
@@ -64,25 +60,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 email: currentUser.email,
                 createdAt: existingData?.createdAt || serverTimestamp(),
               },
-              { merge: true }
+              { merge: true },
             );
           }
 
           // Migrate guest/localStorage profile to Firestore if user has no profile yet
           if (!hasProfile) {
-            const guestData = sessionStorage.getItem(STORAGE_KEYS.GUEST_PROFILE);
+            const guestData = sessionStorage.getItem(
+              STORAGE_KEYS.GUEST_PROFILE,
+            );
             const localData = localStorage.getItem(STORAGE_KEYS.PROFILE);
             const profileJson = guestData || localData;
 
             if (profileJson) {
               try {
-                const profile = JSON.parse(profileJson);
-                if (profile.dob && profile.tob) {
+                const parsed = JSON.parse(profileJson);
+                if (parsed.dob && parsed.tob) {
                   console.log("[Auth] Migrating guest profile to Firestore");
+                  // Whitelist known profile fields — don't persist arbitrary
+                  // keys from localStorage into the user document.
+                  const profile = {
+                    name:
+                      typeof parsed.name === "string"
+                        ? parsed.name.slice(0, 100)
+                        : "",
+                    dob: String(parsed.dob).slice(0, 20),
+                    tob: String(parsed.tob).slice(0, 20),
+                    pob:
+                      typeof parsed.pob === "string"
+                        ? parsed.pob.slice(0, 200)
+                        : "",
+                    gender:
+                      typeof parsed.gender === "string"
+                        ? parsed.gender.slice(0, 20)
+                        : "",
+                    lat: typeof parsed.lat === "number" ? parsed.lat : null,
+                    lng: typeof parsed.lng === "number" ? parsed.lng : null,
+                    coordinates: parsed.coordinates ?? null,
+                    birthTimeUnknown: Boolean(parsed.birthTimeUnknown),
+                  };
                   await setDoc(
                     userDocRef,
                     { profile, updatedAt: new Date() },
-                    { merge: true }
+                    { merge: true },
                   );
                   // Clean up guest session data after migration
                   sessionStorage.removeItem(STORAGE_KEYS.GUEST_PROFILE);
@@ -94,7 +114,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
           }
           const urlReferralCode = captureReferralFromUrl();
-          const pendingReferralCode = getPendingReferralCode() || urlReferralCode;
+          const pendingReferralCode =
+            getPendingReferralCode() || urlReferralCode;
           if (
             pendingReferralCode &&
             !existingData?.referredBy &&
@@ -111,7 +132,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 }),
               });
 
-              if (response.ok || response.status === 400 || response.status === 404) {
+              if (
+                response.ok ||
+                response.status === 400 ||
+                response.status === 404
+              ) {
                 clearPendingReferralCode();
               }
             } catch (referralError) {

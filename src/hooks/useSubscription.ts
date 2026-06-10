@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useAuth } from "../lib/useAuth";
 import type { SubscriptionData } from "../types";
@@ -61,6 +61,28 @@ const LEGACY_FEATURE_MAP: Record<LegacyFeatureType, FeatureKey> = {
   voice_input: "voice_input",
 };
 
+/**
+ * Normalize the many shapes a date can arrive in (Firestore Timestamp, Date,
+ * ISO string, epoch number) to milliseconds. Firestore client reads return a
+ * Timestamp, and `new Date(timestamp)` yields an Invalid Date — so this guard
+ * is required for subscription expiry comparisons to work at all.
+ */
+function toTimeMs(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (value instanceof Date) return value.getTime();
+  if (
+    typeof value === "object" &&
+    typeof (value as { toDate?: () => Date }).toDate === "function"
+  ) {
+    return (value as { toDate: () => Date }).toDate().getTime();
+  }
+  if (typeof value === "string" || typeof value === "number") {
+    const ms = new Date(value).getTime();
+    return Number.isNaN(ms) ? null : ms;
+  }
+  return null;
+}
+
 export function useSubscription(): UseSubscriptionResult {
   const { user } = useAuth();
   const [subscription, setSubscription] = useState<SubscriptionData>({
@@ -71,7 +93,8 @@ export function useSubscription(): UseSubscriptionResult {
   const [error, setError] = useState<string | null>(null);
   const creditLockRef = useRef(false);
 
-  // Fetch subscription data
+  // Subscribe to subscription/credit data in real time so top-ups and
+  // webhook-driven subscription changes reflect without a page reload.
   useEffect(() => {
     if (!user) {
       setSubscription({ tier: "free" });
@@ -80,32 +103,33 @@ export function useSubscription(): UseSubscriptionResult {
       return;
     }
 
-    const fetchSubscription = async () => {
-      try {
-        const docRef = doc(db, "users", user.uid);
-        const docSnap = await getDoc(docRef);
-
+    const docRef = doc(db, "users", user.uid);
+    const unsubscribe = onSnapshot(
+      docRef,
+      (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
           setSubscription(data.subscription || { tier: "free" });
           setCredits(data.credits || 0);
         }
-      } catch (err: any) {
+        setLoading(false);
+      },
+      (err) => {
         console.error("Error fetching subscription:", err);
         setError(err.message);
-      } finally {
         setLoading(false);
-      }
-    };
+      },
+    );
 
-    fetchSubscription();
+    return () => unsubscribe();
   }, [user]);
 
   // Check subscription validity
   const isSubscriptionActive = useCallback(() => {
     if (subscription.tier === "free") return true;
-    if (!subscription.expiresAt) return false;
-    return new Date(subscription.expiresAt) > new Date();
+    const expiresAtMs = toTimeMs(subscription.expiresAt);
+    if (expiresAtMs === null) return false;
+    return expiresAtMs > Date.now();
   }, [subscription]);
 
   // Use one credit
@@ -164,7 +188,7 @@ export function useSubscription(): UseSubscriptionResult {
     const featureKey =
       feature in LEGACY_FEATURE_MAP
         ? LEGACY_FEATURE_MAP[feature as LegacyFeatureType]
-        : feature as FeatureKey;
+        : (feature as FeatureKey);
     return canUseFeature(currentTier, featureKey);
   };
 

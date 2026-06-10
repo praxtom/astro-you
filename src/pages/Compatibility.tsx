@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { postJson } from "../lib/apiFetch";
 import {
   Heart,
   Sparkles,
@@ -179,10 +180,7 @@ export default function Compatibility() {
     setError(null);
 
     try {
-      const response = await fetch("/api/compatibility", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const response = await postJson("/api/compatibility", {
           maleData: {
             name: birthData.name || "Seeker",
             dob: birthData.dob,
@@ -196,8 +194,7 @@ export default function Compatibility() {
             lat: partnerCoords?.lat,
             lng: partnerCoords?.lon,
           },
-        }),
-      });
+        });
 
       const data = await response.json();
       console.log("[Compatibility] Match Data:", data);

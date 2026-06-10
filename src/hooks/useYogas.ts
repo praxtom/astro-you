@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { postJson } from "../lib/apiFetch";
 import type { BirthData, Yoga } from '../types';
 import { useRequestBirthData } from './useRequestBirthData';
 
@@ -36,12 +37,7 @@ export function useYogas(birthData: BirthData | null): UseYogasResult {
                 setLoading(true);
                 setError(null);
 
-                const response = await fetch('/api/kundali', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ birthData: requestBirthData, chartType: 'YOGAS' }),
-                    signal: controller.signal,
-                });
+                const response = await postJson("/api/kundali", { birthData: requestBirthData, chartType: 'YOGAS' }, { signal: controller.signal });
 
                 if (!response.ok) {
                     throw new Error('Failed to fetch yoga data');

@@ -1,6 +1,10 @@
 import { Config, Context } from "@netlify/functions";
 import { auth, db, FieldValue } from "./shared/firebase-admin";
-import { REFEREE_REWARD_CREDITS, REFERRER_REWARD_CREDITS, createReferralCode } from "./shared/referrals";
+import {
+  REFEREE_REWARD_CREDITS,
+  REFERRER_REWARD_CREDITS,
+  generateReferralCode,
+} from "./shared/referrals";
 
 function serializeDate(value: any): string | null {
   if (!value) return null;
@@ -22,20 +26,31 @@ export default async (req: Request, _context: Context) => {
     }
 
     const decoded = await auth.verifyIdToken(body.idToken);
-    const code = createReferralCode(decoded.uid);
     const userRef = db.collection("users").doc(decoded.uid);
 
-    await userRef.set(
-      {
-        referral: {
-          code,
-          referrerRewardCredits: REFERRER_REWARD_CREDITS,
-          refereeRewardCredits: REFEREE_REWARD_CREDITS,
-          updatedAt: FieldValue.serverTimestamp(),
+    // Generate a random code once and reuse it. Avoids both the guessable
+    // UID-derived code and a redundant Firestore write on every page load.
+    const code = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(userRef);
+      const existing = snap.data()?.referral?.code;
+      if (typeof existing === "string" && /^STAR[A-Z0-9]{6}$/.test(existing)) {
+        return existing;
+      }
+      const newCode = generateReferralCode();
+      tx.set(
+        userRef,
+        {
+          referral: {
+            code: newCode,
+            referrerRewardCredits: REFERRER_REWARD_CREDITS,
+            refereeRewardCredits: REFEREE_REWARD_CREDITS,
+            updatedAt: FieldValue.serverTimestamp(),
+          },
         },
-      },
-      { merge: true },
-    );
+        { merge: true },
+      );
+      return newCode;
+    });
 
     const snap = await userRef
       .collection("referrals")

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
+import { postJson } from "../lib/apiFetch";
 import { useAuth } from '../lib/useAuth';
 import { useConsciousness } from './useConsciousness';
 import { useDashaMonitor } from './useDashaMonitor';
@@ -261,14 +262,10 @@ export function useProactiveTriggers(panchangData?: { tithi?: string; nakshatra?
             const transitKey = `transit_alert_${today}`;
             if (!lastTriggerRef.current[transitKey]) {
                 try {
-                    const response = await fetch('/api/proactive-nudge', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
+                    const response = await postJson("/api/proactive-nudge", {
                             atmanData: atmanState,
                             triggerType: 'transit_alert'
-                        })
-                    });
+                        });
                     const data = await response.json();
                     if (data.title && data.message) {
                         showAndSaveNudge(data.title, data.message, 'transit_alert', 12000);
@@ -284,14 +281,10 @@ export function useProactiveTriggers(panchangData?: { tithi?: string; nakshatra?
                 const relationalKey = `relational_nudge_${today}`;
                 if (!lastTriggerRef.current[relationalKey]) {
                     try {
-                        const response = await fetch('/api/proactive-nudge', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
+                        const response = await postJson("/api/proactive-nudge", {
                                 atmanData: atmanState,
                                 triggerType: 'relational_management'
-                            })
-                        });
+                            });
                         const data = await response.json();
                         if (data.title && data.message) {
                             showAndSaveNudge(data.title, data.message, 'relational_management', 12000);
@@ -312,10 +305,7 @@ export function useProactiveTriggers(panchangData?: { tithi?: string; nakshatra?
 
                     if (partner) {
                         try {
-                            const response = await fetch('/api/proactive-nudge', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
+                            const response = await postJson("/api/proactive-nudge", {
                                     atmanData: atmanState,
                                     triggerType: 'synastry_alert',
                                     partnerData: {
@@ -324,8 +314,7 @@ export function useProactiveTriggers(panchangData?: { tithi?: string; nakshatra?
                                         dynamic: partner.dynamic,
                                         zodiacSign: partner.zodiacSign,
                                     }
-                                })
-                            });
+                                });
                             const data = await response.json();
                             if (data.title && data.message) {
                                 showAndSaveNudge(data.title, data.message, 'synastry_alert', 12000);

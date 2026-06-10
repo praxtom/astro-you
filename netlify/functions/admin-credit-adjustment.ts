@@ -18,6 +18,17 @@ export default async (req: Request, _context: Context) => {
     if (!targetUid || !Number.isFinite(creditAmount) || creditAmount === 0) {
       return json({ error: "targetUid and non-zero amount are required" }, 400);
     }
+    // Bound a single adjustment so a compromised/mistyped admin action can't
+    // grant or wipe an arbitrary balance.
+    const MAX_SINGLE_ADJUSTMENT = Number(
+      process.env.MAX_ADMIN_CREDIT_ADJUSTMENT || 10000,
+    );
+    if (Math.abs(creditAmount) > MAX_SINGLE_ADJUSTMENT) {
+      return json(
+        { error: `Adjustment cannot exceed ${MAX_SINGLE_ADJUSTMENT} credits` },
+        400,
+      );
+    }
     if (!reason || String(reason).trim().length < 5) {
       return json({ error: "Adjustment reason is required" }, 400);
     }
@@ -62,7 +73,10 @@ export default async (req: Request, _context: Context) => {
     return json({ status: "success", ...result });
   } catch (err: any) {
     console.error("[AdminCreditAdjustment] Error:", err);
-    const status = err instanceof AdminCreditAdjustmentError ? err.status : err.status || 500;
+    const status =
+      err instanceof AdminCreditAdjustmentError
+        ? err.status
+        : err.status || 500;
     return json({ error: err.message || "Credit adjustment failed" }, status);
   }
 };

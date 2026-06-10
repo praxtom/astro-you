@@ -1,7 +1,25 @@
-export function createTextPdf(title: string, paragraphs: string[]): ArrayBuffer {
-  const lines = [title, "", ...paragraphs.flatMap((paragraph) => wrapText(paragraph, 88)), ""];
+const MAX_PDF_LINES = 42;
+
+export function createTextPdf(
+  title: string,
+  paragraphs: string[],
+): ArrayBuffer {
+  const allLines = [
+    title,
+    "",
+    ...paragraphs.flatMap((paragraph) => wrapText(paragraph, 88)),
+    "",
+  ];
+  // This single-page generator can't fit everything; rather than silently drop
+  // the overflow on a paid report, show an explicit truncation marker.
+  const lines =
+    allLines.length > MAX_PDF_LINES
+      ? [
+          ...allLines.slice(0, MAX_PDF_LINES - 1),
+          "... (continued — open the full report in the AstroYou app)",
+        ]
+      : allLines;
   const content = lines
-    .slice(0, 42)
     .map((line, index) => {
       const fontSize = index === 0 ? 18 : 11;
       const y = 760 - index * 16;
@@ -52,5 +70,8 @@ function wrapText(text: string, width: number): string[] {
 }
 
 function escapePdfText(text: string): string {
-  return text.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+  return text
+    .replace(/\\/g, "\\\\")
+    .replace(/\(/g, "\\(")
+    .replace(/\)/g, "\\)");
 }

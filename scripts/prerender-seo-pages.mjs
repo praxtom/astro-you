@@ -82,15 +82,13 @@ const defaultSeoLinks = [
   { label: "Trust", href: "/trust" },
 ];
 
+// Only PUBLIC, indexable routes belong in the sitemap. Authenticated app
+// routes (/onboarding, /synthesis, /consult, /wallet, /reports, /remedies)
+// redirect to login and have no indexable content — they are excluded here and
+// disallowed in robots.txt.
 const staticRoutes = [
   { path: "/", changefreq: "weekly", priority: "1.0" },
-  { path: "/onboarding", changefreq: "weekly", priority: "0.8" },
-  { path: "/synthesis", changefreq: "weekly", priority: "0.8" },
-  { path: "/consult", changefreq: "weekly", priority: "0.8" },
   { path: "/pricing", changefreq: "weekly", priority: "0.8" },
-  { path: "/wallet", changefreq: "weekly", priority: "0.7" },
-  { path: "/reports", changefreq: "weekly", priority: "0.7" },
-  { path: "/remedies", changefreq: "weekly", priority: "0.7" },
   { path: "/support", changefreq: "weekly", priority: "0.6" },
   { path: "/help", changefreq: "weekly", priority: "0.6" },
   { path: "/trust", changefreq: "weekly", priority: "0.8" },
@@ -116,17 +114,23 @@ const seoPages = [
     description:
       "Generate your free Vedic Kundali birth chart instantly. Get Moon sign, Sun sign, Ascendant, and planetary positions with no signup required.",
     heading: "Free Kundali Online",
-    bullets: ["Ascendant and Moon sign", "Planetary positions", "Free chart before signup"],
+    bullets: [
+      "Ascendant and Moon sign",
+      "Planetary positions",
+      "Free chart before signup",
+    ],
     cta: "/free-kundali",
     schemaType: "SoftwareApplication",
     faq: [
       {
         question: "Is the free Kundali online report really free?",
-        answer: "Yes. The free Kundali page can generate a basic Vedic birth chart before signup.",
+        answer:
+          "Yes. The free Kundali page can generate a basic Vedic birth chart before signup.",
       },
       {
         question: "What details are needed for a Janam Kundali?",
-        answer: "Date of birth, time of birth, and place of birth give the most accurate chart.",
+        answer:
+          "Date of birth, time of birth, and place of birth give the most accurate chart.",
       },
     ],
     links: [
@@ -142,7 +146,11 @@ const seoPages = [
     description:
       "Check Kundali matching and Guna Milan score for free. See compatibility score and Ashtakoot analysis with no signup required.",
     heading: "Free Kundali Matching",
-    bullets: ["Compatibility score", "Ashtakoot Guna Milan", "Deeper AI analysis after saving"],
+    bullets: [
+      "Compatibility score",
+      "Ashtakoot Guna Milan",
+      "Deeper AI analysis after saving",
+    ],
     cta: "/free-kundali-matching",
   },
   {
@@ -160,7 +168,11 @@ const seoPages = [
     description:
       "Find a free Muhurat guide for business, marriage, travel, and home activities using Panchang, Rahu Kaal, and Abhijit Muhurat.",
     heading: "Free Muhurat Finder",
-    bullets: ["Purpose-based timing", "Panchang signals", "Personal Muhurat CTA"],
+    bullets: [
+      "Purpose-based timing",
+      "Panchang signals",
+      "Personal Muhurat CTA",
+    ],
     cta: "/muhurat",
   },
   {
@@ -169,7 +181,11 @@ const seoPages = [
     description:
       "Learn what a Janam Kundali is, how Vedic birth charts use houses and planets, and generate a free Kundali online with AstroYou.",
     heading: "Kundali Guide",
-    bullets: ["Janam Kundali basics", "Houses and planets", "Free Kundali generator"],
+    bullets: [
+      "Janam Kundali basics",
+      "Houses and planets",
+      "Free Kundali generator",
+    ],
     cta: "/free-kundali",
   },
   {
@@ -178,7 +194,11 @@ const seoPages = [
     description:
       "Understand Kundali matching, Ashtakoot Guna Milan, Mangal Dosha, and relationship compatibility before generating a free match report.",
     heading: "Kundali Matching Guide",
-    bullets: ["36-point Guna Milan", "Mangal Dosha context", "Free matching tool"],
+    bullets: [
+      "36-point Guna Milan",
+      "Mangal Dosha context",
+      "Free matching tool",
+    ],
     cta: "/free-kundali-matching",
   },
   {
@@ -187,7 +207,11 @@ const seoPages = [
     description:
       "Read free daily, weekly, monthly, and yearly horoscope pages for all zodiac signs, then get personalized Vedic guidance from your own chart.",
     heading: "Daily Horoscope",
-    bullets: ["12 zodiac signs", "Daily to yearly periods", "Personalized Vedic forecast"],
+    bullets: [
+      "12 zodiac signs",
+      "Daily to yearly periods",
+      "Personalized Vedic forecast",
+    ],
     cta: "/horoscope/aries/daily",
     links: signs.slice(0, 6).map((sign) => ({
       label: `${sign.charAt(0).toUpperCase() + sign.slice(1)} Horoscope`,
@@ -200,7 +224,11 @@ const seoPages = [
     description:
       "Learn how AstroYou handles AI astrologers, real reviews, testimonials, prediction feedback, and transparent trust claims.",
     heading: "Trust and Transparency",
-    bullets: ["AI astrologers are labelled", "Reviews and testimonials require real user submission", "Prediction feedback is tracked in aggregate"],
+    bullets: [
+      "AI astrologers are labelled",
+      "Reviews and testimonials require real user submission",
+      "Prediction feedback is tracked in aggregate",
+    ],
     cta: "/trust",
     schemaType: "AboutPage",
     links: [
@@ -242,7 +270,11 @@ const seoPages = [
     description:
       "Explore the nine Vedic astrology planets, their meanings, house results, sign behavior, dashas, and practical remedy approach.",
     heading: "Planets in Vedic Astrology",
-    bullets: ["Nine Grahas", "House and sign results", "Dasha and remedy context"],
+    bullets: [
+      "Nine Grahas",
+      "House and sign results",
+      "Dasha and remedy context",
+    ],
     cta: "/free-kundali",
     links: planetSeeds.map(([slug, name]) => ({
       label: name,
@@ -269,7 +301,11 @@ const seoPages = [
     description:
       "Explore the twelve Vedic astrology houses, their meanings, house lords, planets placed in houses, and dasha results.",
     heading: "Houses in Vedic Astrology",
-    bullets: ["Twelve Bhavas", "House lord reading", "Personal Kundali context"],
+    bullets: [
+      "Twelve Bhavas",
+      "House lord reading",
+      "Personal Kundali context",
+    ],
     cta: "/free-kundali",
     links: houseSeeds.map(([slug, name]) => ({
       label: name,
@@ -318,7 +354,11 @@ const seoPages = [
     description:
       "Understand Vedic remedies, gemstones, mantras, donation, fasting, and when to avoid fear-based prescriptions.",
     heading: "Gemstone Remedies",
-    bullets: ["Mantra and service", "Gemstone caution", "Low-risk remedies first"],
+    bullets: [
+      "Mantra and service",
+      "Gemstone caution",
+      "Low-risk remedies first",
+    ],
     cta: "/remedies",
   },
   {
@@ -377,7 +417,11 @@ const signPages = signs.flatMap((sign) =>
       title: `${signName} ${periodName} Horoscope`,
       description: `Read ${signName} ${periodName.toLowerCase()} horoscope for free, then get personalized Vedic guidance from your own birth chart.`,
       heading: `${signName} ${periodName} Horoscope`,
-      bullets: [`${signName} ${periodName.toLowerCase()} prediction`, "Free sign forecast", "Personal chart CTA"],
+      bullets: [
+        `${signName} ${periodName.toLowerCase()} prediction`,
+        "Free sign forecast",
+        "Personal chart CTA",
+      ],
       cta: "/free-kundali",
       schemaType: "Article",
       links: [
@@ -398,7 +442,11 @@ const signIndexPages = signs.map((sign) => {
     title: `${signName} Horoscope | Daily, Weekly, Monthly, Yearly`,
     description: `Read ${signName} horoscope pages for daily, weekly, monthly, and yearly guidance, then create a personal Vedic forecast.`,
     heading: `${signName} Horoscope`,
-    bullets: ["Daily forecast", "Weekly and monthly outlook", "Personal birth-chart reading"],
+    bullets: [
+      "Daily forecast",
+      "Weekly and monthly outlook",
+      "Personal birth-chart reading",
+    ],
     cta: `/horoscope/${sign}/daily`,
     schemaType: "CollectionPage",
     links: periods.map((period) => ({
@@ -424,9 +472,17 @@ const panchangDatePages = futureDates.map((date) => ({
 }));
 
 const muhuratCategoryPages = [
-  ["business", "Business Muhurat", "shop, startup, contract, or company registration"],
+  [
+    "business",
+    "Business Muhurat",
+    "shop, startup, contract, or company registration",
+  ],
   ["marriage", "Marriage Muhurat", "wedding, engagement, or family ceremony"],
-  ["property", "Property Muhurat", "home buying, registration, renovation, or griha pravesh"],
+  [
+    "property",
+    "Property Muhurat",
+    "home buying, registration, renovation, or griha pravesh",
+  ],
   ["travel", "Travel Muhurat", "journey, relocation, or important movement"],
 ].map(([slug, label, useCase]) => ({
   path: `/muhurat/${slug}`,
@@ -495,7 +551,11 @@ const planetHousePages = planetSeeds.flatMap(([planetSlug, planetName]) =>
     title: `${planetName} in ${houseName} | Vedic Astrology Meaning and Results`,
     description: `Understand ${planetName} in ${houseName} in Vedic astrology, including life themes, strengths, cautions, and full-chart context.`,
     heading: `${planetName} in ${houseName}`,
-    bullets: [`${planetName} meaning`, `${houseName} themes`, "Dasha and transit context"],
+    bullets: [
+      `${planetName} meaning`,
+      `${houseName} themes`,
+      "Dasha and transit context",
+    ],
     cta: "/free-kundali",
     schemaType: "Article",
     links: [
@@ -548,7 +608,10 @@ const setMeta = (html, selector, value) => {
   const escaped = escapeHtml(value);
   const pattern = new RegExp(`(<meta ${selector} content=")[^"]*(")`);
   if (pattern.test(html)) return html.replace(pattern, `$1${escaped}$2`);
-  return html.replace("</head>", `    <meta ${selector} content="${escaped}" />\n  </head>`);
+  return html.replace(
+    "</head>",
+    `    <meta ${selector} content="${escaped}" />\n  </head>`,
+  );
 };
 
 const renderBody = (page) => `
@@ -590,18 +653,20 @@ const renderBody = (page) => `
 const injectPage = (template, page) => {
   const canonical = `${baseUrl}${page.path}`;
   const faqs = getPageFaqs(page);
-  const structuredData = [{
-    "@context": "https://schema.org",
-    "@type": page.schemaType || "WebPage",
-    name: page.title,
-    headline: page.title,
-    description: page.description,
-    url: canonical,
-    publisher: {
-      "@type": "Organization",
-      name: "AstroYou",
+  const structuredData = [
+    {
+      "@context": "https://schema.org",
+      "@type": page.schemaType || "WebPage",
+      name: page.title,
+      headline: page.title,
+      description: page.description,
+      url: canonical,
+      publisher: {
+        "@type": "Organization",
+        name: "AstroYou",
+      },
     },
-  }];
+  ];
 
   if (faqs.length) {
     structuredData.push({
@@ -619,8 +684,14 @@ const injectPage = (template, page) => {
   }
 
   let html = template
-    .replace(/<title>.*?<\/title>/, `<title>${escapeHtml(page.title)} | AstroYou</title>`)
-    .replace(/<link rel="canonical" href="[^"]*" \/>/, `<link rel="canonical" href="${canonical}" />`)
+    .replace(
+      /<title>.*?<\/title>/,
+      `<title>${escapeHtml(page.title)} | AstroYou</title>`,
+    )
+    .replace(
+      /<link rel="canonical" href="[^"]*" \/>/,
+      `<link rel="canonical" href="${canonical}" />`,
+    )
     .replace(/<div id="root"><\/div>/, renderBody(page));
 
   html = setMeta(html, 'name="description"', page.description);
@@ -645,11 +716,16 @@ const writeRoute = async (page, html) => {
 const writeSitemap = async () => {
   const pageRoutes = pages.map((page) => ({
     path: page.path,
-    changefreq: page.path.includes("horoscope") || page.path.startsWith("/panchang") ? "daily" : "weekly",
+    changefreq:
+      page.path.includes("horoscope") || page.path.startsWith("/panchang")
+        ? "daily"
+        : "weekly",
     priority: page.path.includes("free") ? "0.9" : "0.8",
   }));
   const routes = Array.from(
-    new Map([...staticRoutes, ...pageRoutes].map((route) => [route.path, route])).values(),
+    new Map(
+      [...staticRoutes, ...pageRoutes].map((route) => [route.path, route]),
+    ).values(),
   );
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -672,6 +748,20 @@ ${routes
 };
 
 const template = await readFile(path.join(distDir, "index.html"), "utf8");
-await Promise.all(pages.map((page) => writeRoute(page, injectPage(template, page))));
+
+// Fail the build loudly if the template is not the expected fresh Vite output.
+// Without this guard, a missing/renamed root placeholder makes injectPage()'s
+// .replace() a silent no-op and ships 400+ broken, empty SEO pages.
+if (!template.includes('<div id="root"></div>')) {
+  throw new Error(
+    'prerender: dist/index.html is missing <div id="root"></div>. ' +
+      "Was it already prerendered, or did the Vite build fail? Aborting to " +
+      "avoid shipping broken SEO pages.",
+  );
+}
+
+await Promise.all(
+  pages.map((page) => writeRoute(page, injectPage(template, page))),
+);
 await writeSitemap();
 console.log(`Prerendered ${pages.length} SEO pages.`);

@@ -8,10 +8,19 @@ export default async (req: Request, _context: Context) => {
   }
 
   try {
-    const { idToken, source = "synthesis" } = await req.json();
+    const { idToken, source: rawSource } = await req.json();
     if (!idToken) {
       return json({ error: "Missing auth token" }, 401);
     }
+
+    // `source` is written to the immutable credit ledger — never trust arbitrary
+    // client text. Validate against an allowlist.
+    const ALLOWED_SOURCES = new Set([
+      "synthesis_chat",
+      "subscription_hook",
+      "feature_use",
+    ]);
+    const source = ALLOWED_SOURCES.has(rawSource) ? rawSource : "feature_use";
 
     const decoded = await auth.verifyIdToken(idToken);
     const result = await applyCreditChange(
@@ -27,8 +36,11 @@ export default async (req: Request, _context: Context) => {
 
     return json({ success: true, ...result }, 200);
   } catch (error: any) {
+    if (error?.name === "CreditError") {
+      return json({ error: error.message }, error.status || 402);
+    }
     console.error("[Credits Use] Error:", error);
-    return json({ error: error.message || "Could not use credit" }, error.status || 500);
+    return json({ error: "Could not use credit" }, 500);
   }
 };
 

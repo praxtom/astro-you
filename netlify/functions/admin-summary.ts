@@ -14,8 +14,23 @@ export default async (req: Request, _context: Context) => {
   try {
     const body = await req.json().catch(() => ({}));
     await requireAdmin(body.idToken);
-    const limit = Math.min(Math.max(Number(body.limit) || 5000, 1), 5000);
-    const usersSnapshot = await db.collection("users").limit(limit).get();
+    const limit = Math.min(Math.max(Number(body.limit) || 1000, 1), 5000);
+    // Field mask: fetch only what buildAdminSummary needs. Avoids loading heavy
+    // PII (atman emotional state, kundaliData, parsedChart, chats) into memory.
+    const usersSnapshot = await db
+      .collection("users")
+      .select(
+        "email",
+        "credits",
+        "creditsUsed",
+        "subscription",
+        "tier",
+        "usage",
+        "updatedAt",
+        "profile",
+      )
+      .limit(limit)
+      .get();
     const users = usersSnapshot.docs.map((doc: FirestoreUserDoc) => ({
       id: doc.id,
       ...doc.data(),
@@ -25,7 +40,10 @@ export default async (req: Request, _context: Context) => {
   } catch (error: any) {
     console.error("[AdminSummary] Error:", error);
     const status = error instanceof AdminAuthError ? error.status : 500;
-    return json({ error: error.message || "Could not load admin summary" }, status);
+    return json(
+      { error: error.message || "Could not load admin summary" },
+      status,
+    );
   }
 };
 

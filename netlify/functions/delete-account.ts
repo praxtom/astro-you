@@ -26,17 +26,25 @@ export default async (req: Request, _context: Context) => {
       action: "account_delete_requested",
       entityType: "user",
       entityId: uid,
-      metadata: { legalRetention: "payment audit logs retained outside user document" },
+      metadata: {
+        legalRetention: "payment audit logs retained outside user document",
+      },
     });
 
-    await deleteDocumentTree(userRef);
-    await getStorageBucket().deleteFiles({
-      prefix: `users/${safeSegment(uid)}/`,
-      force: true,
-    }).catch((storageError) => {
-      console.error("[Delete Account] Storage cleanup failed:", storageError);
-    });
+    // Delete the Auth user FIRST so access is revoked immediately. If a later
+    // Firestore/Storage cleanup step fails, the worst case is orphaned data —
+    // not a re-loginable account that would get signup credits re-granted.
     await auth.deleteUser(uid);
+
+    await deleteDocumentTree(userRef);
+    await getStorageBucket()
+      .deleteFiles({
+        prefix: `users/${safeSegment(uid)}/`,
+        force: true,
+      })
+      .catch((storageError) => {
+        console.error("[Delete Account] Storage cleanup failed:", storageError);
+      });
 
     await writeAuditLog({
       uid,
@@ -48,7 +56,7 @@ export default async (req: Request, _context: Context) => {
     return json({ status: "success" });
   } catch (err: any) {
     console.error("[Delete Account] Error:", err);
-    return json({ error: err.message || "Could not delete account" }, 500);
+    return json({ error: "Could not delete account. Please try again." }, 500);
   }
 };
 

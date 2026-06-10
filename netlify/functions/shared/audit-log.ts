@@ -1,4 +1,4 @@
-import { db, FieldValue } from "./firebase-admin";
+import { db, FieldValue } from "./firebase-admin.js";
 
 export interface AuditLogInput {
   uid?: string;

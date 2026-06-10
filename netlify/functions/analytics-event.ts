@@ -11,11 +11,12 @@ export default async (req: Request, _context: Context) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const rateKey = `${getRequestIdentifier(req)}:${body.anonymousId || "anonymous"}`;
+    // Key the limit on the (non-spoofable) client IP only. Including the
+    // client-supplied anonymousId let an attacker rotate it to bypass the limit.
     const rate = await checkRateLimit({
       scope: "analytics_event",
-      key: rateKey,
-      limit: 180,
+      key: getRequestIdentifier(req),
+      limit: 300,
       windowMs: 15 * 60 * 1000,
     });
     if (!rate.allowed) {

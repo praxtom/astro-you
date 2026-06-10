@@ -5,5 +5,14 @@ Allow: /
 # Sitemap
 Sitemap: https://astroyou.app/sitemap.xml
 
-# Disallow private routes
+# Disallow private / authenticated routes (no indexable content)
 Disallow: /api/
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /onboarding
+Disallow: /synthesis
+Disallow: /consult
+Disallow: /wallet
+Disallow: /reports
+Disallow: /remedies
+Disallow: /settings

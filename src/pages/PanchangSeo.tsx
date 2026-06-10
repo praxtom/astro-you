@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { postJson } from "../lib/apiFetch";
 import { Link } from "react-router-dom";
 import { ArrowRight, Calendar, Clock, Loader2, MapPin, Sparkles } from "lucide-react";
 import Header from "../components/layout/Header";
@@ -25,11 +26,7 @@ export default function PanchangSeo() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/kundali", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chartType: "PANCHANG", date, city }),
-      });
+      const res = await postJson("/api/kundali", { chartType: "PANCHANG", date, city });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Could not load Panchang");
       setPanchang(normalizePanchangResponse(data.data ?? data));

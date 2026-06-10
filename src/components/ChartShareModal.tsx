@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { postJson } from "../lib/apiFetch";
 import { Share2, Download, Copy, X } from "lucide-react";
 
 interface Props {
@@ -16,11 +17,7 @@ export default function ChartShareModal({ isOpen, onClose, birthData }: Props) {
     if (!isOpen || !birthData) return;
     setLoading(true);
     setChartUrl(null);
-    fetch("/api/kundali", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ birthData, chartType: "RENDER_NATAL" }),
-    })
+    postJson("/api/kundali", { birthData, chartType: "RENDER_NATAL" })
       .then((r) => r.json())
       .then((d) => setChartUrl(d.url || null))
       .catch(() => setChartUrl(null))

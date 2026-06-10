@@ -23,12 +23,16 @@ export default async (req: Request, _context: Context) => {
         .orderBy("createdAt", "desc")
         .limit(limit)
         .get();
-      const items = snapshot.docs.map((doc) => serializeApplication(doc.id, doc.data()));
+      const items = snapshot.docs.map((doc) =>
+        serializeApplication(doc.id, doc.data()),
+      );
       return json({ items });
     }
 
     if (action !== "update") {
-      throw new ExpertApplicationError("Valid expert application action is required");
+      throw new ExpertApplicationError(
+        "Valid expert application action is required",
+      );
     }
 
     const decision = buildExpertApplicationReviewDecision(
@@ -41,9 +45,23 @@ export default async (req: Request, _context: Context) => {
       FieldValue.serverTimestamp(),
     );
 
-    const applicationRef = db.collection("expertApplications").doc(decision.applicationId);
+    const applicationRef = db
+      .collection("expertApplications")
+      .doc(decision.applicationId);
     const applicationSnap = await applicationRef.get();
-    if (!applicationSnap.exists) return json({ error: "Application not found" }, 404);
+    if (!applicationSnap.exists)
+      return json({ error: "Application not found" }, 404);
+
+    // Prevent an admin from reviewing/approving their own expert application.
+    const appData = applicationSnap.data() || {};
+    const appEmail =
+      typeof appData.email === "string" ? appData.email.toLowerCase() : "";
+    if (
+      (appEmail && admin.email && appEmail === admin.email.toLowerCase()) ||
+      appData.uid === admin.uid
+    ) {
+      return json({ error: "You cannot review your own application" }, 403);
+    }
 
     const batch = db.batch();
     batch.set(applicationRef, decision.patch, { merge: true });
@@ -73,7 +91,10 @@ export default async (req: Request, _context: Context) => {
       error instanceof AdminAuthError || error instanceof ExpertApplicationError
         ? error.status
         : 500;
-    return json({ error: error.message || "Expert application review failed" }, status);
+    return json(
+      { error: error.message || "Expert application review failed" },
+      status,
+    );
   }
 };
 
@@ -99,7 +120,10 @@ function serializeDate(value: any): string | null {
 }
 
 function clampLimit(value: unknown) {
-  const limit = typeof value === "number" && Number.isFinite(value) ? Math.floor(value) : 50;
+  const limit =
+    typeof value === "number" && Number.isFinite(value)
+      ? Math.floor(value)
+      : 50;
   return Math.min(Math.max(limit, 1), 100);
 }
 

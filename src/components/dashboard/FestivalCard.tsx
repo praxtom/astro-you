@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { postJson } from "../../lib/apiFetch";
 import { motion } from 'framer-motion';
 import { Calendar, Loader2 } from 'lucide-react';
 
@@ -19,12 +20,7 @@ export const FestivalCard: React.FC = () => {
         const fetchFestivals = async () => {
             try {
                 setLoading(true);
-                const res = await fetch('/api/kundali', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ chartType: 'FESTIVALS' }),
-                    signal: controller.signal,
-                });
+                const res = await postJson("/api/kundali", { chartType: 'FESTIVALS' }, { signal: controller.signal });
                 if (!res.ok) throw new Error('Failed');
                 const result = await res.json();
                 const raw = result.data ?? result;
