@@ -1,8 +1,41 @@
 # AstroYou — Pre-Launch Production Audit
 
-> **Status:** Audit complete (2026-06-10). **Verdict: NOT okay to commit/launch as-is.**
-> Architecture is sound; a cluster of repeated, fixable defects blocks launch.
+> **Status:** Audit complete (2026-06-10) → **Remediation complete (2026-06-10).**
+> All BLOCKER and HIGH findings, and the actioned MEDIUM/LOW items, are fixed on
+> branch `security/prelaunch-hardening` (commits prefixed `security(prelaunch)`).
 > Method: code-grounded subagent sweep across all subsystems; highest-risk findings hand-verified against source.
+
+## Remediation summary (what was fixed)
+
+| Phase   | Area             | Commit theme                                                                                                                                                                                                                                                |
+| ------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0       | Gemini model     | Verified live; moved to `GEMINI_MODEL` env var (was NOT a blocker — model is valid)                                                                                                                                                                         |
+| 1       | Config/rules     | Firestore catch-all deny + field-equality credit guard + server-only subcollections; CSP/HSTS/X-Frame headers; secret scanning re-enabled (omit public VITE\_\*); SW excludes auth/API; plan-id throws; ESM `.js`; SEO sitemap/robots + prerender integrity |
+| 2.0–2.1 | Auth             | `require-auth` helpers; fail-closed rate limiter (no spoofable client-ip); auth+rate-limit on kundali/transit/horoscope/compatibility/proactive-nudge; client `postJson` token attach; birthData validation                                                 |
+| 2.2–2.3 | Credits          | Server-side AI credit reserve-before-generate + refund; guest trial enforced server-side                                                                                                                                                                    |
+| 2.5     | OTP              | HMAC hash at rest + timing-safe compare; atomic send/verify transactions; email-send failure guard; lockout via blockedUntil                                                                                                                                |
+| 2.6     | Webhook          | 405 on non-POST; stale-processing reprocess; periodKey `??`; grace period anchored to current_end                                                                                                                                                           |
+| 2.7     | Prompt injection | Persona resolved server-side by id (no raw client prompt); atman free-text sanitized; OTP secret fail-closed                                                                                                                                                |
+| 2.8     | Stream/PII       | Client-disconnect stream abort; PII log scrub; messages validation. (abortSignal-as-body-param live-verified invalid → removed)                                                                                                                             |
+| 2.4     | Reports          | Charge-before-generate + refund on all failure paths; rate-limit; generic errors                                                                                                                                                                            |
+| 3.1     | Atman            | knownPatterns/lifeEvents caps (1 MB doc guard); atomic transaction writes                                                                                                                                                                                   |
+| 3.2     | Scheduled jobs   | Cursor pagination (no more first-200-only); digest idempotency + Resend Idempotency-Key; removed emailOverride                                                                                                                                              |
+| 3.3     | Consult          | Mid-session credit guard (402 when funded time used)                                                                                                                                                                                                        |
+| 4.1     | Referral         | Random unguessable codes (store-once); one-referral-ever guard; rate-limit                                                                                                                                                                                  |
+| 4.2     | Trust            | Session-ownership check; deterministic ids; moderation gate (public only on approval); atomic batch                                                                                                                                                         |
+| 4.3     | Analytics/admin  | IP-only analytics rate key; credit-adjustment cap; expert self-approval block; audit-log query filters + index; admin-summary field mask                                                                                                                    |
+| 4.4     | Notifications    | Stale FCM token cleanup; WhatsApp disabled by default; emotional-nudge frequency cap + quiet hours; email unsubscribe footer                                                                                                                                |
+| 4.5     | Mediums          | PDF truncation marker; export rate-limit+audit; delete-account ordering; analytics PII value redaction; guest-migration field whitelist; manifest icon purpose                                                                                              |
+
+**Verification:** app + functions typecheck clean; 142 function tests pass (OTP/sanitize/referral tests added); production build green (424 SEO pages); Gemini streaming live-verified.
+
+**Required env vars to set before deploy:** `OTP_HASH_SECRET` (≥32 chars; OTP login fails closed without it), optionally `GEMINI_MODEL`, `MAX_ADMIN_CREDIT_ADJUSTMENT`, `WHATSAPP_NUDGES_ENABLED`. Deploy `firestore.rules` + `firestore.indexes.json` (new auditLogs uid index).
+
+**Deferred (non-blocking):** Admin.tsx multi-redirect race (cosmetic; server-authoritative). Background-function conversion for long PDF/AI reports (reliability, not security). Dead client `processAnalysisResult` brain path (unused).
+
+---
+
+## Original findings (for reference)
 
 ## How to read this
 
