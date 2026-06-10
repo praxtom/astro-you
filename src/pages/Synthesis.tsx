@@ -35,7 +35,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { trackAcquisitionEvent } from "../lib/acquisition";
-import { useRazorpay } from "../hooks/useRazorpay";
+import { loadRazorpayCheckout } from "../lib/razorpay-loader";
 import { SynthesisSEO } from "../components/SEO";
 import Kundali from "../components/astrology/Kundali";
 import CelestialChart from "../components/astrology/CelestialChart";
@@ -60,8 +60,7 @@ type Message = ChatMessage;
 export default function Synthesis() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { user } = useAuth();
-  const isRPCLoaded = useRazorpay();
+  const { user, loading: authLoading } = useAuth();
   const showError = useErrorToast();
 
   const [birthData, setBirthData] = useState<any>(null);
@@ -172,8 +171,9 @@ export default function Synthesis() {
     }
   }, [user, currentChatId]);
 
-  const welcomeName =
-    profile?.name || user?.displayName || user?.email?.split("@")[0] || "";
+  const welcomeName = user
+    ? profile?.name || user.displayName || user.email?.split("@")[0] || ""
+    : "";
   const welcomeMessage = useMemo<Message>(
     () => ({
       id: "welcome",
@@ -362,10 +362,15 @@ export default function Synthesis() {
       setShowAuthModal(true);
       return;
     }
-    if (!isRPCLoaded) return;
 
     setIsPaying(true);
     try {
+      await loadRazorpayCheckout();
+      const Razorpay = (window as Window & { Razorpay?: any }).Razorpay;
+      if (!Razorpay || !import.meta.env.VITE_RAZORPAY_KEY_ID) {
+        throw new Error("Payment checkout is not configured.");
+      }
+
       const resp = await fetch("/api/pay/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -376,6 +381,9 @@ export default function Synthesis() {
         }),
       });
       const order = await resp.json();
+      if (!resp.ok) {
+        throw new Error(order.error || "Could not create payment order.");
+      }
 
       const options = {
         key: import.meta.env.VITE_RAZORPAY_KEY_ID,
@@ -411,7 +419,7 @@ export default function Synthesis() {
         },
       };
 
-      const rzp = new (window as any).Razorpay(options);
+      const rzp = new Razorpay(options);
       rzp.open();
     } catch (err) {
       console.error(err);
@@ -426,7 +434,7 @@ export default function Synthesis() {
 
   // Handle message sending
   const handleSend = async () => {
-    if (!input.trim() || isSynthesizing) return;
+    if (!input.trim() || isSynthesizing || authLoading) return;
 
     const isOutOfTime = !user
       ? secondsUsed >= FREE_LIMIT_SECONDS
@@ -655,11 +663,23 @@ export default function Synthesis() {
       }
     } catch (err) {
       console.error(err);
-      showError(
-        "Connection Lost",
+      const errorMessage =
         err instanceof Error
           ? err.message
-          : "Could not reach the cosmos. Please try sending your message again.",
+          : "Could not reach the cosmos. Please try sending your message again.";
+      setStreamingContent(null);
+      if (!user) {
+        const aiMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: errorMessage,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, aiMsg]);
+      }
+      showError(
+        "Connection Lost",
+        errorMessage,
       );
     } finally {
       setIsSynthesizing(false);
@@ -1193,14 +1213,31 @@ export default function Synthesis() {
                         ? "text-gold scale-110"
                         : "text-white/20 scale-100"
                     }`}
-                    disabled={isSynthesizing || !input.trim()}
+                    disabled={isSynthesizing || authLoading || !input.trim()}
                     aria-label="Send message"
                   >
                     <Send size={24} />
                   </button>
                 </div>
+                {!user && (
+                  <div className="mx-auto mt-3 flex max-w-4xl flex-col items-center justify-center gap-2 rounded-xl border border-gold/15 bg-gold/5 px-4 py-3 text-center text-xs text-white/55 sm:flex-row">
+                    <span>
+                      Guest mode has a small server limit. Sign in to use your
+                      account credits and save replies.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAuthModal(true)}
+                      className="text-gold hover:text-gold/80"
+                    >
+                      Sign in
+                    </button>
+                  </div>
+                )}
                 <p className="text-center mt-2 text-xs uppercase tracking-[0.2em] text-white/20">
-                  Personalized for {birthData?.name || "Seeker"}
+                  {user
+                    ? `Personalized for ${birthData?.name || "Seeker"}`
+                    : `Guest preview${birthData?.name ? ` for ${birthData.name}` : ""}`}
                 </p>
               </div>
             </div>
