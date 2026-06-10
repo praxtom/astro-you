@@ -7,44 +7,44 @@ import {
   type BrainWhatsAppMessage,
 } from "./shared/brain-nudges";
 import { resolveResendApiKey } from "./shared/env.js";
+import { processUsersPaged } from "./shared/scheduled-users";
 
 export const handler = schedule("0 * * * *", async () => {
-  const limit = Number(process.env.BRAIN_NUDGE_BATCH_SIZE || 200);
-  const users = await db.collection("users").limit(limit).get();
+  const maxUsers = Number(process.env.BRAIN_NUDGE_BATCH_SIZE || 500);
   const sendEmail = createEmailSender();
   const loadPushTokens = createPushTokenLoader();
   const sendPush = createPushSender();
   const sendWhatsApp = createWhatsAppSender();
-  const results = [];
+  const results: Array<{
+    sent?: boolean;
+    emailSent?: boolean;
+    pushSent?: boolean;
+    whatsappSent?: boolean;
+    skippedReason?: string;
+  }> = [];
 
-  for (const userDoc of users.docs) {
-    try {
-      results.push(
-        await runProactiveBrainForUser(
-          { db, sendEmail, loadPushTokens, sendPush, sendWhatsApp },
-          {
-            uid: userDoc.id,
-            sendEmail: true,
-          },
-        ),
-      );
-    } catch (err: any) {
-      console.error("[BrainNudgesScheduled] User failed:", userDoc.id, err);
-      results.push({
-        uid: userDoc.id,
-        sent: false,
-        emailSent: false,
-        pushSent: false,
-        whatsappSent: false,
-        skippedReason: err.message || "failed",
-      });
-    }
-  }
+  const { processed, reachedEnd } = await processUsersPaged(
+    { job: "brain-nudges", maxUsers },
+    async (userDoc) => {
+      try {
+        results.push(
+          await runProactiveBrainForUser(
+            { db, sendEmail, loadPushTokens, sendPush, sendWhatsApp },
+            { uid: userDoc.id, sendEmail: true },
+          ),
+        );
+      } catch (err: any) {
+        console.error("[BrainNudgesScheduled] User failed:", userDoc.id, err);
+        results.push({ sent: false, skippedReason: err.message || "failed" });
+      }
+    },
+  );
 
   return {
     statusCode: 200,
     body: JSON.stringify({
-      processed: results.length,
+      processed,
+      reachedEnd,
       sent: results.filter((item) => item.sent).length,
       emailSent: results.filter((item) => item.emailSent).length,
       pushSent: results.filter((item) => item.pushSent).length,
@@ -66,7 +66,8 @@ function createEmailSender() {
         Authorization: `Bearer ${resendApiKey}`,
       },
       body: JSON.stringify({
-        from: process.env.DIGEST_FROM_EMAIL || "AstroYou <noreply@astroyou.app>",
+        from:
+          process.env.DIGEST_FROM_EMAIL || "AstroYou <noreply@astroyou.app>",
         to: email.to,
         subject: email.subject,
         html: email.html,
@@ -90,7 +91,10 @@ function createPushTokenLoader() {
       .get();
     return snapshot.docs
       .map((doc) => doc.data().token)
-      .filter((token): token is string => typeof token === "string" && token.length > 0);
+      .filter(
+        (token): token is string =>
+          typeof token === "string" && token.length > 0,
+      );
   };
 }
 
@@ -127,19 +131,22 @@ function createWhatsAppSender() {
   if (!accessToken || !phoneNumberId) return undefined;
 
   return async (message: BrainWhatsAppMessage) => {
-    const response = await fetch(`https://graph.facebook.com/v20.0/${phoneNumberId}/messages`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
+    const response = await fetch(
+      `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          to: message.to,
+          type: "text",
+          text: { body: message.body },
+        }),
       },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to: message.to,
-        type: "text",
-        text: { body: message.body },
-      }),
-    });
+    );
 
     if (!response.ok) {
       throw new Error(`whatsapp_provider_${response.status}`);
@@ -148,5 +155,9 @@ function createWhatsAppSender() {
 }
 
 function getAppBaseUrl() {
-  return (process.env.APP_BASE_URL || process.env.URL || "https://astroyou.app").replace(/\/$/, "");
+  return (
+    process.env.APP_BASE_URL ||
+    process.env.URL ||
+    "https://astroyou.app"
+  ).replace(/\/$/, "");
 }

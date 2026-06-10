@@ -16,7 +16,6 @@ export async function generateDailyDigestForUser(input: {
   uid: string;
   sendEmail: boolean;
   channel: "preview" | "email" | "scheduled_email";
-  emailOverride?: string | null;
 }): Promise<DailyDigestRunResult> {
   const userSnap = await db.collection("users").doc(input.uid).get();
   const userData = userSnap.data() || {};
@@ -24,10 +23,38 @@ export async function generateDailyDigestForUser(input: {
   const prefs = profile.notificationPrefs || userData.notificationPrefs || {};
 
   if (input.sendEmail && prefs.emailDigest === false) {
-    return { uid: input.uid, emailSent: false, skippedReason: "email_digest_disabled" };
+    return {
+      uid: input.uid,
+      emailSent: false,
+      skippedReason: "email_digest_disabled",
+    };
   }
 
-  const email = input.emailOverride || profile.email || userData.email;
+  // Idempotency for the scheduled path: one digest per user per UTC day. If the
+  // cron double-fires, we skip re-sending instead of emailing twice.
+  const dateStr = new Date().toISOString().split("T")[0];
+  const digestsCol = db
+    .collection("users")
+    .doc(input.uid)
+    .collection("digests");
+  const idempotent = input.channel === "scheduled_email";
+  const digestRef = idempotent
+    ? digestsCol.doc(`${dateStr}`)
+    : digestsCol.doc();
+  if (idempotent) {
+    const existing = await digestRef.get();
+    if (existing.exists && existing.data()?.emailSent) {
+      return {
+        uid: input.uid,
+        emailSent: false,
+        skippedReason: "already_sent_today",
+      };
+    }
+  }
+
+  // Email is always resolved from the user's own profile — never from caller
+  // input — so this can't be used to send a digest to an arbitrary address.
+  const email = profile.email || userData.email;
   const { userContext } = await buildUserContext({ uid: input.uid });
   const digest = buildDailyDigest({
     name: userContext.name || profile.name || email?.split("@")[0] || "Seeker",
@@ -51,9 +78,12 @@ export async function generateDailyDigestForUser(input: {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${resendApiKey}`,
+          // Resend dedupes retries carrying the same key.
+          "Idempotency-Key": `digest_${input.uid}_${dateStr}`,
         },
         body: JSON.stringify({
-          from: process.env.DIGEST_FROM_EMAIL || "AstroYou <noreply@astroyou.app>",
+          from:
+            process.env.DIGEST_FROM_EMAIL || "AstroYou <noreply@astroyou.app>",
           to: email,
           subject: digest.subject,
           html: digest.html,
@@ -66,7 +96,7 @@ export async function generateDailyDigestForUser(input: {
     }
   }
 
-  await db.collection("users").doc(input.uid).collection("digests").add({
+  await digestRef.set({
     channel: input.channel,
     emailSent,
     skippedReason: skippedReason || null,

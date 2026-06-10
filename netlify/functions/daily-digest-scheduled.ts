@@ -1,49 +1,39 @@
 import { schedule } from "@netlify/functions";
-import { db } from "./shared/firebase-admin";
 import { generateDailyDigestForUser } from "./shared/daily-digest-runner";
+import { processUsersPaged } from "./shared/scheduled-users";
 
 export const handler = schedule("30 1 * * *", async () => {
-  const limit = Number(process.env.DAILY_DIGEST_BATCH_SIZE || 200);
-  const users = await db.collection("users").limit(limit).get();
-  const results = [];
+  const maxUsers = Number(process.env.DAILY_DIGEST_BATCH_SIZE || 1000);
+  let emailSent = 0;
+  let skipped = 0;
 
-  for (const userDoc of users.docs) {
-    const data = userDoc.data();
-    const profile = data.profile || data;
-    const prefs = profile.notificationPrefs || data.notificationPrefs || {};
-    if (prefs.emailDigest === false) {
-      results.push({
-        uid: userDoc.id,
-        emailSent: false,
-        skippedReason: "email_digest_disabled",
-      });
-      continue;
-    }
-
-    try {
-      results.push(
-        await generateDailyDigestForUser({
+  const { processed, reachedEnd } = await processUsersPaged(
+    { job: "daily-digest", maxUsers },
+    async (userDoc) => {
+      const data = userDoc.data();
+      const profile = data.profile || data;
+      const prefs = profile.notificationPrefs || data.notificationPrefs || {};
+      if (prefs.emailDigest === false) {
+        skipped += 1;
+        return;
+      }
+      try {
+        const result = await generateDailyDigestForUser({
           uid: userDoc.id,
           sendEmail: true,
           channel: "scheduled_email",
-        }),
-      );
-    } catch (err: any) {
-      console.error("[DailyDigestScheduled] User failed:", userDoc.id, err);
-      results.push({
-        uid: userDoc.id,
-        emailSent: false,
-        skippedReason: err.message || "failed",
-      });
-    }
-  }
+        });
+        if (result.emailSent) emailSent += 1;
+        else skipped += 1;
+      } catch (err: any) {
+        skipped += 1;
+        console.error("[DailyDigestScheduled] User failed:", userDoc.id, err);
+      }
+    },
+  );
 
   return {
     statusCode: 200,
-    body: JSON.stringify({
-      processed: results.length,
-      emailSent: results.filter((item) => item.emailSent).length,
-      skipped: results.filter((item) => item.skippedReason).length,
-    }),
+    body: JSON.stringify({ processed, reachedEnd, emailSent, skipped }),
   };
 });

@@ -21,14 +21,16 @@ export default async (req: Request, _context: Context) => {
       uid: decoded.uid,
       sendEmail,
       channel: sendEmail ? "email" : "preview",
-      emailOverride: decoded.email,
     });
 
     if (result.skippedReason === "email_digest_disabled") {
-      return new Response(JSON.stringify({ error: "Email digest is disabled" }), {
-        status: 403,
-        headers: { "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "Email digest is disabled" }),
+        {
+          status: 403,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
     }
 
     return new Response(JSON.stringify(result), {
@@ -37,10 +39,13 @@ export default async (req: Request, _context: Context) => {
     });
   } catch (error: any) {
     console.error("[DailyDigest] Error:", error);
-    return new Response(JSON.stringify({ error: error.message || "Digest failed" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ error: error.message || "Digest failed" }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
   }
 };
 
