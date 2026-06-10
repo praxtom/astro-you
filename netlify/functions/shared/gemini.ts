@@ -641,6 +641,7 @@ export async function* synthesizeStream(
   kundaliSummary: string,
   previousInteractionId?: string,
   personaOverride?: string,
+  abortSignal?: AbortSignal,
 ): AsyncGenerator<SynthesisStreamEvent> {
   const client = getClient();
 
@@ -680,6 +681,8 @@ export async function* synthesizeStream(
   let interactionId = "";
 
   for await (const event of stream as any) {
+    // Stop consuming if the client disconnected.
+    if (abortSignal?.aborted) break;
     const eventType = event.event_type || event.type;
 
     if (eventType === "content.delta") {
@@ -745,10 +748,9 @@ export async function synthesize(
 
   const lastMessage = messages[messages.length - 1].content;
 
-  console.log("[Synthesis] Input:", lastMessage.substring(0, 50) + "...");
+  // Do not log message content — it can contain sensitive personal details.
   console.log(
-    "[Synthesis] Previous Interaction ID:",
-    previousInteractionId || "null (first message)",
+    `[Synthesis] Input received (${lastMessage.length} chars); previousInteractionId: ${previousInteractionId ? "yes" : "none"}`,
   );
 
   // Use the interactions API with system_instruction and previous_interaction_id

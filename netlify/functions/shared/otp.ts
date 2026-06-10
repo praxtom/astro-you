@@ -7,12 +7,15 @@ import crypto from "crypto";
  * without the server secret).
  */
 function otpSecret(): string {
-  return (
-    process.env.OTP_HASH_SECRET ||
-    process.env.RAZORPAY_WEBHOOK_SECRET ||
-    process.env.FIREBASE_SERVICE_ACCOUNT ||
-    "astroyou-otp-fallback-secret"
-  );
+  const secret = process.env.OTP_HASH_SECRET;
+  if (!secret || secret.length < 32) {
+    // Fail closed: never fall back to a hardcoded literal or another service's
+    // credential. A weak/absent key would let codes be brute-forced offline.
+    throw new Error(
+      "OTP_HASH_SECRET must be set to a random value of at least 32 characters",
+    );
+  }
+  return secret;
 }
 
 export function hashOtp(code: string, email: string): string {

@@ -12,6 +12,7 @@ import { buildUserContext } from "./shared/user-context";
 import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit";
 import { persistAtmanInsights } from "./shared/atman-brain";
 import { applyCreditChange, CreditError } from "./shared/credits";
+import { getConsultPersona } from "./shared/consult-session";
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
@@ -39,8 +40,7 @@ export default async (req: Request, _context: Context) => {
     messageCount,
     yogaData,
     panchangData,
-    personaPrompt,
-    personaName,
+    personaId,
     idToken,
   } = body;
 
@@ -177,6 +177,10 @@ export default async (req: Request, _context: Context) => {
   const isFirstMessage = !previousInteractionId;
   const lastUserMessage = messages[messages.length - 1].content;
 
+  // Cancel the upstream Gemini stream if the client disconnects mid-response,
+  // so we don't keep consuming a stream nobody is reading.
+  const abortController = new AbortController();
+
   const readable = new ReadableStream({
     async start(controller) {
       const send = (data: any) => {
@@ -188,9 +192,15 @@ export default async (req: Request, _context: Context) => {
         let interactionId = "";
         let suggestedRoutine: any = undefined;
 
-        // Stream AI response
-        const personaOverride = personaPrompt
-          ? `\n\nPERSONA OVERRIDE:\nYour name is ${personaName || "Astrologer"}. ${personaPrompt}`
+        // Stream AI response. The persona is resolved from a server-side
+        // registry by id — we never accept a raw persona prompt from the
+        // client (that would let a caller inject system instructions /
+        // jailbreak the guidance policy).
+        const persona = personaId
+          ? getConsultPersona(String(personaId))
+          : undefined;
+        const personaOverride = persona
+          ? `\n\nPERSONA OVERRIDE:\nYour name is ${persona.name}. ${persona.promptModifier}`
           : undefined;
 
         for await (const event of synthesizeStream(
@@ -202,6 +212,7 @@ export default async (req: Request, _context: Context) => {
           kundaliSummary,
           previousInteractionId,
           personaOverride,
+          abortController.signal,
         )) {
           if (event.type === "delta") {
             send({ type: "delta", text: event.text });
@@ -228,9 +239,11 @@ export default async (req: Request, _context: Context) => {
           (messageCount || 0) >= 2 && chatMessages?.length > 0;
         const safe = <T>(p: Promise<T>): Promise<T | null> =>
           p.catch((err) => {
+            // Log only the error name/type — messages from the AI SDK can echo
+            // prompt or response fragments containing personal data.
             console.warn(
               "[Synthesis] Parallel task failed:",
-              err?.message || err,
+              err?.name || "error",
             );
             return null;
           });
@@ -319,6 +332,10 @@ export default async (req: Request, _context: Context) => {
         });
         controller.close();
       }
+    },
+    cancel() {
+      // Client disconnected — stop consuming the upstream Gemini stream.
+      abortController.abort();
     },
   });
 
