@@ -6,6 +6,12 @@ import {
   getYogaAnalysis,
 } from "./astro-api.js";
 import type { UserContext } from "./gemini.js";
+import {
+  getWeeklyAstrologyContext,
+  type WeeklyAstrologyCacheRecord,
+  type WeeklyAstrologyContextData,
+  type WeeklyAstrologyContextStore,
+} from "./weekly-astrology-context.js";
 import { normalizePlatformLanguage } from "./languages.js";
 import { selectBrainContext } from "./atman-brain.js";
 import { resolveAtmanContextSource } from "./user-context-source.js";
@@ -43,6 +49,17 @@ const withTimeout = <T>(
     }),
   ]);
 
+const weeklyAstrologyContextStore: WeeklyAstrologyContextStore = {
+  async get(docId) {
+    const snapshot = await db.collection("weeklyAstrologyContext").doc(docId).get();
+    if (!snapshot.exists) return null;
+    return snapshot.data() as WeeklyAstrologyCacheRecord;
+  },
+  async set(docId, record) {
+    await db.collection("weeklyAstrologyContext").doc(docId).set(record);
+  },
+};
+
 export async function buildUserContext(
   options: BuildUserContextOptions,
 ): Promise<BuiltUserContext> {
@@ -70,54 +87,28 @@ export async function buildUserContext(
 
   let dashaInfo: UserContext["dashaInfo"] = undefined;
   let transitContext: string | undefined = undefined;
-  let yogasResult: any = null;
-  let panchangResult: any = null;
+  let weeklyAstrologyContext: WeeklyAstrologyContextData = {};
 
   if (!options.previousInteractionId && birthData?.dob && birthData?.tob) {
     try {
-      const [dashas, transitEvents, yogasRes, panchangRes] = await Promise.all([
-        withTimeout(getDashaPeriods(birthData), 5000, []),
-        withTimeout(getTransitReport(birthData), 5000, []),
-        withTimeout(getYogaAnalysis(birthData), 5000, null),
-        withTimeout(getPanchang(), 5000, null),
-      ]);
+      const weeklyContext = await getWeeklyAstrologyContext({
+        uid: options.uid,
+        birthData,
+        store: weeklyAstrologyContextStore,
+        fetchFresh: () => fetchFreshAstrologyContext(birthData),
+      });
 
-      yogasResult = yogasRes;
-      panchangResult = panchangRes;
+      weeklyAstrologyContext = weeklyContext.data;
+      dashaInfo = weeklyAstrologyContext.dashaInfo;
+      transitContext = weeklyAstrologyContext.transitContext;
 
-      if (Array.isArray(dashas) && dashas.length > 0) {
-        const dashaList = dashas as any[];
-        const currentMaha = dashaList.find((d: any) => d.isCurrent);
-        const currentAntar = currentMaha?.subPeriods?.find(
-          (s: any) => s.isCurrent,
+      if (weeklyContext.source !== "cache") {
+        console.info(
+          `[UserContext] Weekly astrology context source: ${weeklyContext.source}`,
         );
-        dashaInfo = {
-          currentMahadasha: currentMaha?.planet || currentMaha?.planetName,
-          currentAntardasha: currentAntar?.planet || currentAntar?.planetName,
-          mahadashaEnd: currentMaha?.endDate,
-          antardashaEnd: currentAntar?.endDate,
-        };
-      }
-
-      if (Array.isArray(transitEvents) && transitEvents.length > 0) {
-        transitContext = transitEvents
-          .slice(0, 6)
-          .map((event: any) => {
-            const planet = event.transit_planet || event.planet || "Planet";
-            const aspect = event.aspect_type || event.aspect || "aspecting";
-            const target =
-              event.natal_planet || event.natal_body || event.target || "point";
-            const text =
-              event.interpretation ||
-              event.description ||
-              event.text ||
-              "Active transit";
-            return `${planet} ${aspect} natal ${target}: ${text}`;
-          })
-          .join("\n");
       }
     } catch (error) {
-      console.warn("[UserContext] Astrology enrichment failed:", error);
+      console.warn("[UserContext] Weekly astrology context unavailable:", error);
     }
   }
 
@@ -142,12 +133,51 @@ export async function buildUserContext(
       undefined,
     yogaData:
       options.yogaData ||
-      normalizeYogas(yogasResult?.yogas || yogasResult) ||
+      weeklyAstrologyContext.yogaData ||
       undefined,
-    panchangData: options.panchangData || panchangResult || undefined,
+    panchangData:
+      options.panchangData || weeklyAstrologyContext.panchangData || undefined,
   };
 
   return { userContext, kundaliSummary };
+}
+
+async function fetchFreshAstrologyContext(
+  birthData: any,
+): Promise<WeeklyAstrologyContextData> {
+  const [dashas, transitEvents, yogasResult, panchangResult] =
+    await Promise.all([
+      readAstrologyPart("Dasha", getDashaPeriods(birthData), []),
+      readAstrologyPart("Transit report", getTransitReport(birthData), []),
+      readAstrologyPart("Yoga analysis", getYogaAnalysis(birthData), null),
+      readAstrologyPart("Panchang", getPanchang(), null),
+    ]);
+
+  const context = {
+    dashaInfo: extractDashaInfo(dashas),
+    transitContext: buildTransitContext(transitEvents),
+    yogaData: normalizeYogas(yogasResult?.yogas || yogasResult),
+    panchangData: normalizePanchang(panchangResult),
+  };
+
+  if (!hasAstrologyContextData(context)) {
+    throw new Error("Astrology context pull returned no usable data.");
+  }
+
+  return context;
+}
+
+async function readAstrologyPart<T>(
+  label: string,
+  promise: Promise<T>,
+  fallback: T,
+): Promise<T> {
+  try {
+    return await withTimeout(promise, 5000, fallback);
+  } catch (error) {
+    console.warn(`[UserContext] ${label} unavailable:`, error);
+    return fallback;
+  }
 }
 
 function toBirthData(profile: Record<string, any>) {
@@ -184,6 +214,42 @@ function normalizeAscendant(value: unknown) {
   return undefined;
 }
 
+function extractDashaInfo(value: any): UserContext["dashaInfo"] | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+
+  const currentMaha = value.find((dasha: any) => dasha.isCurrent);
+  const currentAntar = currentMaha?.subPeriods?.find(
+    (period: any) => period.isCurrent,
+  );
+
+  return {
+    currentMahadasha: currentMaha?.planet || currentMaha?.planetName,
+    currentAntardasha: currentAntar?.planet || currentAntar?.planetName,
+    mahadashaEnd: currentMaha?.endDate,
+    antardashaEnd: currentAntar?.endDate,
+  };
+}
+
+function buildTransitContext(value: any): string | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+
+  return value
+    .slice(0, 6)
+    .map((event: any) => {
+      const planet = event.transit_planet || event.planet || "Planet";
+      const aspect = event.aspect_type || event.aspect || "aspecting";
+      const target =
+        event.natal_planet || event.natal_body || event.target || "point";
+      const text =
+        event.interpretation ||
+        event.description ||
+        event.text ||
+        "Active transit";
+      return `${planet} ${aspect} natal ${target}: ${text}`;
+    })
+    .join("\n");
+}
+
 function normalizeYogas(value: any): UserContext["yogaData"] | undefined {
   const yogas = Array.isArray(value) ? value : value?.yogas;
   if (!Array.isArray(yogas)) return undefined;
@@ -192,6 +258,34 @@ function normalizeYogas(value: any): UserContext["yogaData"] | undefined {
     strength: yoga.strength,
     planets: Array.isArray(yoga.planets) ? yoga.planets : undefined,
   }));
+}
+
+function normalizePanchang(value: any): UserContext["panchangData"] | undefined {
+  if (!value || typeof value !== "object") return undefined;
+
+  return {
+    tithi: toOptionalString(value.tithi || value.tithi_name),
+    nakshatra: toOptionalString(value.nakshatra || value.nakshatra_name),
+    yoga: toOptionalString(value.yoga || value.yoga_name),
+    karana: toOptionalString(value.karana || value.karana_name),
+    rahu_kaal: toOptionalString(
+      value.rahu_kaal || value.rahukaal || value.rahuKaal,
+    ),
+  };
+}
+
+function hasAstrologyContextData(context: WeeklyAstrologyContextData) {
+  return Boolean(
+    context.dashaInfo ||
+      context.transitContext ||
+      context.yogaData?.length ||
+      (context.panchangData &&
+        Object.values(context.panchangData).some((value) => Boolean(value))),
+  );
+}
+
+function toOptionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value : undefined;
 }
 
 async function loadRecentSummaries(

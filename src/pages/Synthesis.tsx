@@ -44,8 +44,6 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { downloadChart } from "../lib/chartStorage";
 import { useConsciousness } from "../hooks/useConsciousness";
-import { useYogas } from "../hooks/useYogas";
-import { usePanchang } from "../hooks/usePanchang";
 import { PranaOverlay } from "../components/prana/PranaOverlay";
 import { DharmaList } from "../components/dharma/DharmaList";
 import { RoutineProposal } from "../components/dharma/RoutineProposal";
@@ -68,12 +66,6 @@ export default function Synthesis() {
   // Atman Integration
   const { isAnxious, isChaotic, isReactive, atmanState, refreshAtman } =
     useConsciousness();
-  const { yogas } = useYogas(birthData);
-  const { panchang: panchangData } = usePanchang(
-    birthData?.pob,
-    birthData?.lat,
-    birthData?.lng,
-  );
   const [showPrana, setShowPrana] = useState(false);
   const [showAltar, setShowAltar] = useState(false);
   const [suggestedRoutine, setSuggestedRoutine] = useState<UserRoutine | null>(
@@ -528,14 +520,6 @@ export default function Synthesis() {
               ? chatMessagesForSummary
               : undefined,
           messageCount: messages.filter((m) => m.id !== "welcome").length,
-          yogaData: yogas?.length
-            ? yogas.map((y) => ({
-                name: y.name,
-                strength: y.strength,
-                planets: y.planets,
-              }))
-            : undefined,
-          panchangData: panchangData || undefined,
           idToken,
         }),
       });
