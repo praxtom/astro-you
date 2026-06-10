@@ -31,8 +31,8 @@ const InfluenceCard = ({
       align === "right"
         ? "lg:ml-auto"
         : align === "center"
-        ? "lg:mx-auto"
-        : "lg:mr-auto"
+          ? "lg:mx-auto"
+          : "lg:mr-auto"
     }`}
     style={{
       background: `rgba(255, 255, 255, 0.08)`,
@@ -110,7 +110,9 @@ function Landing() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
-  const [trustSummary, setTrustSummary] = useState<LandingTrustSummary | null>(null);
+  const [trustSummary, setTrustSummary] = useState<LandingTrustSummary | null>(
+    null,
+  );
   const stackRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -174,7 +176,10 @@ function Landing() {
       <LandingSEO />
 
       {/* Full-Screen Static Ambiance (Static) */}
-      <div className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none" aria-hidden="true">
+      <div
+        className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none"
+        aria-hidden="true"
+      >
         <div className="blob top-[-10%] right-[-5%] w-[60vw] h-[60vw] bg-violet/5 animate-float-slow"></div>
         <div
           className="blob bottom-[-10%] left-[-5%] w-[60vw] h-[60vw] bg-indigo/5 animate-float-slow"
@@ -190,7 +195,10 @@ function Landing() {
       {/* Unified Narrative Section: Hero + ScrollyStack */}
       <div className="relative" ref={stackRef}>
         {/* Persistent 3D Background */}
-        <div className="sticky top-0 h-screen w-full z-0 overflow-hidden bg-[#030308]" aria-hidden="true">
+        <div
+          className="sticky top-0 h-screen w-full z-0 overflow-hidden bg-[#030308]"
+          aria-hidden="true"
+        >
           <div className="w-full h-full">
             <CelestialEngine progress={scrollProgress} />
           </div>
@@ -201,14 +209,14 @@ function Landing() {
         {/* Content Layers */}
         <div className="relative z-10 -mt-[100vh]">
           {/* 1. Hero Layer */}
-          <section className="min-h-[92vh] flex items-center pt-20 pb-10 px-4 md:px-8">
+          <section className="min-h-[100vh] flex items-center pt-[120px] pb-24 px-6 md:px-12">
             <div className="container mx-auto">
               <div className="max-w-4xl">
                 <div className="transition-all duration-1000">
                   <span className="section-label font-black tracking-[0.5em] opacity-80 decoration-gold/50 underline underline-offset-8">
                     Modern Clarity
                   </span>
-                  <h1 className="mb-5 text-glow !leading-[1.05] mt-4">
+                  <h1 className="mb-10 text-glow !leading-[1.05] mt-6">
                     The Stars, <br />
                     <span className="italic font-light opacity-80 h-light">
                       revealed.
@@ -216,24 +224,27 @@ function Landing() {
                   </h1>
                 </div>
                 <div>
-                  <p className="text-body text-lg mb-6 max-w-2xl text-content-secondary/90 leading-relaxed font-sans font-light">
+                  <p className="text-body text-xl mb-14 max-w-2xl text-content-secondary/90 leading-relaxed font-sans font-light">
                     AstroYou combines ancient Vedic wisdom with modern precision
                     to deliver accurate personal insights. Your birth chart,
                     instantly calculated.
                   </p>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex flex-col sm:flex-row gap-6">
                   <button
-                    className="btn btn-primary px-8 md:px-10 group"
+                    className="btn btn-primary px-12 group"
                     onClick={async () => {
                       if (user) {
                         const docSnap = await getDoc(
-                          doc(db, "users", user.uid)
+                          doc(db, "users", user.uid),
                         );
                         if (docSnap.exists() && docSnap.data().name) {
                           navigate("/dashboard");
                         } else {
-                          sessionStorage.setItem(STORAGE_KEYS.MODE, "logged_in");
+                          sessionStorage.setItem(
+                            STORAGE_KEYS.MODE,
+                            "logged_in",
+                          );
                           setShowOnboardingModal(true);
                         }
                       } else {
@@ -247,7 +258,7 @@ function Landing() {
                     </span>
                   </button>
                   <button
-                    className="btn btn-outline px-8 md:px-10"
+                    className="btn btn-outline px-12"
                     onClick={() => {
                       sessionStorage.setItem(STORAGE_KEYS.MODE, "guest");
                       setShowOnboardingModal(true);
@@ -260,16 +271,16 @@ function Landing() {
             </div>
 
             {/* Scroll Indicator */}
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 opacity-40 animate-bounce">
+            <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 opacity-40 animate-bounce">
               <span className="text-[10px] tracking-[0.3em] uppercase">
                 Descend
               </span>
-              <div className="w-px h-8 bg-gradient-to-b from-gold to-transparent"></div>
+              <div className="w-px h-12 bg-gradient-to-b from-gold to-transparent"></div>
             </div>
           </section>
 
           {/* 2. Influence Stack Layers */}
-          <section className="container mx-auto px-4 md:px-8 py-8 md:py-10 space-y-[14vh]">
+          <section className="container mx-auto px-6 md:px-12 py-32 space-y-[120vh]">
             <InfluenceCard
               number="01"
               title="Sun (Surya)"
@@ -362,7 +373,7 @@ function Landing() {
           </section>
 
           {/* Spacer to allow stack to finish scroll */}
-          <div className="h-[10vh]"></div>
+          <div className="h-[20vh]"></div>
         </div>
       </div>
 
@@ -751,9 +762,9 @@ function Landing() {
               <span className="section-label">Trust</span>
               <h2 className="text-glow mt-3 mb-4">Proof before claims.</h2>
               <p className="max-w-xl text-content-secondary leading-relaxed">
-                Reviews and testimonials are shown only after real user submission
-                and moderation. Prediction feedback is tracked as aggregate signal,
-                not inflated social proof.
+                Reviews and testimonials are shown only after real user
+                submission and moderation. Prediction feedback is tracked as
+                aggregate signal, not inflated social proof.
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">

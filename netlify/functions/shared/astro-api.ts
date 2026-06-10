@@ -678,23 +678,46 @@ export async function getEclipseNatalImpact(
 
 /** POST /lunar/phases — Precise lunar phases. */
 export async function getLunarPhases(birthData: BirthData): Promise<any> {
+  // This endpoint takes a top-level `datetime_location`, NOT a `subject`
+  // wrapper — sending `subject` triggers a 422 (missing required field).
   const res = await fetch(`${API_BASE}/lunar/phases`, {
     method: "POST",
     headers: getHeaders(),
-    body: JSON.stringify({ subject: buildSubject(birthData) }),
+    body: JSON.stringify({
+      datetime_location: buildDateTimeLocation(
+        birthData.dob,
+        birthData.tob,
+        birthData.pob || undefined,
+        birthData.lat,
+        birthData.lng,
+      ),
+    }),
   });
-  if (!res.ok) throw new Error(`Lunar phases error: ${res.status}`);
+  if (!res.ok)
+    throw new Error(`Lunar phases error: ${res.status} - ${await res.text()}`);
   return unwrap(await res.json());
 }
 
 /** POST /lunar/void-of-course — Void of Course moon status. */
 export async function getVoidOfCourse(birthData: BirthData): Promise<any> {
+  // Like /lunar/phases, this takes `datetime_location`, not a `subject`.
   const res = await fetch(`${API_BASE}/lunar/void-of-course`, {
     method: "POST",
     headers: getHeaders(),
-    body: JSON.stringify({ subject: buildSubject(birthData) }),
+    body: JSON.stringify({
+      datetime_location: buildDateTimeLocation(
+        birthData.dob,
+        birthData.tob,
+        birthData.pob || undefined,
+        birthData.lat,
+        birthData.lng,
+      ),
+    }),
   });
-  if (!res.ok) throw new Error(`Void of course error: ${res.status}`);
+  if (!res.ok)
+    throw new Error(
+      `Void of course error: ${res.status} - ${await res.text()}`,
+    );
   return unwrap(await res.json());
 }
 

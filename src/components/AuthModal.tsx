@@ -219,7 +219,14 @@ export default function AuthModal({
         setError("Sign-in was cancelled.");
       } else if (err.code === "auth/unauthorized-domain") {
         setError(
-          "This domain is not allowed in Firebase Auth. Add astroyou.netlify.app to Firebase authorized domains.",
+          "This domain is not allowed in Firebase Auth. Add this hostname in Firebase Auth authorized domains.",
+        );
+      } else if (
+        err.code === "auth/internal-error" &&
+        window.location.hostname === "localhost"
+      ) {
+        setError(
+          "Local Google sign-in is blocked by Firebase or Google Cloud settings. Add localhost to Firebase Auth authorized domains and API key website restrictions.",
         );
       } else {
         setError(err.message || "Google sign-in failed.");

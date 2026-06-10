@@ -4,7 +4,10 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/useAuth";
 import { useUserProfile } from "../hooks";
 import { useConsciousness } from "../hooks/useConsciousness";
-import { useProactiveTriggers } from "../hooks/useProactiveTriggers";
+// Proactive "Guru Nudge" toasts disabled — they fired several at once and
+// felt spammy (and lingered onto other pages via the global ToastProvider).
+// Re-enable by restoring this import and the useProactiveTriggers(...) call below.
+// import { useProactiveTriggers } from "../hooks/useProactiveTriggers";
 import { usePanchang } from "../hooks/usePanchang";
 import { STORAGE_KEYS } from "../lib/constants";
 import { useErrorToast } from "../components/ui/toast-context";
@@ -78,7 +81,9 @@ export default function Dashboard() {
   const [isPublic, setIsPublic] = useState(false);
   const [referralCopied, setReferralCopied] = useState(false);
   const [referralCode, setReferralCode] = useState("");
-  const [referralStats, setReferralStats] = useState<ReferralStats | null>(null);
+  const [referralStats, setReferralStats] = useState<ReferralStats | null>(
+    null,
+  );
   const [referralLoading, setReferralLoading] = useState(false);
   const [referralError, setReferralError] = useState<string | null>(null);
 
@@ -98,7 +103,11 @@ export default function Dashboard() {
   const { atmanState, refreshAtman } = useConsciousness();
   const showError = useErrorToast();
 
-  const { panchang, loading: panchangLoading, error: panchangError } = usePanchang(
+  const {
+    panchang,
+    loading: panchangLoading,
+    error: panchangError,
+  } = usePanchang(
     profile?.pob,
     profile?.coordinates?.lat,
     profile?.coordinates?.lng,
@@ -107,14 +116,20 @@ export default function Dashboard() {
     () =>
       Boolean(
         panchang &&
-          [panchang.tithi, panchang.nakshatra, panchang.sunrise, panchang.sunset, panchang.rahu_kaal]
-            .some((value) => value && value !== "—"),
+        [
+          panchang.tithi,
+          panchang.nakshatra,
+          panchang.sunrise,
+          panchang.sunset,
+          panchang.rahu_kaal,
+        ].some((value) => value && value !== "—"),
       ),
     [panchang],
   );
   const todayGuide = useMemo(() => {
     const emotion = atmanState?.emotionalState || "stable";
-    const hasRoutineGap = user && (!atmanState?.routines || atmanState.routines.length === 0);
+    const hasRoutineGap =
+      user && (!atmanState?.routines || atmanState.routines.length === 0);
     const energy =
       emotion === "anxious" || emotion === "chaotic"
         ? "Grounding and slower decisions"
@@ -128,9 +143,10 @@ export default function Dashboard() {
       : emotion === "anxious"
         ? "Use the Daily Altar for a short grounding practice before big choices."
         : "Ask Jyotish one concrete question and turn the answer into one action.";
-    const caution = panchang?.rahu_kaal && panchang.rahu_kaal !== "—"
-      ? `Avoid starting important commitments during Rahu Kaal (${panchang.rahu_kaal}).`
-      : "Do not turn a passing mood into a final decision.";
+    const caution =
+      panchang?.rahu_kaal && panchang.rahu_kaal !== "—"
+        ? `Avoid starting important commitments during Rahu Kaal (${panchang.rahu_kaal}).`
+        : "Do not turn a passing mood into a final decision.";
     const nudge = hasRoutineGap
       ? "No active daily practice is saved yet. Add one gentle anchor."
       : `Your current rhythm looks ${emotion}. Let today's guidance match that pace.`;
@@ -140,7 +156,9 @@ export default function Dashboard() {
         : panchangError
           ? "Panchang timing is refreshing."
           : "Panchang is still loading.",
-      panchang?.rahu_kaal ? `Timing: Rahu Kaal is ${panchang.rahu_kaal}.` : "Timing: no Rahu Kaal data yet.",
+      panchang?.rahu_kaal
+        ? `Timing: Rahu Kaal is ${panchang.rahu_kaal}.`
+        : "Timing: no Rahu Kaal data yet.",
       hasRoutineGap
         ? "Memory: no active routine is saved."
         : `Memory: current state is ${emotion}.`,
@@ -222,7 +240,7 @@ export default function Dashboard() {
       done++; // Consciousness engaged
     return { done, total, pct: Math.round((done / total) * 100) };
   }, [profile, guestData, atmanState]);
-  useProactiveTriggers(panchang ?? undefined);
+  // useProactiveTriggers(panchang ?? undefined); // disabled — see note on import above
 
   useEffect(() => {
     if (!user) {
@@ -247,13 +265,15 @@ export default function Dashboard() {
           body: JSON.stringify({ idToken }),
         });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || "Could not load referrals");
+        if (!response.ok)
+          throw new Error(data.error || "Could not load referrals");
         if (cancelled) return;
         setReferralCode(normalizeClientReferralCode(data.code) || fallbackCode);
         setReferralStats({
           invited: Number(data.stats?.invited) || 0,
           creditsEarned: Number(data.stats?.creditsEarned) || 0,
-          referrerRewardCredits: Number(data.stats?.referrerRewardCredits) || 25,
+          referrerRewardCredits:
+            Number(data.stats?.referrerRewardCredits) || 25,
           refereeRewardCredits: Number(data.stats?.refereeRewardCredits) || 15,
         });
       } catch {
@@ -322,18 +342,29 @@ export default function Dashboard() {
     };
     const controller = new AbortController();
 
-    postJson("/api/kundali", { birthData, chartType: "DASHAS" }, { signal: controller.signal })
+    postJson(
+      "/api/kundali",
+      { birthData, chartType: "DASHAS" },
+      { signal: controller.signal },
+    )
       .then((r) => r.json())
       .then((res) => {
         const periods = res.periods || res.data?.periods || [];
         if (Array.isArray(periods)) setDashaPeriods(periods);
       })
       .catch((err) => {
-        if (err.name !== "AbortError") console.warn("[Dashboard] Dasha timeline unavailable:", err);
+        if (err.name !== "AbortError")
+          console.warn("[Dashboard] Dasha timeline unavailable:", err);
       });
 
     return () => controller.abort();
-  }, [userData?.dob, userData?.tob, userData?.pob, userData?.coordinates?.lat, userData?.coordinates?.lng]);
+  }, [
+    userData?.dob,
+    userData?.tob,
+    userData?.pob,
+    userData?.coordinates?.lat,
+    userData?.coordinates?.lng,
+  ]);
 
   const getZodiacSign = (day: number, month: number) => {
     const signs = [
@@ -360,12 +391,7 @@ export default function Dashboard() {
   }, [userData?.dob, userData?.tob, userData?.pob, userData?.sunSign]);
 
   useEffect(() => {
-    if (
-      !userData ||
-      !userData.dob ||
-      prediction ||
-      predictionError
-    ) {
+    if (!userData || !userData.dob || prediction || predictionError) {
       return;
     }
 
@@ -472,7 +498,9 @@ export default function Dashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ idToken, birthData, reportType: "natal" }),
       });
-      const errorPayload = response.ok ? null : await response.json().catch(() => null);
+      const errorPayload = response.ok
+        ? null
+        : await response.json().catch(() => null);
       if (!response.ok) {
         throw new Error(errorPayload?.error || "Failed to generate PDF");
       }
@@ -670,7 +698,9 @@ export default function Dashboard() {
               <h3 className="text-2xl font-display">Your Daily Guide</h3>
             </div>
             <button
-              onClick={() => user ? setShowDailyAltar(true) : navigate("/onboarding")}
+              onClick={() =>
+                user ? setShowDailyAltar(true) : navigate("/onboarding")
+              }
               className="px-4 py-2 rounded-xl bg-gold text-black text-xs font-bold uppercase tracking-widest"
             >
               Save Intention
@@ -701,12 +731,16 @@ export default function Dashboard() {
               <div>
                 <p className="text-white/30">Tithi</p>
                 <p className="text-white/70">{panchang?.tithi || "—"}</p>
-                {panchang?.tithiEnd && <p className="text-white/25">till {panchang.tithiEnd}</p>}
+                {panchang?.tithiEnd && (
+                  <p className="text-white/25">till {panchang.tithiEnd}</p>
+                )}
               </div>
               <div>
                 <p className="text-white/30">Nakshatra</p>
                 <p className="text-white/70">{panchang?.nakshatra || "—"}</p>
-                {panchang?.nakshatraEnd && <p className="text-white/25">till {panchang.nakshatraEnd}</p>}
+                {panchang?.nakshatraEnd && (
+                  <p className="text-white/25">till {panchang.nakshatraEnd}</p>
+                )}
               </div>
               <div>
                 <p className="text-white/30">Sunrise</p>
@@ -738,7 +772,9 @@ export default function Dashboard() {
             </div>
           )}
           <details className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-white/45">
-            <summary className="cursor-pointer text-white/60">Why am I seeing this?</summary>
+            <summary className="cursor-pointer text-white/60">
+              Why am I seeing this?
+            </summary>
             <p className="mt-2 leading-relaxed">{todayGuide.why}</p>
           </details>
         </section>
@@ -751,10 +787,12 @@ export default function Dashboard() {
                 <p className="text-gold text-xs uppercase font-bold mb-1">
                   Personal Memory
                 </p>
-                <h3 className="text-xl font-display">What AstroYou knows about you</h3>
+                <h3 className="text-xl font-display">
+                  What AstroYou knows about you
+                </h3>
                 <p className="text-sm text-white/45 mt-1 max-w-2xl">
-                  Guidance uses your chart, emotional state, saved relationships,
-                  routines, and recurring life patterns.
+                  Guidance uses your chart, emotional state, saved
+                  relationships, routines, and recurring life patterns.
                 </p>
               </div>
               <button
@@ -941,8 +979,7 @@ export default function Dashboard() {
               ) : (
                 <>
                   <p className="text-lg text-white/70 leading-relaxed italic font-display">
-                    {prediction ||
-                      `${todayGuide.energy}. ${todayGuide.action}`}
+                    {prediction || `${todayGuide.energy}. ${todayGuide.action}`}
                   </p>
                   <button
                     onClick={() => navigate("/forecast")}

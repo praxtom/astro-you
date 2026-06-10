@@ -140,31 +140,31 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                 <>
                   <a
                     href="#journey"
-                    className="hover:text-white transition-colors pb-1"
+                    className="flex items-center gap-2 rounded-full border border-transparent px-2.5 py-1.5 text-sm font-bold transition-all hover:bg-white/5 hover:text-white"
                   >
                     Methodology
                   </a>
                   <a
                     href="#features"
-                    className="hover:text-white transition-colors pb-1"
+                    className="flex items-center gap-2 rounded-full border border-transparent px-2.5 py-1.5 text-sm font-bold transition-all hover:bg-white/5 hover:text-white"
                   >
                     Insights
                   </a>
                   <a
                     href="/synthesis"
-                    className="hover:text-white transition-colors pb-1"
+                    className="flex items-center gap-2 rounded-full border border-transparent px-2.5 py-1.5 text-sm font-bold transition-all hover:bg-white/5 hover:text-white"
                   >
                     Readings
                   </a>
                   <a
                     href="/pricing"
-                    className="hover:text-white transition-colors pb-1"
+                    className="flex items-center gap-2 rounded-full border border-transparent px-2.5 py-1.5 text-sm font-bold transition-all hover:bg-white/5 hover:text-white"
                   >
                     Pricing
                   </a>
                   <a
                     href="/trust"
-                    className="hover:text-white transition-colors pb-1"
+                    className="flex items-center gap-2 rounded-full border border-transparent px-2.5 py-1.5 text-sm font-bold transition-all hover:bg-white/5 hover:text-white"
                   >
                     Trust
                   </a>
@@ -204,7 +204,7 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
 
                 <button
                   onClick={() => navigate("/wallet")}
-                className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-white/40 hover:text-white"
+                  className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-white/40 hover:text-white"
                   aria-label="Wallet"
                 >
                   <Wallet size={16} />
@@ -212,7 +212,7 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
 
                 <button
                   onClick={() => navigate("/support")}
-                className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-white/40 hover:text-white"
+                  className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-white/40 hover:text-white"
                   aria-label="Support"
                   title="Support"
                 >
@@ -221,7 +221,7 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
 
                 <button
                   onClick={() => navigate("/settings")}
-                className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-white/40 hover:text-white"
+                  className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-white/40 hover:text-white"
                   aria-label="Settings"
                 >
                   <Settings size={16} />
@@ -229,7 +229,7 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
 
                 <button
                   onClick={handleLogout}
-                className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-white/40 hover:text-white"
+                  className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-white/40 hover:text-white"
                   aria-label="Logout"
                 >
                   <LogOut size={16} />
@@ -359,9 +359,7 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                 className="flex items-center gap-2 text-white/40 hover:text-white transition-colors"
               >
                 <HelpCircle size={16} />
-                <span className="text-sm uppercase">
-                  Support
-                </span>
+                <span className="text-sm uppercase">Support</span>
               </button>
 
               <button
@@ -372,9 +370,7 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                 className="flex items-center gap-2 text-white/40 hover:text-white transition-colors"
               >
                 <Settings size={16} />
-                <span className="text-sm uppercase">
-                  Settings
-                </span>
+                <span className="text-sm uppercase">Settings</span>
               </button>
 
               <button
@@ -385,9 +381,7 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                 className="flex items-center gap-2 text-white/40 hover:text-white transition-colors"
               >
                 <LogOut size={16} />
-                <span className="text-sm uppercase">
-                  Logout
-                </span>
+                <span className="text-sm uppercase">Logout</span>
               </button>
             </>
           ) : (

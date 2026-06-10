@@ -70,10 +70,10 @@ export async function getWeeklyAstrologyContext(
 
   try {
     const fresh = await options.fetchFresh();
-    const record: WeeklyAstrologyCacheRecord = {
+    const record = stripUndefinedValues({
       cachedAt: now,
       data: fresh,
-    };
+    }) as WeeklyAstrologyCacheRecord;
     await options.store.set(docId, record);
 
     return {
@@ -129,4 +129,21 @@ function toDate(value: WeeklyAstrologyCacheRecord["cachedAt"]) {
     return Number.isNaN(parsed.getTime()) ? undefined : parsed;
   }
   return value?.toDate?.();
+}
+
+function stripUndefinedValues(value: unknown): unknown {
+  if (value === undefined) return undefined;
+  if (value === null || value instanceof Date) return value;
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => stripUndefinedValues(item))
+      .filter((item) => item !== undefined);
+  }
+  if (typeof value !== "object") return value;
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .map(([key, item]) => [key, stripUndefinedValues(item)] as const)
+      .filter(([, item]) => item !== undefined),
+  );
 }

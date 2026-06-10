@@ -81,6 +81,48 @@ test("weekly astrology context refreshes cache after seven days", async () => {
   assert.equal(writes[0]?.data.transitContext, "fresh");
 });
 
+test("weekly astrology context strips undefined fields before cache write", async () => {
+  const writes: WeeklyAstrologyCacheRecord[] = [];
+
+  await getWeeklyAstrologyContext({
+    uid: "user_123",
+    birthData,
+    now: new Date("2026-06-10T00:00:00Z"),
+    store: {
+      async get() {
+        return null;
+      },
+      async set(_docId, record) {
+        writes.push(record);
+      },
+    },
+    async fetchFresh() {
+      return {
+        dashaInfo: {
+          currentMahadasha: "Saturn",
+          currentAntardasha: undefined,
+        },
+        yogaData: [
+          {
+            name: "Gajakesari Yoga",
+            planets: undefined,
+          },
+        ],
+      };
+    },
+  });
+
+  const dashaInfo = writes[0]?.data.dashaInfo || {};
+  const yoga = writes[0]?.data.yogaData?.[0] || {};
+
+  assert.equal(dashaInfo.currentMahadasha, "Saturn");
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(dashaInfo, "currentAntardasha"),
+    false,
+  );
+  assert.equal(Object.prototype.hasOwnProperty.call(yoga, "planets"), false);
+});
+
 test("weekly astrology context keeps stale cache when fresh pull fails", async () => {
   const writes: WeeklyAstrologyCacheRecord[] = [];
   const originalWarn = console.warn;

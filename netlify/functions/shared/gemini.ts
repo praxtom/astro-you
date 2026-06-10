@@ -19,7 +19,7 @@ import {
  * swapped without a code deploy. Verified live against the Gemini API.
  */
 const GEMINI_MODEL =
-  process.env.GEMINI_MODEL || "gemini-3.1-flash-lite-preview";
+  process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
 
 // Types
 interface PredictionFeedbackStats {

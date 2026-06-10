@@ -49,7 +49,7 @@ interface ShadowPlanetProps {
   scrollAngle?: number; // Fixed angle for equidistant ring during scrollytelling
 }
 
-type TransitPlanetComponentProps = TransitPlanetProps;
+interface TransitPlanetComponentProps extends TransitPlanetProps {}
 
 // --- Cosmic Dust Particles ---
 function CosmicDust() {
