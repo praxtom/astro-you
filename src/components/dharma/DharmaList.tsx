@@ -28,7 +28,7 @@ export const DharmaList: React.FC<DharmaListProps> = ({ routines, userId, onComp
 
     return (
         <div className="space-y-3">
-            <h3 className="text-gold font-display text-sm uppercase tracking-wider mb-4 border-b border-white/10 pb-2">
+            <h3 className="mb-3 border-b border-white/10 pb-2 text-[0.6rem] font-bold uppercase tracking-[0.28em] text-gold/70">
                 Daily Practices
             </h3>
 

@@ -1,600 +1,746 @@
-import { useRef, useState, useMemo, Suspense } from "react";
-import { Canvas, useFrame, useLoader } from "@react-three/fiber";
+import { useEffect, useRef, useState, useMemo, Suspense } from "react";
+import { Canvas, useFrame } from "@react-three/fiber";
+import type { RootState } from "@react-three/fiber";
 import {
   OrbitControls,
   Text,
-  Float,
-  PerspectiveCamera,
+  Billboard,
   Stars,
-  Html,
+  Line,
+  MeshReflectorMaterial,
+  PerspectiveCamera,
+  useTexture,
 } from "@react-three/drei";
+import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
 import * as THREE from "three";
 import {
-  KundaliData,
   PLANETS,
   getSignByCode,
   getSignNumberByCode,
 } from "../../lib/astrology";
-import { X, Play, Pause } from "lucide-react";
+import type { KundaliData, PlanetaryPosition } from "../../lib/astrology";
+import { X, Play, Pause, Sparkles } from "lucide-react";
 
 interface CelestialChartProps {
   data: KundaliData;
   onClose: () => void;
+  /** When provided, the selected-planet card offers "Ask Jyotish" with a prewritten question. */
+  onAskAbout?: (question: string) => void;
 }
 
-const Planet = ({
-  name,
-  sign,
-  degree,
-  house,
-  color,
-  index,
-  houseLocalIndex,
-  totalInHouse,
-  isDiamondView,
-  texture,
-}: {
-  name: string;
-  sign: string;
-  degree: number;
-  house: number;
-  color: string;
-  index: number;
-  houseLocalIndex: number;
-  totalInHouse: number;
-  isDiamondView: boolean;
-  texture: THREE.Texture | null;
-}) => {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const groupRef = useRef<THREE.Group>(null);
+/* ── Layout constants (single source of truth) ── */
 
-  const isShadowPlanet =
-    name === "Mean_Node" ||
-    name === "Mean_South_Node" ||
-    name === "True_Node" ||
-    name === "True_South_Node";
-  const planetInfo = (PLANETS as any)[name];
-  // Show only Vedic name (e.g., "Rahu" instead of "Rahu | Mean Node")
-  const fullName = planetInfo?.name || name.split("_").join(" ");
-
-  // 1. CIRCULAR POSITION (Zodiacal)
-  const signNum = getSignNumberByCode(sign);
-  const totalDegree = ((signNum - 1) * 30 + degree) * (Math.PI / 180);
-  const circularRadius = 8 + (index % 3) * 0.5;
-  const circularX = Math.cos(totalDegree) * circularRadius;
-  const circularZ = Math.sin(totalDegree) * circularRadius;
-
-  // 2. DIAMOND POSITION (House centered)
-  const HOUSE_CENTERS_3D = [
-    [0, 0, -4.5], // H1
-    [-4, 0, -6.5], // H2
-    [-6.5, 0, -4], // H3
-    [-4.5, 0, 0], // H4
-    [-6.5, 0, 4], // H5
-    [-4, 0, 6.5], // H6
-    [0, 0, 4.5], // H7
-    [4, 0, 6.5], // H8
-    [6.5, 0, 4], // H9
-    [4.5, 0, 0], // H10
-    [6.5, 0, -4], // H11
-    [4, 0, -6.5], // H12
-  ];
-
-  const houseData = HOUSE_CENTERS_3D[house - 1] || [0, 0, 0];
-
-  // ARRANGEMENT LOGIC:
-  // If multiple planets in one house, arrange them in a small circular pattern
-  // around the house center instead of just stacked offsets.
-  let offsetX = 0;
-  let offsetZ = 0;
-
-  if (totalInHouse > 1 && isDiamondView) {
-    const angle = (houseLocalIndex / totalInHouse) * Math.PI * 2;
-    const radialDist = totalInHouse > 3 ? 1.0 : 0.7; // Wider circle if more planets
-    offsetX = Math.cos(angle) * radialDist;
-    offsetZ = Math.sin(angle) * radialDist;
-  } else if (isDiamondView) {
-    // Single planet - slight variation based on index to avoid perfect static overlap if nodes/others coincide
-    offsetX = ((index % 3) - 1) * 0.1;
-    offsetZ = ((index % 3) - 1) * 0.1;
-  }
-
-  const diamondX = houseData[0] + offsetX;
-  const diamondZ = houseData[2] + offsetZ;
-
-  const targetX = isDiamondView ? diamondX : circularX;
-  const targetZ = isDiamondView ? diamondZ : circularZ;
-
-  useFrame((state) => {
-    if (groupRef.current) {
-      // Smoothly lerp towards target position
-      groupRef.current.position.x = THREE.MathUtils.lerp(
-        groupRef.current.position.x,
-        targetX,
-        0.05
-      );
-      groupRef.current.position.z = THREE.MathUtils.lerp(
-        groupRef.current.position.z,
-        targetZ,
-        0.05
-      );
-      // Multi-layered vertical separation (Strata)
-      // Layer 1: Inner Planets (Bottom)
-      // Layer 2: Outer Giants (Middle)
-      // Layer 3: Nodes (Top)
-      let verticalLayer = 0;
-      if (
-        name === "Sun" ||
-        name === "Moon" ||
-        name === "Mercury" ||
-        name === "Venus"
-      ) {
-        verticalLayer = 0;
-      } else if (name === "Mars" || name === "Jupiter" || name === "Saturn") {
-        verticalLayer = 1.2;
-      } else {
-        // Rahu/Ketu
-        verticalLayer = 2.4;
-      }
-
-      groupRef.current.position.y = THREE.MathUtils.lerp(
-        groupRef.current.position.y,
-        (isDiamondView ? 0.3 : 0) + verticalLayer,
-        0.05
-      );
-    }
-    if (meshRef.current) {
-      meshRef.current.rotation.y += 0.01;
-      // Gentle floating animation
-      meshRef.current.position.y =
-        Math.sin(state.clock.elapsedTime + index) * 0.1;
-    }
-  });
-
-  return (
-    <group ref={groupRef} position={[circularX, 0, circularZ]}>
-      <Float speed={2} rotationIntensity={0.5} floatIntensity={0.5}>
-        <mesh ref={meshRef}>
-          <sphereGeometry args={[0.3, 16, 16]} />
-          {texture ? (
-            <meshStandardMaterial
-              map={texture}
-              emissive={name === "Sun" ? "#FFD700" : color}
-              emissiveIntensity={name === "Sun" ? 0.8 : 0.2}
-              roughness={0.7}
-              metalness={0.3}
-              toneMapped={false}
-            />
-          ) : (
-            <meshLambertMaterial
-              color={
-                isShadowPlanet
-                  ? name === "Mean_Node"
-                    ? "#1a1a2e"
-                    : "#2d1b4e"
-                  : color
-              }
-              emissive={color}
-              emissiveIntensity={isShadowPlanet ? 0.3 : 1.0}
-              toneMapped={false}
-            />
-          )}
-        </mesh>
-
-        {/* Saturn's Rings */}
-        {name === "Saturn" && (
-          <mesh rotation={[Math.PI / 3, 0, 0]}>
-            <ringGeometry args={[0.45, 0.8, 64]} />
-            <meshStandardMaterial
-              color={color}
-              transparent
-              opacity={0.4}
-              side={THREE.DoubleSide}
-              metalness={0.8}
-              roughness={0.2}
-            />
-          </mesh>
-        )}
-
-        {/* Label and Degree */}
-        <Html distanceFactor={15}>
-          <div className="flex flex-col items-center pointer-events-none select-none">
-            <div
-              className="px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-xl border border-white/20 text-[10px] sm:text-xs uppercase tracking-[0.2em] text-white whitespace-nowrap shadow-2xl"
-              style={{
-                boxShadow: `0 0 20px ${color}33`,
-                borderLeft: `2px solid ${color}`,
-                animation: "label-entrance 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
-              }}
-            >
-              <span className="font-bold mr-1 opacity-60">{fullName}</span>{" "}
-              <span className="text-white/90">{Math.floor(degree)}°</span>
-            </div>
-            <div
-              className="w-[1px] h-6 mt-1"
-              style={{
-                background: `linear-gradient(to bottom, ${color}66, transparent)`,
-              }}
-            />
-          </div>
-        </Html>
-      </Float>
-
-      {/* Orbit path - Only visible in circular view */}
-      {!isDiamondView && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry
-            args={[circularRadius - 0.01, circularRadius + 0.01, 64]}
-          />
-          <meshBasicMaterial color={color} transparent opacity={0.1} />
-        </mesh>
-      )}
-    </group>
-  );
+const CHART_CENTER = new THREE.Vector3(0, 0, 0);
+const CAMERA = {
+  diamond: new THREE.Vector3(0, 24, 12),
+  circular: new THREE.Vector3(0, 16, 22),
+  diamondMobile: new THREE.Vector3(0, 34, 18),
+  circularMobile: new THREE.Vector3(0, 24, 30),
+  opening: new THREE.Vector3(0, 40, 42),
 };
 
-const DiamondGrid = ({
+/** North-Indian house centers on the plate, [x, z]. */
+const HOUSE_CENTERS: [number, number][] = [
+  [0, -4.5], // H1
+  [-4, -6.5], // H2
+  [-6.5, -4], // H3
+  [-4.5, 0], // H4
+  [-6.5, 4], // H5
+  [-4, 6.5], // H6
+  [0, 4.5], // H7
+  [4, 6.5], // H8
+  [6.5, 4], // H9
+  [4.5, 0], // H10
+  [6.5, -4], // H11
+  [4, -6.5], // H12
+];
+
+const HOUSE_MEANINGS: Record<number, { short: string; theme: string }> = {
+  1: { short: "Self", theme: "Personality, body, appearance" },
+  2: { short: "Wealth", theme: "Money, speech, family" },
+  3: { short: "Courage", theme: "Siblings, communication, skills" },
+  4: { short: "Home", theme: "Mother, property, emotions" },
+  5: { short: "Children", theme: "Creativity, romance, education" },
+  6: { short: "Health", theme: "Enemies, debts, service" },
+  7: { short: "Marriage", theme: "Partnerships, spouse, business" },
+  8: { short: "Mystery", theme: "Transformation, inheritance, occult" },
+  9: { short: "Dharma", theme: "Father, fortune, spirituality" },
+  10: { short: "Career", theme: "Profession, status, authority" },
+  11: { short: "Gains", theme: "Income, friends, aspirations" },
+  12: { short: "Loss", theme: "Expenses, moksha, foreign lands" },
+};
+
+const SANSKRIT_SIGNS = [
+  "Mesha",
+  "Vrishabha",
+  "Mithuna",
+  "Karka",
+  "Simha",
+  "Kanya",
+  "Tula",
+  "Vrishchika",
+  "Dhanu",
+  "Makara",
+  "Kumbha",
+  "Meena",
+];
+
+const GOLD = "#ffcd6a";
+
+/**
+ * Self-hosted font for all in-scene text. Troika (drei <Text>) fetches its
+ * default font from fonts.gstatic.com via fetch(), which our CSP's
+ * connect-src blocks — fonts must come from 'self'.
+ */
+const CHART_FONT = "/fonts/PlusJakartaSans-600.woff";
+
+/** Surface textures for the classical planets (the Moon borrows Mercury's cratered grey). */
+const PLANET_TEXTURE_PATHS: Record<string, string> = {
+  Sun: "/assets/planets/sun.png",
+  Moon: "/assets/planets/mercury.png",
+  Mercury: "/assets/planets/mercury.png",
+  Venus: "/assets/planets/venus.png",
+  Mars: "/assets/planets/mars.png",
+  Jupiter: "/assets/planets/jupiter.png",
+  Saturn: "/assets/planets/saturn.png",
+};
+
+const EXCLUDED_PLANET_NAMES = new Set([
+  "Ascendant",
+  "True_Node",
+  "True_South_Node",
+]);
+const WESTERN_PLANET_NAMES = new Set(["Uranus", "Neptune", "Pluto"]);
+
+const isRenderablePlanet = (
+  planet: PlanetaryPosition,
+  showWesternPlanets: boolean,
+): boolean => {
+  if (EXCLUDED_PLANET_NAMES.has(planet.name)) return false;
+  if (!showWesternPlanets && WESTERN_PLANET_NAMES.has(planet.name))
+    return false;
+  return true;
+};
+
+const formatDegree = (degree: number) =>
+  // Stick to latin-subset glyphs (no ′/℞) so the self-hosted chart font
+  // covers everything and troika never needs its CDN glyph fallback.
+  `${Math.floor(degree)}°${String(Math.round((degree % 1) * 60)).padStart(2, "0")}'`;
+
+/* ── Soft radial glow sprite texture, generated once ── */
+let glowTextureCache: THREE.Texture | null = null;
+function getGlowTexture(): THREE.Texture {
+  if (glowTextureCache) return glowTextureCache;
+  const size = 128;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext("2d")!;
+  const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gradient.addColorStop(0, "rgba(255,255,255,1)");
+  gradient.addColorStop(0.35, "rgba(255,255,255,0.4)");
+  gradient.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+  glowTextureCache = new THREE.CanvasTexture(canvas);
+  return glowTextureCache;
+}
+
+type OrbitLikeControls = THREE.EventDispatcher & {
+  target: THREE.Vector3;
+  update: () => void;
+};
+
+const getOrbitControls = (state: RootState): OrbitLikeControls | null => {
+  const controls = state.controls;
+  if (!controls || !("target" in controls) || !("update" in controls)) {
+    return null;
+  }
+  return controls as OrbitLikeControls;
+};
+
+/* ── Camera rig: cinematic open + eased view transitions, then hands off to the user ── */
+const CameraRig = ({
+  isDiamondView,
+  driveUntilRef,
+}: {
+  isDiamondView: boolean;
+  driveUntilRef: React.MutableRefObject<number>;
+}) => {
+  useFrame((state) => {
+    if (performance.now() > driveUntilRef.current) return;
+    const isNarrow = state.size.width < 640;
+    const target = isDiamondView
+      ? isNarrow
+        ? CAMERA.diamondMobile
+        : CAMERA.diamond
+      : isNarrow
+        ? CAMERA.circularMobile
+        : CAMERA.circular;
+    state.camera.position.lerp(target, 0.045);
+    state.camera.lookAt(CHART_CENTER);
+    const controls = getOrbitControls(state);
+    if (controls) {
+      controls.target.lerp(CHART_CENTER, 0.045);
+      controls.update();
+    }
+  });
+  return null;
+};
+
+/* ── The observatory table: a dark mirror the chart is engraved into ── */
+const ObservatoryTable = () => (
+  <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.06, 0]}>
+    <circleGeometry args={[34, 72]} />
+    <MeshReflectorMaterial
+      blur={[400, 120]}
+      resolution={1024}
+      mixBlur={1}
+      mixStrength={4}
+      roughness={0.92}
+      depthScale={1.1}
+      minDepthThreshold={0.4}
+      maxDepthThreshold={1.4}
+      color="#04040a"
+      metalness={0.55}
+      mirror={0.6}
+    />
+  </mesh>
+);
+
+/* ── Gold engraving: the North-Indian diamond plate ── */
+const DiamondPlate = ({
   visible,
   showHouseInfo,
 }: {
   visible: boolean;
   showHouseInfo: boolean;
 }) => {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const gridRef = useRef<THREE.LineSegments>(null);
-
-  // House meanings for Learn Mode
-  const HOUSE_MEANINGS: Record<number, { short: string; theme: string }> = {
-    1: { short: "Self", theme: "Personality, body, appearance" },
-    2: { short: "Wealth", theme: "Money, speech, family" },
-    3: { short: "Courage", theme: "Siblings, communication, skills" },
-    4: { short: "Home", theme: "Mother, property, emotions" },
-    5: { short: "Children", theme: "Creativity, romance, education" },
-    6: { short: "Health", theme: "Enemies, debts, service" },
-    7: { short: "Marriage", theme: "Partnerships, spouse, business" },
-    8: { short: "Mystery", theme: "Transformation, inheritance, occult" },
-    9: { short: "Dharma", theme: "Father, fortune, spirituality" },
-    10: { short: "Career", theme: "Profession, status, authority" },
-    11: { short: "Gains", theme: "Income, friends, aspirations" },
-    12: { short: "Loss", theme: "Expenses, moksha, foreign lands" },
-  };
+  const pulseRef = useRef<THREE.Mesh>(null);
 
   useFrame((state) => {
-    if (visible && meshRef.current) {
-      const pulse = 0.3 + Math.sin(state.clock.elapsedTime * 2) * 0.1;
-      // @ts-expect-error React Three Fiber material ref is narrowed at runtime.
-      meshRef.current.material.opacity = pulse;
-    }
-    if (visible && gridRef.current) {
-      const pulse = 0.2 + Math.sin(state.clock.elapsedTime * 1.5) * 0.05;
-      // @ts-expect-error React Three Fiber material ref is narrowed at runtime.
-      gridRef.current.material.opacity = pulse;
+    if (visible && pulseRef.current) {
+      const material = pulseRef.current.material as THREE.MeshBasicMaterial;
+      material.opacity = 0.3 + Math.sin(state.clock.elapsedTime * 1.4) * 0.08;
     }
   });
 
   if (!visible) return null;
 
+  const lines: [number, number, number][][] = [
+    // Outer square
+    [
+      [-8, 0, -8],
+      [8, 0, -8],
+      [8, 0, 8],
+      [-8, 0, 8],
+      [-8, 0, -8],
+    ],
+    // Diagonals
+    [
+      [-8, 0, -8],
+      [8, 0, 8],
+    ],
+    [
+      [8, 0, -8],
+      [-8, 0, 8],
+    ],
+    // Central diamond
+    [
+      [0, 0, -8],
+      [-8, 0, 0],
+      [0, 0, 8],
+      [8, 0, 0],
+      [0, 0, -8],
+    ],
+  ];
+
   return (
-    <group rotation={[-Math.PI / 2, 0, 0]}>
-      {/* Outer Square */}
-      <mesh ref={meshRef}>
-        <ringGeometry args={[11.2, 11.4, 4, 1, Math.PI / 4]} />
-        <meshBasicMaterial color="#FFD700" transparent opacity={0.4} />
+    <group>
+      {/* Halo ring framing the plate */}
+      <mesh
+        ref={pulseRef}
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, 0.01, 0]}
+      >
+        <ringGeometry args={[11.6, 11.72, 4, 1, Math.PI / 4]} />
+        <meshBasicMaterial color={GOLD} transparent opacity={0.32} />
       </mesh>
 
-      {/* Pulsing Grid Lines */}
-      <lineSegments ref={gridRef}>
-        <edgesGeometry args={[new THREE.PlaneGeometry(16, 16)]} />
-        <meshBasicMaterial color="#FFD700" transparent opacity={0.25} />
-      </lineSegments>
+      {lines.map((points, i) => (
+        <Line
+          key={i}
+          points={points}
+          color={GOLD}
+          transparent
+          opacity={i === 0 ? 0.55 : 0.35}
+          lineWidth={i === 3 ? 1.6 : 1.1}
+          position={[0, 0.02, 0]}
+        />
+      ))}
 
-      {/* Diagonal partition lines for 12 houses - MORE VISIBLE */}
-      <LinePoints
-        points={[
-          [-8, -8, 0],
-          [8, 8, 0],
-        ]}
-        color="#FFD700"
-        opacity={0.35}
-      />
-      <LinePoints
-        points={[
-          [8, -8, 0],
-          [-8, 8, 0],
-        ]}
-        color="#FFD700"
-        opacity={0.35}
-      />
-      {/* Central Diamond - MORE VISIBLE */}
-      <LinePoints
-        points={[
-          [0, -8, 0],
-          [-8, 0, 0],
-          [0, 8, 0],
-          [8, 0, 0],
-          [0, -8, 0],
-        ]}
-        color="#FFD700"
-        opacity={0.5}
-      />
-
-      {/* House labels in 3D - Anti-clockwise from H1 */}
-      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((num, i) => {
-        const centers = [
-          [0, 3.5], // H1
-          [-3.5, 5.5], // H2
-          [-5.5, 3.5], // H3
-          [-3.5, 0], // H4
-          [-5.5, -3.5], // H5
-          [-3.5, -5.5], // H6
-          [0, -3.5], // H7
-          [3.5, -5.5], // H8
-          [5.5, -3.5], // H9
-          [3.5, 0], // H10
-          [5.5, 3.5], // H11
-          [3.5, 5.5], // H12
-        ];
-
-        // External label positions
-        const externals = [
-          [0, 11.5, 0], // H1
-          [-11, 11, 0], // H2
-          [-14, 4, 0], // H3
-          [-14, 0, 0], // H4
-          [-14, -4, 0], // H5
-          [-11, -11, 0], // H6
-          [0, -11.5, 0], // H7
-          [11, -11, 0], // H8
-          [14, -4, 0], // H9
-          [14, 0, 0], // H10
-          [14, 4, 0], // H11
-          [11, 11, 0], // H12
-        ];
-
-        const houseInfo = HOUSE_MEANINGS[num];
-        const isH1_H4_H7_H10 = [1, 4, 7, 10].includes(num);
-
+      {/* House numerals engraved on the plate */}
+      {HOUSE_CENTERS.map(([x, z], i) => {
+        const num = i + 1;
+        const isAngular = [1, 4, 7, 10].includes(num);
         return (
-          <group key={num}>
-            {/* Inner House Number/Label */}
-            <group position={[centers[i][0], centers[i][1], 0.1]}>
+          <group key={num} position={[x, 0.03, z]}>
+            <Suspense fallback={null}>
               <Text
-                fontSize={0.35}
-                color={isH1_H4_H7_H10 ? "#FFD700" : "#ffffff"}
-                fillOpacity={showHouseInfo ? 0.3 : 0.15}
+                font={CHART_FONT}
+                rotation={[-Math.PI / 2, 0, 0]}
+                fontSize={0.42}
+                letterSpacing={0.12}
+                color={isAngular ? GOLD : "#ffffff"}
+                fillOpacity={showHouseInfo ? 0.75 : 0.22}
                 anchorX="center"
                 anchorY="middle"
               >
-                {`H${num}`}
+                {String(num)}
               </Text>
-            </group>
-
-            {/* External Info Label & Line */}
-            {showHouseInfo && (
-              <>
-                <LinePoints
-                  points={[
-                    [centers[i][0], centers[i][1], 0],
-                    [externals[i][0], externals[i][1], 0],
-                  ]}
-                  color="#FFD700"
-                  opacity={0.3}
-                />
-                <group position={[externals[i][0], externals[i][1], 0.2]}>
-                  <Html distanceFactor={20} center>
-                    <div
-                      className="bg-black/80 backdrop-blur-xl border border-gold/40 rounded-xl px-4 py-2 text-center min-w-[140px] pointer-events-none transform transition-all duration-500 animate-in fade-in zoom-in"
-                      style={{
-                        boxShadow: "0 0 20px rgba(197, 160, 89, 0.1)",
-                      }}
-                    >
-                      <div className="text-gold text-[10px] font-bold uppercase tracking-[0.2em] mb-1">
-                        Bhav {num}
-                      </div>
-                      <div className="text-white font-display text-sm mb-1">
-                        {houseInfo.short}
-                      </div>
-                      <div className="h-px w-8 bg-gold/20 mx-auto mb-1"></div>
-                      <div className="text-white/50 text-[10px] font-sans leading-tight">
-                        {houseInfo.theme}
-                      </div>
-                    </div>
-                  </Html>
-                </group>
-              </>
-            )}
+            </Suspense>
           </group>
         );
       })}
+
+      {/* Learn mode: house meanings annotated around the plate, with leader
+          lines — placed on the table outside the chart so planets never
+          occlude them. */}
+      {showHouseInfo &&
+        HOUSE_CENTERS.map(([x, z], i) => {
+          const num = i + 1;
+          const len = Math.hypot(x, z);
+          const dx = x / len;
+          const dz = z / len;
+          const isAngular = [1, 4, 7, 10].includes(num);
+          return (
+            <group key={`learn-${num}`}>
+              <Line
+                points={[
+                  [dx * (len + 0.9), 0.02, dz * (len + 0.9)],
+                  [dx * 12.1, 0.02, dz * 12.1],
+                ]}
+                color={GOLD}
+                transparent
+                opacity={0.22}
+                lineWidth={1}
+              />
+              <group position={[dx * 13.4, 0.03, dz * 13.4]}>
+                <Suspense fallback={null}>
+                  <Text
+                    font={CHART_FONT}
+                    rotation={[-Math.PI / 2, 0, 0]}
+                    fontSize={0.52}
+                    letterSpacing={0.18}
+                    color={isAngular ? GOLD : "#ffffff"}
+                    fillOpacity={0.9}
+                    anchorX="center"
+                    anchorY="middle"
+                  >
+                    {`${num} · ${HOUSE_MEANINGS[num].short.toUpperCase()}`}
+                  </Text>
+                  <Text
+                    font={CHART_FONT}
+                    rotation={[-Math.PI / 2, 0, 0]}
+                    position={[0, 0, 0.62]}
+                    fontSize={0.27}
+                    letterSpacing={0.05}
+                    color="#ffffff"
+                    fillOpacity={0.42}
+                    anchorX="center"
+                    anchorY="middle"
+                    maxWidth={5}
+                    textAlign="center"
+                  >
+                    {HOUSE_MEANINGS[num].theme}
+                  </Text>
+                </Suspense>
+              </group>
+            </group>
+          );
+        })}
     </group>
   );
 };
 
-const LinePoints = ({
-  points,
-  color,
-  opacity,
+/* ── The zodiac wheel for circular view, with a Lagna marker ── */
+const ZodiacWheel = ({
+  visible,
+  ascendantDegree,
 }: {
-  points: number[][];
-  color: string;
-  opacity: number;
+  visible: boolean;
+  ascendantDegree: number | null;
 }) => {
-  const lineGeometry = useMemo(() => {
-    const pts = points.map((p) => new THREE.Vector3(p[0], p[1], p[2]));
-    return new THREE.BufferGeometry().setFromPoints(pts);
-  }, [points]);
-
-  return (
-    // @ts-expect-error React Three Fiber line geometry typing is narrower than Three.js.
-    <line geometry={lineGeometry}>
-      <lineBasicMaterial color={color} transparent opacity={opacity} />
-    </line>
-  );
-};
-
-const ZodiacRing = ({ visible }: { visible: boolean }) => {
   const ringRef = useRef<THREE.Mesh>(null);
 
   useFrame((state) => {
     if (visible && ringRef.current) {
-      const pulse = 0.6 + Math.sin(state.clock.elapsedTime) * 0.2;
-      // @ts-expect-error React Three Fiber material ref is narrowed at runtime.
-      ringRef.current.material.emissiveIntensity = pulse;
+      const material = ringRef.current.material as THREE.MeshBasicMaterial;
+      material.opacity = 0.16 + Math.sin(state.clock.elapsedTime) * 0.04;
     }
   });
 
-  const signs = [
-    "Mesha",
-    "Vrishabha",
-    "Mithuna",
-    "Karka",
-    "Simha",
-    "Kanya",
-    "Tula",
-    "Vrishchika",
-    "Dhanu",
-    "Makara",
-    "Kumbha",
-    "Meena",
-  ];
   if (!visible) return null;
 
   return (
-    <group rotation={[-Math.PI / 2, 0, 0]}>
-      {/* Main Ring */}
-      <mesh ref={ringRef}>
-        <ringGeometry args={[11.5, 12, 64]} />
-        <meshLambertMaterial
-          color="#FFD700"
-          transparent
-          opacity={0.15}
-          emissive="#FFD700"
-          emissiveIntensity={0.8}
-        />
+    <group>
+      {/* Twin engraved circles */}
+      <mesh
+        ref={ringRef}
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, 0.01, 0]}
+      >
+        <ringGeometry args={[11.5, 11.58, 96]} />
+        <meshBasicMaterial color={GOLD} transparent opacity={0.18} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+        <ringGeometry args={[12.5, 12.56, 96]} />
+        <meshBasicMaterial color={GOLD} transparent opacity={0.12} />
       </mesh>
 
-      {/* Sign Divisions */}
-      {signs.map((name, i) => {
-        const angle = (i * 30 + 15) * (Math.PI / 180);
-        const radius = 13;
-        const x = Math.cos(angle) * radius;
-        const y = Math.sin(angle) * radius;
-
+      {/* Sign divisions + names */}
+      {SANSKRIT_SIGNS.map((name, i) => {
+        const dividerAngle = (i * 30 * Math.PI) / 180;
+        const labelAngle = ((i * 30 + 15) * Math.PI) / 180;
+        const lx = Math.cos(labelAngle) * 12.05;
+        const lz = -Math.sin(labelAngle) * 12.05;
         return (
-          <group
-            key={name}
-            position={[x, y, 0]}
-            rotation={[0, 0, angle + Math.PI / 2]}
-          >
-            <Text
-              fontSize={0.4}
-              color="#FFD700"
-              anchorX="center"
-              anchorY="middle"
-              rotation={[Math.PI / 2, 0, 0]}
-            >
-              {name.toUpperCase()}
-            </Text>
-            {/* Divider lines */}
-            <mesh position={[-Math.cos((15 * Math.PI) / 180) * 1.5, 0, 0]}>
-              <boxGeometry args={[0.02, 1.5, 0.02]} />
-              <meshBasicMaterial color="#FFD700" transparent opacity={0.2} />
-            </mesh>
+          <group key={name}>
+            <Line
+              points={[
+                [
+                  Math.cos(dividerAngle) * 11.5,
+                  0.015,
+                  -Math.sin(dividerAngle) * 11.5,
+                ],
+                [
+                  Math.cos(dividerAngle) * 12.5,
+                  0.015,
+                  -Math.sin(dividerAngle) * 12.5,
+                ],
+              ]}
+              color={GOLD}
+              transparent
+              opacity={0.3}
+              lineWidth={1}
+            />
+            <Suspense fallback={null}>
+              <Text
+                font={CHART_FONT}
+                position={[lx, 0.02, lz]}
+                rotation={[-Math.PI / 2, 0, labelAngle - Math.PI / 2]}
+                fontSize={0.36}
+                letterSpacing={0.28}
+                color={GOLD}
+                fillOpacity={0.55}
+                anchorX="center"
+                anchorY="middle"
+              >
+                {name.toUpperCase()}
+              </Text>
+            </Suspense>
           </group>
         );
       })}
+
+      {/* Lagna marker at the ascendant's zodiacal degree */}
+      {ascendantDegree !== null && (
+        <group
+          position={[
+            Math.cos((ascendantDegree * Math.PI) / 180) * 13.3,
+            0.02,
+            -Math.sin((ascendantDegree * Math.PI) / 180) * 13.3,
+          ]}
+        >
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <circleGeometry args={[0.14, 16]} />
+            <meshBasicMaterial color={GOLD} transparent opacity={0.9} />
+          </mesh>
+          <Suspense fallback={null}>
+            <Text
+              font={CHART_FONT}
+              position={[0, 0.01, -0.55]}
+              rotation={[-Math.PI / 2, 0, 0]}
+              fontSize={0.3}
+              letterSpacing={0.3}
+              color={GOLD}
+              fillOpacity={0.85}
+              anchorX="center"
+              anchorY="middle"
+            >
+              LAGNA
+            </Text>
+          </Suspense>
+        </group>
+      )}
     </group>
   );
 };
 
-const CosmicGrid = () => {
-  return (
-    <group>
-      <gridHelper args={[40, 40, "#FFD700", "#FFD700"]} position={[0, -2, 0]}>
-        <meshBasicMaterial transparent opacity={0.05} color="#FFD700" />
-      </gridHelper>
-      <Stars
-        radius={100}
-        depth={50}
-        count={2000}
-        factor={4}
-        saturation={0}
-        fade
-        speed={1}
-      />
-      {/* Cosmic Dust / Nebula layer */}
-      <Stars
-        radius={150}
-        depth={100}
-        count={500}
-        factor={12}
-        saturation={0.2}
-        fade
-        speed={0.2}
-      />
-    </group>
-  );
-};
+/* ── A single planet: emissive orb + additive halo + scene-space label ── */
+const PlanetOrb = ({
+  planet,
+  houseLocalIndex,
+  totalInHouse,
+  isDiamondView,
+  isSelected,
+  onSelect,
+  texture,
+}: {
+  planet: PlanetaryPosition;
+  houseLocalIndex: number;
+  totalInHouse: number;
+  isDiamondView: boolean;
+  isSelected: boolean;
+  onSelect: (planet: PlanetaryPosition) => void;
+  texture: THREE.Texture | null;
+}) => {
+  const groupRef = useRef<THREE.Group>(null);
+  const orbRef = useRef<THREE.Mesh>(null);
+  const haloRef = useRef<THREE.Sprite>(null);
+  const [hovered, setHovered] = useState(false);
 
-const CameraHandler = ({ isRotating }: { isRotating: boolean }) => {
+  const info = (PLANETS as Record<string, { name: string; color: string }>)[
+    planet.name
+  ];
+  const color = info?.color || "#ffffff";
+  const vedicName = info?.name || planet.name.split("_").join(" ");
+  const isSun = planet.name === "Sun";
+  const isShadow =
+    planet.name === "Mean_Node" || planet.name === "Mean_South_Node";
+  const radius = isSun ? 0.55 : texture ? 0.4 : 0.32;
+  // Textured planets glow through their own surface (emissiveMap), so they
+  // need far less raw emissive than the stylised orbs to read well in bloom.
+  const baseIntensity = texture ? (isSun ? 1.7 : 0.6) : isShadow ? 1.1 : 1.9;
+
+  /* Circular target — true zodiacal longitude */
+  const signNum = getSignNumberByCode(planet.sign);
+  const zodiacDeg = (signNum - 1) * 30 + planet.degree;
+  const zodiacRad = (zodiacDeg * Math.PI) / 180;
+  const circularRadius = 8.6;
+  const circularX = Math.cos(zodiacRad) * circularRadius;
+  const circularZ = -Math.sin(zodiacRad) * circularRadius;
+
+  /* Diamond target — house center, siblings fanned in a small ring */
+  const [hx, hz] = HOUSE_CENTERS[planet.house - 1] || [0, 0];
+  let offsetX = 0;
+  let offsetZ = 0;
+  if (totalInHouse > 1) {
+    const angle = (houseLocalIndex / totalInHouse) * Math.PI * 2;
+    const spread = totalInHouse > 3 ? 1.05 : 0.72;
+    offsetX = Math.cos(angle) * spread;
+    offsetZ = Math.sin(angle) * spread;
+  }
+  const diamondX = hx + offsetX;
+  const diamondZ = hz + offsetZ;
+
+  const targetX = isDiamondView ? diamondX : circularX;
+  const targetZ = isDiamondView ? diamondZ : circularZ;
+  const baseY = 0.62;
+
   useFrame((state) => {
-    if (!isRotating) {
-      // Smoothly move to top view [0, 25, 0]
-      state.camera.position.lerp(new THREE.Vector3(0, 25, 10), 0.05);
-      // Reset target to center
-      if (state.controls) {
-        // @ts-expect-error OrbitControls target exists when controls are attached.
-        state.controls.target.lerp(new THREE.Vector3(0, 0, 0), 0.05);
-      }
+    const group = groupRef.current;
+    if (group) {
+      group.position.x = THREE.MathUtils.lerp(group.position.x, targetX, 0.06);
+      group.position.z = THREE.MathUtils.lerp(group.position.z, targetZ, 0.06);
+      const lift = isSelected ? 1.15 : 0;
+      const breathe =
+        Math.sin(state.clock.elapsedTime * 0.9 + zodiacDeg) * 0.07;
+      group.position.y = THREE.MathUtils.lerp(
+        group.position.y,
+        baseY + lift + breathe,
+        0.07,
+      );
+    }
+    if (orbRef.current) {
+      orbRef.current.rotation.y += texture ? 0.0065 : 0.004;
+      const material = orbRef.current.material as THREE.MeshStandardMaterial;
+      const targetIntensity =
+        baseIntensity * (isSelected ? 1.5 : hovered ? 1.25 : 1);
+      material.emissiveIntensity = THREE.MathUtils.lerp(
+        material.emissiveIntensity,
+        targetIntensity,
+        0.1,
+      );
+    }
+    if (haloRef.current) {
+      const haloScale =
+        (isSun ? 4.2 : 2.3) * (isSelected ? 1.3 : hovered ? 1.15 : 1);
+      haloRef.current.scale.lerp(
+        new THREE.Vector3(haloScale, haloScale, 1),
+        0.1,
+      );
     }
   });
-  return null;
+
+  return (
+    <group ref={groupRef} position={[circularX, baseY, circularZ]}>
+      {/* Halo — kept subtle on textured planets so the surface stays legible */}
+      <sprite ref={haloRef} scale={[isSun ? 4.2 : 2.3, isSun ? 4.2 : 2.3, 1]}>
+        <spriteMaterial
+          map={getGlowTexture()}
+          color={color}
+          transparent
+          opacity={isSun ? 0.32 : texture ? 0.16 : isShadow ? 0.18 : 0.3}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </sprite>
+
+      {/* Core orb */}
+      <mesh
+        ref={orbRef}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect(planet);
+        }}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          setHovered(true);
+          document.body.style.cursor = "pointer";
+        }}
+        onPointerOut={() => {
+          setHovered(false);
+          document.body.style.cursor = "auto";
+        }}
+      >
+        <sphereGeometry args={[radius, 48, 48]} />
+        {texture ? (
+          <meshStandardMaterial
+            map={texture}
+            emissive="#ffffff"
+            emissiveMap={texture}
+            emissiveIntensity={baseIntensity}
+            roughness={0.7}
+            metalness={0.08}
+            toneMapped={false}
+          />
+        ) : (
+          <meshStandardMaterial
+            color="#0a0a12"
+            emissive={color}
+            emissiveIntensity={baseIntensity}
+            roughness={0.4}
+            metalness={0.1}
+            toneMapped={false}
+          />
+        )}
+      </mesh>
+
+      {/* Saturn's rings — two translucent bands */}
+      {planet.name === "Saturn" && (
+        <group rotation={[Math.PI / 2.6, 0.4, 0]}>
+          <mesh>
+            <ringGeometry args={[0.56, 0.78, 64]} />
+            <meshBasicMaterial
+              color="#d9c9a8"
+              transparent
+              opacity={0.55}
+              side={THREE.DoubleSide}
+              toneMapped={false}
+            />
+          </mesh>
+          <mesh>
+            <ringGeometry args={[0.82, 0.96, 64]} />
+            <meshBasicMaterial
+              color="#b8a888"
+              transparent
+              opacity={0.28}
+              side={THREE.DoubleSide}
+              toneMapped={false}
+            />
+          </mesh>
+        </group>
+      )}
+
+      {/* Selection halo on the table beneath */}
+      {isSelected && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -(baseY + 1.1), 0]}>
+          <ringGeometry args={[0.5, 0.58, 48]} />
+          <meshBasicMaterial color={GOLD} transparent opacity={0.6} />
+        </mesh>
+      )}
+
+      {/* Scene-space label: occludes correctly, never jitters */}
+      <Billboard position={[0, radius + 0.62, 0]}>
+        <Suspense fallback={null}>
+          <Text
+            font={CHART_FONT}
+            fontSize={0.34}
+            letterSpacing={0.18}
+            color="#ffffff"
+            fillOpacity={hovered || isSelected ? 1 : 0.82}
+            anchorX="center"
+            anchorY="bottom"
+            outlineWidth={0.012}
+            outlineColor="#000000"
+            outlineOpacity={0.6}
+          >
+            {vedicName.toUpperCase()}
+          </Text>
+          <Text
+            font={CHART_FONT}
+            position={[0, -0.06, 0]}
+            fontSize={0.25}
+            letterSpacing={0.1}
+            color={color}
+            fillOpacity={0.9}
+            anchorX="center"
+            anchorY="top"
+            outlineWidth={0.01}
+            outlineColor="#000000"
+            outlineOpacity={0.6}
+          >
+            {`${formatDegree(planet.degree)}${planet.is_retrograde ? "  Rx" : ""}`}
+          </Text>
+        </Suspense>
+      </Billboard>
+      <Line
+        points={[
+          [0, radius + 0.06, 0],
+          [0, radius + 0.5, 0],
+        ]}
+        color={color}
+        transparent
+        opacity={0.35}
+        lineWidth={1}
+      />
+    </group>
+  );
 };
 
+/* ── Scene assembly ── */
 const SceneContent = ({
   data,
   isDiamondView,
   showWesternPlanets,
   showHouseInfo,
+  selectedName,
+  onSelect,
+  ascendantDegree,
 }: {
   data: KundaliData;
   isDiamondView: boolean;
   showWesternPlanets: boolean;
   showHouseInfo: boolean;
+  selectedName: string | null;
+  onSelect: (planet: PlanetaryPosition) => void;
+  ascendantDegree: number | null;
 }) => {
-  // Pre-load all textures within the scene
-  const moonTex = useLoader(THREE.TextureLoader, "/assets/planets/mercury.png");
-  const mercTex = useLoader(THREE.TextureLoader, "/assets/planets/mercury.png");
-  const venusTex = useLoader(THREE.TextureLoader, "/assets/planets/venus.png");
-  const marsTex = useLoader(THREE.TextureLoader, "/assets/planets/mars.png");
-  const jupTex = useLoader(THREE.TextureLoader, "/assets/planets/jupiter.png");
-  const satTex = useLoader(THREE.TextureLoader, "/assets/planets/saturn.png");
-  const sunTex = useLoader(THREE.TextureLoader, "/assets/planets/sun.png");
-
-  const textures: Record<string, THREE.Texture> = {
-    Sun: sunTex,
-    Moon: moonTex,
-    Mercury: mercTex,
-    Venus: venusTex,
-    Mars: marsTex,
-    Jupiter: jupTex,
-    Saturn: satTex,
-  };
+  const textures = useTexture(PLANET_TEXTURE_PATHS) as Record<
+    string,
+    THREE.Texture
+  >;
+  useMemo(() => {
+    Object.values(textures).forEach((t) => {
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.anisotropy = 8;
+    });
+  }, [textures]);
 
   const groupedPlanets = useMemo(() => {
-    const groups: Record<number, any[]> = {};
+    const groups: Record<number, PlanetaryPosition[]> = {};
     data.planetary_positions
-      .filter((p) => {
-        if (p.name === "Ascendant") return false;
-        if (
-          !showWesternPlanets &&
-          ["Uranus", "Neptune", "Pluto"].includes(p.name)
-        )
-          return false;
-        if (p.name === "True_Node" || p.name === "True_South_Node")
-          return false;
-        return true;
-      })
+      .filter((p) => isRenderablePlanet(p, showWesternPlanets))
       .forEach((p) => {
         if (!groups[p.house]) groups[p.house] = [];
         groups[p.house].push(p);
@@ -603,179 +749,297 @@ const SceneContent = ({
   }, [data.planetary_positions, showWesternPlanets]);
 
   return (
-    <group rotation={[Math.PI * 0.05, 0, 0]}>
-      <ZodiacRing visible={!isDiamondView} />
-      <DiamondGrid visible={isDiamondView} showHouseInfo={showHouseInfo} />
-      <CosmicGrid />
+    <group>
+      <ObservatoryTable />
+      <DiamondPlate visible={isDiamondView} showHouseInfo={showHouseInfo} />
+      <ZodiacWheel visible={!isDiamondView} ascendantDegree={ascendantDegree} />
 
-      {Object.entries(groupedPlanets).flatMap(([houseStr, planets]) => {
-        const houseNum = parseInt(houseStr);
-        return planets.map((p, localIdx) => {
-          const info = (PLANETS as any)[p.name];
-          // Use a stable index for overall count if needed, or just use 0 for now as Planet handles radial
-          return (
-            <Planet
-              key={p.name}
-              name={p.name}
-              sign={p.sign}
-              degree={p.degree}
-              house={houseNum}
-              color={info?.color || "#fff"}
-              index={localIdx} // Using localIdx for visual variety
-              houseLocalIndex={localIdx}
-              totalInHouse={planets.length}
-              isDiamondView={isDiamondView}
-              texture={textures[p.name] || null}
-            />
-          );
-        });
-      })}
+      {Object.values(groupedPlanets).flatMap((planets) =>
+        planets.map((p, localIdx) => (
+          <PlanetOrb
+            key={p.name}
+            planet={p}
+            houseLocalIndex={localIdx}
+            totalInHouse={planets.length}
+            isDiamondView={isDiamondView}
+            isSelected={selectedName === p.name}
+            onSelect={onSelect}
+            texture={textures[p.name] ?? null}
+          />
+        )),
+      )}
+
+      <Stars
+        radius={110}
+        depth={60}
+        count={1600}
+        factor={3.5}
+        saturation={0}
+        fade
+        speed={0.4}
+      />
     </group>
   );
 };
 
-export default function CelestialChart({ data, onClose }: CelestialChartProps) {
+/* ── Component ── */
+export default function CelestialChart({
+  data,
+  onClose,
+  onAskAbout,
+}: CelestialChartProps) {
   const [isDiamondView, setIsDiamondView] = useState(true);
   const [showWesternPlanets, setShowWesternPlanets] = useState(false);
-  const [showHouseInfo, setShowHouseInfo] = useState(false); // Learn Mode
+  const [showHouseInfo, setShowHouseInfo] = useState(false);
   const [isRotating, setIsRotating] = useState(false);
+  const [selected, setSelected] = useState<PlanetaryPosition | null>(null);
+
+  // The rig drives the camera during the opening shot and view changes,
+  // then releases it to OrbitControls.
+  const driveUntilRef = useRef(performance.now() + 2800);
+  useEffect(() => {
+    driveUntilRef.current = performance.now() + 1800;
+  }, [isDiamondView]);
 
   const ascendantPos = data.planetary_positions.find(
-    (p) => p.name === "Ascendant"
+    (p) => p.name === "Ascendant",
+  );
+  const ascendantName = ascendantPos?.sign
+    ? getSignByCode(ascendantPos.sign)?.name
+    : null;
+  const ascendantDegree = ascendantPos
+    ? (getSignNumberByCode(ascendantPos.sign) - 1) * 30 + ascendantPos.degree
+    : null;
+  const hasRenderablePlanets = data.planetary_positions.some((planet) =>
+    isRenderablePlanet(planet, true),
   );
 
+  const selectedInfo = selected
+    ? (PLANETS as Record<string, { name: string; color: string }>)[
+        selected.name
+      ]
+    : null;
+  const selectedSignName = selected
+    ? getSignByCode(selected.sign)?.name || selected.sign
+    : null;
+
+  const pillClass = (active: boolean) =>
+    `px-3 py-2 md:px-4 rounded-full text-[0.6rem] md:text-[0.65rem] font-bold uppercase tracking-[0.2em] transition-all ${
+      active
+        ? "bg-gold text-black shadow-[0_0_24px_rgba(255,205,106,0.35)]"
+        : "text-white/40 hover:text-white"
+    }`;
+
   return (
-    <div className="fixed inset-0 z-[100] bg-[#010103] animate-in fade-in duration-1000">
-      {/* UI Overlay */}
-      <div className="absolute inset-0 z-10 pointer-events-none flex flex-col p-8 md:p-12">
-        <div className="flex justify-between items-start pointer-events-auto">
+    <div className="fixed inset-0 z-100 bg-[#020206] animate-in fade-in duration-1000">
+      {/* ── Chrome ── */}
+      <div className="absolute inset-0 z-10 pointer-events-none flex flex-col p-5 md:p-10">
+        {/* Top bar */}
+        <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-start pointer-events-auto">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <div className="h-px w-8 bg-gold/50"></div>
-              <span className="text-xs font-bold uppercase tracking-[0.4em] text-gold">
-                Expanded View
+              <div className="h-px w-8 bg-gold/50" />
+              <span className="text-[0.6rem] font-bold uppercase tracking-[0.4em] text-gold/80">
+                The Observatory
               </span>
             </div>
-            <h2 className="text-3xl md:text-5xl font-display text-white">
+            <h2 className="text-3xl md:text-5xl font-display text-white leading-tight">
               The Birth <span className="text-gold italic">Chart</span>
             </h2>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex max-w-full flex-wrap items-center gap-2">
             <div className="flex bg-white/5 p-1 rounded-full border border-white/10 backdrop-blur-md">
               <button
-                onClick={() => setIsDiamondView(false)}
-                className={`px-4 py-2 rounded-full text-xs uppercase tracking-widest transition-all ${
-                  !isDiamondView
-                    ? "bg-gold text-[#030308] font-bold shadow-[0_0_20px_rgba(229,185,106,0.4)]"
-                    : "text-white/40 hover:text-white"
-                }`}
+                onClick={() => setIsDiamondView(true)}
+                className={pillClass(isDiamondView)}
               >
-                Circular View
+                Diamond
               </button>
               <button
-                onClick={() => setIsDiamondView(true)}
-                className={`px-4 py-2 rounded-full text-xs uppercase tracking-widest transition-all ${
-                  isDiamondView
-                    ? "bg-gold text-[#030308] font-bold shadow-[0_0_20px_rgba(229,185,106,0.4)]"
-                    : "text-white/40 hover:text-white"
-                }`}
+                onClick={() => setIsDiamondView(false)}
+                className={pillClass(!isDiamondView)}
               >
-                Diamond Grid
+                Wheel
               </button>
             </div>
 
-            {/* Western Planets Toggle */}
             <button
               onClick={() => setShowWesternPlanets(!showWesternPlanets)}
-              className={`px-3 py-2 rounded-full text-xs uppercase tracking-widest transition-all border ${
+              className={`px-3 py-2 rounded-full text-[0.6rem] md:text-[0.65rem] font-bold uppercase tracking-[0.2em] transition-all border ${
                 showWesternPlanets
-                  ? "bg-purple-500/20 border-purple-400/50 text-purple-300"
+                  ? "border-gold/40 bg-gold/10 text-gold"
                   : "bg-white/5 border-white/10 text-white/40 hover:text-white hover:border-white/30"
               }`}
             >
-              {showWesternPlanets ? "Western ✓" : "Western"}
+              Western
             </button>
 
-            {/* Learn Mode Toggle - Only in Diamond View */}
             {isDiamondView && (
               <button
                 onClick={() => setShowHouseInfo(!showHouseInfo)}
-                className={`px-3 py-2 rounded-full text-xs uppercase tracking-widest transition-all border ${
+                className={`px-3 py-2 rounded-full text-[0.6rem] md:text-[0.65rem] font-bold uppercase tracking-[0.2em] transition-all border ${
                   showHouseInfo
-                    ? "bg-emerald-500/20 border-emerald-400/50 text-emerald-300"
+                    ? "border-gold/40 bg-gold/10 text-gold"
                     : "bg-white/5 border-white/10 text-white/40 hover:text-white hover:border-white/30"
                 }`}
               >
-                {showHouseInfo ? "Learn ✓" : "Learn"}
+                Learn
               </button>
             )}
 
-            {/* Rotation Toggle */}
             <button
               onClick={() => setIsRotating(!isRotating)}
-              className={`p-3 md:p-4 rounded-full border transition-all ${
+              className={`p-3 rounded-full border transition-all ${
                 isRotating
                   ? "border-gold/30 bg-gold/10 text-gold"
                   : "border-white/10 bg-white/5 text-white/40 hover:text-white"
               }`}
-              title={
-                isRotating ? "Pause Rotation" : "Resume Rotation & Reset View"
-              }
+              title={isRotating ? "Pause rotation" : "Slow rotation"}
             >
-              {isRotating ? <Pause size={20} /> : <Play size={20} />}
+              {isRotating ? <Pause size={16} /> : <Play size={16} />}
             </button>
 
             <button
               onClick={onClose}
-              className="p-3 md:p-4 rounded-full border border-white/10 bg-white/5 hover:bg-gold/10 hover:border-gold/30 text-white/40 hover:text-gold transition-all group"
+              className="p-3 rounded-full border border-white/10 bg-white/5 hover:bg-gold/10 hover:border-gold/30 text-white/40 hover:text-gold transition-all group"
+              aria-label="Close expanded chart"
             >
               <X
-                size={20}
+                size={16}
                 className="group-hover:rotate-90 transition-transform duration-500"
               />
             </button>
           </div>
         </div>
 
-        <div className="mt-auto flex justify-between items-end">
-          <div className="max-w-lg">
-            <p className="text-sm font-sans font-light text-white/40 leading-relaxed italic">
-              "Planetary alignments provide a map of potential; your will
-              determines the path."
+        {/* Bottom bar: selected planet card, or the resting line */}
+        <div className="mt-auto flex flex-col gap-4 md:flex-row md:justify-between md:items-end">
+          {selected ? (
+            <div className="pointer-events-auto max-w-sm rounded-2xl border border-gold/20 bg-black/65 backdrop-blur-2xl p-5 animate-in fade-in slide-in-from-bottom-3 duration-500">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p
+                    className="text-[0.6rem] font-bold uppercase tracking-[0.35em] mb-1"
+                    style={{ color: selectedInfo?.color || GOLD }}
+                  >
+                    {selected.name.split("_").join(" ")}
+                    {selected.is_retrograde ? " · Retrograde" : ""}
+                  </p>
+                  <h3 className="font-display italic text-2xl text-white">
+                    {selectedInfo?.name || selected.name}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setSelected(null)}
+                  className="p-1.5 rounded-lg text-white/30 hover:text-gold transition-colors"
+                  aria-label="Dismiss planet details"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              <div className="mt-3 space-y-1 text-sm text-white/65">
+                <p>
+                  {selectedSignName} · {formatDegree(selected.degree)}
+                </p>
+                <p>
+                  House {selected.house} —{" "}
+                  {HOUSE_MEANINGS[selected.house]?.short}
+                  <span className="text-white/35">
+                    {" "}
+                    · {HOUSE_MEANINGS[selected.house]?.theme}
+                  </span>
+                </p>
+                {selected.nakshatra && (
+                  <p className="text-white/45">
+                    Nakshatra · {selected.nakshatra}
+                  </p>
+                )}
+              </div>
+              {onAskAbout && (
+                <button
+                  onClick={() =>
+                    onAskAbout(
+                      `What does ${selectedInfo?.name || selected.name} in ${selectedSignName}, in my ${selected.house}th house, mean for me?`,
+                    )
+                  }
+                  className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gold text-black text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors"
+                >
+                  <Sparkles size={12} />
+                  Ask Jyotish about this
+                </button>
+              )}
+            </div>
+          ) : (
+            <p className="max-w-md text-sm font-display italic text-white/35 leading-relaxed">
+              Touch a planet to read its placement. "The sky is a map of
+              potential; your will determines the path."
             </p>
-          </div>
-          <div className="text-right">
-            <div className="text-xs uppercase tracking-widest text-white/40 mb-2">
+          )}
+
+          <div className="md:text-right">
+            <div className="text-[0.6rem] font-bold uppercase tracking-[0.35em] text-white/35 mb-1.5">
               Ascendant Lagna
             </div>
-            <div className="text-2xl font-display text-gold">
-              {ascendantPos?.sign
-                ? getSignByCode(ascendantPos.sign)?.name
-                : "Mesha"}
+            <div className="text-2xl font-display italic text-gold">
+              {ascendantName || "Unknown"}
             </div>
           </div>
         </div>
       </div>
 
-      {/* 3D Scene */}
-      <Canvas dpr={[1, 1.5]}>
-        <PerspectiveCamera makeDefault position={[0, 15, 20]} fov={45} />
-        <CameraHandler isRotating={isRotating} />
+      {!hasRenderablePlanets && (
+        <div className="pointer-events-auto absolute left-1/2 top-1/2 z-20 w-[min(28rem,calc(100%-3rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-gold/20 bg-black/75 p-5 text-center backdrop-blur-xl">
+          <div className="text-xs font-bold uppercase tracking-[0.24em] text-gold">
+            Chart data unavailable
+          </div>
+          <p className="mt-3 text-sm leading-relaxed text-white/65">
+            Planet positions are missing for this profile. Close this view and
+            update birth details to recalculate the chart.
+          </p>
+        </div>
+      )}
+
+      {/* ── Scene ── */}
+      <Canvas
+        dpr={[1, 2]}
+        gl={{ antialias: true }}
+        onPointerMissed={() => setSelected(null)}
+      >
+        <PerspectiveCamera
+          makeDefault
+          position={CAMERA.opening.toArray()}
+          fov={45}
+        />
+        <CameraRig
+          isDiamondView={isDiamondView}
+          driveUntilRef={driveUntilRef}
+        />
         <OrbitControls
+          makeDefault
           enablePan={false}
-          maxDistance={30}
-          minDistance={10}
+          enableDamping
+          dampingFactor={0.06}
+          maxDistance={42}
+          minDistance={9}
+          maxPolarAngle={Math.PI / 2.15}
           autoRotate={isRotating}
-          autoRotateSpeed={0.3}
+          autoRotateSpeed={0.35}
         />
 
-        <ambientLight intensity={0.7} />
-        <pointLight position={[10, 10, 10]} intensity={3.0} color="#FFD700" />
+        <fog attach="fog" args={["#020206", 38, 95]} />
+        <ambientLight intensity={0.5} />
         <pointLight
-          position={[-15, -10, -10]}
-          intensity={1.0}
-          color="#8B5CF6"
+          position={[10, 14, 8]}
+          intensity={1.6}
+          decay={0}
+          color={GOLD}
+        />
+        <pointLight
+          position={[-14, 6, -10]}
+          intensity={0.5}
+          decay={0}
+          color="#7c6cff"
         />
 
         <Suspense fallback={null}>
@@ -784,14 +1048,23 @@ export default function CelestialChart({ data, onClose }: CelestialChartProps) {
             isDiamondView={isDiamondView}
             showWesternPlanets={showWesternPlanets}
             showHouseInfo={showHouseInfo}
+            selectedName={selected?.name ?? null}
+            onSelect={(p) => setSelected(p)}
+            ascendantDegree={ascendantDegree}
           />
         </Suspense>
-      </Canvas>
 
-      {/* Background Glow */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-radial-gradient from-gold/5 via-transparent to-transparent opacity-30" />
-      </div>
+        <EffectComposer>
+          <Bloom
+            mipmapBlur
+            intensity={1.05}
+            luminanceThreshold={0.85}
+            luminanceSmoothing={0.25}
+            radius={0.75}
+          />
+          <Vignette offset={0.22} darkness={0.82} />
+        </EffectComposer>
+      </Canvas>
     </div>
   );
 }

@@ -5,12 +5,12 @@ import {
   Send,
   Clock,
   Loader2,
-  CreditCard,
   Sparkles,
   ChevronLeft,
   Plus,
-  PanelLeftClose,
-  PanelLeftOpen,
+  History,
+  X,
+  Compass,
   Download,
   Save,
   Share2,
@@ -49,17 +49,26 @@ import { DharmaList } from "../components/dharma/DharmaList";
 import { RoutineProposal } from "../components/dharma/RoutineProposal";
 import { DailyAltar } from "../components/sadhana/DailyAltar";
 import ConversationsList from "../components/synthesis/ConversationsList";
+import { NightSky } from "../components/layout/NightSky";
 import type { UserRoutine } from "../types/user";
 import { STORAGE_KEYS, FREE_LIMIT_SECONDS } from "../lib/constants";
-import { useErrorToast } from "../components/ui/toast-context";
+import { useErrorToast, useSuccessToast } from "../components/ui/toast-context";
 
 type Message = ChatMessage;
+
+const OPENING_QUESTIONS = [
+  "What does my current dasha ask of me?",
+  "Why does this week feel heavy?",
+  "What is my Moon trying to teach me?",
+  "When is a good time to start something new?",
+];
 
 export default function Synthesis() {
   const navigate = useNavigate();
   const { id } = useParams();
   const { user, loading: authLoading } = useAuth();
   const showError = useErrorToast();
+  const showSuccess = useSuccessToast();
 
   const [birthData, setBirthData] = useState<any>(null);
 
@@ -122,7 +131,13 @@ export default function Synthesis() {
   // Local state - needed for guest mode and chat functionality
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(id || null);
-  const [input, setInput] = useState("");
+  // Seeded from the Dashboard's "Ask Jyotish" bar, which stashes the typed
+  // question in sessionStorage before navigating here.
+  const [input, setInput] = useState(() => {
+    const draft = sessionStorage.getItem(STORAGE_KEYS.SYNTHESIS_DRAFT) || "";
+    if (draft) sessionStorage.removeItem(STORAGE_KEYS.SYNTHESIS_DRAFT);
+    return draft;
+  });
   const [secondsUsed, setSecondsUsed] = useState(0);
   const [credits, setCredits] = useState(0);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -131,7 +146,13 @@ export default function Synthesis() {
   const [isPaying, setIsPaying] = useState(false);
   const [kundaliData, setKundaliData] = useState<KundaliData | null>(null);
   const [isLoadingKundali, setIsLoadingKundali] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  // Rails are open by default on desktop (in-flow panels) and closed on
+  // mobile, where they act as overlay drawers instead.
+  const isDesktop = () =>
+    typeof window !== "undefined" &&
+    window.matchMedia("(min-width: 1024px)").matches;
+  const [showConversations, setShowConversations] = useState(isDesktop);
+  const [showBlueprint, setShowBlueprint] = useState(isDesktop);
   const [showExpandedChart, setShowExpandedChart] = useState(false);
   const [interactionId, setInteractionId] = useState<string | null>(null);
   const [streamingContent, setStreamingContent] = useState<string | null>(null);
@@ -170,7 +191,7 @@ export default function Synthesis() {
     () => ({
       id: "welcome",
       role: "assistant",
-      content: `${welcomeName ? `Welcome ${welcomeName}.` : "Welcome."} I am your personal Jyotish, your guide to Vedic insights. What would you like to know today?`,
+      content: `${welcomeName ? `Hello ${welcomeName}.` : "Welcome."} I am your personal Jyotish, your guide to Vedic insights.`,
       timestamp: new Date(),
     }),
     [welcomeName],
@@ -348,7 +369,6 @@ export default function Synthesis() {
     return () => clearInterval(interval);
   }, [secondsUsed, user]);
 
-  // Handle Payment
   const handlePurchase = async (minutes: number, price: number) => {
     if (!user) {
       setShowAuthModal(true);
@@ -385,7 +405,6 @@ export default function Synthesis() {
         description: `Purchase ${minutes} Minutes`,
         order_id: order.id,
         handler: async (response: any) => {
-          // Verify payment and add credits server-side
           const verifyResp = await fetch("/api/pay/verify", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -399,7 +418,12 @@ export default function Synthesis() {
           if (verifyData.status === "success") {
             setCredits((prev) => prev + minutes);
             trackAcquisitionEvent("first_payment", { amount: price });
-            alert(`Successfully added ${minutes} minutes!`);
+            showSuccess(
+              "Minutes Added",
+              `${minutes} minutes were added to your account.`,
+            );
+          } else {
+            showError("Payment Verification Failed", "Please contact support.");
           }
         },
         prefill: {
@@ -407,7 +431,7 @@ export default function Synthesis() {
           email: user.email || "",
         },
         theme: {
-          color: "#FFD700",
+          color: "#ffcd6a",
         },
       };
 
@@ -661,10 +685,7 @@ export default function Synthesis() {
         };
         setMessages((prev) => [...prev, aiMsg]);
       }
-      showError(
-        "Connection Lost",
-        errorMessage,
-      );
+      showError("Connection Lost", errorMessage);
     } finally {
       setIsSynthesizing(false);
     }
@@ -677,6 +698,11 @@ export default function Synthesis() {
   }, [messages, isSynthesizing, streamingContent]);
 
   const remainingSeconds = Math.max(0, FREE_LIMIT_SECONDS - secondsUsed);
+  const isIntroConversation =
+    !isSynthesizing &&
+    streamingContent === null &&
+    (messages.length === 0 ||
+      (messages.length === 1 && messages[0]?.id === "welcome"));
 
   return (
     <>
@@ -710,144 +736,477 @@ export default function Synthesis() {
         onRefresh={refreshAtman}
       />
 
-      <div className="h-screen flex flex-col bg-[#010103] text-content-primary overflow-hidden relative selection:bg-gold/30 selection:text-white">
-        {/* Background Effects */}
-        <div className="fixed inset-0 pointer-events-none">
-          <div className="absolute inset-0 bg-[url('/assets/cosmic-bg.png')] opacity-20 bg-cover bg-center" />
-          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-900/10 rounded-full blur-[100px]" />
-          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-900/10 rounded-full blur-[100px]" />
-        </div>
+      <div className="h-screen flex flex-col bg-bg-app text-content-primary overflow-hidden relative selection:bg-gold/30 selection:text-white">
+        <NightSky />
 
-        {/* Main Container */}
-        <div className="flex-1 flex overflow-hidden relative">
-          {/* Leftmost: Conversation Sidebar (Hidden on mobile or during Prana) */}
-          {user && !showPrana && (
-            <aside
-              className={`hidden md:flex ${
-                isSidebarCollapsed ? "w-0 opacity-0" : "w-72 opacity-100"
-              } border-r border-white/5 bg-black/40 backdrop-blur-md flex-col transition-all duration-300 relative overflow-hidden shrink-0`}
-            >
-              <div className="p-4 border-b border-white/5">
+        {/* ── Top bar ── */}
+        {!showPrana && (
+          <header className="relative z-30 flex items-center justify-between gap-3 px-4 md:px-6 py-3 border-b border-white/5 bg-bg-app/70 backdrop-blur-xl">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigate("/dashboard")}
+                className="p-2 rounded-xl text-white/35 hover:text-gold transition-colors"
+                title="Back to the Ephemeris"
+                aria-label="Back to dashboard"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              {user && (
                 <button
-                  onClick={() => {
-                    setCurrentChatId(null);
-                    navigate("/synthesis");
-                  }}
-                  className="w-full btn btn-outline !py-3 text-xs rounded-lg flex items-center justify-center gap-2 group whitespace-nowrap"
+                  onClick={() => setShowConversations((v) => !v)}
+                  className={`flex items-center gap-2 p-2 rounded-xl transition-colors ${
+                    showConversations
+                      ? "text-gold"
+                      : "text-white/35 hover:text-gold"
+                  }`}
+                  title="Conversations"
+                  aria-label="Toggle conversations"
                 >
-                  <Plus
-                    size={14}
-                    className="group-hover:rotate-90 transition-transform"
-                  />
-                  New Chat
+                  <History size={15} />
+                  <span className="hidden md:inline text-[0.65rem] font-bold uppercase tracking-[0.2em]">
+                    History
+                  </span>
                 </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto custom-scrollbar">
-                <ConversationsList
-                  userId={user.uid}
-                  currentId={currentChatId}
-                  onSelect={(id) => {
-                    setCurrentChatId(id);
-                    navigate(`/synthesis/${id}`);
-                  }}
-                  onDelete={async (id) => {
-                    try {
-                      // Delete chat document from Firestore
-                      const { deleteDoc } = await import("firebase/firestore");
-                      await deleteDoc(doc(db, "users", user.uid, "chats", id));
-
-                      // If we deleted the current chat, navigate to new chat
-                      if (currentChatId === id) {
-                        setCurrentChatId(null);
-                        navigate("/synthesis");
-                      }
-                    } catch (err) {
-                      console.error("Failed to delete chat:", err);
-                      showError(
-                        "Delete Failed",
-                        "Could not delete the conversation. Please try again.",
-                      );
-                    }
-                  }}
-                />
-              </div>
-
-              <div className="p-4 border-t border-white/5">
-                <button
-                  onClick={() => navigate("/dashboard")}
-                  className="flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-white/40 hover:text-gold transition-colors whitespace-nowrap"
-                >
-                  <ChevronLeft size={14} />
-                  Back to Portal
-                </button>
-              </div>
-            </aside>
-          )}
-
-          {/* Toggle Button (Floating) */}
-          {user && !showPrana && (
-            <button
-              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              aria-label={isSidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
-              className={`hidden md:flex absolute ${
-                isSidebarCollapsed ? "left-4" : "left-[17rem]"
-              } top-32 z-50 p-2 rounded-full border border-white/10 bg-black/40 backdrop-blur-md text-white/40 hover:text-gold hover:border-gold/30 transition-all duration-300`}
-            >
-              {isSidebarCollapsed ? (
-                <PanelLeftOpen size={16} />
-              ) : (
-                <PanelLeftClose size={16} />
               )}
-            </button>
-          )}
+            </div>
 
-          {/* Middle/Left: Celestial Blueprint (Hidden during Prana) */}
-          {!showPrana && (
-            <div className="hidden lg:flex w-[310px] border-r border-white/5 flex-col p-4 overflow-y-auto bg-black/20 backdrop-blur-sm z-10 shrink-0">
-              <header className="flex justify-between items-center mb-4">
-                <div className="flex items-center gap-3">
-                  <select
-                    value={currentChartType}
-                    onChange={(e) =>
-                      setCurrentChartType(e.target.value as ChartType)
-                    }
-                    className="bg-transparent text-md font-display tracking-[0.2em] uppercase text-white/60 border-none focus:ring-0 cursor-pointer hover:text-white transition-colors p-0"
-                  >
-                    <option value="D1" className="bg-black">
-                      Natal Chart (D1)
-                    </option>
-                    <option value="D9" className="bg-black">
-                      Navamsa (D9)
-                    </option>
-                  </select>
+            <div className="absolute left-1/2 -translate-x-1/2 text-center pointer-events-none">
+              <p className="font-display text-xl text-white/85 leading-none">
+                Jyotish
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {!user ? (
+                <div className="flex items-center gap-1.5 text-[0.65rem] font-mono px-2.5 py-1 rounded-full border border-gold/30 text-gold bg-gold/5">
+                  <Clock size={10} />
+                  <span>
+                    {Math.floor(remainingSeconds / 60)}:
+                    {(remainingSeconds % 60).toString().padStart(2, "0")}
+                  </span>
                 </div>
-                <div className="flex items-center gap-3">
-                  {!user ? (
-                    <div className="flex items-center gap-2 text-xs font-mono px-2 py-1 rounded-full border border-gold/30 text-gold bg-gold/5">
-                      <Clock size={10} />
-                      <span>
-                        {Math.floor(remainingSeconds / 60)}:
-                        {(remainingSeconds % 60).toString().padStart(2, "0")}
-                      </span>
+              ) : (
+                <div className="flex items-center gap-1 rounded-full border border-gold/30 bg-gold/5 p-1 text-gold">
+                  <div className="flex items-center gap-1.5 px-2 text-[0.65rem] font-mono">
+                    <Sparkles size={10} />
+                    <span>{credits}m</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handlePurchase(60, 499)}
+                    disabled={isPaying}
+                    className="flex h-6 items-center gap-1 rounded-full bg-gold/10 px-2 text-[0.58rem] font-bold uppercase tracking-[0.16em] text-gold transition-colors hover:bg-gold/20 disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Add more minutes"
+                    aria-label="Add more minutes"
+                  >
+                    {isPaying ? (
+                      <Loader2 size={10} className="animate-spin" />
+                    ) : (
+                      <Plus size={11} />
+                    )}
+                    <span className="hidden sm:inline">
+                      {isPaying ? "Adding" : "Add"}
+                    </span>
+                  </button>
+                </div>
+              )}
+              <button
+                onClick={() => setShowBlueprint((v) => !v)}
+                className={`flex items-center gap-2 p-2 rounded-xl transition-colors ${
+                  showBlueprint ? "text-gold" : "text-white/35 hover:text-gold"
+                }`}
+                title="Your celestial blueprint"
+                aria-label="Toggle chart panel"
+              >
+                <Compass size={15} />
+                <span className="hidden md:inline text-[0.65rem] font-bold uppercase tracking-[0.2em]">
+                  Blueprint
+                </span>
+              </button>
+            </div>
+          </header>
+        )}
+
+        {/* ── Body: rails + conversation ── */}
+        {!showPrana && (
+          <div className="flex-1 flex relative z-10 overflow-hidden">
+            <div className="flex-1 flex flex-col overflow-hidden min-w-0 lg:order-2">
+              <div
+                ref={scrollRef}
+                className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar"
+              >
+                <div
+                  className={`mx-auto flex min-h-full max-w-3xl flex-col space-y-6 px-4 py-7 md:px-6 ${
+                    isIntroConversation ? "justify-center" : "justify-end"
+                  }`}
+                >
+                  {isIntroConversation && (
+                    <div className="flex flex-col items-center gap-6 px-3 py-8 text-center">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full border border-gold/25 bg-gold/10 shadow-[0_0_35px_rgba(255,205,106,0.12)]">
+                        <Sparkles size={18} className="text-gold" />
+                      </div>
+                      <div className="max-w-xl">
+                        <h4 className="font-display text-3xl italic leading-tight text-white/90 md:text-4xl">
+                          What would you ask the sky?
+                        </h4>
+                        <p className="mx-auto mt-4 max-w-lg text-sm leading-7 text-white/48">
+                          {messages[0]?.content || welcomeMessage.content}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-center gap-2 max-w-lg">
+                        {OPENING_QUESTIONS.map((q) => (
+                          <button
+                            key={q}
+                            onClick={() => setInput(q)}
+                            className="rounded-full border border-white/10 bg-white/[0.02] px-4 py-2 text-xs text-white/50 transition-colors hover:border-gold/30 hover:text-gold"
+                          >
+                            {q}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  ) : (
-                    <>
+                  )}
+
+                  {messages
+                    .filter((m, i, arr) => {
+                      if (isIntroConversation && m.id === "welcome") {
+                        return false;
+                      }
+                      // Hide the last assistant message while streaming to prevent duplicate bubbles
+                      // onSnapshot may deliver the Firestore message before streamingContent clears
+                      if (
+                        streamingContent !== null &&
+                        m.role === "assistant" &&
+                        i === arr.length - 1
+                      )
+                        return false;
+                      return true;
+                    })
+                    .map((m) => (
+                      <div
+                        key={m.id}
+                        className={`flex ${
+                          m.role === "user" ? "justify-end" : "justify-start"
+                        } ${
+                          m.role === "user"
+                            ? "animate-message-send"
+                            : "animate-reveal-progressive"
+                        }`}
+                      >
+                        <div className="max-w-[90%] md:max-w-[85%] group">
+                          <div
+                            className={`text-[0.6rem] font-bold uppercase tracking-[0.3em] mb-1.5 flex items-center gap-2 ${
+                              m.role === "user"
+                                ? "flex-row-reverse text-white/25"
+                                : "flex-row text-gold/50"
+                            }`}
+                          >
+                            {m.role === "user" ? "You" : "Jyotish"}
+                            <span className="text-white/15">·</span>
+                            <span className="text-white/20 font-normal tracking-[0.15em]">
+                              {m.timestamp.toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          </div>
+                          {m.role === "user" ? (
+                            <div className="px-5 py-3 rounded-2xl rounded-tr-md bg-gold/8 border border-gold/15 text-white/85 transition-colors group-hover:bg-gold/10">
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                components={markdownComponents as any}
+                              >
+                                {m.content}
+                              </ReactMarkdown>
+                            </div>
+                          ) : (
+                            <div className="pl-5 border-l border-gold/30">
+                              <div className="prose-cosmic animate-reveal-progressive">
+                                <ReactMarkdown
+                                  remarkPlugins={[remarkGfm]}
+                                  components={markdownComponents as any}
+                                >
+                                  {m.content}
+                                </ReactMarkdown>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+
+                  {/* Streaming reveal */}
+                  {streamingContent !== null && (
+                    <div className="flex justify-start animate-in fade-in duration-300">
+                      <div className="max-w-[90%] md:max-w-[85%]">
+                        <div className="text-[0.6rem] font-bold uppercase tracking-[0.3em] mb-1.5 flex items-center gap-2 text-gold/50">
+                          Jyotish
+                          <span className="text-white/15">·</span>
+                          <span className="text-white/20 font-normal tracking-[0.15em]">
+                            Now
+                          </span>
+                        </div>
+                        <div className="pl-5 border-l border-gold/30">
+                          <div className="prose-cosmic">
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm]}
+                              components={markdownComponents as any}
+                            >
+                              {streamingContent}
+                            </ReactMarkdown>
+                            <span className="inline-block w-0.5 h-4 bg-gold/60 animate-pulse ml-0.5 align-middle" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {isSynthesizing && (
+                    <div className="flex justify-start animate-in fade-in duration-300">
+                      <div className="max-w-[85%]">
+                        <div className="text-[0.6rem] font-bold uppercase tracking-[0.3em] mb-1.5 text-gold/50">
+                          Jyotish
+                        </div>
+                        <div className="pl-5 border-l border-gold/30 flex items-center gap-3 py-1">
+                          <Loader2
+                            size={14}
+                            className="animate-spin text-gold"
+                          />
+                          <span className="text-[0.65rem] uppercase tracking-[0.3em] text-gold/60 animate-pulse">
+                            Reading the sky…
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Routine suggestion teaser — shows in chat before modal opens */}
+                  {suggestedRoutine && (
+                    <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-500">
+                      <div className="max-w-[85%]">
+                        <div className="px-4 py-3 rounded-2xl border border-gold/20 bg-gold/5 flex items-center gap-3">
+                          <Sparkles size={14} className="text-gold shrink-0" />
+                          <span className="text-sm text-gold/80">
+                            Jyotish has a practice suggestion for you...
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Input ── */}
+              <div className="border-t border-white/[0.04] bg-bg-app/92 px-4 pb-4 pt-3 backdrop-blur-xl md:px-6">
+                <div className="mx-auto max-w-2xl">
+                  <div className="flex items-end gap-2 rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2.5 transition-colors focus-within:border-gold/30 focus-within:bg-white/[0.05]">
+                    <Sparkles
+                      size={16}
+                      className="mb-1.5 shrink-0 text-gold/75"
+                    />
+                    <textarea
+                      rows={1}
+                      placeholder="Ask Jyotish..."
+                      className="max-h-32 min-w-0 flex-1 resize-none appearance-none overflow-hidden border-0 bg-transparent py-1 font-sans text-sm leading-6 text-white/85 outline-none placeholder:text-white/28 focus:border-0 focus:outline-none focus:ring-0 md:text-[0.95rem]"
+                      style={{ height: "auto" }}
+                      value={input}
+                      onChange={(e) => {
+                        setInput(e.target.value);
+                        e.target.style.height = "auto";
+                        e.target.style.height = e.target.scrollHeight + "px";
+                      }}
+                      onKeyDown={(e) =>
+                        e.key === "Enter" &&
+                        !e.shiftKey &&
+                        (e.preventDefault(), handleSend())
+                      }
+                    />
+                    <button
+                      onClick={handleSend}
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-all ${
+                        input.trim()
+                          ? "bg-gold/90 text-black hover:bg-gold"
+                          : "text-white/20"
+                      }`}
+                      disabled={isSynthesizing || authLoading || !input.trim()}
+                      aria-label="Send message"
+                    >
+                      <Send size={16} />
+                    </button>
+                  </div>
+                </div>
+                {!user && (
+                  <div className="mx-auto mt-3 flex max-w-3xl flex-col items-center justify-center gap-2 rounded-xl border border-gold/15 bg-gold/5 px-4 py-3 text-center text-xs text-white/55 sm:flex-row">
+                    <span>
+                      Guest mode has a small server limit. Sign in to use your
+                      account credits and save replies.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAuthModal(true)}
+                      className="text-gold hover:text-gold/80"
+                    >
+                      Sign in
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ── Drawer backdrop (mobile only) ── */}
+            {(showConversations || showBlueprint) && (
+              <button
+                onClick={() => {
+                  setShowConversations(false);
+                  setShowBlueprint(false);
+                }}
+                className="lg:hidden absolute inset-0 z-40 bg-black/55 backdrop-blur-sm animate-in fade-in duration-200 cursor-default"
+                aria-label="Close panel"
+              />
+            )}
+
+            {/* ── Left rail: Conversations (in-flow on desktop, drawer on mobile) ── */}
+            {user && (
+              <aside
+                className={`z-50 flex flex-col transition-all duration-300 max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:w-80 max-lg:max-w-[85vw] max-lg:bg-[#06060c]/95 max-lg:backdrop-blur-2xl max-lg:border-r max-lg:border-white/10 ${
+                  showConversations
+                    ? "max-lg:translate-x-0"
+                    : "max-lg:-translate-x-full"
+                } lg:order-1 lg:relative lg:overflow-hidden lg:bg-white/2 ${
+                  showConversations
+                    ? "lg:w-64 lg:border-r lg:border-white/5"
+                    : "lg:w-0 lg:opacity-0 lg:pointer-events-none"
+                }`}
+                aria-hidden={!showConversations}
+              >
+                <div className="p-4 border-b border-white/5">
+                  <div className="flex items-center justify-between mb-3 px-1">
+                    <p className="text-[0.6rem] font-bold uppercase tracking-[0.35em] text-white/25">
+                      Conversations
+                    </p>
+                    <button
+                      onClick={() => setShowConversations(false)}
+                      className="p-1.5 rounded-lg text-white/30 hover:text-gold transition-colors"
+                      aria-label="Close conversations"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setCurrentChatId(null);
+                      setShowConversations(false);
+                      navigate("/synthesis");
+                    }}
+                    className="w-full py-2.5 rounded-xl border border-gold/30 text-gold text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:bg-gold hover:text-black transition-colors flex items-center justify-center gap-2 group whitespace-nowrap"
+                  >
+                    <Plus
+                      size={13}
+                      className="group-hover:rotate-90 transition-transform"
+                    />
+                    New conversation
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto custom-scrollbar">
+                  <ConversationsList
+                    userId={user.uid}
+                    currentId={currentChatId}
+                    onSelect={(id) => {
+                      setCurrentChatId(id);
+                      setShowConversations(false);
+                      navigate(`/synthesis/${id}`);
+                    }}
+                    onDelete={async (id) => {
+                      try {
+                        // Delete chat document from Firestore
+                        const { deleteDoc } =
+                          await import("firebase/firestore");
+                        await deleteDoc(
+                          doc(db, "users", user.uid, "chats", id),
+                        );
+
+                        // If we deleted the current chat, navigate to new chat
+                        if (currentChatId === id) {
+                          setCurrentChatId(null);
+                          navigate("/synthesis");
+                        }
+                      } catch (err) {
+                        console.error("Failed to delete chat:", err);
+                        showError(
+                          "Delete Failed",
+                          "Could not delete the conversation. Please try again.",
+                        );
+                      }
+                    }}
+                  />
+                </div>
+
+                <div className="p-4 border-t border-white/5">
+                  <button
+                    onClick={() => navigate("/dashboard")}
+                    className="flex items-center gap-2 text-[0.65rem] font-bold uppercase tracking-[0.25em] text-white/35 hover:text-gold transition-colors whitespace-nowrap"
+                  >
+                    <ChevronLeft size={13} />
+                    The Ephemeris
+                  </button>
+                </div>
+              </aside>
+            )}
+
+            {/* ── Right rail: Celestial Blueprint (in-flow on desktop, drawer on mobile) ── */}
+            <aside
+              className={`z-50 flex flex-col overflow-y-auto custom-scrollbar transition-all duration-300 max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:w-96 max-lg:max-w-[90vw] max-lg:bg-[#06060c]/95 max-lg:backdrop-blur-2xl max-lg:border-l max-lg:border-white/10 max-lg:p-4 ${
+                showBlueprint
+                  ? "max-lg:translate-x-0"
+                  : "max-lg:translate-x-full"
+              } lg:order-3 lg:relative lg:overflow-x-hidden lg:bg-white/2 ${
+                showBlueprint
+                  ? "lg:w-[360px] lg:p-5 lg:border-l lg:border-white/5"
+                  : "lg:w-0 lg:p-0 lg:opacity-0 lg:pointer-events-none"
+              }`}
+              aria-hidden={!showBlueprint}
+            >
+              <header className="mb-5">
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <p className="text-gold/80 text-[0.58rem] font-bold uppercase tracking-[0.32em] leading-4">
+                    Celestial Blueprint
+                  </p>
+                  <div className="flex items-center gap-2">
+                    {user && (
                       <button
                         onClick={() => navigate("/reports")}
-                        className="flex items-center gap-1 text-xs px-2 py-1 rounded-full border border-white/10 text-white/45 hover:text-gold hover:border-gold/30 transition-colors"
+                        className="flex items-center gap-1 text-[0.65rem] px-2.5 py-1 rounded-full border border-white/10 text-white/45 hover:text-gold hover:border-gold/30 transition-colors"
                         title="My reports"
                       >
                         <Download size={10} />
                         Reports
                       </button>
-                      <div className="flex items-center gap-2 text-xs font-mono px-2 py-1 rounded-full border border-gold/30 text-gold bg-gold/5">
-                        <Sparkles size={10} />
-                        <span>{credits}m</span>
-                      </div>
-                    </>
-                  )}
+                    )}
+                    <button
+                      onClick={() => setShowBlueprint(false)}
+                      className="p-1.5 rounded-lg text-white/30 hover:text-gold transition-colors"
+                      aria-label="Close blueprint"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
                 </div>
+                <select
+                  value={currentChartType}
+                  onChange={(e) =>
+                    setCurrentChartType(e.target.value as ChartType)
+                  }
+                  className="w-full cursor-pointer appearance-none border-none bg-transparent p-0 font-display text-lg italic text-white/85 transition-colors hover:text-gold focus:ring-0"
+                >
+                  <option value="D1" className="bg-black not-italic">
+                    Natal Chart (D1)
+                  </option>
+                  <option value="D9" className="bg-black not-italic">
+                    Navamsa (D9)
+                  </option>
+                </select>
+                <div className="mt-3 h-px bg-linear-to-r from-gold/25 to-transparent" />
               </header>
 
               {isLoadingKundali ? (
@@ -859,22 +1218,22 @@ export default function Synthesis() {
                 </div>
               ) : kundaliData ? (
                 <div className="animate-in fade-in zoom-in-95 duration-1000">
-                  <div id="kundali-chart-container">
+                  <div
+                    id="kundali-chart-container"
+                    className="mx-auto max-w-[300px]"
+                  >
                     <button
                       onClick={() => setShowExpandedChart(true)}
-                      className="w-full scale-90 origin-top hover:scale-[0.92] transition-transform duration-500 cursor-zoom-in relative group"
+                      className="relative block w-full cursor-zoom-in rounded-xl transition-transform duration-500 group hover:scale-[1.01]"
                     >
-                      <div className="absolute inset-0 bg-gold/5 opacity-0 group-hover:opacity-100 rounded-full blur-2xl transition-opacity" />
-                      <Kundali data={kundaliData} />
-                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md px-2 py-3 rounded-full border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
-                        <span className="text-xs uppercase tracking-[0.2em] text-white">
+                      <div className="absolute inset-0 rounded-full bg-gold/5 opacity-0 blur-2xl transition-opacity group-hover:opacity-100" />
+                      <Kundali data={kundaliData} className="compact" />
+                      <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 opacity-0 backdrop-blur-md transition-opacity group-hover:opacity-100">
+                        <span className="text-[0.56rem] uppercase tracking-[0.22em] text-white/75">
                           Expand Chart
                         </span>
                       </div>
                     </button>
-                    <div className="text-center text-[10px] uppercase tracking-[0.3em] text-gold/60 font-medium">
-                      Your Kundali
-                    </div>
                   </div>
 
                   {/* Chart Action Buttons */}
@@ -886,7 +1245,7 @@ export default function Synthesis() {
                           `kundali-${birthData?.name || "chart"}.png`,
                         )
                       }
-                      className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-all flex items-center justify-center group"
+                      className="flex items-center justify-center rounded-xl bg-white/5 p-2 transition-all hover:bg-white/10 group"
                       title="Download Chart"
                     >
                       <Download
@@ -896,7 +1255,7 @@ export default function Synthesis() {
                     </button>
                     <button
                       onClick={() => setShowShareModal(true)}
-                      className="p-2 rounded-xl bg-white/5 border border-white/10 hover:border-gold/30 text-white/40 hover:text-gold transition-all"
+                      className="rounded-xl bg-white/5 p-2 text-white/40 transition-all hover:bg-white/10 hover:text-gold"
                       title="Share chart"
                     >
                       <Share2 size={16} />
@@ -904,7 +1263,7 @@ export default function Synthesis() {
                     {/* Update Birth Data Button */}
                     <button
                       onClick={() => setShowOnboardingModal(true)}
-                      className="flex-1 p-2 rounded-lg bg-gold/10 border border-gold/20 hover:bg-gold/20 transition-all flex items-center justify-center gap-2 group"
+                      className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gold/10 p-2 transition-all hover:bg-gold/20 group"
                       title="Update Birth Data"
                     >
                       <Save
@@ -920,66 +1279,20 @@ export default function Synthesis() {
                   {/* Daily Altar Button */}
                   <button
                     onClick={() => setShowAltar(true)}
-                    className="w-full mt-3 p-3 rounded-xl bg-gradient-to-r from-amber-500/10 to-purple-500/10 border border-white/10 hover:border-gold/30 hover:shadow-lg hover:shadow-gold/5 transition-all group relative overflow-hidden"
+                    className="relative mt-3 w-full overflow-hidden rounded-xl bg-white/[0.04] p-3 transition-all hover:bg-gold/10 group"
                   >
-                    <div className="absolute inset-0 bg-gold/5 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
-                    <div className="flex items-center justify-center gap-2 relative z-10">
-                      <Sparkles size={16} className="text-gold" />
-                      <span className="text-sm font-display tracking-widest text-white/90">
-                        Open Daily Altar
+                    <div className="flex items-center justify-center gap-2">
+                      <Sparkles size={15} className="text-gold" />
+                      <span className="text-sm font-display italic tracking-wide text-white/90">
+                        Open the Daily Altar
                       </span>
                     </div>
                   </button>
 
-                  <div className="mt-3 space-y-2">
-                    <div className="p-3 rounded-xl bg-white/5 border border-white/5">
-                      <h4 className="text-sm uppercase tracking-widest text-gold/60 mb-2">
-                        Chart Essence
-                      </h4>
-                      <p className="text-xs font-sans font-light opacity-60 leading-relaxed">
-                        Your chart reflects a{" "}
-                        {
-                          kundaliData.planetary_positions.find(
-                            (p) => p.name === "Sun",
-                          )?.sign
-                        }{" "}
-                        influence, guided by the wisdom of{" "}
-                        {
-                          kundaliData.planetary_positions.find(
-                            (p) => p.name === "Ascendant",
-                          )?.sign
-                        }{" "}
-                        Lagna.
-                      </p>
-                    </div>
-
-                    <button
-                      onClick={() => handlePurchase(60, 499)}
-                      disabled={isPaying}
-                      className="w-full p-3 rounded-xl bg-gold/5 border border-gold/10 hover:bg-gold/10 transition-all flex items-center justify-between group disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <div className="flex items-center gap-3">
-                        {isPaying ? (
-                          <Loader2
-                            size={16}
-                            className="text-gold animate-spin"
-                          />
-                        ) : (
-                          <CreditCard size={16} className="text-gold" />
-                        )}
-                        <span className="text-sm text-white/80">
-                          {isPaying ? "Processing..." : "Add More Minutes"}
-                        </span>
-                      </div>
-                      <Plus
-                        size={14}
-                        className="text-gold group-hover:scale-125 transition-transform"
-                      />
-                    </button>
-
+                  <div className="mt-5">
                     {/* Dharma Routines List */}
                     {user && atmanState?.routines && (
-                      <div className="mt-6 pt-4 border-t border-white/5">
+                      <div className="pt-4">
                         <DharmaList
                           routines={atmanState.routines}
                           userId={user.uid}
@@ -996,265 +1309,41 @@ export default function Synthesis() {
                   </p>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Right: Synthesis Chat Area (Hidden during Prana) */}
-          {!showPrana && (
-            <div className="flex-1 flex flex-col relative bg-[#030308]">
-              <div className="absolute inset-0 z-0 pointer-events-none opacity-5">
-                <div className="absolute top-[20%] left-[10%] w-[40vw] h-[40vw] bg-violet blur-[150px] rounded-full"></div>
-                <div className="absolute bottom-[20%] right-[10%] w-[30vw] h-[30vw] bg-gold blur-[150px] rounded-full"></div>
-              </div>
-
-              {/* Mobile Header (Hidden during Prana) */}
-              <div className="md:hidden p-4 border-b border-white/5 bg-black/40 backdrop-blur-md flex justify-between items-center z-20">
-                <button
-                  onClick={() => navigate("/dashboard")}
-                  className="text-white/40"
-                  aria-label="Back to dashboard"
-                >
-                  <ChevronLeft size={20} />
-                </button>
-                <span className="font-display tracking-[0.2em] uppercase text-xs">
-                  Synthesis
-                </span>
-                <button
-                  onClick={() => setCurrentChatId(null)}
-                  className="text-gold"
-                  aria-label="New conversation"
-                >
-                  <Plus size={20} />
-                </button>
-              </div>
-
-              <div
-                ref={scrollRef}
-                className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-6 space-y-4 relative z-10 custom-scrollbar"
-              >
-                {/* Atmospheric Aura */}
-                <div className="aura-bg opacity-50 absolute inset-0 -z-10 pointer-events-none" />
-                {messages.length === 0 && !isSynthesizing && (
-                  <div className="h-full flex flex-col items-center justify-center opacity-30 text-center gap-6">
-                    <div className="w-16 h-16 rounded-full border border-gold/20 flex items-center justify-center text-gold">
-                      <Sparkles size={32} />
-                    </div>
-                    <div>
-                      <h4 className="font-display tracking-widest uppercase mb-2 text-xs">
-                        The Void Awaited
-                      </h4>
-                      <p className="text-xs italic">
-                        A single query illuminates the entire cosmos.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {messages
-                  .filter((m, i, arr) => {
-                    // Hide the last assistant message while streaming to prevent duplicate bubbles
-                    // onSnapshot may deliver the Firestore message before streamingContent clears
-                    if (
-                      streamingContent !== null &&
-                      m.role === "assistant" &&
-                      i === arr.length - 1
-                    )
-                      return false;
-                    return true;
-                  })
-                  .map((m) => (
-                    <div
-                      key={m.id}
-                      className={`flex ${
-                        m.role === "user" ? "justify-end" : "justify-start"
-                      } ${
-                        m.role === "user"
-                          ? "animate-message-send"
-                          : "animate-reveal-progressive"
-                      }`}
-                    >
-                      <div className="max-w-[90%] md:max-w-[85%] group">
-                        <div
-                          className={`text-xs uppercase tracking-widest mb-1 opacity-30 flex items-center gap-2 ${
-                            m.role === "user" ? "flex-row-reverse" : "flex-row"
-                          }`}
-                        >
-                          {m.role === "user" ? "You" : "Jyotish"}
-                          <span>•</span>
-                          <span>
-                            {m.timestamp.toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                        </div>
-                        <div
-                          className={`px-4 py-3 rounded-2xl md:rounded-3xl border transition-all duration-300 ${
-                            m.role === "user"
-                              ? "bg-white/5 border-white/10 group-hover:bg-white/10"
-                              : "bg-surface-accent/10 border-gold/10 group-hover:border-gold/20"
-                          }`}
-                        >
-                          <div
-                            className={
-                              m.role === "assistant"
-                                ? "prose-cosmic animate-reveal-progressive"
-                                : ""
-                            }
-                          >
-                            <ReactMarkdown
-                              remarkPlugins={[remarkGfm]}
-                              components={markdownComponents as any}
-                            >
-                              {m.content}
-                            </ReactMarkdown>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-
-                {/* Streaming reveal for guest messages */}
-                {streamingContent !== null && (
-                  <div className="flex justify-start animate-in fade-in duration-300">
-                    <div className="max-w-[90%] md:max-w-[85%]">
-                      <div className="text-xs uppercase tracking-widest mb-1 opacity-30 flex items-center gap-2">
-                        Jyotish
-                        <span>•</span>
-                        <span>Now</span>
-                      </div>
-                      <div className="px-4 py-3 rounded-2xl md:rounded-3xl border border-gold/10 bg-surface-accent/10">
-                        <div className="prose-cosmic">
-                          <ReactMarkdown
-                            remarkPlugins={[remarkGfm]}
-                            components={markdownComponents as any}
-                          >
-                            {streamingContent}
-                          </ReactMarkdown>
-                          <span className="inline-block w-0.5 h-4 bg-gold/60 animate-pulse ml-0.5 align-middle" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {isSynthesizing && (
-                  <div className="flex justify-start animate-in fade-in duration-300">
-                    <div className="max-w-[85%]">
-                      <div className="text-xs uppercase tracking-widest mb-2 opacity-30">
-                        Jyotish
-                      </div>
-                      <div className="p-4 rounded-3xl border border-gold/10 bg-surface-accent/10 flex items-center gap-4">
-                        <Loader2 size={16} className="animate-spin text-gold" />
-                        <span className="text-xs uppercase tracking-[0.3em] text-gold/60 animate-pulse">
-                          Contemplating...
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Routine suggestion teaser — shows in chat before modal opens */}
-                {suggestedRoutine && (
-                  <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-500">
-                    <div className="max-w-[85%]">
-                      <div className="px-4 py-3 rounded-2xl md:rounded-3xl border border-gold/20 bg-gold/5 flex items-center gap-3">
-                        <Sparkles size={14} className="text-gold shrink-0" />
-                        <span className="text-sm text-gold/80">
-                          Jyotish has a practice suggestion for you...
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Input Area */}
-              <div className="p-2 md:p-5 z-10">
-                <div className="relative max-w-4xl mx-auto group">
-                  <div className="absolute -inset-1 bg-gradient-to-r from-gold/20 to-violet/20 rounded-[2.5rem] blur opacity-0 group-focus-within:opacity-100 transition duration-1000"></div>
-                  <textarea
-                    rows={1}
-                    placeholder="Ask the stars about your destiny..."
-                    className="relative w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 outline-none focus:border-gold/50 transition-all font-sans text-base md:text-lg pr-14 overflow-hidden resize-none"
-                    style={{ height: "auto" }}
-                    value={input}
-                    onChange={(e) => {
-                      setInput(e.target.value);
-                      e.target.style.height = "auto";
-                      e.target.style.height = e.target.scrollHeight + "px";
-                    }}
-                    onKeyDown={(e) =>
-                      e.key === "Enter" &&
-                      !e.shiftKey &&
-                      (e.preventDefault(), handleSend())
-                    }
-                  />
-                  <button
-                    onClick={handleSend}
-                    className={`absolute right-4 top-1/2 -translate-y-1/2 p-4 transition-all ${
-                      input.trim()
-                        ? "text-gold scale-110"
-                        : "text-white/20 scale-100"
-                    }`}
-                    disabled={isSynthesizing || authLoading || !input.trim()}
-                    aria-label="Send message"
-                  >
-                    <Send size={24} />
-                  </button>
-                </div>
-                {!user && (
-                  <div className="mx-auto mt-3 flex max-w-4xl flex-col items-center justify-center gap-2 rounded-xl border border-gold/15 bg-gold/5 px-4 py-3 text-center text-xs text-white/55 sm:flex-row">
-                    <span>
-                      Guest mode has a small server limit. Sign in to use your
-                      account credits and save replies.
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setShowAuthModal(true)}
-                      className="text-gold hover:text-gold/80"
-                    >
-                      Sign in
-                    </button>
-                  </div>
-                )}
-                <p className="text-center mt-2 text-xs uppercase tracking-[0.2em] text-white/20">
-                  {user
-                    ? `Personalized for ${birthData?.name || "Seeker"}`
-                    : `Guest preview${birthData?.name ? ` for ${birthData.name}` : ""}`}
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <OnboardingModal
-          isOpen={showOnboardingModal}
-          onClose={() => setShowOnboardingModal(false)}
-          onComplete={handleOnboardingComplete}
-          existingProfile={profile}
-        />
-
-        <AuthModal
-          isOpen={showAuthModal}
-          onClose={() => setShowAuthModal(false)}
-          title="Continue Your Journey"
-          message="Sign in to save this synthesis and access it from any device."
-        />
-
-        {showExpandedChart && kundaliData && (
-          <CelestialChart
-            data={kundaliData}
-            onClose={() => setShowExpandedChart(false)}
-          />
+            </aside>
+          </div>
         )}
-
-        <ChartShareModal
-          isOpen={showShareModal}
-          onClose={() => setShowShareModal(false)}
-          birthData={birthData}
-        />
       </div>
+
+      <OnboardingModal
+        isOpen={showOnboardingModal}
+        onClose={() => setShowOnboardingModal(false)}
+        onComplete={handleOnboardingComplete}
+        existingProfile={profile}
+      />
+
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        title="Continue Your Journey"
+        message="Sign in to save this synthesis and access it from any device."
+      />
+
+      {showExpandedChart && kundaliData && (
+        <CelestialChart
+          data={kundaliData}
+          onClose={() => setShowExpandedChart(false)}
+          onAskAbout={(question) => {
+            setInput(question);
+            setShowExpandedChart(false);
+          }}
+        />
+      )}
+
+      <ChartShareModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        birthData={birthData}
+      />
     </>
   );
 }

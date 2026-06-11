@@ -70,7 +70,12 @@ export function usePanchang(city?: string, lat?: number, lng?: number) {
           rahu_kaal: raw.rahu_kaal || raw.rahuKaal || raw.rahu_kalam || "—",
           sunrise: raw.sunrise || raw.sun_rise || "—",
           sunset: raw.sunset || raw.sun_set || "—",
-          moonSign: raw.moon_sign || raw.moonSign || raw.moon_rasi || undefined,
+          moonSign: (() => {
+            // API may return the moon as an object: {rashi, longitude, degree_in_sign}
+            const moon = raw.moon_sign ?? raw.moonSign ?? raw.moon_rasi;
+            if (typeof moon === "string") return moon;
+            return moon?.rashi ?? moon?.sign ?? moon?.name ?? undefined;
+          })(),
           day: raw.day || raw.vaara || undefined,
         });
       } catch (err: any) {

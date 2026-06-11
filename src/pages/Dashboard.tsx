@@ -1,107 +1,103 @@
 import { useState, useEffect, useMemo } from "react";
-import { postJson } from "../lib/apiFetch";
 import { useNavigate } from "react-router-dom";
+import { ArrowUpRight, Sparkles } from "lucide-react";
+
 import { useAuth } from "../lib/useAuth";
-import { useUserProfile } from "../hooks";
-import { useConsciousness } from "../hooks/useConsciousness";
-// Proactive "Guru Nudge" toasts disabled — they fired several at once and
-// felt spammy (and lingered onto other pages via the global ToastProvider).
-// Re-enable by restoring this import and the useProactiveTriggers(...) call below.
-// import { useProactiveTriggers } from "../hooks/useProactiveTriggers";
-import { usePanchang } from "../hooks/usePanchang";
+import {
+  useUserProfile,
+  useConsciousness,
+  usePanchang,
+  useLunarPhase,
+  useLastChat,
+  useDailyPrediction,
+  useDashaPeriods,
+} from "../hooks";
 import { STORAGE_KEYS } from "../lib/constants";
 import { useErrorToast } from "../components/ui/toast-context";
-import {
-  MessageSquare,
-  Sun,
-  Heart,
-  Compass,
-  Settings,
-  ArrowUpRight,
-  Sparkles,
-  Flame,
-  Download,
-  Share2,
-  User,
-  Users,
-  Gift,
-} from "lucide-react";
-import { collection, query, orderBy, limit, getDocs } from "firebase/firestore";
-import { db } from "../lib/firebase";
-import OnboardingModal from "../components/OnboardingModal";
+
 import Header from "../components/layout/Header";
+import OnboardingModal from "../components/OnboardingModal";
+import ChartShareModal from "../components/ChartShareModal";
 import { DailyAltar } from "../components/sadhana/DailyAltar";
-import { SoulInsightCard } from "../components/dashboard/SoulInsightCard";
+import { DharmaList } from "../components/dharma/DharmaList";
+
+import { HeroAlmanac } from "../components/dashboard/HeroAlmanac";
+import { AskJyotishBar } from "../components/dashboard/AskJyotishBar";
+import { ExploreIndex } from "../components/dashboard/ExploreIndex";
+import { TodayTriptych } from "../components/dashboard/TodayTriptych";
+import { buildTodayGuide } from "../lib/todayGuide";
+import { MemoryPanel } from "../components/dashboard/MemoryPanel";
+import { UtilityDock } from "../components/dashboard/UtilityDock";
+
 import { PanchangCard } from "../components/dashboard/PanchangCard";
 import { YogaCard } from "../components/dashboard/YogaCard";
 import { RemediesCard } from "../components/dashboard/RemediesCard";
 import { DashaCard } from "../components/dashboard/DashaCard";
-import { DashaTimeline } from "../components/astrology/DashaTimeline";
 import { SadeSatiCard } from "../components/dashboard/SadeSatiCard";
 import { NakshatraCard } from "../components/dashboard/NakshatraCard";
-import { LunarPhaseIndicator } from "../components/dashboard/LunarPhaseIndicator";
 import { FestivalCard } from "../components/dashboard/FestivalCard";
-import { DharmaList } from "../components/dharma/DharmaList";
-import ChartShareModal from "../components/ChartShareModal";
-import {
-  buildReferralLink,
-  createClientReferralCode,
-  normalizeClientReferralCode,
-} from "../lib/referrals";
+import { SoulInsightCard } from "../components/dashboard/SoulInsightCard";
+import { DashaTimeline } from "../components/astrology/DashaTimeline";
+import { NightSky } from "../components/layout/NightSky";
 
-interface ReferralStats {
-  invited: number;
-  creditsEarned: number;
-  referrerRewardCredits: number;
-  refereeRewardCredits: number;
+function DashboardSkeleton() {
+  return (
+    <div className="min-h-screen bg-bg-app text-white">
+      <Header onShowOnboarding={() => {}} />
+      <main className="container mx-auto pt-28 px-6 pb-12 max-w-6xl">
+        <div className="h-3 w-40 bg-white/5 rounded animate-pulse" />
+        <div className="mt-6 h-16 w-72 bg-white/5 rounded-xl animate-pulse" />
+        <div className="mt-8 h-px bg-white/8" />
+        <div className="mt-px flex gap-px">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="h-20 flex-1 bg-white/3 animate-pulse" />
+          ))}
+        </div>
+        <div className="mt-8 h-14 bg-white/5 rounded-2xl animate-pulse" />
+        <div className="mt-8 grid grid-cols-1 lg:grid-cols-[1fr_22rem] gap-10">
+          <div className="space-y-5">
+            <div className="h-44 bg-white/3 rounded-2xl animate-pulse" />
+            <div className="h-64 bg-white/3 rounded-2xl animate-pulse" />
+          </div>
+          <div className="space-y-5">
+            <div className="h-40 bg-white/3 rounded-2xl animate-pulse" />
+            <div className="h-56 bg-white/3 rounded-2xl animate-pulse" />
+          </div>
+        </div>
+      </main>
+    </div>
+  );
 }
 
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const showError = useErrorToast();
 
   const { profile, loading: isLoading } = useUserProfile();
+  const { atmanState, refreshAtman } = useConsciousness();
 
   const [guestData, setGuestData] = useState<any>(null);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [showDailyAltar, setShowDailyAltar] = useState(false);
-  const [prediction, setPrediction] = useState<string | null>(null);
-  const [predictionError, setPredictionError] = useState<string | null>(null);
-  const [isPredictionLoading, setIsPredictionLoading] = useState(false);
-  const [lastChat, setLastChat] = useState<{
-    chatId: string;
-    title: string;
-  } | null>(null);
-  const [downloadingNatal, setDownloadingNatal] = useState(false);
   const [showChartShare, setShowChartShare] = useState(false);
-  const [dashaPeriods, setDashaPeriods] = useState<any[]>([]);
-  const [showUsernameForm, setShowUsernameForm] = useState(false);
-  const [username, setUsername] = useState("");
-  const [bio, setBio] = useState("");
-  const [isPublic, setIsPublic] = useState(false);
-  const [referralCopied, setReferralCopied] = useState(false);
-  const [referralCode, setReferralCode] = useState("");
-  const [referralStats, setReferralStats] = useState<ReferralStats | null>(
-    null,
-  );
-  const [referralLoading, setReferralLoading] = useState(false);
-  const [referralError, setReferralError] = useState<string | null>(null);
+  const [downloadingNatal, setDownloadingNatal] = useState(false);
 
-  const fallbackReferralCode = useMemo(
-    () => (user ? createClientReferralCode(user.uid) : ""),
-    [user],
-  );
-  const activeReferralCode = referralCode || fallbackReferralCode;
-  const referralLink = useMemo(
-    () =>
-      typeof window === "undefined"
-        ? ""
-        : buildReferralLink(window.location.origin, activeReferralCode),
-    [activeReferralCode],
-  );
+  // Guest mode fallback — no account, but birth data stashed during onboarding
+  useEffect(() => {
+    if (!user && !isLoading) {
+      const stored = sessionStorage.getItem(STORAGE_KEYS.GUEST_PROFILE);
+      if (stored) {
+        setGuestData(JSON.parse(stored));
+      } else {
+        navigate("/");
+      }
+    }
+  }, [user, isLoading, navigate]);
 
-  const { atmanState, refreshAtman } = useConsciousness();
-  const showError = useErrorToast();
+  const userData = profile || guestData;
+  const hasBirthData = Boolean(userData?.dob);
+  const displayName = userData?.profile?.name || userData?.name || "Seeker";
 
   const {
     panchang,
@@ -112,372 +108,42 @@ export default function Dashboard() {
     profile?.coordinates?.lat,
     profile?.coordinates?.lng,
   );
-  const hasPanchangDetails = useMemo(
-    () =>
-      Boolean(
-        panchang &&
-        [
-          panchang.tithi,
-          panchang.nakshatra,
-          panchang.sunrise,
-          panchang.sunset,
-          panchang.rahu_kaal,
-        ].some((value) => value && value !== "—"),
-      ),
-    [panchang],
-  );
-  const todayGuide = useMemo(() => {
-    const emotion = atmanState?.emotionalState || "stable";
-    const hasRoutineGap =
-      user && (!atmanState?.routines || atmanState.routines.length === 0);
-    const energy =
-      emotion === "anxious" || emotion === "chaotic"
-        ? "Grounding and slower decisions"
-        : emotion === "energetic"
-          ? "High momentum for visible work"
-          : panchang?.nakshatra
-            ? `${panchang.nakshatra} supports focused progress`
-            : "Steady, practical movement";
-    const action = hasRoutineGap
-      ? "Set one small daily practice so guidance has a rhythm to work with."
-      : emotion === "anxious"
-        ? "Use the Daily Altar for a short grounding practice before big choices."
-        : "Ask Jyotish one concrete question and turn the answer into one action.";
-    const caution =
-      panchang?.rahu_kaal && panchang.rahu_kaal !== "—"
-        ? `Avoid starting important commitments during Rahu Kaal (${panchang.rahu_kaal}).`
-        : "Do not turn a passing mood into a final decision.";
-    const nudge = hasRoutineGap
-      ? "No active daily practice is saved yet. Add one gentle anchor."
-      : `Your current rhythm looks ${emotion}. Let today's guidance match that pace.`;
-    const why = [
-      panchang?.nakshatra
-        ? `Panchang: ${panchang.nakshatra} nakshatra.`
-        : panchangError
-          ? "Panchang timing is refreshing."
-          : "Panchang is still loading.",
-      panchang?.rahu_kaal
-        ? `Timing: Rahu Kaal is ${panchang.rahu_kaal}.`
-        : "Timing: no Rahu Kaal data yet.",
-      hasRoutineGap
-        ? "Memory: no active routine is saved."
-        : `Memory: current state is ${emotion}.`,
-    ].join(" ");
-    return { energy, action, caution, nudge, why };
+  const { lunar } = useLunarPhase(userData);
+  const lastChat = useLastChat();
+  const dashaPeriods = useDashaPeriods(userData);
+  const {
+    prediction,
+    loading: isPredictionLoading,
+    error: predictionError,
+  } = useDailyPrediction(userData);
+
+  const readingFallback = useMemo(() => {
+    const guide = buildTodayGuide(
+      atmanState,
+      panchang,
+      panchangError,
+      Boolean(user),
+    );
+    return `${guide.energy}. ${guide.action}`;
   }, [atmanState, panchang, panchangError, user]);
 
-  // Load existing username/bio/isPublic from profile
-  useEffect(() => {
-    if (profile) {
-      setUsername(profile.username || "");
-      setBio(profile.bio || "");
-      setIsPublic(profile.isPublic || false);
-    }
-  }, [profile]);
-
-  const saveProfile = async () => {
-    if (!user || !username.trim()) return;
-    const { doc, setDoc } = await import("firebase/firestore");
-    await setDoc(
-      doc(db, "users", user.uid),
-      {
-        profile: {
-          ...profile,
-          username: username.trim().toLowerCase(),
-          bio,
-          isPublic,
-        },
-      },
-      { merge: true },
-    );
-    setShowUsernameForm(false);
-  };
-
-  // Gamification: badges based on user activity
-  const badges = useMemo(() => {
-    const ud = profile || guestData;
-    const earned = [];
-    if (ud?.dob)
-      earned.push({
-        id: "chart",
-        emoji: "\uD83C\uDF1F",
-        label: "Chart Generated",
-      });
-    if (atmanState?.emotionalState)
-      earned.push({ id: "aware", emoji: "\uD83E\uDDD8", label: "Self-Aware" });
-    if (atmanState?.keyRelationships?.length)
-      earned.push({
-        id: "connected",
-        emoji: "\uD83D\uDCAB",
-        label: "Connected",
-      });
-    if (atmanState?.routines?.length)
-      earned.push({
-        id: "disciplined",
-        emoji: "\uD83D\uDD25",
-        label: "Disciplined",
-      });
-    if ((atmanState?.meditationStreak ?? 0) >= 7)
-      earned.push({ id: "streak7", emoji: "\u26A1", label: "7-Day Streak" });
-    if ((atmanState?.meditationStreak ?? 0) >= 30)
-      earned.push({
-        id: "streak30",
-        emoji: "\uD83D\uDC51",
-        label: "30-Day Streak",
-      });
-    return earned;
-  }, [profile, guestData, atmanState]);
-
-  // Gamification: profile completion progress
-  const profileCompletion = useMemo(() => {
-    const ud = profile || guestData;
-    let done = 0;
-    const total = 4;
-    if (ud?.dob) done++; // Birth chart
-    if (atmanState?.routines?.length) done++; // Daily practice
-    if (atmanState?.keyRelationships?.length) done++; // Relationships
-    if (atmanState?.emotionalState && atmanState.emotionalState !== "stable")
-      done++; // Consciousness engaged
-    return { done, total, pct: Math.round((done / total) * 100) };
-  }, [profile, guestData, atmanState]);
-  // useProactiveTriggers(panchang ?? undefined); // disabled — see note on import above
-
-  useEffect(() => {
-    if (!user) {
-      setReferralCode("");
-      setReferralStats(null);
-      setReferralError(null);
-      return;
-    }
-
-    let cancelled = false;
-    const fallbackCode = createClientReferralCode(user.uid);
-    setReferralCode(fallbackCode);
-    setReferralLoading(true);
-    setReferralError(null);
-
-    const loadReferralInfo = async () => {
-      try {
-        const idToken = await user.getIdToken();
-        const response = await fetch("/api/referrals/info", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ idToken }),
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok)
-          throw new Error(data.error || "Could not load referrals");
-        if (cancelled) return;
-        setReferralCode(normalizeClientReferralCode(data.code) || fallbackCode);
-        setReferralStats({
-          invited: Number(data.stats?.invited) || 0,
-          creditsEarned: Number(data.stats?.creditsEarned) || 0,
-          referrerRewardCredits:
-            Number(data.stats?.referrerRewardCredits) || 25,
-          refereeRewardCredits: Number(data.stats?.refereeRewardCredits) || 15,
-        });
-      } catch {
-        if (!cancelled) {
-          setReferralError("Stats unavailable");
-          setReferralStats(null);
-        }
-      } finally {
-        if (!cancelled) setReferralLoading(false);
-      }
-    };
-
-    loadReferralInfo();
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
-
-  // Guest mode fallback
-  useEffect(() => {
-    if (!user && !isLoading) {
-      const storedGuestData = sessionStorage.getItem(
-        STORAGE_KEYS.GUEST_PROFILE,
+  const handleShareSign = () => {
+    const ascendantSign =
+      typeof profile?.ascendant === "string"
+        ? profile.ascendant
+        : profile?.ascendant?.sign;
+    const moonSign = profile?.moonSign || ascendantSign || "a cosmic being";
+    const text = `I'm a ${moonSign} Moon ✨ What's your Moon sign? Find out free:`;
+    const url = `${window.location.origin}/free-kundali`;
+    if (navigator.share) {
+      navigator.share({ title: "My Moon Sign", text, url });
+    } else {
+      window.open(
+        `https://wa.me/?text=${encodeURIComponent(text + "\n" + url)}`,
+        "_blank",
       );
-      if (storedGuestData) {
-        setGuestData(JSON.parse(storedGuestData));
-      } else {
-        navigate("/");
-      }
     }
-  }, [user, isLoading, navigate]);
-
-  // Fetch most recent chat for Synthesis hero card
-  useEffect(() => {
-    if (!user) return;
-    const fetchLastChat = async () => {
-      try {
-        const chatsRef = collection(db, "users", user.uid, "chats");
-        const q = query(chatsRef, orderBy("updatedAt", "desc"), limit(1));
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          const doc = snap.docs[0];
-          setLastChat({
-            chatId: doc.id,
-            title: doc.data().title || "Untitled",
-          });
-        }
-      } catch {
-        // Silently fail — hero card falls back to "Start a conversation"
-      }
-    };
-    fetchLastChat();
-  }, [user]);
-
-  const userData = profile || guestData;
-
-  // Fetch dasha periods for timeline
-  useEffect(() => {
-    if (!userData?.dob || !userData?.tob) return;
-    const birthData = {
-      dob: userData.dob,
-      tob: userData.tob,
-      pob: userData.pob || "Unknown",
-      lat: userData.coordinates?.lat,
-      lng: userData.coordinates?.lng,
-    };
-    const controller = new AbortController();
-
-    postJson(
-      "/api/kundali",
-      { birthData, chartType: "DASHAS" },
-      { signal: controller.signal },
-    )
-      .then((r) => r.json())
-      .then((res) => {
-        const periods = res.periods || res.data?.periods || [];
-        if (Array.isArray(periods)) setDashaPeriods(periods);
-      })
-      .catch((err) => {
-        if (err.name !== "AbortError")
-          console.warn("[Dashboard] Dasha timeline unavailable:", err);
-      });
-
-    return () => controller.abort();
-  }, [
-    userData?.dob,
-    userData?.tob,
-    userData?.pob,
-    userData?.coordinates?.lat,
-    userData?.coordinates?.lng,
-  ]);
-
-  const getZodiacSign = (day: number, month: number) => {
-    const signs = [
-      "Capricorn",
-      "Aquarius",
-      "Pisces",
-      "Aries",
-      "Taurus",
-      "Gemini",
-      "Cancer",
-      "Leo",
-      "Virgo",
-      "Libra",
-      "Scorpio",
-      "Sagittarius",
-    ];
-    const boundaries = [20, 19, 21, 20, 21, 21, 23, 23, 23, 23, 22, 22];
-    return day < boundaries[month - 1] ? signs[month - 1] : signs[month % 12];
   };
-
-  useEffect(() => {
-    setPrediction(null);
-    setPredictionError(null);
-  }, [userData?.dob, userData?.tob, userData?.pob, userData?.sunSign]);
-
-  useEffect(() => {
-    if (!userData || !userData.dob || prediction || predictionError) {
-      return;
-    }
-
-    const controller = new AbortController();
-    let cancelled = false;
-    const timeoutId = window.setTimeout(() => controller.abort(), 7000);
-    setIsPredictionLoading(true);
-
-    const fetchPrediction = async () => {
-      try {
-        const [year, month, day] = userData.dob.split("-").map(Number);
-        const [hour, minute] = (userData.tob || "12:00").split(":").map(Number);
-
-        const pobParts = (userData.pob || "Unknown")
-          .split(",")
-          .map((s: string) => s.trim());
-        const city = pobParts[0] || "Unknown";
-        const countryCode = pobParts[1]?.substring(0, 2).toUpperCase() || "US";
-        const zodiacSign = userData.sunSign || getZodiacSign(day, month);
-
-        const response = await fetch("/api/daily-prediction", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sign: zodiacSign,
-            format: "short",
-            subject: {
-              name: userData.name || "Seeker",
-              birth_data: {
-                year,
-                month,
-                day,
-                hour,
-                minute,
-                city,
-                country_code: countryCode === "KA" ? "IN" : countryCode,
-              },
-            },
-            options: {
-              house_system: "P",
-              zodiac_type: "Tropic",
-              active_points: [
-                "Sun",
-                "Moon",
-                "Mercury",
-                "Venus",
-                "Mars",
-                "Jupiter",
-                "Saturn",
-              ],
-              precision: 2,
-            },
-          }),
-          signal: controller.signal,
-        });
-
-        if (!response.ok) throw new Error("Daily prediction request failed");
-        const result = await response.json();
-        if (cancelled) return;
-        if (result.success && result.data?.text) {
-          setPrediction(result.data.text);
-        } else {
-          setPredictionError("Daily prediction is unavailable");
-        }
-      } catch (err) {
-        if (cancelled) return;
-        if (err instanceof DOMException && err.name === "AbortError") {
-          setPredictionError("Daily prediction timed out");
-        } else {
-          console.warn("Failed to fetch prediction:", err);
-          setPredictionError("Daily prediction is unavailable");
-        }
-      } finally {
-        window.clearTimeout(timeoutId);
-        if (!cancelled) setIsPredictionLoading(false);
-      }
-    };
-
-    void fetchPrediction();
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeoutId);
-      controller.abort();
-    };
-  }, [userData, prediction, predictionError]);
 
   const handleDownloadNatalReport = async () => {
     if (!userData || downloadingNatal) return;
@@ -524,420 +190,47 @@ export default function Dashboard() {
     }
   };
 
-  const atmanMemoryStats = useMemo(
-    () => [
-      {
-        label: "State",
-        value: atmanState?.emotionalState
-          ? atmanState.emotionalState.replace(/_/g, " ")
-          : "Learning",
-        detail: "Sets the tone of guidance",
-      },
-      {
-        label: "Patterns",
-        value: String(atmanState?.knownPatterns?.length ?? 0),
-        detail: "Repeated themes noticed",
-      },
-      {
-        label: "People",
-        value: String(atmanState?.keyRelationships?.length ?? 0),
-        detail: "Relationships remembered",
-      },
-      {
-        label: "Practices",
-        value: String(atmanState?.routines?.length ?? 0),
-        detail: "Daily anchors saved",
-      },
-    ],
-    [atmanState],
-  );
-
-  // Loading skeleton
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-bg-app text-white">
-        <Header onShowOnboarding={() => {}} />
-        <main className="container mx-auto pt-24 px-6 pb-8">
-          <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6">
-            <div className="space-y-4">
-              <div className="h-6 bg-white/5 rounded-lg animate-pulse w-48" />
-              <div className="glass rounded-2xl p-6 space-y-3">
-                <div className="h-5 bg-white/5 rounded animate-pulse w-40" />
-                <div className="h-4 bg-white/5 rounded animate-pulse w-64" />
-                <div className="h-10 bg-white/5 rounded-xl animate-pulse w-48 mt-4" />
-              </div>
-              <div className="flex gap-3">
-                {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className="glass rounded-xl p-4 w-32 h-20 animate-pulse"
-                  />
-                ))}
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div className="glass rounded-2xl p-5 space-y-2">
-                <div className="h-4 bg-white/5 rounded animate-pulse w-32" />
-                <div className="h-3 bg-white/5 rounded animate-pulse w-full" />
-                <div className="h-3 bg-white/5 rounded animate-pulse w-5/6" />
-              </div>
-              <div className="glass rounded-2xl p-5 h-20 animate-pulse" />
-            </div>
-          </div>
-        </main>
-      </div>
-    );
-  }
+  if (isLoading) return <DashboardSkeleton />;
 
   return (
     <div className="min-h-screen bg-bg-app text-white selection:bg-gold/30">
-      {/* Subtle background — single small blur */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-0 right-1/4 w-[30vw] h-[30vw] bg-violet-600/3 blur-[100px] rounded-full" />
-      </div>
-
+      <NightSky />
       <Header onShowOnboarding={() => setShowOnboardingModal(true)} />
 
-      <main className="container mx-auto pt-24 px-6 pb-8 relative z-10">
-        {/* Welcome Strip */}
-        <div className="flex items-center gap-4 mb-6 flex-wrap">
-          <h2 className="text-3xl md:text-4xl font-display leading-tight">
-            Welcome,{" "}
-            <span className="text-gold italic">
-              {userData?.profile?.name || userData?.name || "Seeker"}
-            </span>
-          </h2>
-          <button
-            onClick={() => {
-              const ascendantSign =
-                typeof profile?.ascendant === "string"
-                  ? profile.ascendant
-                  : profile?.ascendant?.sign;
-              const moonSign =
-                profile?.moonSign || ascendantSign || "a cosmic being";
-              const text = `I'm a ${moonSign} Moon ✨ What's your Moon sign? Find out free:`;
-              const url = `${window.location.origin}/free-kundali`;
-              if (navigator.share) {
-                navigator.share({ title: "My Moon Sign", text, url });
-              } else {
-                window.open(
-                  `https://wa.me/?text=${encodeURIComponent(text + "\n" + url)}`,
-                  "_blank",
-                );
-              }
-            }}
-            className="p-1.5 rounded-lg border border-white/10 text-white/30 hover:text-gold hover:border-gold/30 transition-all"
-            title="Share your sign"
-          >
-            <Share2 size={12} />
-          </button>
-          {atmanState && (
-            <div className="flex items-center gap-4">
-              <span
-                className={`text-xs font-medium px-2.5 py-1 rounded-full border capitalize ${
-                  atmanState.emotionalState === "stable"
-                    ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10"
-                    : atmanState.emotionalState === "anxious"
-                      ? "text-amber-400 border-amber-500/30 bg-amber-500/10"
-                      : atmanState.emotionalState === "chaotic"
-                        ? "text-red-400 border-red-500/30 bg-red-500/10"
-                        : "text-white/60 border-white/10 bg-white/5"
-                }`}
-              >
-                {atmanState.emotionalState || "Neutral"}
-              </span>
-              {(atmanState.meditationStreak || 0) > 0 && (
-                <div className="flex items-center gap-1.5 text-amber-400">
-                  <Flame size={14} />
-                  <span className="text-xs font-medium">
-                    {atmanState.meditationStreak} day streak
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-          {userData && <LunarPhaseIndicator birthData={userData} />}
+      <main className="container mx-auto pt-28 px-6 pb-16 relative z-10 max-w-6xl">
+        <HeroAlmanac
+          name={displayName}
+          emotionalState={atmanState?.emotionalState}
+          meditationStreak={atmanState?.meditationStreak}
+          panchang={panchang}
+          panchangLoading={panchangLoading}
+          lunar={lunar}
+          onShareSign={handleShareSign}
+        />
+
+        <div className="mt-8">
+          <AskJyotishBar lastChat={lastChat} />
         </div>
 
-        {/* Spiritual Profile Progress */}
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-32 h-1.5 bg-white/10 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gold rounded-full transition-all duration-700"
-              style={{ width: `${profileCompletion.pct}%` }}
-            />
-          </div>
-          <span className="text-[10px] text-white/30 uppercase tracking-widest">
-            {profileCompletion.pct}% complete
-          </span>
+        <div className="mt-10">
+          <ExploreIndex />
         </div>
 
-        {/* Gamification Badges */}
-        {badges.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-6">
-            {badges.map((b) => (
-              <span
-                key={b.id}
-                title={b.label}
-                className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-xs flex items-center gap-1"
-              >
-                <span>{b.emoji}</span>
-                <span className="text-white/40">{b.label}</span>
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Today Guide */}
-        <section className="glass rounded-2xl p-6 mb-6 border border-gold/10">
-          <div className="flex items-start justify-between gap-4 mb-5">
-            <div>
-              <p className="text-gold text-xs uppercase tracking-widest font-bold mb-2">
-                Today
-              </p>
-              <h3 className="text-2xl font-display">Your Daily Guide</h3>
-            </div>
-            <button
-              onClick={() =>
+        <div className="mt-12 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_22rem] gap-x-10 gap-y-12 items-start">
+          {/* ── The day, read closely ── */}
+          <div className="space-y-10 min-w-0">
+            <TodayTriptych
+              atmanState={atmanState}
+              panchang={panchang}
+              panchangError={panchangError}
+              isSignedIn={Boolean(user)}
+              onSaveIntention={() =>
                 user ? setShowDailyAltar(true) : navigate("/onboarding")
               }
-              className="px-4 py-2 rounded-xl bg-gold text-black text-xs font-bold uppercase tracking-widest"
-            >
-              Save Intention
-            </button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
-            <div className="rounded-xl bg-white/5 border border-white/10 p-4">
-              <p className="text-white/35 text-xs uppercase tracking-widest mb-2">
-                Energy
-              </p>
-              <p className="text-white/80 text-sm">{todayGuide.energy}</p>
-            </div>
-            <div className="rounded-xl bg-white/5 border border-white/10 p-4">
-              <p className="text-white/35 text-xs uppercase tracking-widest mb-2">
-                Do
-              </p>
-              <p className="text-white/80 text-sm">{todayGuide.action}</p>
-            </div>
-            <div className="rounded-xl bg-white/5 border border-white/10 p-4">
-              <p className="text-white/35 text-xs uppercase tracking-widest mb-2">
-                Careful
-              </p>
-              <p className="text-white/80 text-sm">{todayGuide.caution}</p>
-            </div>
-          </div>
-          {hasPanchangDetails ? (
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
-              <div>
-                <p className="text-white/30">Tithi</p>
-                <p className="text-white/70">{panchang?.tithi || "—"}</p>
-                {panchang?.tithiEnd && (
-                  <p className="text-white/25">till {panchang.tithiEnd}</p>
-                )}
-              </div>
-              <div>
-                <p className="text-white/30">Nakshatra</p>
-                <p className="text-white/70">{panchang?.nakshatra || "—"}</p>
-                {panchang?.nakshatraEnd && (
-                  <p className="text-white/25">till {panchang.nakshatraEnd}</p>
-                )}
-              </div>
-              <div>
-                <p className="text-white/30">Sunrise</p>
-                <p className="text-white/70">{panchang?.sunrise || "—"}</p>
-              </div>
-              <div>
-                <p className="text-white/30">Sunset</p>
-                <p className="text-white/70">{panchang?.sunset || "—"}</p>
-              </div>
-              <div>
-                <p className="text-white/30">Personal Nudge</p>
-                <p className="text-white/70">{todayGuide.nudge}</p>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                <p className="text-white/30">Daily timing</p>
-                <p className="mt-1 text-white/65">
-                  {panchangLoading
-                    ? "Refreshing today's panchang."
-                    : "Timing details are refreshing. Use the action cue above for now."}
-                </p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                <p className="text-white/30">Personal nudge</p>
-                <p className="mt-1 text-white/65">{todayGuide.nudge}</p>
-              </div>
-            </div>
-          )}
-          <details className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-white/45">
-            <summary className="cursor-pointer text-white/60">
-              Why am I seeing this?
-            </summary>
-            <p className="mt-2 leading-relaxed">{todayGuide.why}</p>
-          </details>
-        </section>
+            />
 
-        {/* Atman Memory */}
-        {user && (
-          <section className="glass rounded-2xl p-4 mb-6 border border-white/10">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-gold text-xs uppercase font-bold mb-1">
-                  Personal Memory
-                </p>
-                <h3 className="text-xl font-display">
-                  What AstroYou knows about you
-                </h3>
-                <p className="text-sm text-white/45 mt-1 max-w-2xl">
-                  Guidance uses your chart, emotional state, saved
-                  relationships, routines, and recurring life patterns.
-                </p>
-              </div>
-              <button
-                onClick={() => navigate("/settings")}
-                className="platform-button-secondary self-start md:self-auto"
-              >
-                Manage memory
-              </button>
-            </div>
-            <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-2">
-              {atmanMemoryStats.map((item) => (
-                <div
-                  key={item.label}
-                  className="rounded-xl border border-white/10 bg-white/[0.035] p-3"
-                >
-                  <p className="text-[0.68rem] font-bold uppercase text-white/35">
-                    {item.label}
-                  </p>
-                  <p className="mt-1 text-base font-semibold capitalize text-white">
-                    {item.value}
-                  </p>
-                  <p className="mt-1 text-xs text-white/35">{item.detail}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Two-Zone Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6 items-start">
-          {/* PRIMARY ZONE */}
-          <div className="space-y-5">
-            {/* Synthesis Hero Card */}
-            <div className="glass rounded-2xl p-6 border-l-2 border-gold animate-reveal-progressive">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="p-2 rounded-xl bg-gold/10 text-gold">
-                  <MessageSquare size={20} />
-                </div>
-                <h3 className="text-xl font-display tracking-wider text-white">
-                  Talk to Jyotish
-                </h3>
-              </div>
-              <p className="text-sm text-white/50 mb-5">
-                {lastChat
-                  ? "Pick up where you left off or start a new conversation."
-                  : "Your personal Vedic guide is ready."}
-              </p>
-              <div className="flex flex-wrap gap-3">
-                {lastChat && (
-                  <button
-                    onClick={() => navigate(`/synthesis/${lastChat.chatId}`)}
-                    className="px-4 py-2.5 rounded-xl bg-gold text-black font-medium text-sm hover:bg-gold/90 transition-colors"
-                  >
-                    Continue: &ldquo;
-                    {lastChat.title.length > 30
-                      ? lastChat.title.slice(0, 30) + "..."
-                      : lastChat.title}
-                    &rdquo;
-                  </button>
-                )}
-                <button
-                  onClick={() => navigate("/synthesis")}
-                  className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                    lastChat
-                      ? "border border-white/10 text-white/70 hover:bg-white/5 hover:text-white"
-                      : "bg-gold text-black hover:bg-gold/90"
-                  }`}
-                >
-                  {lastChat ? "New conversation" : "Start a conversation"}
-                  {!lastChat && (
-                    <ArrowUpRight size={14} className="inline ml-1.5" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Quick Actions Row */}
-            <nav
-              aria-label="Quick actions"
-              className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1"
-            >
-              {[
-                {
-                  icon: <Sun size={20} />,
-                  label: "Daily Forecast",
-                  route: "/forecast",
-                  color: "rgba(245, 158, 11, 0.8)",
-                },
-                {
-                  icon: <Compass size={20} />,
-                  label: "Transit Oracle",
-                  route: "/transit",
-                  color: "rgba(59, 130, 246, 0.8)",
-                },
-                {
-                  icon: <Heart size={20} />,
-                  label: "Compatibility",
-                  route: "/compatibility",
-                  color: "rgba(239, 68, 68, 0.8)",
-                },
-                {
-                  icon: <Users size={20} />,
-                  label: "AI Astrologers",
-                  route: "/consult",
-                  color: "rgba(16, 185, 129, 0.8)",
-                },
-                {
-                  icon: <Download size={20} />,
-                  label: "Reports",
-                  route: "/reports",
-                  color: "rgba(229, 185, 106, 0.9)",
-                },
-                {
-                  icon: <Gift size={20} />,
-                  label: "Remedies",
-                  route: "/remedies",
-                  color: "rgba(217, 119, 6, 0.85)",
-                },
-              ].map((action) => (
-                <button
-                  key={action.route}
-                  onClick={() => navigate(action.route)}
-                  className="group relative glass rounded-xl p-4 min-w-30 flex-1 snap-start text-left hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
-                >
-                  <div
-                    className="absolute -inset-10 opacity-0 group-hover:opacity-20 transition-opacity duration-500 pointer-events-none"
-                    style={{
-                      background: `radial-gradient(circle, ${action.color} 0%, transparent 70%)`,
-                    }}
-                  />
-                  <div className="relative z-10">
-                    <div className="mb-2" style={{ color: action.color }}>
-                      {action.icon}
-                    </div>
-                    <span className="text-sm font-medium text-white/80 group-hover:text-white transition-colors">
-                      {action.label}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </nav>
-
-            {/* Active Practices */}
             {user && atmanState?.routines && atmanState.routines.length > 0 && (
-              <div className="glass rounded-2xl p-5">
+              <div className="glass rounded-3xl p-5 animate-reveal-progressive">
                 <DharmaList
                   routines={atmanState.routines}
                   userId={user.uid}
@@ -946,44 +239,41 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* Vedic Insights Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-reveal-progressive">
               <PanchangCard />
               <YogaCard birthData={userData} />
             </div>
 
-            {/* Dasha Timeline */}
             {dashaPeriods.length > 0 && (
               <DashaTimeline periods={dashaPeriods} />
             )}
 
-            {/* Sade Sati & Nakshatra Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-reveal-progressive">
               <SadeSatiCard birthData={userData} />
               <NakshatraCard birthData={userData} />
             </div>
           </div>
 
-          {/* SIDE ZONE */}
-          <aside className="space-y-4">
-            {/* Today's Forecast */}
-            <div className="glass rounded-2xl p-6 animate-reveal-progressive">
-              <h4 className="text-base uppercase tracking-widest text-white/40 font-bold mb-4">
-                Today's Reading
-              </h4>
+          {/* ── The margin notes ── */}
+          <aside className="space-y-6 min-w-0">
+            {/* Today's reading */}
+            <section className="relative glass rounded-3xl p-6 animate-reveal-progressive overflow-visible">
+              <span className="absolute -top-3 left-6 px-2 bg-bg-app text-gold/80 text-[0.6rem] font-bold uppercase tracking-[0.35em]">
+                Today's Word
+              </span>
               {isPredictionLoading && !prediction && !predictionError ? (
                 <div className="flex items-center gap-2 text-sm text-white/45">
                   <Sparkles size={14} className="text-gold" />
-                  Preparing today's guidance...
+                  Preparing today's guidance…
                 </div>
               ) : (
                 <>
-                  <p className="text-lg text-white/70 leading-relaxed italic font-display">
-                    {prediction || `${todayGuide.energy}. ${todayGuide.action}`}
+                  <p className="font-display text-lg text-white/75 leading-relaxed italic">
+                    {prediction || readingFallback}
                   </p>
                   <button
                     onClick={() => navigate("/forecast")}
-                    className="mt-4 text-sm text-gold hover:text-white transition-colors inline-flex items-center gap-1.5 group"
+                    className="mt-4 text-xs uppercase tracking-[0.2em] font-bold text-gold hover:text-white transition-colors inline-flex items-center gap-1.5 group"
                   >
                     Open forecast
                     <ArrowUpRight
@@ -993,9 +283,8 @@ export default function Dashboard() {
                   </button>
                 </>
               )}
-            </div>
+            </section>
 
-            {/* Soul Insight */}
             {user && atmanState && (
               <SoulInsightCard
                 atmanState={atmanState}
@@ -1003,175 +292,37 @@ export default function Dashboard() {
               />
             )}
 
-            {/* Vedic Remedies */}
-            <RemediesCard birthData={userData} />
+            {user && (
+              <MemoryPanel
+                atmanState={atmanState}
+                hasBirthData={hasBirthData}
+              />
+            )}
 
-            {/* Current Dasha */}
             <DashaCard />
-
-            {/* Festival Calendar */}
+            <RemediesCard birthData={userData} />
             <FestivalCard />
 
-            {/* Quick Links */}
-            <div className="flex flex-col gap-2 px-1">
-              {user && (
-                <>
-                  <button
-                    onClick={() => navigate("/friends")}
-                    className="flex items-center gap-2 text-sm text-white/40 hover:text-gold transition-colors"
-                  >
-                    <Users size={14} />
-                    Friends
-                  </button>
-                  <button
-                    onClick={() => setShowUsernameForm(!showUsernameForm)}
-                    className="flex items-center gap-2 text-sm text-white/40 hover:text-gold transition-colors"
-                  >
-                    <User size={14} />
-                    {profile?.username
-                      ? `@${profile.username}`
-                      : "Set Username"}
-                  </button>
-                  {showUsernameForm && (
-                    <div className="mt-2 p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
-                      <input
-                        value={username}
-                        onChange={(e) =>
-                          setUsername(e.target.value.replace(/[^a-z0-9_]/g, ""))
-                        }
-                        placeholder="username"
-                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-gold/50"
-                      />
-                      <textarea
-                        value={bio}
-                        onChange={(e) => setBio(e.target.value)}
-                        maxLength={160}
-                        placeholder="Short bio (optional)"
-                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-gold/50 h-16 resize-none"
-                      />
-                      <label className="flex items-center gap-2 text-xs text-white/40">
-                        <input
-                          type="checkbox"
-                          checked={isPublic}
-                          onChange={(e) => setIsPublic(e.target.checked)}
-                          className="rounded"
-                        />
-                        Make profile public
-                      </label>
-                      <button
-                        onClick={saveProfile}
-                        className="px-4 py-2 rounded-lg bg-gold text-black text-xs font-bold"
-                      >
-                        Save
-                      </button>
-                    </div>
-                  )}
-                </>
-              )}
-              <button
-                onClick={() => setShowOnboardingModal(true)}
-                className="flex items-center gap-2 text-sm text-white/40 hover:text-gold transition-colors"
-              >
-                <Settings size={14} />
-                Update Birth Data
-              </button>
-              {user && (
-                <button
-                  onClick={() => setShowDailyAltar(true)}
-                  className="flex items-center gap-2 text-sm text-white/40 hover:text-gold transition-colors"
-                >
-                  <Sparkles size={14} />
-                  Daily Altar
-                </button>
-              )}
-              {userData?.dob && (
-                <button
-                  onClick={handleDownloadNatalReport}
-                  disabled={downloadingNatal}
-                  className="flex items-center gap-2 text-sm text-white/40 hover:text-gold transition-colors disabled:opacity-50"
-                >
-                  <Download size={14} />
-                  {downloadingNatal ? "Generating..." : "Download Natal Report"}
-                </button>
-              )}
-              {user && (
-                <button
-                  onClick={() => navigate("/reports")}
-                  className="flex items-center gap-2 text-sm text-white/40 hover:text-gold transition-colors"
-                >
-                  <Download size={14} />
-                  My Reports
-                </button>
-              )}
-              {userData?.dob && (
-                <button
-                  onClick={() => setShowChartShare(true)}
-                  className="flex items-center gap-2 text-sm text-white/40 hover:text-gold transition-colors"
-                >
-                  <Share2 size={14} />
-                  Share My Chart
-                </button>
-              )}
-              {user && referralLink && (
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(referralLink);
-                      setReferralCopied(true);
-                      setTimeout(() => setReferralCopied(false), 2000);
-                    }}
-                    className="flex items-center gap-2 text-sm text-white/70 hover:text-gold transition-colors"
-                  >
-                    <Gift size={14} />
-                    {referralCopied ? "Invite link copied" : "Invite friends"}
-                  </button>
-                  <p className="mt-1 text-xs leading-relaxed text-white/35">
-                    {referralStats
-                      ? `${referralStats.invited} invited · ${referralStats.creditsEarned} credits earned`
-                      : referralLoading
-                        ? "Loading referral rewards..."
-                        : referralError
-                          ? "Share link works. Stats are unavailable right now."
-                          : "Earn credits when friends join."}
-                  </p>
-                  <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.2em] text-gold/70">
-                    {activeReferralCode}
-                  </p>
-                </div>
-              )}
-              {user && (
-                <button
-                  onClick={async () => {
-                    if (!user) return;
-                    const token = await user.getIdToken();
-                    const res = await fetch("/api/export-data", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ idToken: token }),
-                    });
-                    if (res.ok) {
-                      const blob = await res.blob();
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      a.href = url;
-                      a.download = "astroyou-my-data.json";
-                      a.click();
-                      URL.revokeObjectURL(url);
-                    }
-                  }}
-                  className="flex items-center gap-2 text-sm text-white/40 hover:text-gold transition-colors"
-                >
-                  <Download size={14} />
-                  Export My Data
-                </button>
-              )}
-            </div>
+            <UtilityDock
+              profile={profile}
+              hasBirthData={hasBirthData}
+              downloadingNatal={downloadingNatal}
+              onDownloadNatalReport={handleDownloadNatalReport}
+              onUpdateBirthData={() => setShowOnboardingModal(true)}
+              onOpenAltar={() => setShowDailyAltar(true)}
+              onShareChart={() => setShowChartShare(true)}
+            />
           </aside>
         </div>
       </main>
 
-      <footer className="container mx-auto px-6 py-6 border-t border-white/5 opacity-30 text-xs uppercase tracking-[0.3em]">
-        <span>Coords: 28.6139° N, 77.2090° E</span>
+      <footer className="container mx-auto max-w-6xl px-6 py-8 border-t border-white/5 relative z-10">
+        <p className="text-[0.6rem] uppercase tracking-[0.35em] text-white/20">
+          {userData?.pob
+            ? `Cast for ${userData.pob}`
+            : "Cast under the open sky"}
+          {" · "}as above, so below
+        </p>
       </footer>
 
       <OnboardingModal
