@@ -1,4 +1,12 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import {
+  Suspense,
+  lazy,
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
 import { postJson } from "../lib/apiFetch";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -38,7 +46,6 @@ import { trackAcquisitionEvent } from "../lib/acquisition";
 import { loadRazorpayCheckout } from "../lib/razorpay-loader";
 import { SynthesisSEO } from "../components/SEO";
 import Kundali from "../components/astrology/Kundali";
-import CelestialChart from "../components/astrology/CelestialChart";
 import type { KundaliData } from "../types";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -60,6 +67,10 @@ import {
 } from "../lib/synthesis-messages";
 
 type Message = SynthesisMessage;
+
+const CelestialChart = lazy(
+  () => import("../components/astrology/CelestialChart"),
+);
 
 const OPENING_QUESTIONS = [
   "What does my current dasha ask of me?",
@@ -1399,14 +1410,16 @@ export default function Synthesis() {
       />
 
       {showExpandedChart && kundaliData && (
-        <CelestialChart
-          data={kundaliData}
-          onClose={() => setShowExpandedChart(false)}
-          onAskAbout={(question) => {
-            setInput(question);
-            setShowExpandedChart(false);
-          }}
-        />
+        <Suspense fallback={null}>
+          <CelestialChart
+            data={kundaliData}
+            onClose={() => setShowExpandedChart(false)}
+            onAskAbout={(question) => {
+              setInput(question);
+              setShowExpandedChart(false);
+            }}
+          />
+        </Suspense>
       )}
 
       <ChartShareModal

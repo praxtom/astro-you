@@ -1,10 +1,38 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import {
   SEO_CONTENT_PAGES,
   getSeoClusterPages,
   getSeoContentFaqs,
 } from "../../../src/lib/seo-content.js";
+
+const KNOWN_PUBLIC_ROUTES = new Set([
+  "/",
+  "/consult/arjun-sharma/profile",
+  "/free-kundali",
+  "/free-kundali-matching",
+  "/horoscope/aries/daily",
+  "/muhurat",
+  "/numerology",
+  "/remedies",
+  "/synthesis",
+  "/trust",
+  "/consult/meera-devi/profile",
+  "/consult/nanda-ji/profile",
+  "/consult/pandit-raghunath/profile",
+  "/panchang",
+]);
+
+const REQUIRED_SEO_TOOL_PATHS = [
+  "/moon-sign-calculator",
+  "/nakshatra-finder",
+  "/sade-sati-calculator",
+  "/manglik-dosha-checker",
+  "/dasha-calculator",
+  "/panchang-today",
+];
 
 test("SEO content includes programmatic astrology clusters", () => {
   const nakshatraPages = SEO_CONTENT_PAGES.filter((page) =>
@@ -22,6 +50,22 @@ test("SEO content includes programmatic astrology clusters", () => {
   assert.equal(planetHousePages.length, 108);
 });
 
+test("SEO default social image asset exists", () => {
+  assert.equal(
+    existsSync(path.resolve("public/og-image.svg")),
+    true,
+    "public/og-image.svg should exist for share previews",
+  );
+});
+
+test("SEO includes priority free-tool landing pages", () => {
+  const paths = new Set(SEO_CONTENT_PAGES.map((page) => page.path));
+
+  for (const requiredPath of REQUIRED_SEO_TOOL_PATHS) {
+    assert.equal(paths.has(requiredPath), true, `${requiredPath} should be indexable`);
+  }
+});
+
 test("SEO content includes index pages for every programmatic cluster", () => {
   const paths = new Set(SEO_CONTENT_PAGES.map((page) => page.path));
 
@@ -37,6 +81,32 @@ test("SEO content paths and slugs stay unique", () => {
 
   assert.equal(new Set(paths).size, paths.length);
   assert.equal(new Set(slugs).size, slugs.length);
+});
+
+test("SEO content has useful depth and valid conversion paths", () => {
+  const seoPaths = new Set(SEO_CONTENT_PAGES.map((page) => page.path));
+  for (const page of SEO_CONTENT_PAGES) {
+    const sectionWordCount = page.sections
+      .map((section) => section.body.split(/\s+/).filter(Boolean).length)
+      .reduce((total, count) => total + count, 0);
+
+    assert.ok(page.title.length >= 20, `${page.path} should have a useful title`);
+    assert.ok(
+      page.description.length >= 90,
+      `${page.path} should have a specific meta description`,
+    );
+    assert.ok(
+      sectionWordCount >= 60,
+      `${page.path} should avoid thin section content`,
+    );
+
+    for (const cta of [page.primaryCta, page.secondaryCta]) {
+      assert.ok(
+        KNOWN_PUBLIC_ROUTES.has(cta.to) || seoPaths.has(cta.to),
+        `${page.path} CTA ${cta.to} should point to a known route`,
+      );
+    }
+  }
 });
 
 test("SEO content exposes full internal-link clusters", () => {

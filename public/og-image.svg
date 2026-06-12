@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">AstroYou social preview</title>
+  <desc id="desc">AstroYou Vedic astrology, Kundali, Panchang, compatibility, and AI Jyotish guidance.</desc>
+  <rect width="1200" height="630" fill="#030308"/>
+  <g opacity="0.75">
+    <circle cx="184" cy="140" r="2" fill="#f2c66d"/>
+    <circle cx="306" cy="88" r="1.5" fill="#ffffff"/>
+    <circle cx="494" cy="150" r="1.8" fill="#ffffff"/>
+    <circle cx="726" cy="84" r="1.4" fill="#f2c66d"/>
+    <circle cx="1040" cy="136" r="2" fill="#ffffff"/>
+    <circle cx="982" cy="418" r="1.5" fill="#f2c66d"/>
+    <circle cx="152" cy="494" r="1.8" fill="#ffffff"/>
+    <circle cx="614" cy="526" r="1.4" fill="#ffffff"/>
+  </g>
+  <g transform="translate(128 96)">
+    <circle cx="112" cy="112" r="88" fill="none" stroke="#e5b96a" stroke-width="3"/>
+    <circle cx="112" cy="112" r="50" fill="none" stroke="#e5b96a" stroke-opacity="0.45" stroke-width="2"/>
+    <path d="M112 24 L134 91 L204 91 L148 132 L169 200 L112 158 L55 200 L76 132 L20 91 L90 91 Z" fill="none" stroke="#e5b96a" stroke-width="2" stroke-linejoin="round"/>
+  </g>
+  <g transform="translate(360 166)">
+    <text x="0" y="0" fill="#f4efe5" font-family="Inter, Arial, sans-serif" font-size="86" font-weight="700">AstroYou</text>
+    <text x="4" y="70" fill="#e5b96a" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="700" letter-spacing="6">VEDIC ASTROLOGY COMPANION</text>
+    <text x="4" y="136" fill="#d8d3ca" font-family="Inter, Arial, sans-serif" font-size="34">Free Kundali, Panchang, Matching,</text>
+    <text x="4" y="184" fill="#d8d3ca" font-family="Inter, Arial, sans-serif" font-size="34">and AI Jyotish guidance.</text>
+  </g>
+  <path d="M0 590 C220 550 384 610 600 578 C824 544 982 566 1200 516 L1200 630 L0 630 Z" fill="#17110a"/>
+  <path d="M0 590 C220 550 384 610 600 578 C824 544 982 566 1200 516" fill="none" stroke="#e5b96a" stroke-opacity="0.5" stroke-width="2"/>
+</svg>

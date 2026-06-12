@@ -138,6 +138,13 @@ const CHECK_GROUPS: Array<{ key: string; label: string; checks: EnvCheck[] }> = 
         description: "Required for notification links and production callbacks.",
       },
       {
+        key: "OTP_HASH_SECRET",
+        label: "OTP hash secret",
+        required: true,
+        validate: validateLongSecret,
+        description: "Required to HMAC one-time login codes at rest.",
+      },
+      {
         key: "RESEND_API_KEY",
         label: "Resend email key",
         required: false,
@@ -344,6 +351,12 @@ function validateUrl(value: string) {
   } catch {
     return "App base URL must be a valid URL.";
   }
+}
+
+function validateLongSecret(value: string) {
+  return value.trim().length >= 32
+    ? null
+    : "OTP hash secret must be at least 32 characters.";
 }
 
 function addCrossWarnings(env: ReadinessEnv, warnings: string[]) {

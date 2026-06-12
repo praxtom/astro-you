@@ -322,6 +322,90 @@ const seoPages = [
     cta: "/free-kundali",
   },
   {
+    path: "/moon-sign-calculator",
+    title: "Moon Sign Calculator | Find Your Vedic Rashi",
+    description:
+      "Calculate your Vedic Moon sign or Janma Rashi from birth details and learn why it matters for dashas, compatibility, Panchang, and daily guidance.",
+    heading: "Moon Sign Calculator",
+    bullets: ["Janma Rashi", "Emotional rhythm", "Personal horoscope context"],
+    cta: "/free-kundali",
+    links: [
+      { label: "Free Kundali", href: "/free-kundali" },
+      { label: "Daily Horoscope", href: "/daily-horoscope" },
+      { label: "Nakshatra Finder", href: "/nakshatra-finder" },
+    ],
+  },
+  {
+    path: "/nakshatra-finder",
+    title: "Nakshatra Finder | Find Your Birth Star and Pada",
+    description:
+      "Find your Vedic birth Nakshatra and Pada from birth details, then understand personality, dasha timing, naming syllables, and Panchang context.",
+    heading: "Nakshatra Finder",
+    bullets: ["Birth star", "Nakshatra Pada", "Dasha connection"],
+    cta: "/free-kundali",
+    links: [
+      { label: "Free Kundali", href: "/free-kundali" },
+      { label: "Nakshatra Guide", href: "/nakshatra" },
+      { label: "Panchang Today", href: "/panchang-today" },
+    ],
+  },
+  {
+    path: "/sade-sati-calculator",
+    title: "Sade Sati Calculator | Check Saturn Transit from Moon Sign",
+    description:
+      "Check Sade Sati timing from your Moon sign and understand Saturn's three phases with practical, fear-free Vedic guidance.",
+    heading: "Sade Sati Calculator",
+    bullets: ["Moon sign check", "Three Saturn phases", "Fear-free remedies"],
+    cta: "/free-kundali",
+    links: [
+      { label: "Sade Sati Guide", href: "/sade-sati" },
+      { label: "Moon Sign Calculator", href: "/moon-sign-calculator" },
+      { label: "Free Kundali", href: "/free-kundali" },
+    ],
+  },
+  {
+    path: "/manglik-dosha-checker",
+    title: "Manglik Dosha Checker | Free Mangal Dosha Matching Guide",
+    description:
+      "Check Manglik Dosha with birth details and understand Mars placement, matching context, Navamsa, Venus, Jupiter, and relationship timing.",
+    heading: "Manglik Dosha Checker",
+    bullets: ["Mars placement", "Marriage matching", "Full chart context"],
+    cta: "/free-kundali-matching",
+    links: [
+      { label: "Manglik Guide", href: "/manglik" },
+      { label: "Free Kundali Matching", href: "/free-kundali-matching" },
+      { label: "Love Compatibility", href: "/love-compatibility" },
+    ],
+  },
+  {
+    path: "/dasha-calculator",
+    title: "Dasha Calculator | Find Mahadasha and Antardasha",
+    description:
+      "Calculate your current Mahadasha and Antardasha from your birth chart and understand Vedic planetary periods for life timing.",
+    heading: "Dasha Calculator",
+    bullets: ["Mahadasha", "Antardasha", "Vimshottari timing"],
+    cta: "/free-kundali",
+    links: [
+      { label: "Dasha Guide", href: "/dasha" },
+      { label: "Free Kundali", href: "/free-kundali" },
+      { label: "Ask AI Jyotish", href: "/synthesis" },
+    ],
+  },
+  {
+    path: "/panchang-today",
+    title: "Panchang Today | Tithi, Nakshatra, Rahu Kaal, Muhurat",
+    description:
+      "Check Panchang today for Tithi, Nakshatra, Yoga, Karana, Rahu Kaal, and auspicious timing with practical daily guidance.",
+    heading: "Panchang Today",
+    bullets: ["Tithi", "Nakshatra", "Rahu Kaal"],
+    cta: "/panchang",
+    links: [
+      { label: "Today Panchang", href: "/panchang" },
+      { label: "Free Muhurat", href: "/muhurat" },
+      { label: "Free Kundali", href: "/free-kundali" },
+    ],
+  },
+  {
     path: "/kaal-sarp-dosha",
     title: "Kaal Sarp Dosha Meaning, Effects, and Remedies",
     description:

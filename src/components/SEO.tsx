@@ -14,7 +14,7 @@ const defaultMeta = {
   title: "AstroYou | Insights from the Stars",
   description:
     "Discover your birth chart with Vedic astrology for the modern world. Get personalized Kundali readings, daily guidance, and clarity from the celestial movements.",
-  image: "/og-image.png",
+  image: "/og-image.svg",
   url: "https://astroyou.app",
   type: "website" as const,
 };

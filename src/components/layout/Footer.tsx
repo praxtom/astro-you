@@ -3,16 +3,19 @@ import { Link } from "react-router-dom";
 const toolLinks = [
   { label: "Free Kundali", href: "/free-kundali" },
   { label: "Kundali Matching", href: "/free-kundali-matching" },
-  { label: "Today Panchang", href: "/panchang" },
-  { label: "Muhurat Finder", href: "/muhurat" },
-  { label: "Reports", href: "/reports" },
+  { label: "Moon Sign Calculator", href: "/moon-sign-calculator" },
+  { label: "Nakshatra Finder", href: "/nakshatra-finder" },
+  { label: "Panchang Today", href: "/panchang-today" },
+  { label: "Dasha Calculator", href: "/dasha-calculator" },
 ];
 
 const guideLinks = [
   { label: "Kundali Guide", href: "/kundali" },
   { label: "Daily Horoscope", href: "/daily-horoscope" },
   { label: "Sade Sati", href: "/sade-sati" },
+  { label: "Sade Sati Calculator", href: "/sade-sati-calculator" },
   { label: "Manglik Dosha", href: "/manglik" },
+  { label: "Manglik Checker", href: "/manglik-dosha-checker" },
   { label: "Vedic Astrology", href: "/vedic-astrology" },
 ];
 

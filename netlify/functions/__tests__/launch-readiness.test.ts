@@ -36,6 +36,7 @@ test("buildLaunchReadinessReport reports ready without exposing secret values", 
     RAZORPAY_PRO_PLAN_ID: "plan_pro",
     ASTROYOU_ADMIN_EMAILS: "admin@astroyou.app",
     APP_BASE_URL: "https://astroyou.app",
+    OTP_HASH_SECRET: "otp-secret-at-least-32-characters-long",
     VITE_FIREBASE_API_KEY: "firebase-client-key",
     VITE_FIREBASE_AUTH_DOMAIN: "astroyou.firebaseapp.com",
     VITE_FIREBASE_PROJECT_ID: "astroyou",
@@ -65,6 +66,7 @@ test("buildLaunchReadinessReport warns when ASTROYOU_API_KEY fallback is overloa
     RAZORPAY_PRO_PLAN_ID: "plan_pro",
     ASTROYOU_ADMIN_EMAILS: "admin@astroyou.app",
     APP_BASE_URL: "https://astroyou.app",
+    OTP_HASH_SECRET: "otp-secret-at-least-32-characters-long",
     VITE_FIREBASE_API_KEY: "client",
     VITE_FIREBASE_AUTH_DOMAIN: "domain",
     VITE_FIREBASE_PROJECT_ID: "project",
@@ -105,6 +107,7 @@ test("buildLaunchReadinessReport blocks invalid Firebase service account JSON", 
     RAZORPAY_PRO_PLAN_ID: "plan_pro",
     ASTROYOU_ADMIN_EMAILS: "admin@astroyou.app",
     APP_BASE_URL: "https://astroyou.app",
+    OTP_HASH_SECRET: "otp-secret-at-least-32-characters-long",
     VITE_FIREBASE_API_KEY: "firebase-client-key",
     VITE_FIREBASE_AUTH_DOMAIN: "astroyou.firebaseapp.com",
     VITE_FIREBASE_PROJECT_ID: "astroyou",
@@ -131,6 +134,7 @@ test("buildLaunchReadinessReport warns when client and server projects do not ma
     RAZORPAY_PRO_PLAN_ID: "plan_pro",
     ASTROYOU_ADMIN_EMAILS: "admin@astroyou.app",
     APP_BASE_URL: "https://astroyou.app",
+    OTP_HASH_SECRET: "otp-secret-at-least-32-characters-long",
     VITE_FIREBASE_API_KEY: "firebase-client-key",
     VITE_FIREBASE_AUTH_DOMAIN: "other.firebaseapp.com",
     VITE_FIREBASE_PROJECT_ID: "other",
@@ -161,6 +165,7 @@ test("buildLaunchReadinessReport blocks placeholder production values", () => {
     RAZORPAY_PRO_PLAN_ID: "plan_replace_me",
     ASTROYOU_ADMIN_EMAILS: "admin@example.com",
     APP_BASE_URL: "https://astroyou.app",
+    OTP_HASH_SECRET: "short",
     VITE_FIREBASE_API_KEY: "replace_me",
     VITE_FIREBASE_AUTH_DOMAIN: "astroyou.firebaseapp.com",
     VITE_FIREBASE_PROJECT_ID: "astroyou",
@@ -187,6 +192,7 @@ test("buildLaunchReadinessReport does not downgrade placeholder shared fallback 
     RAZORPAY_PRO_PLAN_ID: "plan_pro",
     ASTROYOU_ADMIN_EMAILS: "admin@astroyou.app",
     APP_BASE_URL: "https://astroyou.app",
+    OTP_HASH_SECRET: "otp-secret-at-least-32-characters-long",
     VITE_FIREBASE_API_KEY: "firebase-client-key",
     VITE_FIREBASE_AUTH_DOMAIN: "astroyou.firebaseapp.com",
     VITE_FIREBASE_PROJECT_ID: "astroyou",
@@ -198,4 +204,36 @@ test("buildLaunchReadinessReport does not downgrade placeholder shared fallback 
 
   assert.equal(report.overallStatus, "blocked");
   assert.ok(report.warnings.some((warning) => /placeholder/i.test(warning)));
+});
+
+test("buildLaunchReadinessReport blocks missing or weak OTP hash secret", () => {
+  const report = buildLaunchReadinessReport({
+    FIREBASE_SERVICE_ACCOUNT: VALID_FIREBASE_SERVICE_ACCOUNT,
+    FIREBASE_STORAGE_BUCKET: "astroyou.appspot.com",
+    GEMINI_API_KEY: "gemini-secret",
+    ASTROLOGY_API_KEY: "astro-secret",
+    RAZORPAY_KEY_ID: "rzp_live_123",
+    RAZORPAY_KEY_SECRET: "razorpay-secret",
+    RAZORPAY_WEBHOOK_SECRET: "webhook-secret",
+    RAZORPAY_PREMIUM_PLAN_ID: "plan_premium",
+    RAZORPAY_PRO_PLAN_ID: "plan_pro",
+    ASTROYOU_ADMIN_EMAILS: "admin@astroyou.app",
+    APP_BASE_URL: "https://astroyou.app",
+    OTP_HASH_SECRET: "too-short",
+    VITE_FIREBASE_API_KEY: "firebase-client-key",
+    VITE_FIREBASE_AUTH_DOMAIN: "astroyou.firebaseapp.com",
+    VITE_FIREBASE_PROJECT_ID: "astroyou",
+    VITE_FIREBASE_STORAGE_BUCKET: "astroyou.appspot.com",
+    VITE_FIREBASE_MESSAGING_SENDER_ID: "123",
+    VITE_FIREBASE_APP_ID: "1:123:web:abc",
+    VITE_RAZORPAY_KEY_ID: "rzp_live_123",
+  });
+
+  assert.equal(report.overallStatus, "blocked");
+  const otpItem = report.groups
+    .flatMap((group) => group.items)
+    .find((item) => item.key === "OTP_HASH_SECRET");
+
+  assert.equal(otpItem?.status, "missing");
+  assert.ok(report.warnings.some((warning) => /OTP hash secret/i.test(warning)));
 });

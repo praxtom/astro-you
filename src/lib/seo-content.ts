@@ -62,7 +62,7 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
       },
       {
         title: "Beyond the score",
-        body: "Real compatibility also needs Mangal Dosha, Venus, Jupiter, seventh-house strength, dasha timing, and communication patterns.",
+        body: "Real compatibility also needs Mangal Dosha, Venus, Jupiter, seventh-house strength, dasha timing, and communication patterns. A lower score can still be workable when both charts show maturity and repair capacity.",
       },
       {
         title: "Use it with care",
@@ -120,7 +120,7 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
       },
       {
         title: "Better remedies",
-        body: "The best remedy starts with steadiness: service, discipline, honest commitments, simple prayer, and practical decisions.",
+        body: "The best remedy starts with steadiness: service, discipline, honest commitments, simple prayer, and practical decisions. Saturn responds better to consistency than panic, so small repeatable actions matter more than dramatic fear-based rituals.",
       },
     ],
     primaryCta: { label: "Generate My Kundali", to: "/free-kundali" },
@@ -147,7 +147,7 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
       },
       {
         title: "No fear-based decisions",
-        body: "AstroYou treats Manglik analysis as practical relationship guidance, not a fixed verdict on marriage.",
+        body: "AstroYou treats Manglik analysis as practical relationship guidance, not a fixed verdict on marriage. The useful question is how two people handle heat, conflict, desire, and repair in real life.",
       },
     ],
     primaryCta: { label: "Check Free Match", to: "/free-kundali-matching" },
@@ -166,7 +166,7 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
     sections: [
       {
         title: "Why Nakshatra matters",
-        body: "The Moon's Nakshatra describes instincts, needs, habits, memory, and how the mind seeks safety.",
+        body: "The Moon's Nakshatra describes instincts, needs, habits, memory, and how the mind seeks safety. It often explains the emotional texture behind a person's choices better than broad sign descriptions alone.",
       },
       {
         title: "Nakshatra and dasha",
@@ -282,12 +282,174 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
       },
       {
         title: "AstroYou's approach",
-        body: "The app combines dasha with transits, panchang, and Atman memory so guidance is tied to the user's actual phase of life.",
+        body: "The app combines dasha with transits, panchang, and Atman memory so guidance is tied to the user's actual phase of life. This helps separate temporary pressure from deeper long-term tendencies.",
       },
     ],
     primaryCta: { label: "Calculate My Dasha", to: "/free-kundali" },
     secondaryCta: { label: "Ask Career Guide", to: "/consult/arjun-sharma/profile" },
     keywords: ["dasha", "mahadasha", "antardasha", "vimshottari"],
+  },
+  {
+    slug: "moon-sign-calculator",
+    path: "/moon-sign-calculator",
+    title: "Moon Sign Calculator: Find Your Vedic Rashi from Birth Details",
+    description:
+      "Use AstroYou's free Moon sign calculator guide to understand your Vedic Rashi, emotional rhythm, Nakshatra link, and why Moon sign matters more than sun sign in Jyotish.",
+    heading: "Moon Sign Calculator",
+    intro:
+      "Your Moon sign, or Rashi, describes the mind, emotional rhythm, instincts, memory, and daily inner weather. In Vedic astrology it is central for dashas, compatibility, Panchang timing, and personal guidance.",
+    sections: [
+      {
+        title: "What the calculator needs",
+        body: "A reliable Moon sign calculation needs date of birth, time of birth, and place of birth. The Moon changes signs roughly every two and a half days, so birth time and location can matter when the Moon is near a sign boundary.",
+      },
+      {
+        title: "Why Moon sign is useful",
+        body: "Moon sign is used for daily horoscope timing, emotional compatibility, Sade Sati, and the starting point of Vimshottari dasha. It often explains how a person feels life before they can explain it logically.",
+      },
+      {
+        title: "How AstroYou personalizes it",
+        body: "After calculating your chart, AstroYou combines Moon sign with Ascendant, Nakshatra, dashas, transits, and remembered life context so the guidance is not just a generic sign paragraph.",
+      },
+    ],
+    primaryCta: { label: "Calculate Moon Sign", to: "/free-kundali" },
+    secondaryCta: { label: "Read Daily Horoscope", to: "/daily-horoscope" },
+    keywords: ["moon sign calculator", "rashi calculator", "vedic moon sign", "janma rashi"],
+  },
+  {
+    slug: "nakshatra-finder",
+    path: "/nakshatra-finder",
+    title: "Nakshatra Finder: Find Your Birth Star and Pada",
+    description:
+      "Find your Vedic birth Nakshatra and learn how your lunar mansion shapes personality, dasha timing, compatibility, naming syllables, and daily Panchang guidance.",
+    heading: "Nakshatra Finder",
+    intro:
+      "A Nakshatra finder identifies the lunar mansion occupied by the Moon at birth. This birth star adds detail to personality, instincts, timing, compatibility, and spiritual practice.",
+    sections: [
+      {
+        title: "What Nakshatra tells you",
+        body: "Nakshatra describes the Moon's finer placement beyond the zodiac sign. It can show emotional style, motivation, natural gifts, repeated reactions, and the kind of environment where the mind feels safe.",
+      },
+      {
+        title: "Why Pada matters",
+        body: "Each Nakshatra has four padas, or quarters, which refine the reading further. Pada can influence naming syllables, navamsa connection, and the way a Nakshatra expresses itself in daily life.",
+      },
+      {
+        title: "Use it with your full chart",
+        body: "A birth star is powerful, but it should be read with Moon sign, Ascendant, planetary strength, dasha, and transits. AstroYou calculates the full Kundali first so Nakshatra guidance stays grounded.",
+      },
+    ],
+    primaryCta: { label: "Find My Nakshatra", to: "/free-kundali" },
+    secondaryCta: { label: "Read Nakshatra Guide", to: "/nakshatra" },
+    keywords: ["nakshatra finder", "birth star calculator", "nakshatra calculator", "pada"],
+  },
+  {
+    slug: "sade-sati-calculator",
+    path: "/sade-sati-calculator",
+    title: "Sade Sati Calculator: Check Saturn Transit from Your Moon Sign",
+    description:
+      "Check whether Sade Sati is active by calculating your Moon sign and Saturn transit phase, then understand the period with practical, fear-free Vedic guidance.",
+    heading: "Sade Sati Calculator",
+    intro:
+      "A Sade Sati calculator checks Saturn's transit around your natal Moon sign. The result is useful only when read with maturity, because Saturn shows responsibility and refinement, not automatic disaster.",
+    sections: [
+      {
+        title: "How Sade Sati is checked",
+        body: "Sade Sati begins when Saturn enters the sign before your natal Moon, continues while Saturn crosses the Moon sign, and ends after Saturn leaves the next sign. This creates three broad phases across about seven and a half years.",
+      },
+      {
+        title: "What the result means",
+        body: "The phase can highlight pressure, discipline, emotional realism, duty, boundaries, and delayed responsibilities. Its actual effect depends on Saturn strength, dasha, house placement, and the person's life stage.",
+      },
+      {
+        title: "How to use AstroYou",
+        body: "Generate your Kundali first so AstroYou can calculate Moon sign and read Saturn timing with your dasha, current transits, and remembered life themes instead of giving a generic fear-based answer.",
+      },
+    ],
+    primaryCta: { label: "Check Sade Sati", to: "/free-kundali" },
+    secondaryCta: { label: "Read Sade Sati Guide", to: "/sade-sati" },
+    keywords: ["sade sati calculator", "shani sade sati", "saturn transit", "moon sign"],
+  },
+  {
+    slug: "manglik-dosha-checker",
+    path: "/manglik-dosha-checker",
+    title: "Manglik Dosha Checker: Free Mangal Dosha and Matching Guide",
+    description:
+      "Check Manglik Dosha with birth details and learn why Mars placement, seventh house strength, Navamsa, Venus, Jupiter, and dasha context matter before marriage decisions.",
+    heading: "Manglik Dosha Checker",
+    intro:
+      "A Manglik Dosha checker looks at Mars placement in relationship-sensitive houses. The result should guide better understanding, not create panic or a fixed verdict about marriage.",
+    sections: [
+      {
+        title: "What is checked",
+        body: "Most checks review Mars in houses such as the first, fourth, seventh, eighth, or twelfth from key reference points. A serious reading also considers chart strength, aspects, Venus, Jupiter, and Navamsa.",
+      },
+      {
+        title: "Why matching context matters",
+        body: "Manglik results are more useful when compared across both charts. Similar Mars intensity, maturity, communication habits, and dasha timing can change how the dosha is experienced in real life.",
+      },
+      {
+        title: "AstroYou's approach",
+        body: "AstroYou combines free matching with practical relationship guidance. The goal is to understand friction and repair patterns, not reduce a person to a single Mars label.",
+      },
+    ],
+    primaryCta: { label: "Check Manglik Dosha", to: "/free-kundali-matching" },
+    secondaryCta: { label: "Read Manglik Guide", to: "/manglik" },
+    keywords: ["manglik dosha checker", "mangal dosha calculator", "manglik matching", "kundali matching"],
+  },
+  {
+    slug: "dasha-calculator",
+    path: "/dasha-calculator",
+    title: "Dasha Calculator: Find Your Mahadasha and Antardasha",
+    description:
+      "Calculate your current Mahadasha and Antardasha from your birth chart and learn how Vedic planetary periods shape career, relationships, health, and spiritual timing.",
+    heading: "Dasha Calculator",
+    intro:
+      "A Dasha calculator identifies the active planetary period in your life. In Jyotish, this timing layer often explains why one chapter feels focused on work, another on relationships, and another on inner growth.",
+    sections: [
+      {
+        title: "What the calculator needs",
+        body: "Vimshottari dasha begins from the Moon's Nakshatra at birth, so accurate birth date, time, and place are important. The Mahadasha gives the larger chapter, while Antardasha shows the active sub-theme.",
+      },
+      {
+        title: "How to read the result",
+        body: "A dasha result is not good or bad by itself. The planet's house ownership, dignity, aspects, yogas, and relationship to the current transit decide how the period tends to unfold.",
+      },
+      {
+        title: "How AstroYou makes it personal",
+        body: "AstroYou combines dasha with Kundali, transit, Panchang, and Atman memory, so the guidance can connect timing with what is actually happening in the user's life.",
+      },
+    ],
+    primaryCta: { label: "Calculate My Dasha", to: "/free-kundali" },
+    secondaryCta: { label: "Read Dasha Guide", to: "/dasha" },
+    keywords: ["dasha calculator", "mahadasha calculator", "antardasha", "vimshottari dasha"],
+  },
+  {
+    slug: "panchang-today",
+    path: "/panchang-today",
+    title: "Panchang Today: Tithi, Nakshatra, Rahu Kaal, and Muhurat",
+    description:
+      "Check Panchang today for Tithi, Nakshatra, Yoga, Karana, Rahu Kaal, and auspicious timing, then use it with your personal Kundali for better daily decisions.",
+    heading: "Panchang Today",
+    intro:
+      "Today's Panchang describes the quality of the day through lunar and solar timing. It helps choose the right tone for work, prayer, travel, repair, learning, and important beginnings.",
+    sections: [
+      {
+        title: "What Panchang includes",
+        body: "A daily Panchang usually includes Tithi, Nakshatra, Yoga, Karana, weekday, sunrise, sunset, Rahu Kaal, and other timing windows. These signals describe the day's rhythm rather than a fixed prediction.",
+      },
+      {
+        title: "How to use it practically",
+        body: "Use Panchang to avoid reactive starts, choose calmer windows, and match the task to the day. For example, some timings support learning or repair better than aggressive launches.",
+      },
+      {
+        title: "Personal timing is stronger",
+        body: "General Panchang is useful for everyone, but major decisions should also consider your birth chart, dasha, current transit pressure, and practical readiness.",
+      },
+    ],
+    primaryCta: { label: "Open Panchang Today", to: "/panchang" },
+    secondaryCta: { label: "Generate My Kundali", to: "/free-kundali" },
+    keywords: ["panchang today", "today tithi", "rahu kaal today", "nakshatra today"],
   },
   {
     slug: "kaal-sarp-dosha",
@@ -336,7 +498,7 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
       },
       {
         title: "Better questions to ask",
-        body: "Ask what needs care, what timing supports commitment, and what practical habits will make the relationship healthier.",
+        body: "Ask what needs care, what timing supports commitment, and what practical habits will make the relationship healthier. This turns compatibility into a living practice instead of a pass-or-fail label.",
       },
     ],
     primaryCta: { label: "Check Free Match", to: "/free-kundali-matching" },
@@ -363,7 +525,7 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
       },
       {
         title: "Guidance should be practical",
-        body: "A good reading should reduce confusion, suggest one useful next step, and avoid fear-based claims.",
+        body: "A good reading should reduce confusion, suggest one useful next step, and avoid fear-based claims. It should leave the person more grounded, not more dependent on another prediction.",
       },
     ],
     primaryCta: { label: "Generate Free Kundali", to: "/free-kundali" },
@@ -390,7 +552,7 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
       },
       {
         title: "AstroYou's approach",
-        body: "The platform prefers simple, low-risk remedies first and explains the reasoning behind each suggestion.",
+        body: "The platform prefers simple, low-risk remedies first and explains the reasoning behind each suggestion. Expensive or intense remedies should only appear when the chart logic and user context truly support them.",
       },
     ],
     primaryCta: { label: "Generate My Kundali", to: "/free-kundali" },
@@ -444,7 +606,7 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
       },
       {
         title: "Chart context",
-        body: "For major property purchases, fourth house, Mars, Venus, Saturn, dasha timing, and current transits should be read with the Panchang.",
+        body: "For major property purchases, fourth house, Mars, Venus, Saturn, dasha timing, and current transits should be read with the Panchang. This keeps the timing advice connected to both the home and financial responsibility.",
       },
     ],
     primaryCta: { label: "Find Free Muhurat", to: "/muhurat" },
@@ -471,7 +633,7 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
       },
       {
         title: "Compatibility first",
-        body: "Before choosing a date, compatibility and practical readiness should be understood so the Muhurat supports a real relationship foundation.",
+        body: "Before choosing a date, compatibility and practical readiness should be understood so the Muhurat supports a real relationship foundation. A good wedding date cannot replace honest family alignment and mutual commitment.",
       },
     ],
     primaryCta: { label: "Check Free Match", to: "/free-kundali-matching" },
@@ -498,7 +660,7 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
       },
       {
         title: "Use the birth profile",
-        body: "AstroYou can first identify the child's Moon sign and Nakshatra from birth details, then guide the naming direction.",
+        body: "AstroYou can first identify the child's Moon sign and Nakshatra from birth details, then guide the naming direction. This gives the family a traditional starting point without forcing a name that feels impractical.",
       },
     ],
     primaryCta: { label: "Generate Baby Kundali", to: "/free-kundali" },
@@ -525,7 +687,7 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
       },
       {
         title: "Stronger context",
-        body: "For important choices, combine numerology with your birth chart, dasha, practical constraints, and personal intention.",
+        body: "For important choices, combine numerology with your birth chart, dasha, practical constraints, and personal intention. The number can be a supporting symbol, but the life decision still needs grounded judgment.",
       },
     ],
     primaryCta: { label: "Open Numerology", to: "/numerology" },

@@ -1,6 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { Suspense, lazy, useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import CelestialEngine from "../components/CelestialEngine";
 import { LandingSEO } from "../components/SEO";
 import AuthModal from "../components/AuthModal";
 import OnboardingModal from "../components/OnboardingModal";
@@ -13,6 +12,8 @@ import { Sparkles, ChevronDown, ScrollText } from "lucide-react";
 import type { InfluenceCardProps } from "../types";
 import { STORAGE_KEYS } from "../lib/constants";
 import { captureReferralFromUrl } from "../lib/acquisition";
+
+const CelestialEngine = lazy(() => import("../components/CelestialEngine"));
 
 const InfluenceCard = ({
   number,
@@ -110,6 +111,7 @@ function Landing() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
+  const [showCelestialEngine, setShowCelestialEngine] = useState(false);
   const [trustSummary, setTrustSummary] = useState<LandingTrustSummary | null>(
     null,
   );
@@ -117,6 +119,11 @@ function Landing() {
 
   useEffect(() => {
     captureReferralFromUrl();
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setShowCelestialEngine(true), 600);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -200,7 +207,11 @@ function Landing() {
           aria-hidden="true"
         >
           <div className="w-full h-full">
-            <CelestialEngine progress={scrollProgress} />
+            {showCelestialEngine ? (
+              <Suspense fallback={null}>
+                <CelestialEngine progress={scrollProgress} />
+              </Suspense>
+            ) : null}
           </div>
           {/* Subtle overlay to enhance text readability */}
           <div className="absolute inset-0 bg-gradient-to-r from-[#030308]/60 via-transparent to-transparent"></div>
