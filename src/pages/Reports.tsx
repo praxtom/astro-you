@@ -1,15 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
-import {
-  AlertCircle,
-  ArrowLeft,
-  Download,
-  FileText,
-  Loader2,
-  Wallet,
-} from "lucide-react";
-import Header from "../components/layout/Header";
+import { AlertCircle, Download, FileText, Loader2, Wallet } from "lucide-react";
+import { PageShell } from "../components/layout/PageShell";
 import AuthModal from "../components/AuthModal";
 import { useAuth } from "../lib/useAuth";
 import { db } from "../lib/firebase";
@@ -67,7 +60,10 @@ export default function Reports() {
       setReports(Array.isArray(data.reports) ? data.reports : []);
       return;
     } catch (serverError) {
-      console.warn("[Reports] Server list unavailable, using Firestore read.", serverError);
+      console.warn(
+        "[Reports] Server list unavailable, using Firestore read.",
+        serverError,
+      );
     }
 
     const snap = await getDocs(
@@ -181,7 +177,9 @@ export default function Reports() {
       await loadReports();
     } catch (err) {
       console.error("Report generation failed:", err);
-      setError(err instanceof Error ? err.message : "Could not generate report.");
+      setError(
+        err instanceof Error ? err.message : "Could not generate report.",
+      );
       trackAcquisitionEvent("report_generation_failed", {
         reportType: product.type,
         reason: "generation_error",
@@ -221,23 +219,17 @@ export default function Reports() {
       downloadBlob(blob, report.filename || "astroyou-report.pdf");
     } catch (err) {
       console.error("Report download failed:", err);
-      setError(err instanceof Error ? err.message : "Could not download report.");
+      setError(
+        err instanceof Error ? err.message : "Could not download report.",
+      );
     } finally {
       setDownloadingId(null);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#030308] text-white">
-      <Header />
-      <main className="platform-main">
-        <button
-          onClick={() => navigate(-1)}
-          className="mb-4 inline-flex items-center gap-2 text-sm text-white/40 hover:text-white"
-        >
-          <ArrowLeft size={16} /> Back
-        </button>
-
+    <PageShell>
+      <div>
         <section className="grid grid-cols-1 lg:grid-cols-[1fr_19rem] gap-4 items-start mb-4">
           <div>
             <p className="platform-eyebrow mb-2">Report Studio</p>
@@ -254,9 +246,7 @@ export default function Reports() {
           <aside className="platform-panel p-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="type-meta uppercase text-white/35">
-                  Credits
-                </p>
+                <p className="type-meta uppercase text-white/35">Credits</p>
                 <p className="type-kpi text-white mt-1">{credits}</p>
               </div>
               <Wallet className="text-gold" size={24} />
@@ -264,7 +254,9 @@ export default function Reports() {
             <div className="mt-2 grid grid-cols-[1fr_auto] items-center gap-2">
               <div className="flex items-center justify-between gap-2">
                 <span className="type-body-sm text-white/45">Plan</span>
-                <span className="type-body-sm text-gold capitalize">{tier}</span>
+                <span className="type-body-sm text-gold capitalize">
+                  {tier}
+                </span>
               </div>
               <button
                 onClick={startCreditTopup}
@@ -353,8 +345,13 @@ export default function Reports() {
                 </div>
               ) : libraryError ? (
                 <div className="p-4 text-center">
-                  <AlertCircle className="mx-auto text-amber-300/60 mb-3" size={30} />
-                  <p className="type-body text-white/70">Library unavailable.</p>
+                  <AlertCircle
+                    className="mx-auto text-amber-300/60 mb-3"
+                    size={30}
+                  />
+                  <p className="type-body text-white/70">
+                    Library unavailable.
+                  </p>
                   <p className="type-body-sm text-white/35 mt-1">
                     {libraryError}
                   </p>
@@ -362,7 +359,9 @@ export default function Reports() {
               ) : reports.length === 0 ? (
                 <div className="p-4 text-center">
                   <FileText className="mx-auto text-white/20 mb-3" size={34} />
-                  <p className="type-body text-white/70">No saved reports yet.</p>
+                  <p className="type-body text-white/70">
+                    No saved reports yet.
+                  </p>
                   <p className="type-body-sm text-white/35 mt-1">
                     Generated PDFs appear here.
                   </p>
@@ -382,7 +381,7 @@ export default function Reports() {
             </div>
           </div>
         </section>
-      </main>
+      </div>
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
@@ -393,7 +392,7 @@ export default function Reports() {
         title="Sign in for reports"
         message="Use your AstroYou account so generated PDFs, credits, and downloads stay tied to you."
       />
-    </div>
+    </PageShell>
   );
 }
 
@@ -417,7 +416,8 @@ function ReportProductRow({
   const Icon = product.icon;
   const canAfford = credits >= product.creditCost;
   const needsAuth = !isSignedIn && !product.requiresCompatibilityFlow;
-  const needsCredits = isSignedIn && !canAfford && !product.requiresCompatibilityFlow;
+  const needsCredits =
+    isSignedIn && !canAfford && !product.requiresCompatibilityFlow;
   const disabled = isGenerating || (needsCredits && isAddingCredits);
 
   return (
@@ -449,7 +449,9 @@ function ReportProductRow({
             "Sign in"
           ) : needsCredits ? (
             <>
-              {isAddingCredits && <Loader2 size={14} className="animate-spin" />}
+              {isAddingCredits && (
+                <Loader2 size={14} className="animate-spin" />
+              )}
               Add credits
             </>
           ) : (

@@ -39,7 +39,7 @@ import { loadRazorpayCheckout } from "../lib/razorpay-loader";
 import { SynthesisSEO } from "../components/SEO";
 import Kundali from "../components/astrology/Kundali";
 import CelestialChart from "../components/astrology/CelestialChart";
-import type { KundaliData, ChatMessage } from "../types";
+import type { KundaliData } from "../types";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { downloadChart } from "../lib/chartStorage";
@@ -53,8 +53,13 @@ import { NightSky } from "../components/layout/NightSky";
 import type { UserRoutine } from "../types/user";
 import { STORAGE_KEYS, FREE_LIMIT_SECONDS } from "../lib/constants";
 import { useErrorToast, useSuccessToast } from "../components/ui/toast-context";
+import {
+  hasVisibleStreamingContent,
+  mergeSynthesisMessages,
+  type SynthesisMessage,
+} from "../lib/synthesis-messages";
 
-type Message = ChatMessage;
+type Message = SynthesisMessage;
 
 const OPENING_QUESTIONS = [
   "What does my current dasha ask of me?",
@@ -159,6 +164,7 @@ export default function Synthesis() {
   const [showShareModal, setShowShareModal] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevChatIdRef = useRef<string | null>(null); // Track previous chat ID to detect sidebar navigation
+  const pendingMessagesRef = useRef<Message[]>([]);
 
   // P0: Load recent chat summaries for guru's diary (last 3 chats with summaries)
   const loadRecentSummaries = useCallback(async () => {
@@ -299,10 +305,12 @@ export default function Synthesis() {
       prevChatIdRef.current !== currentChatId
     ) {
       setInteractionId(null);
+      pendingMessagesRef.current = [];
     }
     prevChatIdRef.current = currentChatId;
 
     if (!user) {
+      pendingMessagesRef.current = [];
       setMessages([welcomeMessage]);
       return;
     }
@@ -312,21 +320,40 @@ export default function Synthesis() {
       return;
     }
 
+    const chatRef = doc(db, "users", user.uid, "chats", currentChatId);
+    const unsubscribeChat = onSnapshot(chatRef, (snapshot) => {
+      const lastInteractionId = snapshot.data()?.lastInteractionId;
+      setInteractionId(
+        typeof lastInteractionId === "string" && lastInteractionId.trim()
+          ? lastInteractionId
+          : null,
+      );
+    });
+
     // Load messages for specific chat
     const q = query(
       collection(db, "users", user.uid, "chats", currentChatId, "messages"),
       orderBy("timestamp", "asc"),
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribeMessages = onSnapshot(q, (snapshot) => {
       const msgs = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
         timestamp: doc.data().timestamp?.toDate() || new Date(),
       })) as Message[];
 
+      const mergedMessages = mergeSynthesisMessages(
+        welcomeMessage,
+        msgs,
+        pendingMessagesRef.current,
+      );
+      pendingMessagesRef.current = mergedMessages.filter(
+        (message) => message.pending,
+      );
+
       // Always prepend welcome message so it appears at the start of conversation
-      setMessages([welcomeMessage, ...msgs]);
+      setMessages(mergedMessages);
 
       // If a new assistant message arrived from Firestore, clear streaming overlay
       // This ensures seamless handoff: streaming bubble → persisted message
@@ -336,7 +363,10 @@ export default function Synthesis() {
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeChat();
+      unsubscribeMessages();
+    };
   }, [user, currentChatId, welcomeMessage]);
 
   // Update currentChatId when URL param changes
@@ -466,16 +496,19 @@ export default function Synthesis() {
     }
 
     const userMsgContent = input;
+    const userMsgClientId = `user_${Date.now()}`;
     const userMsg: Message = {
-      id: Date.now().toString(),
+      id: `pending_${userMsgClientId}`,
+      clientId: userMsgClientId,
+      pending: true,
       role: "user",
       content: userMsgContent,
       timestamp: new Date(),
     };
 
-    // If not logged in, just update state
-    if (!user) {
-      setMessages((prev) => [...prev, userMsg]);
+    setMessages((prev) => [...prev, userMsg]);
+    if (user) {
+      pendingMessagesRef.current = [...pendingMessagesRef.current, userMsg];
     }
 
     setInput("");
@@ -508,6 +541,7 @@ export default function Synthesis() {
           {
             role: "user",
             content: userMsgContent,
+            clientId: userMsgClientId,
             timestamp: serverTimestamp(),
           },
         );
@@ -520,19 +554,27 @@ export default function Synthesis() {
       // P0: Load guru's diary (recent chat summaries) for new conversations
       const recentSummaries = !interactionId ? await loadRecentSummaries() : [];
 
-      // Build enriched chat history for summary generation
+      // Build enriched chat history for summary generation and fallback memory.
       const chatMessagesForSummary = messages
         .filter((m) => m.id !== "welcome")
         .slice(-10)
         .map((m) => ({ role: m.role, content: m.content }));
+      const requestMessages =
+        interactionId || chatMessagesForSummary.length === 0
+          ? [{ role: userMsg.role, content: userMsg.content }]
+          : [
+              ...chatMessagesForSummary,
+              { role: userMsg.role, content: userMsg.content },
+            ].slice(-10);
 
       const idToken = user ? await user.getIdToken() : undefined;
       const response = await fetch("/api/synthesis", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          // Only send the last message - Google manages conversation history via interactionId
-          messages: [{ role: userMsg.role, content: userMsg.content }],
+          // If interactionId exists, Google manages history. If it is missing
+          // after refresh/reopen, include recent visible turns as fallback.
+          messages: requestMessages,
           birthData,
           kundaliData,
           previousInteractionId: interactionId, // Pass previous interaction for context
@@ -634,6 +676,12 @@ export default function Synthesis() {
       // Store the new interaction ID for next turn
       if (metadata?.interactionId) {
         setInteractionId(metadata.interactionId);
+        if (user && chatId) {
+          updateDoc(doc(db, "users", user.uid, "chats", chatId), {
+            lastInteractionId: metadata.interactionId,
+            lastInteractionAt: serverTimestamp(),
+          }).catch(() => {});
+        }
       }
 
       // Update chat title if AI generated one
@@ -644,20 +692,36 @@ export default function Synthesis() {
       }
 
       if (user && chatId) {
-        // Write to Firestore — onSnapshot will add it to messages AND clear streamingContent
+        const aiMsgClientId = `assistant_${Date.now()}`;
+        const aiMsg: Message = {
+          id: `pending_${aiMsgClientId}`,
+          clientId: aiMsgClientId,
+          pending: true,
+          role: "assistant",
+          content: finalContent,
+          timestamp: new Date(),
+        };
+        pendingMessagesRef.current = [...pendingMessagesRef.current, aiMsg];
+        setStreamingContent(null);
+        setMessages((prev) => [...prev, aiMsg]);
+
+        // Write to Firestore — onSnapshot will confirm the local message.
         await addDoc(
           collection(db, "users", user.uid, "chats", chatId, "messages"),
           {
             role: "assistant",
             content: finalContent,
+            clientId: aiMsgClientId,
             timestamp: serverTimestamp(),
           },
         );
       } else {
         // Guest: clear streaming, then add message directly
         setStreamingContent(null);
+        const aiMsgClientId = `assistant_${Date.now()}`;
         const aiMsg: Message = {
-          id: (Date.now() + 1).toString(),
+          id: aiMsgClientId,
+          clientId: aiMsgClientId,
           role: "assistant",
           content: finalContent,
           timestamp: new Date(),
@@ -698,9 +762,10 @@ export default function Synthesis() {
   }, [messages, isSynthesizing, streamingContent]);
 
   const remainingSeconds = Math.max(0, FREE_LIMIT_SECONDS - secondsUsed);
+  const hasStreamingContent = hasVisibleStreamingContent(streamingContent);
   const isIntroConversation =
     !isSynthesizing &&
-    streamingContent === null &&
+    !hasStreamingContent &&
     (messages.length === 0 ||
       (messages.length === 1 && messages[0]?.id === "welcome"));
 
@@ -875,7 +940,7 @@ export default function Synthesis() {
                       // Hide the last assistant message while streaming to prevent duplicate bubbles
                       // onSnapshot may deliver the Firestore message before streamingContent clears
                       if (
-                        streamingContent !== null &&
+                        hasStreamingContent &&
                         m.role === "assistant" &&
                         i === arr.length - 1
                       )
@@ -884,13 +949,15 @@ export default function Synthesis() {
                     })
                     .map((m) => (
                       <div
-                        key={m.id}
+                        key={m.clientId || m.id}
                         className={`flex ${
                           m.role === "user" ? "justify-end" : "justify-start"
                         } ${
                           m.role === "user"
                             ? "animate-message-send"
-                            : "animate-reveal-progressive"
+                            : m.clientId
+                              ? ""
+                              : "animate-reveal-progressive"
                         }`}
                       >
                         <div className="max-w-[90%] md:max-w-[85%] group">
@@ -921,7 +988,11 @@ export default function Synthesis() {
                             </div>
                           ) : (
                             <div className="pl-5 border-l border-gold/30">
-                              <div className="prose-cosmic animate-reveal-progressive">
+                              <div
+                                className={`prose-cosmic ${
+                                  m.clientId ? "" : "animate-reveal-progressive"
+                                }`}
+                              >
                                 <ReactMarkdown
                                   remarkPlugins={[remarkGfm]}
                                   components={markdownComponents as any}
@@ -936,7 +1007,7 @@ export default function Synthesis() {
                     ))}
 
                   {/* Streaming reveal */}
-                  {streamingContent !== null && (
+                  {hasStreamingContent && (
                     <div className="flex justify-start animate-in fade-in duration-300">
                       <div className="max-w-[90%] md:max-w-[85%]">
                         <div className="text-[0.6rem] font-bold uppercase tracking-[0.3em] mb-1.5 flex items-center gap-2 text-gold/50">
@@ -954,7 +1025,6 @@ export default function Synthesis() {
                             >
                               {streamingContent}
                             </ReactMarkdown>
-                            <span className="inline-block w-0.5 h-4 bg-gold/60 animate-pulse ml-0.5 align-middle" />
                           </div>
                         </div>
                       </div>

@@ -101,6 +101,48 @@ test("applyBrainInsights merges analysis into weighted memory and ledger", () =>
   assert.equal(result.atman.memory?.knownPatterns.length, 2);
 });
 
+test("applyBrainInsights marks advised related patterns as recently used", () => {
+  const existing = baseAtman();
+  existing.knownPatterns = [
+    {
+      id: "work_pressure",
+      pattern: "Carries too much work when deadlines rise",
+      frequency: 5,
+      weightScore: 4,
+      confidence: 0.9,
+      sourceCount: 5,
+      lastMentioned: new Date("2026-05-20T10:00:00.000Z"),
+      verified: true,
+      category: "behavioral",
+    },
+  ];
+
+  const result = applyBrainInsights({
+    existingAtman: existing,
+    analysisResult: null,
+    extractedAdvice: {
+      advice: "Choose one deadline and reduce everything else for today.",
+      context: "workload pressure",
+    },
+    source: {
+      surface: "synthesis",
+      userMessage: "The workload is too much again and deadlines are coming.",
+      assistantMessage: "Choose one deadline and reduce everything else.",
+    },
+    now: NOW,
+  });
+
+  assert.equal(result.changed, true);
+  assert.equal(
+    result.atman.knownPatterns[0].lastUsedAt?.toISOString(),
+    NOW.toISOString(),
+  );
+  assert.equal(
+    result.atman.memory?.knownPatterns[0].lastUsedAt?.toISOString(),
+    NOW.toISOString(),
+  );
+});
+
 test("selectBrainContext ranks and limits prompt memory", () => {
   const atman = baseAtman();
   atman.knownPatterns = [
@@ -137,6 +179,39 @@ test("selectBrainContext ranks and limits prompt memory", () => {
     selected.knownPatterns.map((pattern) => pattern.pattern),
     ["Verified pattern", "Strong recent pattern"],
   );
+});
+
+test("selectBrainContext keeps default prompt memory compact", () => {
+  const atman = baseAtman();
+  atman.knownPatterns = Array.from({ length: 6 }, (_, index) => ({
+    id: `pattern_${index}`,
+    pattern: `Pattern ${index}`,
+    frequency: index + 1,
+    weightScore: index + 1,
+    lastMentioned: new Date(`2026-05-2${index}T00:00:00.000Z`),
+    verified: false,
+  }));
+  const events = Array.from({ length: 4 }, (_, index) => ({
+    id: `event_${index}`,
+    title: `Event ${index}`,
+    category: "career" as const,
+    status: "pending" as const,
+    confidence: 0.8,
+  }));
+  atman.activeEvents = events;
+  atman.lifeEvents = events;
+  atman.savedAdvice = Array.from({ length: 4 }, (_, index) => ({
+    advice: `Advice ${index}`,
+    context: `Context ${index}`,
+    date: `2026-05-2${index}T00:00:00.000Z`,
+    followedUp: false,
+  }));
+
+  const selected = selectBrainContext(atman);
+
+  assert.equal(selected?.knownPatterns.length, 3);
+  assert.equal(selected?.activeEvents.length, 2);
+  assert.equal(selected?.savedAdvice?.length, 2);
 });
 
 test("selectBrainContext does not let stale unverified patterns dominate recent evidence", () => {

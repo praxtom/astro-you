@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { postJson } from "../lib/apiFetch";
-import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Sparkles, RotateCw, Send } from "lucide-react";
+import { Sparkles, RotateCw, Send } from "lucide-react";
+import { PageShell } from "../components/layout/PageShell";
 
 interface TarotCard {
   name: string;
@@ -14,7 +14,6 @@ interface TarotCard {
 }
 
 export default function Tarot() {
-  const navigate = useNavigate();
   const [dailyCard, setDailyCard] = useState<TarotCard | null>(null);
   const [dailyLoading, setDailyLoading] = useState(true);
   const [dailyError, setDailyError] = useState<string | null>(null);
@@ -23,7 +22,9 @@ export default function Tarot() {
   const [threeCards, setThreeCards] = useState<TarotCard[]>([]);
   const [readingLoading, setReadingLoading] = useState(false);
   const [readingError, setReadingError] = useState<string | null>(null);
-  const [readingInterpretation, setReadingInterpretation] = useState<string | null>(null);
+  const [readingInterpretation, setReadingInterpretation] = useState<
+    string | null
+  >(null);
   const [flippedCards, setFlippedCards] = useState<Set<number>>(new Set());
 
   // Fetch daily card
@@ -32,7 +33,9 @@ export default function Tarot() {
       try {
         setDailyLoading(true);
         setDailyError(null);
-        const res = await postJson("/api/kundali", { chartType: "DAILY_TAROT" });
+        const res = await postJson("/api/kundali", {
+          chartType: "DAILY_TAROT",
+        });
         const data = await res.json();
         const raw = data.data || data;
         setDailyCard({
@@ -61,9 +64,9 @@ export default function Tarot() {
       setReadingInterpretation(null);
 
       const res = await postJson("/api/kundali", {
-          chartType: "TAROT_THREE",
-          question: question || "What does the universe want me to know today?",
-        });
+        chartType: "TAROT_THREE",
+        question: question || "What does the universe want me to know today?",
+      });
       const data = await res.json();
       const raw = data.data || data;
 
@@ -83,12 +86,18 @@ export default function Tarot() {
           });
         });
       } else if (raw.past && raw.present && raw.future) {
-        for (const [pos, key] of [["Past", "past"], ["Present", "present"], ["Future", "future"]] as const) {
+        for (const [pos, key] of [
+          ["Past", "past"],
+          ["Present", "present"],
+          ["Future", "future"],
+        ] as const) {
           const c = raw[key];
           cards.push({
             name: typeof c === "string" ? c : c.name || c.card_name || pos,
-            meaning: typeof c === "object" ? c.meaning || c.description || "" : "",
-            reversed_meaning: typeof c === "object" ? c.reversed_meaning || "" : "",
+            meaning:
+              typeof c === "object" ? c.meaning || c.description || "" : "",
+            reversed_meaning:
+              typeof c === "object" ? c.reversed_meaning || "" : "",
             position: pos,
             interpretation: typeof c === "object" ? c.interpretation || "" : "",
             emoji: typeof c === "object" ? c.emoji || "" : "",
@@ -99,14 +108,28 @@ export default function Tarot() {
       // Fallback
       if (cards.length === 0) {
         cards.push(
-          { name: "Card 1", meaning: "Interpretation unavailable", position: "Past" },
-          { name: "Card 2", meaning: "Interpretation unavailable", position: "Present" },
-          { name: "Card 3", meaning: "Interpretation unavailable", position: "Future" },
+          {
+            name: "Card 1",
+            meaning: "Interpretation unavailable",
+            position: "Past",
+          },
+          {
+            name: "Card 2",
+            meaning: "Interpretation unavailable",
+            position: "Present",
+          },
+          {
+            name: "Card 3",
+            meaning: "Interpretation unavailable",
+            position: "Future",
+          },
         );
       }
 
       setThreeCards(cards);
-      setReadingInterpretation(raw.interpretation || raw.reading || raw.summary || null);
+      setReadingInterpretation(
+        raw.interpretation || raw.reading || raw.summary || null,
+      );
 
       // Flip cards one by one
       for (let i = 0; i < cards.length; i++) {
@@ -122,13 +145,27 @@ export default function Tarot() {
   };
 
   const arcanaEmojis: Record<string, string> = {
-    "The Fool": "🃏", "The Magician": "🎩", "The High Priestess": "🌙",
-    "The Empress": "👑", "The Emperor": "🏰", "The Hierophant": "📿",
-    "The Lovers": "💕", "The Chariot": "🏇", "Strength": "🦁",
-    "The Hermit": "🏔️", "Wheel of Fortune": "🎡", "Justice": "⚖️",
-    "The Hanged Man": "🔮", "Death": "🦋", "Temperance": "🌊",
-    "The Devil": "🔥", "The Tower": "⚡", "The Star": "⭐",
-    "The Moon": "🌕", "The Sun": "☀️", "Judgement": "📯",
+    "The Fool": "🃏",
+    "The Magician": "🎩",
+    "The High Priestess": "🌙",
+    "The Empress": "👑",
+    "The Emperor": "🏰",
+    "The Hierophant": "📿",
+    "The Lovers": "💕",
+    "The Chariot": "🏇",
+    Strength: "🦁",
+    "The Hermit": "🏔️",
+    "Wheel of Fortune": "🎡",
+    Justice: "⚖️",
+    "The Hanged Man": "🔮",
+    Death: "🦋",
+    Temperance: "🌊",
+    "The Devil": "🔥",
+    "The Tower": "⚡",
+    "The Star": "⭐",
+    "The Moon": "🌕",
+    "The Sun": "☀️",
+    Judgement: "📯",
     "The World": "🌍",
   };
 
@@ -144,37 +181,28 @@ export default function Tarot() {
   };
 
   return (
-    <div className="min-h-screen bg-bg-app text-white selection:bg-violet-500/30">
-      {/* Background */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-1/3 right-1/4 w-[35vw] h-[35vw] bg-indigo-600/5 blur-[120px] rounded-full" />
-        <div className="absolute bottom-1/4 left-1/3 w-[25vw] h-[25vw] bg-amber-600/3 blur-[100px] rounded-full" />
-      </div>
-
-      <div className="container mx-auto pt-8 px-6 pb-12 relative z-10">
-        {/* Back button */}
-        <button
-          onClick={() => navigate("/dashboard")}
-          className="flex items-center gap-2 text-white/40 hover:text-white transition-colors mb-8 group"
-        >
-          <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-          <span className="text-sm">Dashboard</span>
-        </button>
-
+    <PageShell>
+      <div>
         {/* Header */}
         <div className="flex items-center gap-4 mb-10">
           <div className="p-3 rounded-2xl bg-indigo-500/10 text-indigo-400">
             <Sparkles size={28} />
           </div>
           <div>
-            <h1 className="text-3xl md:text-4xl font-display tracking-wider">Tarot</h1>
-            <p className="text-white/40 text-sm mt-1">Messages from the cosmic deck</p>
+            <h1 className="text-3xl md:text-4xl font-display tracking-wider">
+              Tarot
+            </h1>
+            <p className="text-white/40 text-sm mt-1">
+              Messages from the cosmic deck
+            </p>
           </div>
         </div>
 
         {/* Daily Card Section */}
         <section className="mb-12">
-          <h2 className="text-lg uppercase tracking-widest text-white/40 font-bold mb-5">Daily Card</h2>
+          <h2 className="text-lg uppercase tracking-widest text-white/40 font-bold mb-5">
+            Daily Card
+          </h2>
           {dailyLoading ? (
             <div className="glass rounded-2xl p-10 text-center">
               <div className="h-24 w-20 bg-white/5 rounded-xl animate-pulse mx-auto mb-4" />
@@ -199,14 +227,22 @@ export default function Tarot() {
               </h3>
               {dailyCard.meaning && (
                 <div className="mb-4">
-                  <p className="text-xs uppercase tracking-widest text-white/30 mb-1">Upright</p>
-                  <p className="text-white/70 leading-relaxed">{dailyCard.meaning}</p>
+                  <p className="text-xs uppercase tracking-widest text-white/30 mb-1">
+                    Upright
+                  </p>
+                  <p className="text-white/70 leading-relaxed">
+                    {dailyCard.meaning}
+                  </p>
                 </div>
               )}
               {dailyCard.reversed_meaning && (
                 <div>
-                  <p className="text-xs uppercase tracking-widest text-white/30 mb-1">Reversed</p>
-                  <p className="text-white/50 leading-relaxed italic">{dailyCard.reversed_meaning}</p>
+                  <p className="text-xs uppercase tracking-widest text-white/30 mb-1">
+                    Reversed
+                  </p>
+                  <p className="text-white/50 leading-relaxed italic">
+                    {dailyCard.reversed_meaning}
+                  </p>
                 </div>
               )}
             </div>
@@ -215,11 +251,15 @@ export default function Tarot() {
 
         {/* Three Card Reading Section */}
         <section>
-          <h2 className="text-lg uppercase tracking-widest text-white/40 font-bold mb-5">Get a Reading</h2>
+          <h2 className="text-lg uppercase tracking-widest text-white/40 font-bold mb-5">
+            Get a Reading
+          </h2>
 
           {/* Question input */}
           <div className="glass rounded-2xl p-6 mb-6">
-            <label className="text-sm text-white/50 block mb-2">Ask a question (optional)</label>
+            <label className="text-sm text-white/50 block mb-2">
+              Ask a question (optional)
+            </label>
             <div className="flex gap-3">
               <input
                 type="text"
@@ -227,7 +267,9 @@ export default function Tarot() {
                 onChange={(e) => setQuestion(e.target.value)}
                 placeholder="What does the universe want me to know?"
                 className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:border-violet-500/50 transition-colors"
-                onKeyDown={(e) => e.key === "Enter" && !readingLoading && handleDrawThreeCards()}
+                onKeyDown={(e) =>
+                  e.key === "Enter" && !readingLoading && handleDrawThreeCards()
+                }
               />
               <button
                 onClick={handleDrawThreeCards}
@@ -256,12 +298,16 @@ export default function Tarot() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               {threeCards.map((card, idx) => {
                 const isFlipped = flippedCards.has(idx);
-                const posColor = positionColors[card.position || "Present"] || positionColors.Present;
+                const posColor =
+                  positionColors[card.position || "Present"] ||
+                  positionColors.Present;
                 return (
                   <div
                     key={idx}
                     className={`relative rounded-2xl border p-8 text-center bg-gradient-to-b ${posColor} backdrop-blur-sm transition-all duration-500 ${
-                      isFlipped ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+                      isFlipped
+                        ? "opacity-100 translate-y-0"
+                        : "opacity-0 translate-y-4"
                     }`}
                   >
                     <p className="text-xs uppercase tracking-widest text-white/40 mb-3">
@@ -272,10 +318,14 @@ export default function Tarot() {
                       {card.name}
                     </h3>
                     {card.meaning && (
-                      <p className="text-sm text-white/60 leading-relaxed mb-2">{card.meaning}</p>
+                      <p className="text-sm text-white/60 leading-relaxed mb-2">
+                        {card.meaning}
+                      </p>
                     )}
                     {card.interpretation && (
-                      <p className="text-sm text-white/50 italic mt-2">{card.interpretation}</p>
+                      <p className="text-sm text-white/50 italic mt-2">
+                        {card.interpretation}
+                      </p>
                     )}
                   </div>
                 );
@@ -288,7 +338,9 @@ export default function Tarot() {
             <div className="glass rounded-2xl p-8">
               <div className="flex items-center gap-3 mb-4">
                 <Sparkles size={18} className="text-indigo-400" />
-                <h3 className="text-lg font-display tracking-wider">Reading Interpretation</h3>
+                <h3 className="text-lg font-display tracking-wider">
+                  Reading Interpretation
+                </h3>
               </div>
               <p className="text-white/70 leading-relaxed whitespace-pre-wrap">
                 {readingInterpretation}
@@ -297,6 +349,6 @@ export default function Tarot() {
           )}
         </section>
       </div>
-    </div>
+    </PageShell>
   );
 }

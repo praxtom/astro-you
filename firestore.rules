@@ -38,6 +38,12 @@ service cloud.firestore {
       match /consultations/{docId} {
         allow read: if isOwner(userId);
         allow write: if false;
+
+        // The transcript is the user's own conversation — owner read/write.
+        // Billing fields live on the parent doc, which stays server-only.
+        match /messages/{messageId} {
+          allow read, write: if isOwner(userId);
+        }
       }
 
       // Consultation reviews — written server-side only (verifies the session

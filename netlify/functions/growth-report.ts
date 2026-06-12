@@ -1,5 +1,11 @@
 import { Config, Context } from "@netlify/functions";
-import { generateGrowthReport, UserContext } from "./shared/gemini";
+import { generateGrowthReport } from "./shared/gemini";
+import { buildUserContext } from "./shared/user-context";
+import {
+    AuthError,
+    enforceIpRateLimit,
+    verifyToken,
+} from "./shared/require-auth";
 
 export default async (req: Request, _context: Context) => {
     if (req.method !== "POST") {
@@ -7,24 +13,27 @@ export default async (req: Request, _context: Context) => {
     }
 
     try {
-        const { birthData, atmanData } = await req.json();
+        const { birthData, idToken } = await req.json();
 
-        if (!atmanData) {
-            return new Response(JSON.stringify({ error: "No consciousness data available for report" }), {
-                status: 400,
-                headers: { "Content-Type": "application/json" },
-            });
+        let decoded;
+        try {
+            decoded = await verifyToken(idToken);
+            await enforceIpRateLimit(req, "growth_report", 12, 60 * 60 * 1000);
+        } catch (err) {
+            const status = err instanceof AuthError ? err.status : 401;
+            return new Response(
+                JSON.stringify({
+                    error:
+                        err instanceof AuthError ? err.message : "Authentication required",
+                }),
+                { status, headers: { "Content-Type": "application/json" } },
+            );
         }
 
-        const userContext: UserContext = {
-            name: birthData?.name || 'Seeker',
-            birthData: birthData ? {
-                dob: birthData.dob,
-                tob: birthData.tob,
-                pob: birthData.pob,
-            } : undefined,
-            atman: atmanData,
-        };
+        const { userContext } = await buildUserContext({
+            uid: decoded.uid,
+            birthData,
+        });
 
         const report = await generateGrowthReport(userContext);
 

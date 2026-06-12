@@ -801,7 +801,7 @@ export default function Onboarding() {
                     ` · ${preview.planets.length} planets analyzed`}
                 </p>
                 <p className="text-xs text-white/40 mt-1">
-                  Complete your profile for full AI-powered reading
+                  Complete your profile for your full personalised reading
                 </p>
               </div>
             )}

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertCircle,
-  ArrowLeft,
   CheckCircle2,
   Gem,
   HandHeart,
@@ -12,7 +11,7 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
-import Header from "../components/layout/Header";
+import { PageShell } from "../components/layout/PageShell";
 import { useToast } from "../components/ui/toast-context";
 import { useAuth } from "../lib/useAuth";
 import { trackAcquisitionEvent } from "../lib/acquisition";
@@ -61,9 +60,13 @@ export default function Remedies() {
   const { birthData, loading: profileLoading } = useUserProfile();
   const { remedies, loading: remediesLoading } = useRemedies(birthData);
   const { addToast } = useToast();
-  const [activeCategory, setActiveCategory] = useState<"all" | RemedyProductCategory>("all");
+  const [activeCategory, setActiveCategory] = useState<
+    "all" | RemedyProductCategory
+  >("all");
   const [query, setQuery] = useState("");
-  const [selectedProduct, setSelectedProduct] = useState<RemedyProduct | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<RemedyProduct | null>(
+    null,
+  );
   const [notes, setNotes] = useState("");
   const [requestingId, setRequestingId] = useState<string | null>(null);
   const [requests, setRequests] = useState<RemedyRequestRecord[]>([]);
@@ -179,16 +182,8 @@ export default function Remedies() {
   }
 
   return (
-    <div className="min-h-screen bg-[#030308] text-white">
-      <Header />
-      <main className="platform-main">
-        <button
-          onClick={() => navigate(-1)}
-          className="mb-4 inline-flex items-center gap-2 text-sm text-white/40 hover:text-white"
-        >
-          <ArrowLeft size={16} /> Back
-        </button>
-
+    <PageShell>
+      <div>
         <section className="grid gap-4 lg:grid-cols-[1fr_20rem] lg:items-end">
           <div>
             <p className="platform-eyebrow mb-2">Remedy Studio</p>
@@ -279,11 +274,16 @@ export default function Remedies() {
               ) : suggestedRemedies.length > 0 ? (
                 <div className="space-y-3">
                   {suggestedRemedies.map((remedy) => (
-                    <div key={`${remedy.category}-${remedy.name}`} className="border-b border-white/10 pb-3 last:border-0 last:pb-0">
+                    <div
+                      key={`${remedy.category}-${remedy.name}`}
+                      className="border-b border-white/10 pb-3 last:border-0 last:pb-0"
+                    >
                       <p className="type-body-sm font-semibold text-white/80">
                         {remedy.name}
                       </p>
-                      <p className="type-meta mt-1 text-gold">{remedy.category}</p>
+                      <p className="type-meta mt-1 text-gold">
+                        {remedy.category}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -337,7 +337,10 @@ export default function Remedies() {
               <div className="space-y-3 type-body-sm text-white/48">
                 <p>Gemstones are reviewed before recommendation.</p>
                 <p>Mantra, service, routine, and discipline come first.</p>
-                <p>Health, legal, and financial decisions stay with qualified professionals.</p>
+                <p>
+                  Health, legal, and financial decisions stay with qualified
+                  professionals.
+                </p>
               </div>
             </section>
           </aside>
@@ -351,8 +354,12 @@ export default function Remedies() {
                   <p className="platform-eyebrow mb-2">
                     {fulfillmentLabel(selectedProduct)}
                   </p>
-                  <h2 className="type-section-title">{selectedProduct.title}</h2>
-                  <p className="platform-copy mt-2">{selectedProduct.description}</p>
+                  <h2 className="type-section-title">
+                    {selectedProduct.title}
+                  </h2>
+                  <p className="platform-copy mt-2">
+                    {selectedProduct.description}
+                  </p>
                 </div>
                 <p className="type-price text-gold">
                   {formatPrice(selectedProduct.priceInRupees)}
@@ -361,14 +368,20 @@ export default function Remedies() {
 
               <div className="mb-4 grid gap-2">
                 {selectedProduct.bestFor.map((item) => (
-                  <div key={item} className="flex items-center gap-2 text-sm text-white/60">
+                  <div
+                    key={item}
+                    className="flex items-center gap-2 text-sm text-white/60"
+                  >
                     <CheckCircle2 size={15} className="text-gold" />
                     {item}
                   </div>
                 ))}
               </div>
 
-              <label className="type-meta uppercase text-white/40" htmlFor="remedy-notes">
+              <label
+                className="type-meta uppercase text-white/40"
+                htmlFor="remedy-notes"
+              >
                 Notes for the review
               </label>
               <textarea
@@ -405,8 +418,8 @@ export default function Remedies() {
             </div>
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </PageShell>
   );
 }
 
@@ -447,7 +460,10 @@ function RemedyProductCard({
         ))}
       </div>
 
-      <button onClick={onSelect} className="platform-button-secondary mt-4 w-full">
+      <button
+        onClick={onSelect}
+        className="platform-button-secondary mt-4 w-full"
+      >
         Request guidance
       </button>
     </article>

@@ -560,7 +560,7 @@ export default function Settings() {
                 </span>
               </div>
               <p className="text-xs text-white/40">
-                AI guidance avoids fatalism, fear-based predictions, medical diagnosis,
+                Guidance avoids fatalism, fear-based predictions, medical diagnosis,
                 and guaranteed financial claims.
               </p>
             </div>

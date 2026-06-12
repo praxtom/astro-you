@@ -18,7 +18,7 @@ const guideLinks = [
 
 const platformLinks = [
   { label: "Jyotish Chat", href: "/synthesis" },
-  { label: "AI Astrologers", href: "/consult" },
+  { label: "Consult Astrologers", href: "/consult" },
   { label: "Pricing", href: "/pricing" },
   { label: "Trust", href: "/trust" },
   { label: "Support", href: "/support" },
@@ -86,7 +86,7 @@ export default function Footer() {
 
         <div className="flex flex-col justify-between gap-4 border-t border-white/[0.06] pt-6 text-xs text-content-tertiary md:flex-row md:items-center">
           <p>© 2026 AstroYou. All rights reserved.</p>
-          <p>AI astrologers are labelled. Reviews and testimonials require real user submission.</p>
+          <p>Reviews and testimonials come from real user submissions, always moderated.</p>
         </div>
       </div>
     </footer>

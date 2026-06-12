@@ -1,5 +1,6 @@
-import { Routes, Route, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Suspense, lazy, useEffect } from "react";
+import { SPACES, getSpacePrimaryPath } from "./lib/spaces";
 import { AnimatePresence } from "framer-motion";
 import ErrorBoundary from "./components/ErrorBoundary";
 import PageTransition from "./components/layout/PageTransition";
@@ -73,6 +74,15 @@ function App() {
       <main id="main-content">
         <AnimatePresence mode="wait">
           <Routes location={location} key={getAnimationKey(location.pathname)}>
+            {/* Space aliases: /today /guidance /chart /bonds /path land on
+                each space's primary page. */}
+            {SPACES.map((space) => (
+              <Route
+                key={space.id}
+                path={`/${space.id}`}
+                element={<Navigate to={getSpacePrimaryPath(space)} replace />}
+              />
+            ))}
             <Route
               path="/"
               element={

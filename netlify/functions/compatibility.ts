@@ -1,6 +1,7 @@
 import { Config, Context } from "@netlify/functions";
 import { getCompatibilityDetails, getKundliMatching } from "./shared/astro-api";
 import { generateCompatibilityNarrative } from "./shared/gemini";
+import { buildUserContext } from "./shared/user-context";
 import {
   verifyToken,
   enforceIpRateLimit,
@@ -17,8 +18,9 @@ export default async (req: Request, _context: Context) => {
       await req.json();
 
     // Auth + rate limit: matching calls the paid astrology API + Gemini.
+    let decoded;
     try {
-      await verifyToken(idToken);
+      decoded = await verifyToken(idToken);
       await enforceIpRateLimit(req, "compatibility", 30, 60 * 60 * 1000);
     } catch (err) {
       const status = err instanceof AuthError ? err.status : 401;
@@ -69,10 +71,15 @@ export default async (req: Request, _context: Context) => {
     // Generate AI narrative interpretation of the compatibility scores
     let aiNarrative = "";
     try {
+      const { userContext } = await buildUserContext({
+        uid: decoded.uid,
+        birthData: maleData,
+      });
       aiNarrative = await generateCompatibilityNarrative(
         matchData,
         maleData.name || "Person 1",
         femaleData.name || "Person 2",
+        userContext,
       );
       console.log("[Compatibility] AI narrative generated");
     } catch (err) {

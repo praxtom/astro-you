@@ -246,7 +246,7 @@ export default function Wallet() {
               Credits, charges, and receipts in one place.
             </h1>
             <p className="platform-copy mt-3 max-w-2xl">
-              Track purchases, AI astrologer sessions, report charges, refunds,
+              Track purchases, astrologer sittings, report charges, refunds,
               and plan credits without guessing where your balance went.
             </p>
           </div>
@@ -382,7 +382,7 @@ export default function Wallet() {
               <p className="platform-eyebrow mb-3">Where credits go</p>
               <div className="space-y-3 type-body-sm">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-white/50">AI astrologers</span>
+                  <span className="text-white/50">Astrologer sittings</span>
                   <span className="text-gold">5-10/min</span>
                 </div>
                 <div className="flex items-center justify-between gap-3">

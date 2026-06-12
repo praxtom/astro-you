@@ -13,6 +13,7 @@ export const STORAGE_KEYS = {
   GUEST_COMPLETE: "astroyou_guest_complete",
   LOGIN_REDIRECT: "astroyou_login_redirect",
   SYNTHESIS_DRAFT: "astroyou_synthesis_draft",
+  CONSULT_DRAFT: "astroyou_consult_draft",
 } as const;
 
 // Relationship form options

@@ -1,14 +1,12 @@
 import { useState, useEffect } from "react";
 import { postJson } from "../lib/apiFetch";
-import { useNavigate } from "react-router-dom";
 import { useUserProfile } from "../hooks";
 import { useRequestBirthData } from "../hooks/useRequestBirthData";
-import { Loader2, ArrowLeft, Gauge, Calendar } from "lucide-react";
-import Header from "../components/layout/Header";
+import { Loader2, Gauge, Calendar } from "lucide-react";
+import { PageShell } from "../components/layout/PageShell";
 import BirthProfileRequired from "../components/BirthProfileRequired";
 
 export default function AdvancedVedic() {
-  const navigate = useNavigate();
   const { birthData } = useUserProfile();
   const requestBirthData = useRequestBirthData(birthData);
   const [shadbala, setShadbala] = useState<any>(null);
@@ -50,15 +48,7 @@ export default function AdvancedVedic() {
     (Array.isArray(shadbala) ? shadbala : []);
 
   return (
-    <div className="min-h-screen bg-[#030308] text-white">
-      <Header />
-      <main className="container mx-auto pt-24 px-6 pb-12">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-white/40 hover:text-white mb-6 text-sm"
-        >
-          <ArrowLeft size={16} /> Back
-        </button>
+    <PageShell>
         <h1 className="text-3xl md:text-4xl font-display mb-2">
           Advanced Vedic Analysis
         </h1>
@@ -227,7 +217,6 @@ export default function AdvancedVedic() {
             </div>
           </div>
         )}
-      </main>
-    </div>
+      </PageShell>
   );
 }

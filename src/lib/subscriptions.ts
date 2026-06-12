@@ -56,7 +56,7 @@ export const TIERS: Record<SubscriptionTier, TierConfig> = {
     badge: "⭐",
     popular: true,
     features: [
-      "Unlimited AI Jyotish chat",
+      "Unlimited Jyotish chat",
       "Daily + Weekly + Monthly forecasts",
       "700 monthly credits",
       "Up to 140 consultation minutes",
@@ -85,7 +85,7 @@ export const TIERS: Record<SubscriptionTier, TierConfig> = {
       "Up to 320 consultation minutes",
       "Yearly forecast & predictions",
       "Astrocartography maps",
-      "Priority AI personas",
+      "Priority access to all guides",
       "Numerology + Tarot readings",
       "Priority support",
     ],

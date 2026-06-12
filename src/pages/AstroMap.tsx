@@ -1,14 +1,12 @@
 import { useState, useEffect } from "react";
 import { useUserProfile } from "../hooks";
 import { useRequestBirthData } from "../hooks/useRequestBirthData";
-import { MapPin, Globe, Loader2, Star, ArrowLeft } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import Header from "../components/layout/Header";
+import { MapPin, Globe, Loader2, Star } from "lucide-react";
+import { PageShell } from "../components/layout/PageShell";
 import BirthProfileRequired from "../components/BirthProfileRequired";
 import { postJson } from "../lib/apiFetch";
 
 export default function AstroMap() {
-  const navigate = useNavigate();
   const { birthData } = useUserProfile();
   const requestBirthData = useRequestBirthData(birthData);
   const [powerZones, setPowerZones] = useState<any>(null);
@@ -86,15 +84,7 @@ export default function AstroMap() {
   };
 
   return (
-    <div className="min-h-screen bg-[#030308] text-white">
-      <Header />
-      <main className="container mx-auto pt-24 px-6 pb-12">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-white/40 hover:text-white mb-6 text-sm"
-        >
-          <ArrowLeft size={16} /> Back
-        </button>
+    <PageShell>
 
         <h1 className="text-3xl md:text-4xl font-display mb-2">
           Astrocartography
@@ -296,7 +286,6 @@ export default function AstroMap() {
             )}
           </>
         )}
-      </main>
-    </div>
+      </PageShell>
   );
 }

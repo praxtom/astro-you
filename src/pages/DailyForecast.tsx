@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { PageShell } from "../components/layout/PageShell";
+import { AskJyotishBridge } from "../components/layout/AskJyotishBridge";
 import {
-  ArrowLeft,
   Sparkles,
   Sun,
   Clock,
@@ -93,10 +94,10 @@ const DailyForecast: React.FC = () => {
       try {
         setLoading(true);
         const response = await postJson("/api/horoscope", {
-            birthData,
-            date: new Date().toISOString().split("T")[0],
-            period,
-          });
+          birthData,
+          date: new Date().toISOString().split("T")[0],
+          period,
+        });
 
         if (!response.ok) throw new Error("Failed to fetch forecast");
         const data = await response.json();
@@ -179,22 +180,9 @@ const DailyForecast: React.FC = () => {
 
   if (!birthData) {
     return (
-      <div className="min-h-screen bg-[#030308] text-white selection:bg-gold/30">
-        <div className="fixed inset-0 pointer-events-none overflow-hidden">
-          <div className="absolute top-[-10%] right-[-10%] h-[50%] w-[50%] rounded-full bg-gold/5 blur-[120px]" />
-          <div className="absolute bottom-[-10%] left-[-10%] h-[50%] w-[50%] rounded-full bg-violet-500/5 blur-[120px]" />
-        </div>
-
-        <main className="relative z-10 mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-5 py-12">
-          <button
-            onClick={() => navigate("/")}
-            className="mb-8 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-white/40 transition-colors hover:text-gold"
-          >
-            <ArrowLeft size={18} />
-            Back to Home
-          </button>
-
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 md:p-8">
+      <PageShell>
+        <div className="mx-auto max-w-3xl">
+          <div className="rounded-2xl border border-white/10 bg-white/3 p-6 md:p-8">
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-gold/20 bg-gold/10 px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-gold">
               <Calendar size={14} />
               Personal forecast
@@ -222,8 +210,8 @@ const DailyForecast: React.FC = () => {
               </button>
             </div>
           </div>
-        </main>
-      </div>
+        </div>
+      </PageShell>
     );
   }
 
@@ -237,28 +225,8 @@ const DailyForecast: React.FC = () => {
   const h = forecast?.horoscope;
 
   return (
-    <div className="min-h-screen bg-[#030308] text-white selection:bg-gold/30 font-serif pb-8">
-      {/* Background Ambiance */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-gold/5 blur-[120px] rounded-full animate-pulse-slow"></div>
-        <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-violet-500/5 blur-[120px] rounded-full"></div>
-      </div>
-
-      <div className="relative z-10 max-w-5xl mx-auto px-4 md:px-6 py-5">
-        {/* Header */}
-        <button
-          onClick={() => navigate("/dashboard")}
-          className="flex items-center gap-2 text-white/40 hover:text-gold transition-colors mb-4 group font-sans"
-        >
-          <ArrowLeft
-            size={18}
-            className="group-hover:-translate-x-1 transition-transform"
-          />
-          <span className="text-xs font-black uppercase tracking-widest">
-            Back to Dashboard
-          </span>
-        </button>
-
+    <PageShell>
+      <div className="max-w-5xl mx-auto">
         <div className="flex gap-2 mb-4">
           {(["daily", "weekly", "monthly", "yearly"] as const).map((p) => (
             <button
@@ -771,6 +739,15 @@ const DailyForecast: React.FC = () => {
               )}
             </section>
 
+            <AskJyotishBridge
+              eyebrow="Take this further"
+              question={`My ${period} forecast points to ${
+                h?.overall_theme || "a shifting period"
+              }. What should I actually do about it this ${
+                period === "daily" ? "week" : period.replace("ly", "")
+              }?`}
+            />
+
             <div className="text-center py-8 border-t border-white/5">
               <p className="text-white/20 text-[10px] uppercase tracking-[0.3em] font-light font-sans max-w-md mx-auto leading-relaxed">
                 As above, so below. Infinite wisdom is yours.
@@ -779,7 +756,7 @@ const DailyForecast: React.FC = () => {
           </div>
         )}
       </div>
-    </div>
+    </PageShell>
   );
 };
 

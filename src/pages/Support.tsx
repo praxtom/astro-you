@@ -399,7 +399,7 @@ export default function Support() {
             },
             {
               title: "Guidance limits",
-              body: "Astrology and AI guidance are not medical, legal, financial, psychological, or emergency advice.",
+              body: "Astrology guidance is not medical, legal, financial, psychological, or emergency advice.",
               link: "/disclaimer",
               label: "Read disclaimer",
             },

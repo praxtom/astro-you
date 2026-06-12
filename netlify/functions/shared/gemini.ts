@@ -13,6 +13,10 @@ import {
   buildResponseLanguageInstruction,
   type PlatformLanguageCode,
 } from "./languages.js";
+import {
+  buildPatternIntelligence,
+  buildPatternIntelligencePrompt,
+} from "./pattern-intelligence.js";
 
 /**
  * Gemini model id. Overridable via the GEMINI_MODEL env var so it can be
@@ -271,6 +275,47 @@ function formatPatternsForPrompt(patterns?: any[]): string {
     .join("\n");
 }
 
+function formatCompactAtmanContext(
+  context: UserContext | undefined,
+  label: string,
+): string {
+  const atman = context?.atman;
+  if (!atman) return "";
+
+  const patterns = (atman.knownPatterns || [])
+    .slice(0, 3)
+    .map((pattern: any) =>
+      typeof pattern === "string" ? pattern : pattern.pattern,
+    )
+    .filter(Boolean);
+  const events = (atman.activeEvents || [])
+    .slice(0, 2)
+    .map((event: any) => `${event.title} (${event.status})`);
+  const relationships = (atman.keyRelationships || [])
+    .slice(0, 3)
+    .map((relationship: any) =>
+      `${relationship.name} (${relationship.relation}, ${relationship.dynamic})`,
+    );
+
+  if (
+    !atman.emotionalState &&
+    patterns.length === 0 &&
+    events.length === 0 &&
+    relationships.length === 0
+  ) {
+    return "";
+  }
+
+  return `
+
+${label}:
+- Emotional state: ${atman.emotionalState || "unknown"}
+- Remembered tendencies: ${patterns.join(", ") || "none"}
+- Current life threads: ${events.join(", ") || "none"}
+- Relevant relationships: ${relationships.join(", ") || "none"}
+`;
+}
+
 /**
  * Build the Guru (Counsellor) system prompt
  */
@@ -505,6 +550,14 @@ You are a **Yogi Jyotish**, not an AI assistant. Embody the wisdom and presence 
 4. **Actionable:** Lead with the key insight. If they want more, they'll ask.
 5. **No Doom & Gloom:** Frame challenges as growth opportunities.
 6. **Simple Language:** Use everyday words. Avoid jargon unless using Vedic/Sanskrit terms naturally.
+7. **Relevant Memory Only:** Use Atman memory only when it directly relates to the user's latest message. Do not mention patterns, events, routines, or old advice just because they appear in context.
+
+### CASUAL REPLY MODE:
+If the user's latest message is only a short acknowledgement or small-talk reply like "ok", "okay", "yes", "hmm", "thanks", "got it", or "alright":
+- Reply in 1-2 short lines only.
+- Do not restart chart analysis, dasha analysis, transit analysis, Atman memory, or memory recap.
+- Do not ask a new question unless the user clearly invited one.
+- A simple warm acknowledgement is enough.
 
 ### FORMATTING:
 - Use **bold** sparingly for planet names or key terms.
@@ -539,6 +592,25 @@ ${calibrationRule}
 /**
  * Generate a concise transit summary using the Gemini Interactions API
  */
+export function buildTransitSummaryPrompt(
+  context: UserContext,
+  transitPredictions: any[],
+): string {
+  return `
+User Context:
+- Name: ${context.name}
+- Age: ${context.age}
+- Moon Sign: ${context.moonSign}
+- Ascendant: ${context.ascendant}
+${formatCompactAtmanContext(context, "Atman context")}
+
+Current Transit Data (interpretations):
+${JSON.stringify(transitPredictions.slice(0, 8), null, 2)}
+
+Provide a warm, insightful summary of what these transits mean for the user right now. Focus on the most significant energies and end with practical guidance.
+`;
+}
+
 export async function generateTransitSummary(
   context: UserContext,
   transitPredictions: any[],
@@ -555,21 +627,10 @@ You are "Jyotish," a wise Vedic astrologer on AstroYou. Your task is to provide 
 4. **Tone:** Reassuring, insightful, and practical. Like a wise friend explaining cosmic weather.
 5. **Human Voice:** Speak like a trusted guide, not an AI. Use "Ji" naturally.
 6. **No Lists:** Use flowing sentences only. No bullet points or numbered lists.
-7. **Actionable:** End with one practical suggestion based on the strongest transit energy.
+7. **Actionable:** End with one practical suggestion based on the strongest transit energy and the user's current inner state.
 `;
 
-  const prompt = `
-User Context:
-- Name: ${context.name}
-- Age: ${context.age}
-- Moon Sign: ${context.moonSign}
-- Ascendant: ${context.ascendant}
-
-Current Transit Data (interpretations):
-${JSON.stringify(transitPredictions.slice(0, 8), null, 2)}
-
-Provide a warm, insightful summary of what these transits mean for the user right now. Focus on the most significant energies and end with practical guidance.
-`;
+  const prompt = buildTransitSummaryPrompt(context, transitPredictions);
 
   const interaction = await client.interactions.create({
     model: GEMINI_MODEL,
@@ -631,6 +692,39 @@ When you do suggest, output it at the END of your response in XML. Include a cle
 NEVER suggest breathing exercises or meditation as a routine for casual concerns. Most conversations should NOT include a routine suggestion.
 `;
 
+export function buildInteractionInput(
+  messages: Array<{ role: "user" | "assistant"; content: string }>,
+  previousInteractionId?: string,
+): string {
+  const normalizedMessages = messages
+    .map((message) => ({
+      role: message.role,
+      content: message.content.trim(),
+    }))
+    .filter((message) => message.content.length > 0);
+  const lastMessage =
+    normalizedMessages[normalizedMessages.length - 1]?.content || "";
+
+  if (previousInteractionId || normalizedMessages.length <= 1) {
+    return lastMessage;
+  }
+
+  const recentTurns = normalizedMessages.slice(0, -1).slice(-8);
+  if (recentTurns.length === 0) {
+    return lastMessage;
+  }
+
+  const transcript = recentTurns
+    .map((message) => `${message.role.toUpperCase()}: ${message.content}`)
+    .join("\n");
+
+  return `Recent visible conversation context for continuity:
+${transcript}
+
+Latest user message:
+${lastMessage}`;
+}
+
 /**
  * Generate AI synthesis response via streaming Interactions API
  */
@@ -652,6 +746,12 @@ export async function* synthesizeStream(
   let systemPrompt = needsGrounding
     ? buildGuruPrompt(context)
     : buildJyotishPrompt(context, kundaliSummary);
+  systemPrompt += buildPatternIntelligencePrompt(
+    buildPatternIntelligence({
+      latestMessage: messages[messages.length - 1]?.content || "",
+      atman: context.atman,
+    }),
+  );
 
   if (personaOverride) {
     systemPrompt += applyGuidancePolicyToPersona(personaOverride);
@@ -661,20 +761,37 @@ export async function* synthesizeStream(
     `[Synthesis] Persona: ${needsGrounding ? "GURU" : "JYOTISH"} | Streaming: true`,
   );
 
-  const lastMessage = messages[messages.length - 1].content;
-
-  const stream = await client.interactions.create({
+  const baseInteractionParams = {
     model: GEMINI_MODEL,
     system_instruction: systemPrompt + ROUTINE_SUFFIX,
-    input: lastMessage,
-    previous_interaction_id: previousInteractionId,
-    stream: true,
+    stream: true as const,
     generation_config: {
-      thinking_level: "minimal",
-      thinking_summaries: "none",
+      thinking_level: "minimal" as const,
+      thinking_summaries: "none" as const,
       max_output_tokens: 500,
     },
-  });
+  };
+
+  let stream;
+  try {
+    stream = await client.interactions.create({
+      ...baseInteractionParams,
+      input: buildInteractionInput(messages, previousInteractionId),
+      previous_interaction_id: previousInteractionId,
+    });
+  } catch (error) {
+    if (!previousInteractionId || messages.length <= 1) {
+      throw error;
+    }
+
+    console.warn(
+      "[Synthesis] previous_interaction_id failed; retrying with visible transcript.",
+    );
+    stream = await client.interactions.create({
+      ...baseInteractionParams,
+      input: buildInteractionInput(messages),
+    });
+  }
 
   let fullContent = "";
   let interactionId = "";
@@ -762,23 +879,22 @@ export async function synthesize(
     context.atman?.emotionalState === "depressive";
 
   // Choose the appropriate system prompt
-  const systemPrompt = needsGrounding
-    ? buildGuruPrompt(context)
-    : buildJyotishPrompt(context, kundaliSummary);
+  const systemPrompt =
+    (needsGrounding
+      ? buildGuruPrompt(context)
+      : buildJyotishPrompt(context, kundaliSummary)) +
+    buildPatternIntelligencePrompt(
+      buildPatternIntelligence({
+        latestMessage: messages[messages.length - 1]?.content || "",
+        atman: context.atman,
+      }),
+    );
 
   console.log(
     `[Synthesis] Persona: ${needsGrounding ? "GURU (Counsellor)" : "JYOTISH (Astrologer)"}`,
   );
 
-  const lastMessage = messages[messages.length - 1].content;
-
-  // Do not log message content — it can contain sensitive personal details.
-  console.log(
-    `[Synthesis] Input received (${lastMessage.length} chars); previousInteractionId: ${previousInteractionId ? "yes" : "none"}`,
-  );
-
-  // Use the interactions API with system_instruction and previous_interaction_id
-  const interaction = await client.interactions.create({
+  const baseInteractionParams = {
     model: GEMINI_MODEL,
     system_instruction:
       systemPrompt +
@@ -797,14 +913,39 @@ Output it at the END of your response in this XML format:
 </routine>
 Do not suggest a routine if they already have too many active routines.
 `,
-    input: lastMessage,
-    previous_interaction_id: previousInteractionId,
     generation_config: {
-      thinking_level: "minimal",
-      thinking_summaries: "none",
+      thinking_level: "minimal" as const,
+      thinking_summaries: "none" as const,
       max_output_tokens: 500,
     },
-  });
+  };
+
+  // Do not log message content — it can contain sensitive personal details.
+  console.log(
+    `[Synthesis] Input received (${buildInteractionInput(messages, previousInteractionId).length} chars); previousInteractionId: ${previousInteractionId ? "yes" : "none"}`,
+  );
+
+  // Use the interactions API with system_instruction and previous_interaction_id
+  let interaction;
+  try {
+    interaction = await client.interactions.create({
+      ...baseInteractionParams,
+      input: buildInteractionInput(messages, previousInteractionId),
+      previous_interaction_id: previousInteractionId,
+    });
+  } catch (error) {
+    if (!previousInteractionId || messages.length <= 1) {
+      throw error;
+    }
+
+    console.warn(
+      "[Synthesis] previous_interaction_id failed; retrying with visible transcript.",
+    );
+    interaction = await client.interactions.create({
+      ...baseInteractionParams,
+      input: buildInteractionInput(messages),
+    });
+  }
 
   console.log("[Synthesis] New Interaction ID:", interaction.id);
 
@@ -1105,29 +1246,16 @@ export async function generateCompatibilityNarrative(
   matchData: any,
   person1Name: string,
   person2Name: string,
+  context?: UserContext,
 ): Promise<string> {
   const ai = getClient();
 
-  const prompt = `
-You are "Jyotish," a warm Vedic astrologer on AstroYou. Interpret these compatibility results into a soulful, practical narrative.
-
-**${person1Name} & ${person2Name} - Compatibility Analysis:**
-
-Overall Score: ${matchData.overall_score || "N/A"}
-${matchData.compatibility?.breakdown ? `Breakdown: ${JSON.stringify(matchData.compatibility.breakdown)}` : ""}
-${matchData.synastry ? `Synastry: ${JSON.stringify(matchData.synastry)}` : ""}
-${matchData.dynamics ? `Dynamics: ${JSON.stringify(matchData.dynamics)}` : ""}
-${matchData.love_languages ? `Love Languages: ${JSON.stringify(matchData.love_languages)}` : ""}
-
-### RULES:
-1. Write 3-4 short paragraphs as flowing prose — NO bullet points, NO numbered lists.
-2. Start with the strongest connection point — what makes this bond special.
-3. Address one key challenge honestly but with compassion and a constructive reframe.
-4. End with practical guidance for nurturing this relationship.
-5. Use Vedic/Sanskrit terms sparingly and naturally (e.g., "The Moon connection between you two..." not "According to Chandra analysis...").
-6. Tone: Warm, wise, hopeful but honest. Like a family astrologer giving marriage counsel.
-7. Keep it under 200 words total.
-`;
+  const prompt = buildCompatibilityNarrativePrompt(
+    matchData,
+    person1Name,
+    person2Name,
+    context,
+  );
 
   try {
     const interaction = await ai.interactions.create({
@@ -1154,6 +1282,36 @@ ${matchData.love_languages ? `Love Languages: ${JSON.stringify(matchData.love_la
     console.error("Compatibility narrative failed:", error);
     return "";
   }
+}
+
+export function buildCompatibilityNarrativePrompt(
+  matchData: any,
+  person1Name: string,
+  person2Name: string,
+  context?: UserContext,
+): string {
+  return `
+You are "Jyotish," a warm Vedic astrologer on AstroYou. Interpret these compatibility results into a soulful, practical narrative.
+
+**${person1Name} & ${person2Name} - Compatibility Analysis:**
+
+Overall Score: ${matchData.overall_score || "N/A"}
+${matchData.compatibility?.breakdown ? `Breakdown: ${JSON.stringify(matchData.compatibility.breakdown)}` : ""}
+${matchData.synastry ? `Synastry: ${JSON.stringify(matchData.synastry)}` : ""}
+${matchData.dynamics ? `Dynamics: ${JSON.stringify(matchData.dynamics)}` : ""}
+${matchData.love_languages ? `Love Languages: ${JSON.stringify(matchData.love_languages)}` : ""}
+${formatCompactAtmanContext(context, "Relationship context")}
+
+### RULES:
+1. Write 3-4 short paragraphs as flowing prose — NO bullet points, NO numbered lists.
+2. Start with the strongest connection point — what makes this bond special.
+3. Address one key challenge honestly but with compassion and a constructive reframe.
+4. End with practical guidance for nurturing this relationship.
+5. Use Vedic/Sanskrit terms sparingly and naturally (e.g., "The Moon connection between you two..." not "According to Chandra analysis...").
+6. Use the relationship context only when it directly helps the reading. Do not imply certainty or over-share private memory.
+7. Tone: Warm, wise, hopeful but honest. Like a family astrologer giving marriage counsel.
+8. Keep it under 200 words total.
+`;
 }
 
 /**

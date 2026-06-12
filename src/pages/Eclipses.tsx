@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { postJson } from "../lib/apiFetch";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Moon, Sun, Sparkles, AlertTriangle } from "lucide-react";
+import { Moon, Sun, Sparkles, AlertTriangle } from "lucide-react";
 import { useUserProfile } from "../hooks";
+import { PageShell } from "../components/layout/PageShell";
 
 interface Eclipse {
   date: string;
-  type: string;  // "solar" | "lunar"
+  type: string; // "solar" | "lunar"
   sign?: string;
   description?: string;
   visibility?: string;
@@ -40,7 +41,11 @@ export default function Eclipses() {
       try {
         setEclipseLoading(true);
         setEclipseError(null);
-        const res = await postJson("/api/kundali", { chartType: "ECLIPSES" }, { signal: controller.signal });
+        const res = await postJson(
+          "/api/kundali",
+          { chartType: "ECLIPSES" },
+          { signal: controller.signal },
+        );
         const data = await res.json();
         const raw = data.data || data;
 
@@ -91,14 +96,19 @@ export default function Eclipses() {
       try {
         setImpactLoading(true);
         setImpactError(null);
-        const res = await postJson("/api/kundali", { birthData, chartType: "ECLIPSE_IMPACT" }, { signal: controller.signal });
+        const res = await postJson(
+          "/api/kundali",
+          { birthData, chartType: "ECLIPSE_IMPACT" },
+          { signal: controller.signal },
+        );
         const data = await res.json();
         const raw = data.data || data;
 
         setImpact({
           houses: raw.affected_houses || raw.houses || [],
           planets: raw.affected_planets || raw.planets || [],
-          interpretation: raw.interpretation || raw.reading || raw.text || raw.summary || "",
+          interpretation:
+            raw.interpretation || raw.reading || raw.text || raw.summary || "",
           summary: raw.summary || raw.overview || "",
         });
       } catch (err) {
@@ -148,12 +158,8 @@ export default function Eclipses() {
   // Loading skeleton
   if (eclipseLoading) {
     return (
-      <div className="min-h-screen bg-bg-app text-white">
-        <div className="fixed inset-0 pointer-events-none overflow-hidden">
-          <div className="absolute top-1/4 right-1/3 w-[35vw] h-[35vw] bg-blue-600/5 blur-[120px] rounded-full" />
-        </div>
-        <div className="container mx-auto pt-8 px-6 pb-8 relative z-10">
-          <div className="h-8 bg-white/5 rounded-lg animate-pulse w-40 mb-8" />
+      <PageShell>
+        <div>
           <div className="h-10 bg-white/5 rounded-lg animate-pulse w-72 mb-8" />
           <div className="space-y-4 mb-10">
             {[1, 2, 3].map((i) => (
@@ -172,46 +178,40 @@ export default function Eclipses() {
             <div className="h-4 bg-white/5 rounded animate-pulse w-3/4" />
           </div>
         </div>
-      </div>
+      </PageShell>
     );
   }
 
   return (
-    <div className="min-h-screen bg-bg-app text-white selection:bg-blue-500/30">
-      {/* Background */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-1/4 right-1/3 w-[35vw] h-[35vw] bg-blue-600/5 blur-[120px] rounded-full" />
-        <div className="absolute bottom-1/4 left-1/4 w-[25vw] h-[25vw] bg-amber-600/3 blur-[100px] rounded-full" />
-      </div>
-
-      <div className="container mx-auto pt-8 px-6 pb-12 relative z-10">
-        {/* Back button */}
-        <button
-          onClick={() => navigate("/dashboard")}
-          className="flex items-center gap-2 text-white/40 hover:text-white transition-colors mb-8 group"
-        >
-          <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-          <span className="text-sm">Dashboard</span>
-        </button>
-
+    <PageShell>
+      <div>
         {/* Header */}
         <div className="flex items-center gap-4 mb-10">
           <div className="p-3 rounded-2xl bg-blue-500/10 text-blue-400">
             <Moon size={28} />
           </div>
           <div>
-            <h1 className="text-3xl md:text-4xl font-display tracking-wider">Eclipses</h1>
-            <p className="text-white/40 text-sm mt-1">Cosmic portals of transformation</p>
+            <h1 className="text-3xl md:text-4xl font-display tracking-wider">
+              Eclipses
+            </h1>
+            <p className="text-white/40 text-sm mt-1">
+              Cosmic portals of transformation
+            </p>
           </div>
         </div>
 
         {/* Upcoming Eclipses */}
         <section className="mb-12">
-          <h2 className="text-lg uppercase tracking-widest text-white/40 font-bold mb-5">Upcoming Eclipses</h2>
+          <h2 className="text-lg uppercase tracking-widest text-white/40 font-bold mb-5">
+            Upcoming Eclipses
+          </h2>
 
           {eclipseError ? (
             <div className="glass rounded-2xl p-8 text-center">
-              <AlertTriangle size={24} className="text-amber-400 mx-auto mb-3" />
+              <AlertTriangle
+                size={24}
+                className="text-amber-400 mx-auto mb-3"
+              />
               <p className="text-red-400 mb-3">{eclipseError}</p>
               <button
                 onClick={() => window.location.reload()}
@@ -222,7 +222,9 @@ export default function Eclipses() {
             </div>
           ) : eclipses.length === 0 ? (
             <div className="glass rounded-2xl p-8 text-center">
-              <p className="text-white/50">No upcoming eclipse data available.</p>
+              <p className="text-white/50">
+                No upcoming eclipse data available.
+              </p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -238,7 +240,9 @@ export default function Eclipses() {
                     <div className="flex-1">
                       <div className="flex items-center gap-3 flex-wrap mb-1">
                         <h3 className="text-lg font-display tracking-wider text-white">
-                          {eclipse.type.includes("solar") ? "Solar Eclipse" : "Lunar Eclipse"}
+                          {eclipse.type.includes("solar")
+                            ? "Solar Eclipse"
+                            : "Lunar Eclipse"}
                         </h3>
                         {eclipse.sign && (
                           <span className="text-xs font-medium px-2.5 py-1 rounded-full border border-white/10 bg-white/5 text-white/60">
@@ -246,12 +250,18 @@ export default function Eclipses() {
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-white/50 mb-2">{formatDate(eclipse.date)}</p>
+                      <p className="text-sm text-white/50 mb-2">
+                        {formatDate(eclipse.date)}
+                      </p>
                       {eclipse.description && (
-                        <p className="text-sm text-white/60 leading-relaxed">{eclipse.description}</p>
+                        <p className="text-sm text-white/60 leading-relaxed">
+                          {eclipse.description}
+                        </p>
                       )}
                       {eclipse.visibility && (
-                        <p className="text-xs text-white/30 mt-2">Visibility: {eclipse.visibility}</p>
+                        <p className="text-xs text-white/30 mt-2">
+                          Visibility: {eclipse.visibility}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -263,11 +273,15 @@ export default function Eclipses() {
 
         {/* Personal Impact */}
         <section>
-          <h2 className="text-lg uppercase tracking-widest text-white/40 font-bold mb-5">Personal Impact</h2>
+          <h2 className="text-lg uppercase tracking-widest text-white/40 font-bold mb-5">
+            Personal Impact
+          </h2>
 
           {!birthData?.dob ? (
             <div className="glass rounded-2xl p-8 text-center">
-              <p className="text-white/50 mb-3">Complete your profile to see how eclipses affect your chart.</p>
+              <p className="text-white/50 mb-3">
+                Complete your profile to see how eclipses affect your chart.
+              </p>
               <button
                 onClick={() => navigate("/onboarding")}
                 className="px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm hover:bg-blue-500 transition-colors"
@@ -280,7 +294,10 @@ export default function Eclipses() {
               <div className="h-5 bg-white/5 rounded animate-pulse w-48" />
               <div className="flex gap-2">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-8 w-20 bg-white/5 rounded-full animate-pulse" />
+                  <div
+                    key={i}
+                    className="h-8 w-20 bg-white/5 rounded-full animate-pulse"
+                  />
                 ))}
               </div>
               <div className="h-4 bg-white/5 rounded animate-pulse w-full" />
@@ -295,7 +312,9 @@ export default function Eclipses() {
               {/* Affected houses */}
               {impact.houses && impact.houses.length > 0 && (
                 <div className="mb-6">
-                  <h3 className="text-sm uppercase tracking-widest text-white/40 mb-3">Affected Houses</h3>
+                  <h3 className="text-sm uppercase tracking-widest text-white/40 mb-3">
+                    Affected Houses
+                  </h3>
                   <div className="flex flex-wrap gap-2">
                     {impact.houses.map((house, idx) => (
                       <span
@@ -312,7 +331,9 @@ export default function Eclipses() {
               {/* Affected planets */}
               {impact.planets && impact.planets.length > 0 && (
                 <div className="mb-6">
-                  <h3 className="text-sm uppercase tracking-widest text-white/40 mb-3">Affected Planets</h3>
+                  <h3 className="text-sm uppercase tracking-widest text-white/40 mb-3">
+                    Affected Planets
+                  </h3>
                   <div className="flex flex-wrap gap-2">
                     {impact.planets.map((planet, idx) => (
                       <span
@@ -331,7 +352,9 @@ export default function Eclipses() {
                 <div>
                   <div className="flex items-center gap-2 mb-3">
                     <Sparkles size={16} className="text-blue-400" />
-                    <h3 className="text-sm uppercase tracking-widest text-white/40">Interpretation</h3>
+                    <h3 className="text-sm uppercase tracking-widest text-white/40">
+                      Interpretation
+                    </h3>
                   </div>
                   <p className="text-white/70 leading-relaxed whitespace-pre-wrap">
                     {impact.interpretation || impact.summary}
@@ -340,14 +363,19 @@ export default function Eclipses() {
               )}
 
               {/* Fallback if no structured data */}
-              {!impact.houses?.length && !impact.planets?.length && !impact.interpretation && (
-                <p className="text-white/50">Eclipse impact analysis returned no specific findings for your chart.</p>
-              )}
+              {!impact.houses?.length &&
+                !impact.planets?.length &&
+                !impact.interpretation && (
+                  <p className="text-white/50">
+                    Eclipse impact analysis returned no specific findings for
+                    your chart.
+                  </p>
+                )}
             </div>
           ) : null}
         </section>
       </div>
-    </div>
+    </PageShell>
   );
 }
 
@@ -360,14 +388,16 @@ function buildFallbackEclipses(): Eclipse[] {
       date: new Date(now).toISOString(),
       type: "solar",
       sign: "Transit window",
-      description: "Use eclipse seasons for review, release, and cleaner intent rather than rushed decisions.",
+      description:
+        "Use eclipse seasons for review, release, and cleaner intent rather than rushed decisions.",
       visibility: "Live ephemeris timing is refreshing.",
     },
     {
       date: new Date(now + day * 45).toISOString(),
       type: "lunar",
       sign: "Emotional reset",
-      description: "Lunar eclipse periods are better for noticing emotional patterns than forcing outcomes.",
+      description:
+        "Lunar eclipse periods are better for noticing emotional patterns than forcing outcomes.",
       visibility: "Personal visibility depends on location.",
     },
   ];

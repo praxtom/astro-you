@@ -29,6 +29,61 @@ interface MatchResult {
 
 const emptyPerson = (): PersonForm => ({ name: "", dob: "", tob: "12:00", pob: "" });
 
+const PersonFormBlock = ({
+  label,
+  person,
+  onChange,
+}: {
+  label: string;
+  person: PersonForm;
+  onChange: (p: PersonForm) => void;
+}) => (
+  <div className="space-y-4">
+    <h3 className="text-sm font-bold uppercase tracking-widest text-white/50">{label}</h3>
+    <div>
+      <label className="block text-sm text-white/60 mb-1.5">Name (optional)</label>
+      <input
+        type="text"
+        value={person.name}
+        onChange={(e) => onChange({ ...person, name: e.target.value })}
+        placeholder="Name"
+        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-transparent transition-all"
+      />
+    </div>
+    <div>
+      <label className="block text-sm text-white/60 mb-1.5">
+        Date of Birth <span className="text-amber-400">*</span>
+      </label>
+      <input
+        type="date"
+        value={person.dob}
+        onChange={(e) => onChange({ ...person, dob: e.target.value })}
+        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-transparent transition-all [color-scheme:dark]"
+      />
+    </div>
+    <div>
+      <label className="block text-sm text-white/60 mb-1.5">Time of Birth</label>
+      <input
+        type="time"
+        value={person.tob}
+        onChange={(e) => onChange({ ...person, tob: e.target.value })}
+        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-transparent transition-all [color-scheme:dark]"
+      />
+    </div>
+    <div>
+      <label className="block text-sm text-white/60 mb-1.5">
+        Place of Birth <span className="text-amber-400">*</span>
+      </label>
+      <LocationInput
+        value={person.pob}
+        onChange={(value) => onChange({ ...person, pob: value })}
+        placeholder="Search for birth city..."
+        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-transparent transition-all"
+      />
+    </div>
+  </div>
+);
+
 export default function FreeMatching() {
   const [person1, setPerson1] = useState<PersonForm>(emptyPerson());
   const [person2, setPerson2] = useState<PersonForm>(emptyPerson());
@@ -91,60 +146,6 @@ export default function FreeMatching() {
     offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
   };
 
-  const PersonFormBlock = ({
-    label,
-    person,
-    onChange,
-  }: {
-    label: string;
-    person: PersonForm;
-    onChange: (p: PersonForm) => void;
-  }) => (
-    <div className="space-y-4">
-      <h3 className="text-sm font-bold uppercase tracking-widest text-white/50">{label}</h3>
-      <div>
-        <label className="block text-sm text-white/60 mb-1.5">Name (optional)</label>
-        <input
-          type="text"
-          value={person.name}
-          onChange={(e) => onChange({ ...person, name: e.target.value })}
-          placeholder="Name"
-          className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-transparent transition-all"
-        />
-      </div>
-      <div>
-        <label className="block text-sm text-white/60 mb-1.5">
-          Date of Birth <span className="text-amber-400">*</span>
-        </label>
-        <input
-          type="date"
-          value={person.dob}
-          onChange={(e) => onChange({ ...person, dob: e.target.value })}
-          className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-transparent transition-all [color-scheme:dark]"
-        />
-      </div>
-      <div>
-        <label className="block text-sm text-white/60 mb-1.5">Time of Birth</label>
-        <input
-          type="time"
-          value={person.tob}
-          onChange={(e) => onChange({ ...person, tob: e.target.value })}
-          className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-transparent transition-all [color-scheme:dark]"
-        />
-      </div>
-      <div>
-        <label className="block text-sm text-white/60 mb-1.5">
-          Place of Birth <span className="text-amber-400">*</span>
-        </label>
-        <LocationInput
-          value={person.pob}
-          onChange={(value) => onChange({ ...person, pob: value })}
-          placeholder="Search for birth city..."
-          className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-transparent transition-all"
-        />
-      </div>
-    </div>
-  );
 
   return (
     <div className="min-h-screen bg-[#030308] text-white">
@@ -296,7 +297,7 @@ export default function FreeMatching() {
             <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-6 mb-8 text-center">
               <Sparkles className="w-6 h-6 text-amber-400 mx-auto mb-3" />
               <p className="text-white/70 mb-1">
-                See all <span className="text-amber-400 font-medium">36 points</span> + AI-powered compatibility analysis
+                See all <span className="text-amber-400 font-medium">36 points</span> + the full compatibility analysis
               </p>
               <p className="text-white/40 text-sm">
                 Get detailed insights on each guna, Mangal Dosha check, and personalized relationship guidance.
@@ -309,7 +310,7 @@ export default function FreeMatching() {
               className="block w-full py-4 rounded-xl bg-gradient-to-r from-pink-500 to-amber-500 text-black font-semibold text-lg text-center hover:from-pink-400 hover:to-amber-400 transition-all"
             >
               <span className="flex items-center justify-center gap-2">
-                See All 36 Points + AI Analysis — Create Free Account
+                See All 36 Points + Full Analysis — Create Free Account
                 <ArrowRight className="w-5 h-5" />
               </span>
             </Link>
@@ -322,7 +323,7 @@ export default function FreeMatching() {
                 onClick={() => rememberSource("/synthesis")}
                 className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm text-white/60 hover:border-gold/30 hover:text-gold"
               >
-                Ask AI about this match
+                Ask Jyotish about this match
               </Link>
               <Link
                 to="/consult/meera-devi/profile"

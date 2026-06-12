@@ -1,24 +1,42 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../../lib/useAuth";
 import { useHeaderScroll, useUserProfile } from "../../hooks";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
 import {
+  ChevronDown,
   Crown,
-  FileText,
+  Heart,
   HelpCircle,
   LayoutDashboard,
+  Flame,
   LogOut,
   Menu,
+  ScrollText,
   Settings,
   Sparkles,
-  UsersRound,
+  Sun,
   Wallet,
   X,
 } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { STORAGE_KEYS } from "../../lib/constants";
+import {
+  SPACES,
+  getSpaceForPath,
+  getSpacePrimaryPath,
+  type Space,
+} from "../../lib/spaces";
+
+const SPACE_ICONS: Record<Space["id"], typeof Sun> = {
+  today: Sun,
+  guidance: Sparkles,
+  chart: ScrollText,
+  bonds: Heart,
+  path: Flame,
+};
 
 interface HeaderProps {
   onShowAuth?: () => void;
@@ -49,49 +67,86 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
   };
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  // The five spaces, plus home. Money/account pages live in the avatar menu.
+  const activeSpace = getSpaceForPath(location.pathname);
   const internalNavItems = [
     {
-      label: "Dashboard",
+      label: "Home",
       to: "/dashboard",
       icon: LayoutDashboard,
       active: location.pathname === "/dashboard",
     },
+    ...SPACES.map((space) => ({
+      label: space.label,
+      to: getSpacePrimaryPath(space),
+      icon: SPACE_ICONS[space.id],
+      active: activeSpace?.id === space.id,
+    })),
+  ];
+
+  // Close menus when route changes
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+    setIsUserMenuOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!userMenuRef.current?.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const displayName =
+    profile?.name || user?.displayName || user?.email?.split("@")[0];
+
+  const closeUserMenu = () => setIsUserMenuOpen(false);
+
+  const goToDashboard = async () => {
+    if (location.pathname === "/dashboard") return;
+    if (!user) return;
+    const docSnap = await getDoc(doc(db, "users", user.uid));
+    if (docSnap.exists() && docSnap.data().name) {
+      navigate("/dashboard");
+    } else {
+      sessionStorage.setItem(STORAGE_KEYS.MODE, "logged_in");
+      onShowOnboarding?.();
+    }
+  };
+
+  const userMenuItems = [
     {
-      label: "Jyotish",
-      to: "/synthesis",
-      icon: Sparkles,
-      active: location.pathname.startsWith("/synthesis"),
-    },
-    {
-      label: "Consult",
-      to: "/consult",
-      icon: UsersRound,
-      active: location.pathname.startsWith("/consult"),
-    },
-    {
-      label: "Reports",
-      to: "/reports",
-      icon: FileText,
-      active: location.pathname.startsWith("/reports"),
-    },
-    {
-      label: "Pricing",
-      to: "/pricing",
-      icon: Crown,
-      active: location.pathname.startsWith("/pricing"),
+      label: "Dashboard",
+      icon: LayoutDashboard,
+      onClick: goToDashboard,
     },
     {
       label: "Wallet",
-      to: "/wallet",
       icon: Wallet,
-      active: location.pathname.startsWith("/wallet"),
+      onClick: () => navigate("/wallet"),
+    },
+    {
+      label: "Plans",
+      icon: Crown,
+      onClick: () => navigate("/pricing"),
+      accent: true,
+    },
+    {
+      label: "Support",
+      icon: HelpCircle,
+      onClick: () => navigate("/support"),
+    },
+    {
+      label: "Settings",
+      icon: Settings,
+      onClick: () => navigate("/settings"),
     },
   ];
-
-  // Close mobile menu when route changes
-  useEffect(() => {
-    setIsMobileMenuOpen(false);
-  }, [location.pathname]);
 
   return (
     <>
@@ -175,65 +230,88 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
 
           <div className="hidden md:flex items-center gap-4">
             {user ? (
-              <div className="flex items-center gap-4">
-                <div className="flex flex-col items-end">
-                  <button
-                    onClick={async () => {
-                      if (location.pathname === "/dashboard") return;
-                      const docSnap = await getDoc(doc(db, "users", user.uid));
-                      if (docSnap.exists() && docSnap.data().name) {
-                        navigate("/dashboard");
-                      } else {
-                        sessionStorage.setItem(STORAGE_KEYS.MODE, "logged_in");
-                        onShowOnboarding?.();
-                      }
-                    }}
-                    className="text-gold text-sm hover:text-white transition-all cursor-pointer group flex items-center gap-2 drop-shadow-[0_0_8px_rgba(255,215,0,0.3)]"
+              <div className="relative" ref={userMenuRef}>
+                <button
+                  onClick={() => setIsUserMenuOpen((open) => !open)}
+                  className={`group flex items-center gap-2 transition-all ${
+                    isUserMenuOpen ? "text-white" : "text-gold hover:text-white"
+                  }`}
+                  aria-expanded={isUserMenuOpen}
+                  aria-haspopup="menu"
+                >
+                  <span
+                    className={`transition-transform duration-500 ${
+                      isUserMenuOpen
+                        ? "scale-125 text-gold"
+                        : "text-gold group-hover:scale-125"
+                    } drop-shadow-[0_0_8px_rgba(255,215,0,0.3)]`}
                   >
-                    <span className="group-hover:scale-125 transition-transform duration-500 text-gold">
-                      ✦
-                    </span>
-                    <span className="relative font-base text-lg font-bold">
-                      {profile?.name ||
-                        user.displayName ||
-                        user.email?.split("@")[0]}
-                      <span className="absolute -bottom-1 left-0 w-0 h-px bg-gold transition-all duration-500 group-hover:w-full"></span>
-                    </span>
-                  </button>
-                </div>
-
-                <button
-                  onClick={() => navigate("/wallet")}
-                  className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-white/40 hover:text-white"
-                  aria-label="Wallet"
-                >
-                  <Wallet size={16} />
+                    ✦
+                  </span>
+                  <span className="relative max-w-[10rem] truncate font-base text-lg font-bold">
+                    {displayName}
+                    <span
+                      className={`absolute -bottom-1 left-0 h-px bg-gold transition-all duration-500 ${
+                        isUserMenuOpen ? "w-full" : "w-0 group-hover:w-full"
+                      }`}
+                    />
+                  </span>
+                  <ChevronDown
+                    size={14}
+                    className={`text-white/30 transition-all duration-300 ${
+                      isUserMenuOpen
+                        ? "rotate-180 text-gold/70"
+                        : "group-hover:text-white/50"
+                    }`}
+                  />
                 </button>
 
-                <button
-                  onClick={() => navigate("/support")}
-                  className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-white/40 hover:text-white"
-                  aria-label="Support"
-                  title="Support"
-                >
-                  <HelpCircle size={16} />
-                </button>
-
-                <button
-                  onClick={() => navigate("/settings")}
-                  className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-white/40 hover:text-white"
-                  aria-label="Settings"
-                >
-                  <Settings size={16} />
-                </button>
-
-                <button
-                  onClick={handleLogout}
-                  className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-white/40 hover:text-white"
-                  aria-label="Logout"
-                >
-                  <LogOut size={16} />
-                </button>
+                <AnimatePresence>
+                  {isUserMenuOpen && (
+                    <motion.div
+                      role="menu"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 6 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 top-[calc(100%+0.5rem)] z-[1002] min-w-[10.5rem] overflow-hidden rounded-xl border border-white/10 bg-[#0a0a0f]/95 py-1 shadow-lg backdrop-blur-xl"
+                    >
+                      {userMenuItems.map((item) => {
+                        const Icon = item.icon;
+                        return (
+                          <button
+                            key={item.label}
+                            role="menuitem"
+                            onClick={() => {
+                              item.onClick();
+                              closeUserMenu();
+                            }}
+                            className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-white/5 ${
+                              item.accent
+                                ? "text-gold/80 hover:text-gold"
+                                : "text-white/65 hover:text-white"
+                            }`}
+                          >
+                            <Icon size={14} />
+                            <span>{item.label}</span>
+                          </button>
+                        );
+                      })}
+                      <div className="my-1 border-t border-white/8" />
+                      <button
+                        role="menuitem"
+                        onClick={() => {
+                          handleLogout();
+                          closeUserMenu();
+                        }}
+                        className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-white/45 transition-colors hover:bg-white/5 hover:text-white/70"
+                      >
+                        <LogOut size={14} />
+                        <span>Sign out</span>
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             ) : (
               <>
@@ -349,6 +427,28 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                 className="px-6 py-2.5 rounded-full bg-gold/10 border border-gold/30 text-gold font-bold uppercase text-xs"
               >
                 Go to Dashboard
+              </button>
+
+              <button
+                onClick={() => {
+                  navigate("/wallet");
+                  setIsMobileMenuOpen(false);
+                }}
+                className="flex items-center gap-2 text-white/40 hover:text-white transition-colors"
+              >
+                <Wallet size={16} />
+                <span className="text-sm uppercase">Wallet</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  navigate("/pricing");
+                  setIsMobileMenuOpen(false);
+                }}
+                className="flex items-center gap-2 text-gold/60 hover:text-gold transition-colors"
+              >
+                <Crown size={16} />
+                <span className="text-sm uppercase">Plans</span>
               </button>
 
               <button

@@ -1,5 +1,11 @@
 import { Config, Context } from "@netlify/functions";
-import { generateSadhanaPath, UserContext } from "./shared/gemini";
+import { generateSadhanaPath } from "./shared/gemini";
+import { buildUserContext } from "./shared/user-context";
+import {
+    AuthError,
+    enforceIpRateLimit,
+    verifyToken,
+} from "./shared/require-auth";
 
 export default async (req: Request, _context: Context) => {
     if (req.method !== "POST") {
@@ -7,13 +13,27 @@ export default async (req: Request, _context: Context) => {
     }
 
     try {
-        const { birthData, atmanData } = await req.json();
+        const { birthData, idToken } = await req.json();
 
-        const userContext: UserContext = {
-            name: birthData?.name || 'Jataka',
+        let decoded;
+        try {
+            decoded = await verifyToken(idToken);
+            await enforceIpRateLimit(req, "sadhana_path", 20, 60 * 60 * 1000);
+        } catch (err) {
+            const status = err instanceof AuthError ? err.status : 401;
+            return new Response(
+                JSON.stringify({
+                    error:
+                        err instanceof AuthError ? err.message : "Authentication required",
+                }),
+                { status, headers: { "Content-Type": "application/json" } },
+            );
+        }
+
+        const { userContext } = await buildUserContext({
+            uid: decoded.uid,
             birthData,
-            atman: atmanData
-        };
+        });
 
         const path = await generateSadhanaPath(userContext);
 

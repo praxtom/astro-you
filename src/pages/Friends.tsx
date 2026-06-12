@@ -13,15 +13,8 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import {
-  Search,
-  UserPlus,
-  Users,
-  X,
-  ArrowLeft,
-  Loader2,
-} from "lucide-react";
-import Header from "../components/layout/Header";
+import { Search, UserPlus, Users, X, Loader2 } from "lucide-react";
+import { PageShell } from "../components/layout/PageShell";
 
 interface Friend {
   id: string;
@@ -105,15 +98,8 @@ export default function Friends() {
   }
 
   return (
-    <div className="min-h-screen bg-[#030308] text-white">
-      <Header />
-      <main className="container mx-auto pt-24 px-6 pb-16 max-w-2xl">
-        <button
-          onClick={() => navigate("/dashboard")}
-          className="flex items-center gap-2 text-white/40 hover:text-white mb-6 text-sm"
-        >
-          <ArrowLeft size={16} /> Dashboard
-        </button>
+    <PageShell>
+      <div className="max-w-2xl mx-auto">
         <h1 className="text-3xl font-display mb-8 flex items-center gap-3">
           <Users size={28} className="text-gold" /> Friends
         </h1>
@@ -238,7 +224,7 @@ export default function Friends() {
             ))}
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </PageShell>
   );
 }

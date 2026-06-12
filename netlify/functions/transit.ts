@@ -1,7 +1,8 @@
 import { Config, Context } from "@netlify/functions";
 import { getTransitChart, getTransitReport } from "./shared/astro-api";
-import { generateTransitSummary, UserContext } from "./shared/gemini";
+import { generateTransitSummary } from "./shared/gemini";
 import { getCachedOrFetch } from "./shared/cache";
+import { buildUserContext } from "./shared/user-context";
 import {
   verifyToken,
   enforceIpRateLimit,
@@ -17,8 +18,9 @@ export default async (req: Request, _context: Context) => {
     const { birthData, transitDate, idToken } = await req.json();
 
     // Auth + rate limit: transit calls the paid astrology API + Gemini.
+    let decoded;
     try {
-      await verifyToken(idToken);
+      decoded = await verifyToken(idToken);
       await enforceIpRateLimit(req, "transit", 30, 60 * 60 * 1000);
     } catch (err) {
       const status = err instanceof AuthError ? err.status : 401;
@@ -67,14 +69,10 @@ export default async (req: Request, _context: Context) => {
     let aiSummary = "";
     if (reportData && reportData.length > 0) {
       try {
-        const userContext: UserContext = {
-          name: birthData.name || "Jataka",
-          birthData: {
-            dob: birthData.dob,
-            tob: birthData.tob,
-            pob: birthData.pob || "",
-          },
-        };
+        const { userContext } = await buildUserContext({
+          uid: decoded.uid,
+          birthData,
+        });
         aiSummary = await generateTransitSummary(userContext, reportData);
         console.log("[Transit] AI summary generated");
       } catch (err) {

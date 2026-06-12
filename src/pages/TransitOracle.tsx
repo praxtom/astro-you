@@ -1,8 +1,6 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ChevronLeft,
   Compass,
   Clock,
   Calendar as CalendarIcon,
@@ -11,7 +9,8 @@ import {
   Eye,
   Table2,
 } from "lucide-react";
-import { useHeaderScroll } from "../hooks";
+import { PageShell } from "../components/layout/PageShell";
+import { AskJyotishBridge } from "../components/layout/AskJyotishBridge";
 import TransitOverlay from "../components/astrology/TransitOverlay";
 import TransitPredictions from "../components/astrology/TransitPredictions";
 import TransitPositionsTable from "../components/astrology/TransitPositionsTable";
@@ -19,9 +18,18 @@ import { useTransit } from "../hooks/useTransit";
 import { PLANETS } from "../lib/astrology";
 
 const SIGN_NAMES: Record<string, string> = {
-  Ari: "Aries", Tau: "Taurus", Gem: "Gemini", Can: "Cancer",
-  Leo: "Leo", Vir: "Virgo", Lib: "Libra", Sco: "Scorpio",
-  Sag: "Sagittarius", Cap: "Capricorn", Aqu: "Aquarius", Pis: "Pisces",
+  Ari: "Aries",
+  Tau: "Taurus",
+  Gem: "Gemini",
+  Can: "Cancer",
+  Leo: "Leo",
+  Vir: "Virgo",
+  Lib: "Libra",
+  Sco: "Scorpio",
+  Sag: "Sagittarius",
+  Cap: "Capricorn",
+  Aqu: "Aquarius",
+  Pis: "Pisces",
 };
 
 function extractPositions(data: any): any[] {
@@ -29,11 +37,14 @@ function extractPositions(data: any): any[] {
   const chartData = data?.chart_data || data;
   const subjectData = data?.subject_data || data?.positions?.subject_data;
 
-  let positions: any[] = [];
+  let positions: any[];
 
   if (subjectData?.transit_subject) {
     const subj = subjectData.transit_subject;
-    const names = [...(subj.planets_names_list || []), ...(subj.axial_cusps_names_list || [])];
+    const names = [
+      ...(subj.planets_names_list || []),
+      ...(subj.axial_cusps_names_list || []),
+    ];
     positions = names
       .map((n: string) => subj[n.toLowerCase()])
       .filter((p: any) => p && p.name && !p.name.includes("Ascendant"));
@@ -41,13 +52,29 @@ function extractPositions(data: any): any[] {
     const all = chartData?.planetary_positions || chartData?.positions || [];
     positions = Array.isArray(all)
       ? all.filter(
-          (p: any) => p.name?.toLowerCase().includes("_transit") || (!p.name?.toLowerCase().includes("_natal") && !p.name?.includes("Ascendant"))
+          (p: any) =>
+            p.name?.toLowerCase().includes("_transit") ||
+            (!p.name?.toLowerCase().includes("_natal") &&
+              !p.name?.includes("Ascendant")),
         )
       : [];
   }
 
-  const mainPlanets = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto", "Rahu", "Ketu"];
-  const mainSet = new Set(mainPlanets.flatMap(m => [m, `${m}_transit`]));
+  const mainPlanets = [
+    "Sun",
+    "Moon",
+    "Mercury",
+    "Venus",
+    "Mars",
+    "Jupiter",
+    "Saturn",
+    "Uranus",
+    "Neptune",
+    "Pluto",
+    "Rahu",
+    "Ketu",
+  ];
+  const mainSet = new Set(mainPlanets.flatMap((m) => [m, `${m}_transit`]));
   const filtered = positions.filter((p: any) => {
     const clean = (p.name || "").replace("_transit", "").replace("_natal", "");
     return mainSet.has(p.name) || mainPlanets.includes(clean);
@@ -57,10 +84,8 @@ function extractPositions(data: any): any[] {
 }
 
 export default function TransitOracle() {
-  const navigate = useNavigate();
-  const { isVisible } = useHeaderScroll();
   const [currentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<'visual' | 'table'>('visual');
+  const [viewMode, setViewMode] = useState<"visual" | "table">("visual");
   const { data, predictions, aiSummary, loading, error } = useTransit();
 
   // Format date for display
@@ -72,57 +97,8 @@ export default function TransitOracle() {
   });
 
   return (
-    <div className="min-h-screen bg-[#030308] text-white selection:bg-gold/30 font-sans">
-      {/* Background Ambiance */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-0 left-1/4 w-[60vw] h-[60vw] bg-blue-600/10 blur-[150px] rounded-full animate-pulse" />
-        <div
-          className="absolute bottom-0 right-1/4 w-[50vw] h-[50vw] bg-gold/5 blur-[150px] rounded-full animate-pulse"
-          style={{ animationDelay: "3s" }}
-        />
-
-        {/* Star Field Effect */}
-        <div
-          className="absolute inset-0 opacity-20"
-          style={{
-            backgroundImage: `radial-gradient(circle at center, #ffffff 1px, transparent 1px)`,
-            backgroundSize: "100px 100px",
-          }}
-        />
-      </div>
-
-      {/* Header */}
-      <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-700 ease-in-out ${isVisible ? "translate-y-0" : "-translate-y-full"
-          } bg-black/40 backdrop-blur-xl border-b border-white/5`}
-      >
-        <div className="container mx-auto px-6 h-20 flex items-center justify-between">
-          <button
-            onClick={() => navigate("/dashboard")}
-            className="group flex items-center gap-3 text-white/40 hover:text-white transition-colors"
-          >
-            <div className="p-2 rounded-full border border-white/5 group-hover:border-gold/30 transition-colors">
-              <ChevronLeft size={20} />
-            </div>
-            <span className="text-xs font-black uppercase tracking-[0.3em]">
-              Dashboard
-            </span>
-          </button>
-
-          <div className="flex items-center gap-4">
-            <div className="hidden md:flex flex-col items-end">
-              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gold/60">
-                Celestial Status
-              </span>
-            </div>
-            <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-gold/10 border border-gold/20">
-              <Compass className="text-gold animate-spin-slow" size={24} />
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 md:px-6 pt-20 pb-8 relative z-10">
+    <PageShell wide>
+      <div>
         {/* Title Section */}
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-4 gap-4">
           <div className="max-w-2xl">
@@ -130,7 +106,7 @@ export default function TransitOracle() {
               <Clock size={12} /> Live Planetary Movements
             </div>
             <h1 className="text-4xl md:text-5xl font-display tracking-tight mb-3">
-              Transit <span className="text-gold">Oracle</span>
+              Transit <span className="text-gold italic">Oracle</span>
             </h1>
             <p className="text-base text-white/60 leading-relaxed font-light font-sans max-w-xl">
               Observe the dance of the cosmos as planets move through your birth
@@ -139,7 +115,7 @@ export default function TransitOracle() {
             </p>
           </div>
 
-          <div className="glass p-4 rounded-2xl border border-white/10 flex flex-col gap-1.5 min-w-[220px]">
+          <div className="glass p-4 rounded-2xl border border-white/10 flex flex-col gap-1.5 min-w-55">
             <div className="flex items-center gap-2 text-gold">
               <CalendarIcon size={16} />
               <span className="text-[10px] uppercase font-black tracking-widest">
@@ -158,22 +134,22 @@ export default function TransitOracle() {
         {/* View Mode Toggle */}
         <div className="flex gap-2 mb-4">
           <button
-            onClick={() => setViewMode('visual')}
+            onClick={() => setViewMode("visual")}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border transition-all duration-300 ${
-              viewMode === 'visual'
-                ? 'bg-gold/10 border-gold/50 text-gold'
-                : 'bg-white/5 border-white/10 text-white/40 hover:text-white/60 hover:border-white/20'
+              viewMode === "visual"
+                ? "bg-gold/10 border-gold/50 text-gold"
+                : "bg-white/5 border-white/10 text-white/40 hover:text-white/60 hover:border-white/20"
             }`}
           >
             <Eye size={14} />
             Visual
           </button>
           <button
-            onClick={() => setViewMode('table')}
+            onClick={() => setViewMode("table")}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border transition-all duration-300 ${
-              viewMode === 'table'
-                ? 'bg-gold/10 border-gold/50 text-gold'
-                : 'bg-white/5 border-white/10 text-white/40 hover:text-white/60 hover:border-white/20'
+              viewMode === "table"
+                ? "bg-gold/10 border-gold/50 text-gold"
+                : "bg-white/5 border-white/10 text-white/40 hover:text-white/60 hover:border-white/20"
             }`}
           >
             <Table2 size={14} />
@@ -182,14 +158,14 @@ export default function TransitOracle() {
         </div>
 
         {/* Current Transit Positions (visual cards, shown only in visual mode) */}
-        {viewMode === 'visual' && !loading && data && (
+        {viewMode === "visual" && !loading && data && (
           <TransitPositionsTable data={data} />
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-10 gap-4 items-start">
           {/* Left Column: Visual Chart or Data Table */}
           <div className="lg:col-span-5 space-y-4">
-            {viewMode === 'table' ? (
+            {viewMode === "table" ? (
               /* ── Full Data Table View ── */
               <div className="glass rounded-2xl p-4 overflow-x-auto border border-white/10">
                 <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gold/60 mb-5">
@@ -197,68 +173,99 @@ export default function TransitOracle() {
                 </h3>
                 {loading ? (
                   <div className="flex items-center justify-center py-6">
-                    <Compass className="animate-spin-slow text-gold opacity-20" size={48} />
+                    <Compass
+                      className="animate-spin-slow text-gold opacity-20"
+                      size={48}
+                    />
                   </div>
                 ) : error ? (
                   <div className="text-center py-6">
                     <Info className="mx-auto mb-4 text-red-400" size={32} />
                     <p className="text-red-400 text-sm">{error}</p>
                   </div>
-                ) : (() => {
-                  const positions = extractPositions(data);
-                  if (positions.length === 0) {
+                ) : (
+                  (() => {
+                    const positions = extractPositions(data);
+                    if (positions.length === 0) {
+                      return (
+                        <p className="text-white/40 text-sm text-center py-6">
+                          No transit position data available.
+                        </p>
+                      );
+                    }
                     return (
-                      <p className="text-white/40 text-sm text-center py-6">
-                        No transit position data available.
-                      </p>
-                    );
-                  }
-                  return (
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-white/40 text-xs uppercase tracking-widest border-b border-white/10">
-                          <th className="text-left py-3 px-2">Planet</th>
-                          <th className="text-left py-3 px-2">Sign</th>
-                          <th className="text-right py-3 px-2">Degree</th>
-                          <th className="text-center py-3 px-2">Status</th>
-                          <th className="text-right py-3 px-2">Speed</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {positions.map((p: any, i: number) => {
-                          const cleanName = (p.name || "").replace("_transit", "").replace("_natal", "");
-                          const planetInfo = (PLANETS as any)[cleanName];
-                          const signFull = SIGN_NAMES[p.sign] || p.sign || "—";
-                          const deg = typeof p.degree === "number" ? p.degree : typeof p.abs_pos === "number" ? p.abs_pos % 30 : null;
-                          const retro = p.is_retrograde || p.retrograde;
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-white/40 text-xs uppercase tracking-widest border-b border-white/10">
+                            <th className="text-left py-3 px-2">Planet</th>
+                            <th className="text-left py-3 px-2">Sign</th>
+                            <th className="text-right py-3 px-2">Degree</th>
+                            <th className="text-center py-3 px-2">Status</th>
+                            <th className="text-right py-3 px-2">Speed</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {positions.map((p: any, i: number) => {
+                            const cleanName = (p.name || "")
+                              .replace("_transit", "")
+                              .replace("_natal", "");
+                            const planetInfo = (PLANETS as any)[cleanName];
+                            const signFull =
+                              SIGN_NAMES[p.sign] || p.sign || "—";
+                            const deg =
+                              typeof p.degree === "number"
+                                ? p.degree
+                                : typeof p.abs_pos === "number"
+                                  ? p.abs_pos % 30
+                                  : null;
+                            const retro = p.is_retrograde || p.retrograde;
 
-                          return (
-                            <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-                              <td className="py-2.5 px-2 text-white/90 font-medium">
-                                <span className="mr-2" style={{ color: planetInfo?.color || "#FFD700" }}>
-                                  {planetInfo?.symbol || ""}
-                                </span>
-                                {cleanName}
-                              </td>
-                              <td className="py-2.5 px-2 text-white/70">{signFull}</td>
-                              <td className="py-2.5 px-2 text-white/60 text-right font-mono">
-                                {deg !== null ? `${deg.toFixed(2)}°` : "—"}
-                              </td>
-                              <td className="py-2.5 px-2 text-center">
-                                {retro
-                                  ? <span className="text-red-400 text-xs font-bold">R</span>
-                                  : <span className="text-emerald-400 text-xs">D</span>}
-                              </td>
-                              <td className="py-2.5 px-2 text-white/40 text-right font-mono text-xs">
-                                {typeof p.speed === "number" ? p.speed.toFixed(4) : "—"}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  );
-                })()}
+                            return (
+                              <tr
+                                key={i}
+                                className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+                              >
+                                <td className="py-2.5 px-2 text-white/90 font-medium">
+                                  <span
+                                    className="mr-2"
+                                    style={{
+                                      color: planetInfo?.color || "#FFD700",
+                                    }}
+                                  >
+                                    {planetInfo?.symbol || ""}
+                                  </span>
+                                  {cleanName}
+                                </td>
+                                <td className="py-2.5 px-2 text-white/70">
+                                  {signFull}
+                                </td>
+                                <td className="py-2.5 px-2 text-white/60 text-right font-mono">
+                                  {deg !== null ? `${deg.toFixed(2)}°` : "—"}
+                                </td>
+                                <td className="py-2.5 px-2 text-center">
+                                  {retro ? (
+                                    <span className="text-red-400 text-xs font-bold">
+                                      R
+                                    </span>
+                                  ) : (
+                                    <span className="text-emerald-400 text-xs">
+                                      D
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-2.5 px-2 text-white/40 text-right font-mono text-xs">
+                                  {typeof p.speed === "number"
+                                    ? p.speed.toFixed(4)
+                                    : "—"}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    );
+                  })()
+                )}
               </div>
             ) : (
               /* ── Visual Chart View (original) ── */
@@ -290,12 +297,18 @@ export default function TransitOracle() {
                     ) : error ? (
                       <div className="aspect-square flex items-center justify-center text-center p-6">
                         <div className="p-5 rounded-2xl bg-red-500/5 border border-red-500/20">
-                          <Info className="mx-auto mb-4 text-red-400" size={32} />
+                          <Info
+                            className="mx-auto mb-4 text-red-400"
+                            size={32}
+                          />
                           <p className="text-red-400 text-sm">{error}</p>
                         </div>
                       </div>
                     ) : (
-                      <TransitOverlay data={data} className="scale-90 mx-auto" />
+                      <TransitOverlay
+                        data={data}
+                        className="scale-90 mx-auto"
+                      />
                     )}
                   </div>
                 </div>
@@ -367,7 +380,7 @@ export default function TransitOracle() {
                             <Sparkles size={12} className="text-gold" />
                           </div>
                           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gold/60">
-                            AI Oracle Insight
+                            Oracle Insight
                           </span>
                         </div>
                       </motion.div>
@@ -378,7 +391,8 @@ export default function TransitOracle() {
                         animate={{ opacity: 1 }}
                         className="text-sm text-white/40 italic"
                       >
-                        The stars are aligning. Your summary will appear shortly.
+                        The stars are aligning. Your summary will appear
+                        shortly.
                       </motion.p>
                     )}
                   </AnimatePresence>
@@ -401,10 +415,12 @@ export default function TransitOracle() {
             </div>
           </div>
         </div>
-      </main>
 
-      {/* Aesthetic Footer decoration */}
-      <div className="fixed bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[#030308] to-transparent pointer-events-none z-20" />
-    </div>
+        <AskJyotishBridge
+          eyebrow="Take this further"
+          question="What do today's transits over my chart mean for the decisions in front of me right now?"
+        />
+      </div>
+    </PageShell>
   );
 }

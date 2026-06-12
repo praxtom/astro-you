@@ -211,6 +211,15 @@ export function applyBrainInsights(
     atman.adviceHistory = advice;
     adviceSaved = 1;
     changed = true;
+
+    const usedPatterns = markAdvisedPatternsUsed(
+      atman.knownPatterns || [],
+      input.source,
+      safeAdvice,
+      now,
+    );
+    atman.knownPatterns = usedPatterns.patterns;
+    changed = changed || usedPatterns.changed;
   }
 
   if (
@@ -517,9 +526,9 @@ export function selectBrainContext(
   if (!atman) return undefined;
 
   const now = new Date();
-  const maxPatterns = options.maxPatterns || 8;
-  const maxEvents = options.maxEvents || 5;
-  const maxAdvice = options.maxAdvice || 5;
+  const maxPatterns = options.maxPatterns || 3;
+  const maxEvents = options.maxEvents || 2;
+  const maxAdvice = options.maxAdvice || 2;
 
   const knownPatterns = [...(atman.knownPatterns || [])]
     .filter((pattern) => !pattern.archived)
@@ -822,6 +831,49 @@ function markContradictedPatterns(
   });
 }
 
+function markAdvisedPatternsUsed(
+  patterns: WeightedPattern[],
+  source: AtmanBrainSource,
+  advice: Pick<AtmanAdviceEntry, "advice" | "context">,
+  now: Date,
+) {
+  const guidanceText = [
+    source.userMessage,
+    source.assistantMessage,
+    advice.context,
+    advice.advice,
+  ]
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .join(" ");
+
+  if (!guidanceText) return { patterns, changed: false };
+
+  let changed = false;
+  const marked = patterns.map((pattern) => {
+    if (!isPatternRelevantToGuidance(pattern.pattern, guidanceText)) return pattern;
+
+    const previousTime = pattern.lastUsedAt
+      ? new Date(pattern.lastUsedAt).getTime()
+      : null;
+    if (previousTime === now.getTime()) return pattern;
+
+    changed = true;
+    return { ...pattern, lastUsedAt: now };
+  });
+
+  return { patterns: marked, changed };
+}
+
+function isPatternRelevantToGuidance(pattern: string, guidanceText: string) {
+  const patternTokens = tokenizeMemoryText(pattern);
+  const guidanceTokens = tokenizeMemoryText(guidanceText);
+  if (patternTokens.length === 0 || guidanceTokens.length === 0) return false;
+
+  const guidanceSet = new Set(guidanceTokens);
+  const shared = patternTokens.filter((token) => guidanceSet.has(token)).length;
+  return shared >= 2 || shared / patternTokens.length >= 0.4;
+}
+
 function syncAtmanBuckets(atman: AtmanData) {
   atman.schemaVersion = ATMAN_SCHEMA_VERSION;
   atman.activeEvents = atman.lifeEvents || atman.activeEvents || [];
@@ -947,6 +999,14 @@ const MEMORY_STOP_WORDS = new Set([
 ]);
 
 const MEMORY_TOKEN_SYNONYMS: Record<string, string> = {
+  carrie: "carry",
+  carries: "carry",
+  carried: "carry",
+  workload: "work",
+  deadline: "deadline",
+  deadlines: "deadline",
+  responsibilitie: "responsibility",
+  responsibilities: "responsibility",
   hard: "difficult",
   tough: "difficult",
   conversation: "conversation",

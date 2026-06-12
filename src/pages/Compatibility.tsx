@@ -15,7 +15,8 @@ import {
   Share2,
   Download,
 } from "lucide-react";
-import Header from "../components/layout/Header";
+import { PageShell } from "../components/layout/PageShell";
+import { AskJyotishBridge } from "../components/layout/AskJyotishBridge";
 import { useUserProfile } from "../hooks";
 import { useAuth } from "../lib/useAuth";
 import LocationInput from "../components/LocationInput";
@@ -181,20 +182,20 @@ export default function Compatibility() {
 
     try {
       const response = await postJson("/api/compatibility", {
-          maleData: {
-            name: birthData.name || "Seeker",
-            dob: birthData.dob,
-            tob: birthData.tob || "12:00",
-            pob: birthData.pob || "Mumbai, India",
-            lat: seekerCoords?.lat,
-            lng: seekerCoords?.lon,
-          },
-          femaleData: {
-            ...partnerData,
-            lat: partnerCoords?.lat,
-            lng: partnerCoords?.lon,
-          },
-        });
+        maleData: {
+          name: birthData.name || "Seeker",
+          dob: birthData.dob,
+          tob: birthData.tob || "12:00",
+          pob: birthData.pob || "Mumbai, India",
+          lat: seekerCoords?.lat,
+          lng: seekerCoords?.lon,
+        },
+        femaleData: {
+          ...partnerData,
+          lat: partnerCoords?.lat,
+          lng: partnerCoords?.lon,
+        },
+      });
 
       const data = await response.json();
       console.log("[Compatibility] Match Data:", data);
@@ -202,7 +203,7 @@ export default function Compatibility() {
       setMatchResult(data);
     } catch (err: any) {
       setError(
-        err.message || "Failed to analyze compatibility. Please try again."
+        err.message || "Failed to analyze compatibility. Please try again.",
       );
     } finally {
       setIsMatching(false);
@@ -227,7 +228,9 @@ export default function Compatibility() {
           person2Name: partnerData.name || "Partner",
         }),
       });
-      const errorPayload = response.ok ? null : await response.json().catch(() => null);
+      const errorPayload = response.ok
+        ? null
+        : await response.json().catch(() => null);
       if (!response.ok) {
         throw new Error(errorPayload?.error || "Could not generate report");
       }
@@ -247,10 +250,8 @@ export default function Compatibility() {
   };
 
   return (
-    <div className="min-h-screen bg-[#030308] text-white selection:bg-gold/30">
-      <Header />
-
-      <main className="container mx-auto pt-20 px-4 md:px-6 pb-8 relative z-10">
+    <PageShell wide>
+      <div>
         <header className="max-w-4xl mx-auto text-center mb-6">
           <div className="flex items-center justify-center gap-2 text-gold/60 mb-2 font-display tracking-[0.2em] uppercase text-sm">
             <Heart size={16} className="text-gold" />
@@ -413,13 +414,23 @@ export default function Compatibility() {
               </div>
               <button
                 onClick={() => {
-                  const score = matchResult.overall_score || matchResult.compatibility_score || 0;
+                  const score =
+                    matchResult.overall_score ||
+                    matchResult.compatibility_score ||
+                    0;
                   const text = `Our compatibility score: ${score}%! ✨ Check yours on AstroYou`;
                   const url = `${window.location.origin}/free-kundali-matching`;
                   if (navigator.share) {
-                    navigator.share({ title: 'AstroYou Compatibility', text, url });
+                    navigator.share({
+                      title: "AstroYou Compatibility",
+                      text,
+                      url,
+                    });
                   } else {
-                    window.open(`https://wa.me/?text=${encodeURIComponent(text + '\n' + url)}`, '_blank');
+                    window.open(
+                      `https://wa.me/?text=${encodeURIComponent(text + "\n" + url)}`,
+                      "_blank",
+                    );
                   }
                 }}
                 className="mt-4 p-2 rounded-xl border border-white/10 text-white/40 hover:text-gold hover:border-gold/30 transition-all inline-flex items-center gap-1.5"
@@ -444,23 +455,34 @@ export default function Compatibility() {
             </div>
 
             {/* Overall Recommendation based on Guna Milan */}
-            {matchResult.vedicMatching && (() => {
-                const score = matchResult.vedicMatching.total_score ?? matchResult.vedicMatching.score ?? 0;
+            {matchResult.vedicMatching &&
+              (() => {
+                const score =
+                  matchResult.vedicMatching.total_score ??
+                  matchResult.vedicMatching.score ??
+                  0;
                 const { color } = getGunaQuality(score);
                 return (
-                    <p className={`text-sm font-medium mt-2 text-center ${color}`}>
-                        {score >= 32 ? "Highly recommended for marriage" :
-                         score >= 24 ? "Good compatibility — recommended" :
-                         score >= 18 ? "Acceptable — proceed with guidance" :
-                         "Challenging — consult an astrologer for remedies"}
-                    </p>
+                  <p
+                    className={`text-sm font-medium mt-2 text-center ${color}`}
+                  >
+                    {score >= 32
+                      ? "Highly recommended for marriage"
+                      : score >= 24
+                        ? "Good compatibility — recommended"
+                        : score >= 18
+                          ? "Acceptable — proceed with guidance"
+                          : "Challenging — consult an astrologer for remedies"}
+                  </p>
                 );
-            })()}
+              })()}
 
             {/* AI Narrative Interpretation */}
             {matchResult.aiNarrative && (
               <div className="mb-6 p-5 rounded-2xl bg-gradient-to-br from-gold/5 to-purple-500/5 border border-gold/10">
-                <h3 className="font-display text-sm uppercase tracking-[0.3em] text-gold/60 mb-4">Jyotish's Insight</h3>
+                <h3 className="font-display text-sm uppercase tracking-[0.3em] text-gold/60 mb-4">
+                  Jyotish's Insight
+                </h3>
                 <p className="text-sm md:text-base font-sans font-light leading-relaxed text-white/80 whitespace-pre-line">
                   {matchResult.aiNarrative}
                 </p>
@@ -475,7 +497,7 @@ export default function Compatibility() {
                   matchResult.synastry?.emotional_connection ||
                   normalizeScore(
                     matchResult.compatibility?.breakdown?.sun_moon || 0,
-                    "sun_moon"
+                    "sun_moon",
                   )
                 }
                 icon={<Heart size={18} />}
@@ -486,7 +508,7 @@ export default function Compatibility() {
                   matchResult.synastry?.communication_style ||
                   normalizeScore(
                     matchResult.compatibility?.breakdown?.mercury || 0,
-                    "mercury"
+                    "mercury",
                   )
                 }
                 icon={<Speech size={18} />}
@@ -497,7 +519,7 @@ export default function Compatibility() {
                   matchResult.synastry?.physical_attraction ||
                   normalizeScore(
                     matchResult.compatibility?.breakdown?.attraction || 0,
-                    "attraction"
+                    "attraction",
                   )
                 }
                 icon={<Zap size={18} />}
@@ -508,7 +530,7 @@ export default function Compatibility() {
                   matchResult.synastry?.long_term_potential ||
                   normalizeScore(
                     matchResult.compatibility?.breakdown?.saturn || 0,
-                    "saturn"
+                    "saturn",
                   )
                 }
                 icon={<Clock size={18} />}
@@ -634,7 +656,7 @@ export default function Compatibility() {
                             {aspect.text}
                           </div>
                         </div>
-                      )
+                      ),
                     )}
                     {!matchResult.sections?.[0]?.interpretations &&
                       matchResult.synastry?.key_aspects &&
@@ -746,6 +768,13 @@ export default function Compatibility() {
               </div>
             </div>
 
+            <div className="mx-auto max-w-2xl">
+              <AskJyotishBridge
+                eyebrow="Understand this match"
+                question="We just ran our compatibility. What are the real strengths and friction points between us, and how do we work with them?"
+              />
+            </div>
+
             <div className="text-center pt-8">
               <button
                 onClick={() => setMatchResult(null)}
@@ -756,8 +785,8 @@ export default function Compatibility() {
             </div>
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </PageShell>
   );
 }
 
@@ -976,10 +1005,18 @@ function VedicGunaMilan({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/10">
-                  <th className="text-left py-2 px-3 text-white/40 text-xs uppercase tracking-widest">Guna</th>
-                  <th className="text-center py-2 px-3 text-white/40 text-xs uppercase tracking-widest">Score</th>
-                  <th className="text-left py-2 px-3 text-white/40 text-xs uppercase tracking-widest w-1/3">Match</th>
-                  <th className="text-left py-2 px-3 text-white/40 text-xs uppercase tracking-widest hidden md:table-cell">Interpretation</th>
+                  <th className="text-left py-2 px-3 text-white/40 text-xs uppercase tracking-widest">
+                    Guna
+                  </th>
+                  <th className="text-center py-2 px-3 text-white/40 text-xs uppercase tracking-widest">
+                    Score
+                  </th>
+                  <th className="text-left py-2 px-3 text-white/40 text-xs uppercase tracking-widest w-1/3">
+                    Match
+                  </th>
+                  <th className="text-left py-2 px-3 text-white/40 text-xs uppercase tracking-widest hidden md:table-cell">
+                    Interpretation
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -989,18 +1026,27 @@ function VedicGunaMilan({
                   const pct = (obtained / max) * 100;
                   return (
                     <tr key={i} className="border-b border-white/5">
-                      <td className="py-3 px-3 text-white/90 font-medium">{g.name || g.guna || `Guna ${i+1}`}</td>
+                      <td className="py-3 px-3 text-white/90 font-medium">
+                        {g.name || g.guna || `Guna ${i + 1}`}
+                      </td>
                       <td className="py-3 px-3 text-center">
-                        <span className={`font-mono font-bold ${pct >= 75 ? 'text-emerald-400' : pct >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+                        <span
+                          className={`font-mono font-bold ${pct >= 75 ? "text-emerald-400" : pct >= 50 ? "text-amber-400" : "text-red-400"}`}
+                        >
                           {obtained}/{max}
                         </span>
                       </td>
                       <td className="py-3 px-3">
                         <div className="w-full bg-white/10 rounded-full h-1.5">
-                          <div className={`h-1.5 rounded-full ${pct >= 75 ? 'bg-emerald-400' : pct >= 50 ? 'bg-amber-400' : 'bg-red-400'}`} style={{ width: `${pct}%` }} />
+                          <div
+                            className={`h-1.5 rounded-full ${pct >= 75 ? "bg-emerald-400" : pct >= 50 ? "bg-amber-400" : "bg-red-400"}`}
+                            style={{ width: `${pct}%` }}
+                          />
                         </div>
                       </td>
-                      <td className="py-3 px-3 text-white/40 text-xs hidden md:table-cell">{g.description || g.interpretation || ''}</td>
+                      <td className="py-3 px-3 text-white/40 text-xs hidden md:table-cell">
+                        {g.description || g.interpretation || ""}
+                      </td>
                     </tr>
                   );
                 })}
@@ -1008,7 +1054,9 @@ function VedicGunaMilan({
               <tfoot>
                 <tr className="border-t border-white/20">
                   <td className="py-3 px-3 text-gold font-bold">Total</td>
-                  <td className="py-3 px-3 text-center text-gold font-bold font-mono">{totalScore}/36</td>
+                  <td className="py-3 px-3 text-center text-gold font-bold font-mono">
+                    {totalScore}/36
+                  </td>
                   <td colSpan={2}></td>
                 </tr>
               </tfoot>
@@ -1019,12 +1067,24 @@ function VedicGunaMilan({
         {/* Remedies for Low Scores */}
         {totalScore < 18 && (
           <div className="mt-6 p-5 rounded-2xl bg-amber-500/5 border border-amber-500/20">
-            <h4 className="text-amber-400 text-sm font-bold uppercase tracking-widest mb-3">Recommended Remedies</h4>
+            <h4 className="text-amber-400 text-sm font-bold uppercase tracking-widest mb-3">
+              Recommended Remedies
+            </h4>
             <ul className="space-y-2 text-sm text-white/60">
-              <li>Perform Navagraha Puja to strengthen weak planetary combinations</li>
-              <li>Both partners should chant their respective planet mantras daily</li>
-              <li>Consult a qualified Vedic astrologer for personalized remedies</li>
-              {totalScore < 12 && <li className="text-amber-400">Consider detailed Nadi analysis before proceeding</li>}
+              <li>
+                Perform Navagraha Puja to strengthen weak planetary combinations
+              </li>
+              <li>
+                Both partners should chant their respective planet mantras daily
+              </li>
+              <li>
+                Consult a qualified Vedic astrologer for personalized remedies
+              </li>
+              {totalScore < 12 && (
+                <li className="text-amber-400">
+                  Consider detailed Nadi analysis before proceeding
+                </li>
+              )}
             </ul>
           </div>
         )}
@@ -1032,31 +1092,56 @@ function VedicGunaMilan({
         {/* Manglik Status */}
         {(() => {
           const manglikEntries = [
-            { label: maleData?.name || "Person 1", data: vedicMatching.manglik_male ?? vedicMatching.groom_manglik },
-            { label: femaleData?.name || "Person 2", data: vedicMatching.manglik_female ?? vedicMatching.bride_manglik },
+            {
+              label: maleData?.name || "Person 1",
+              data: vedicMatching.manglik_male ?? vedicMatching.groom_manglik,
+            },
+            {
+              label: femaleData?.name || "Person 2",
+              data: vedicMatching.manglik_female ?? vedicMatching.bride_manglik,
+            },
           ].filter(({ data }) => data !== undefined && data !== null);
 
           if (manglikEntries.length === 0) return null;
 
-          const bothManglik = manglikEntries.length === 2 && manglikEntries.every(({ data }) => {
-            return typeof data === 'object' && data !== null ? data.is_manglik : data === true;
-          });
+          const bothManglik =
+            manglikEntries.length === 2 &&
+            manglikEntries.every(({ data }) => {
+              return typeof data === "object" && data !== null
+                ? data.is_manglik
+                : data === true;
+            });
 
           return (
             <>
               <div className="grid grid-cols-2 gap-4 mt-6">
                 {manglikEntries.map(({ label, data }) => {
-                  const isManglik = typeof data === 'object' && data !== null ? data.is_manglik : data === true;
-                  const description = typeof data === 'object' && data !== null ? data.description : undefined;
+                  const isManglik =
+                    typeof data === "object" && data !== null
+                      ? data.is_manglik
+                      : data === true;
+                  const description =
+                    typeof data === "object" && data !== null
+                      ? data.description
+                      : undefined;
 
                   return (
-                    <div key={label} className="p-4 rounded-xl bg-white/5 border border-white/10">
-                      <p className="text-[10px] text-white/40 uppercase tracking-widest mb-1">{label}</p>
-                      <p className={`text-sm font-medium ${isManglik ? 'text-red-400' : 'text-emerald-400'}`}>
-                        {isManglik ? 'Manglik' : 'Non-Manglik'}
+                    <div
+                      key={label}
+                      className="p-4 rounded-xl bg-white/5 border border-white/10"
+                    >
+                      <p className="text-[10px] text-white/40 uppercase tracking-widest mb-1">
+                        {label}
+                      </p>
+                      <p
+                        className={`text-sm font-medium ${isManglik ? "text-red-400" : "text-emerald-400"}`}
+                      >
+                        {isManglik ? "Manglik" : "Non-Manglik"}
                       </p>
                       {description && (
-                        <p className="text-xs text-white/40 mt-1">{description}</p>
+                        <p className="text-xs text-white/40 mt-1">
+                          {description}
+                        </p>
                       )}
                     </div>
                   );
@@ -1065,7 +1150,10 @@ function VedicGunaMilan({
               {/* If both are Manglik, show neutralization note */}
               {bothManglik && (
                 <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 mt-3">
-                  <p className="text-xs text-emerald-300">Both partners are Manglik — the dosha is neutralized. No adverse effects expected.</p>
+                  <p className="text-xs text-emerald-300">
+                    Both partners are Manglik — the dosha is neutralized. No
+                    adverse effects expected.
+                  </p>
                 </div>
               )}
             </>

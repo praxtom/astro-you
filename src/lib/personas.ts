@@ -223,3 +223,22 @@ export const PERSONAS: AstrologerPersona[] = [
 export function getPersonaById(id: string): AstrologerPersona | undefined {
   return PERSONAS.find((persona) => persona.id === id);
 }
+
+/**
+ * Signature color per guide — used for portraits, chat accents, and cards.
+ * Falls back to gold for unknown ids.
+ */
+export const PERSONA_ACCENTS: Record<string, string> = {
+  "guru-vidyanath": "#b89af5", // violet — spirit
+  "arjun-sharma": "#f5b14c", // amber — ambition
+  "meera-devi": "#f08bb4", // rose — heart
+  "pandit-raghunath": "#ffcd6a", // gold — tradition
+  "dr-shanti": "#7ed4ad", // jade — wellbeing
+  "nanda-ji": "#e8b87f", // sandalwood — home
+  "ishaan-rao": "#6fb3f0", // sapphire — commerce
+  "tara-kapoor": "#c8b4f7", // wisteria — patterns
+};
+
+export function getPersonaAccent(id: string): string {
+  return PERSONA_ACCENTS[id] || "#ffcd6a";
+}

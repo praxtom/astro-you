@@ -51,10 +51,12 @@ export default function Pricing() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Could not start checkout");
       trackAcquisitionEvent("payment_checkout_started", { tier: tier.id });
-      if (data.shortUrl) window.location.href = data.shortUrl;
+      if (data.shortUrl) window.location.assign(data.shortUrl);
     } catch (err) {
       console.error("Subscription checkout error:", err);
-      setError(err instanceof Error ? err.message : "Subscription checkout failed");
+      setError(
+        err instanceof Error ? err.message : "Subscription checkout failed",
+      );
     } finally {
       setLoadingTier(null);
     }
@@ -81,14 +83,14 @@ export default function Pricing() {
             </h1>
             <p className="platform-copy mt-3 max-w-2xl">
               Subscriptions unlock recurring credits and deeper tools. Credit
-              packs are available when you only need AI astrologer sessions or
+              packs are available when you only need astrologer sittings or
               reports.
             </p>
           </div>
           <aside className="platform-panel-strong p-3">
             <p className="type-body-sm text-white/55">
-              Credits are shared across Jyotish chat, AI astrologers, and PDF
-              reports. AI astrologer sessions start at 5 credits/min.
+              Credits are shared across Jyotish chat, astrologer sittings, and
+              PDF reports. Astrologer sittings start at 5 credits/min.
             </p>
             <div className="mt-2 flex items-end justify-between border-t border-gold/20 pt-2">
               <div>
@@ -111,7 +113,11 @@ export default function Pricing() {
               disabled={isPaying}
               className="platform-button-primary mt-3 w-full"
             >
-              {isPaying ? <Loader2 size={15} className="animate-spin" /> : <Wallet size={15} />}
+              {isPaying ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <Wallet size={15} />
+              )}
               Buy selected pack
             </button>
           </aside>
@@ -161,7 +167,9 @@ export default function Pricing() {
                     });
                   }}
                   className={`platform-panel p-4 text-left transition-colors ${
-                    isSelected ? "border-gold/35 bg-gold/[0.07]" : "hover:border-white/20"
+                    isSelected
+                      ? "border-gold/35 bg-gold/[0.07]"
+                      : "hover:border-white/20"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -197,19 +205,27 @@ export default function Pricing() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
             <div>
               <p className="platform-eyebrow mb-2">Billing</p>
-              <p className="type-body-sm text-white/55">Razorpay checkout. Cancel anytime.</p>
+              <p className="type-body-sm text-white/55">
+                Razorpay checkout. Cancel anytime.
+              </p>
             </div>
             <div>
               <p className="platform-eyebrow mb-2">Consults</p>
-              <p className="type-body-sm text-white/55">Credits are charged by completed minutes.</p>
+              <p className="type-body-sm text-white/55">
+                Credits are charged by completed minutes.
+              </p>
             </div>
             <div>
               <p className="platform-eyebrow mb-2">Reports</p>
-              <p className="type-body-sm text-white/55">Generated PDFs are saved for redownload.</p>
+              <p className="type-body-sm text-white/55">
+                Generated PDFs are saved for redownload.
+              </p>
             </div>
             <div>
               <p className="platform-eyebrow mb-2">Value</p>
-              <p className="type-body-sm text-white/55">Pricing is shown before you start.</p>
+              <p className="type-body-sm text-white/55">
+                Pricing is shown before you start.
+              </p>
             </div>
           </div>
         </section>
@@ -292,7 +308,11 @@ function PlanCard({
           tier.popular ? "platform-button-primary" : "platform-button-secondary"
         } disabled:opacity-50`}
       >
-        {isLoading ? "Starting..." : tier.price === 0 ? "Get started" : "Subscribe"}
+        {isLoading
+          ? "Starting..."
+          : tier.price === 0
+            ? "Get started"
+            : "Subscribe"}
         {!isLoading && <ArrowRight size={15} />}
       </button>
     </article>

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { AtmanData, UserLifeEvent, WeightedPattern } from '../../types/user';
 import { AtmanService } from '../../lib/atman';
+import { postJson } from '../../lib/apiFetch';
 import { InnerCircleManager } from './InnerCircleManager';
 import { GrowthRadar } from './GrowthRadar';
 
@@ -98,18 +99,14 @@ function extractJournalInsights(text: string): JournalInsight[] {
 /**
  * Sadhana Path Generator Internal Component
  */
-const SadhanaPathGenerator: React.FC<{ atmanState: AtmanData }> = ({ atmanState }) => {
+const SadhanaPathGenerator: React.FC = () => {
     const [path, setPath] = useState<Array<{ day: number; practice: string; intention: string }> | null>(null);
     const [loading, setLoading] = useState(false);
 
     const generatePath = async () => {
         setLoading(true);
         try {
-            const response = await fetch('/api/sadhana-path', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ atmanData: atmanState })
-            });
+            const response = await postJson('/api/sadhana-path');
             const data = await response.json();
             if (data.path) setPath(data.path);
         } catch (e) {
@@ -644,7 +641,7 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                             className="border-t border-violet-500/10"
                         >
                             <div className="p-4">
-                                <SadhanaPathGenerator atmanState={atmanState} />
+                                <SadhanaPathGenerator />
                             </div>
                         </motion.div>
                     )}
