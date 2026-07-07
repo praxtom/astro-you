@@ -2,9 +2,12 @@ import { Config, Context } from "@netlify/functions";
 import { db, auth, FieldValue } from "./shared/firebase-admin";
 import { initializeUserCredits } from "./shared/credits";
 import { hashOtp, safeEqualHex } from "./shared/otp.js";
+import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit.js";
+import { isValidEmail } from "./send-otp.js";
 
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_MS = 15 * 60 * 1000; // 15 min lockout after too many failures
+const MAX_REQUESTS_PER_IP_PER_HOUR = 30;
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -13,8 +16,7 @@ const json = (body: unknown, status = 200) =>
   });
 
 type VerifyOutcome =
-  | { ok: true }
-  | { ok: false; status: number; error: string };
+  { ok: true } | { ok: false; status: number; error: string };
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
@@ -22,17 +24,28 @@ export default async (req: Request, _context: Context) => {
   }
 
   try {
+    // Per-IP cap so a single client can't brute-force codes across many
+    // addresses. The verify_otp scope fails CLOSED in shared/rate-limit.ts.
+    const rateLimit = await checkRateLimit({
+      scope: "verify_otp",
+      key: getRequestIdentifier(req),
+      limit: MAX_REQUESTS_PER_IP_PER_HOUR,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!rateLimit.allowed) {
+      return json({ error: "Too many requests. Please try again later." }, 429);
+    }
+
     const { email, code } = await req.json();
 
-    if (
-      !email ||
-      !code ||
-      typeof email !== "string" ||
-      typeof code !== "string"
-    ) {
+    if (!code || typeof code !== "string") {
       return json({ error: "Email and code are required" }, 400);
     }
-    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedEmail =
+      typeof email === "string" ? email.trim().toLowerCase() : "";
+    if (!isValidEmail(normalizedEmail)) {
+      return json({ error: "Email and code are required" }, 400);
+    }
     const otpRef = db.collection("otps").doc(normalizedEmail);
     const now = Date.now();
     const submittedHash = hashOtp(code, normalizedEmail);

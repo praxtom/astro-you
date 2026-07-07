@@ -22,7 +22,7 @@ test("canUseFeature reads from the shared entitlement table", () => {
 
 test("getUsageLimit returns numeric plan limits", () => {
   assert.equal(getUsageLimit("free", "monthlyCredits"), 15);
-  assert.equal(getUsageLimit("premium", "monthlyCredits"), 900);
-  assert.equal(getUsageLimit("pro", "monthlyCredits"), 2200);
+  assert.equal(getUsageLimit("premium", "monthlyCredits"), 700);
+  assert.equal(getUsageLimit("pro", "monthlyCredits"), 1600);
   assert.equal(getEntitlements("pro").displayName, "Pro");
 });

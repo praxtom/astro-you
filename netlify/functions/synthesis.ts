@@ -13,6 +13,7 @@ import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit";
 import { persistAtmanInsights } from "./shared/atman-brain";
 import { applyCreditChange, CreditError } from "./shared/credits";
 import { getConsultPersona } from "./shared/consult-session";
+import { isPaidSubscriptionActive } from "./shared/subscription-plans";
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
@@ -110,7 +111,20 @@ export default async (req: Request, _context: Context) => {
   // A unique ledgerId makes the charge idempotent per request.
   const creditTxnId = crypto.randomUUID();
   let creditCharged = false;
+  // Premium/Pro plans advertise unlimited Synthesis chat — honor that promise
+  // server-side and skip the per-message charge for active paid subscribers
+  // (within the standard grace window). The rate limits above still apply.
+  let unmeteredChat = false;
   if (uid) {
+    try {
+      const userSnap = await db.collection("users").doc(uid).get();
+      unmeteredChat = isPaidSubscriptionActive(userSnap.data()?.subscription);
+    } catch (subError) {
+      // Fall back to metered billing if the subscription lookup fails.
+      console.error("[Synthesis] Subscription lookup failed:", subError);
+    }
+  }
+  if (uid && !unmeteredChat) {
     try {
       await applyCreditChange(
         { db, FieldValue },

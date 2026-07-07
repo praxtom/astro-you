@@ -5,18 +5,26 @@ import { MapPin, Loader2, X } from "lucide-react";
 interface LocationInputProps {
   value: string;
   onChange: (value: string) => void;
-  onSelect?: (suggestion: Suggestion) => void;
+  /**
+   * Fired when the user picks a suggestion from the dropdown. Carries the
+   * geocoded lat/lon so callers can persist coordinates instead of
+   * re-geocoding the place string on every astrology call. Manual typing
+   * never fires this — callers should treat coordinates as optional.
+   */
+  onSelect?: (suggestion: LocationSuggestion) => void;
   placeholder?: string;
   label?: string;
   className?: string;
   icon?: React.ReactNode;
 }
 
-interface Suggestion {
+export interface LocationSuggestion {
   display_name: string;
   lat: string;
   lon: string;
 }
+
+type Suggestion = LocationSuggestion;
 
 export default function LocationInput({
   value,
@@ -93,8 +101,8 @@ export default function LocationInput({
     try {
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-          searchQuery
-        )}&addressdetails=1&limit=5&featuretype=city`
+          searchQuery,
+        )}&addressdetails=1&limit=5&featuretype=city`,
       );
       const data = await response.json();
 
@@ -206,7 +214,7 @@ export default function LocationInput({
               ))}
             </div>
           </div>,
-          document.body
+          document.body,
         )}
     </div>
   );

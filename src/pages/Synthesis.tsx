@@ -275,6 +275,12 @@ export default function Synthesis() {
             chartType: currentChartType,
           });
 
+          if (response.status === 401) {
+            // Guest access doesn't cover this chart type — invite sign-in
+            // instead of implying the birth data is wrong.
+            setShowAuthModal(true);
+            return;
+          }
           if (!response.ok) throw new Error("API error");
 
           const data = await response.json();
@@ -282,8 +288,8 @@ export default function Synthesis() {
         } catch (err) {
           console.error("Error fetching guest Kundali:", err);
           showError(
-            "Chart Error",
-            "Could not calculate your birth chart. Please check your birth data.",
+            "Chart Unavailable",
+            "We couldn't load your chart right now. Sign in for full access, or try again shortly.",
           );
         } finally {
           setIsLoadingKundali(false);

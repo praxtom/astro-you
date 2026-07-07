@@ -23,7 +23,8 @@ export default async (req: Request, _context: Context) => {
     const uid = decoded.uid;
     const userDoc = await db.collection("users").doc(uid).get();
     const subscription = userDoc.data()?.subscription || {};
-    const subId = subscription.razorpaySubscriptionId || subscription.razorpaySubId;
+    const subId =
+      subscription.razorpaySubscriptionId || subscription.razorpaySubId;
 
     if (!subId) {
       return new Response(JSON.stringify({ error: "No active subscription" }), {
@@ -32,8 +33,11 @@ export default async (req: Request, _context: Context) => {
       });
     }
 
-    // Cancel at end of billing period
-    await razorpay.subscriptions.cancel(subId, false);
+    // Cancel at end of billing period. The 2nd arg is `cancelAtCycleEnd` —
+    // passing false would cancel IMMEDIATELY and forfeit the paid period.
+    // Razorpay emits subscription.cancelled at cycle end, and the webhook
+    // downgrades the tier then.
+    await razorpay.subscriptions.cancel(subId, true);
 
     await db
       .collection("users")
@@ -55,8 +59,8 @@ export default async (req: Request, _context: Context) => {
         currentEnd: subscription.currentEnd || null,
       }),
       {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
+        status: 200,
+        headers: { "Content-Type": "application/json" },
       },
     );
   } catch (err: any) {

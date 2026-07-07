@@ -1,4 +1,8 @@
+// KEEP IN SYNC with netlify/functions/shared/entitlements.ts (server copy) — parity is enforced by netlify/functions/__tests__/billing-entitlements-parity.test.ts.
 export type SubscriptionTier = "free" | "premium" | "pro";
+
+/** Days of continued paid access after `subscription.expiresAt` before the tier lapses. */
+export const SUBSCRIPTION_GRACE_DAYS = 3;
 
 export type FeatureKey =
   | "basic_profile"
@@ -137,10 +141,16 @@ export function getEntitlements(tier?: string | null): TierEntitlements {
   return ENTITLEMENTS[resolveTier(tier)];
 }
 
-export function canUseFeature(tier: string | null | undefined, featureKey: FeatureKey): boolean {
+export function canUseFeature(
+  tier: string | null | undefined,
+  featureKey: FeatureKey,
+): boolean {
   return Boolean(getEntitlements(tier).features[featureKey]);
 }
 
-export function getUsageLimit(tier: string | null | undefined, limitKey: UsageLimitKey): number {
+export function getUsageLimit(
+  tier: string | null | undefined,
+  limitKey: UsageLimitKey,
+): number {
   return getEntitlements(tier).limits[limitKey] ?? 0;
 }

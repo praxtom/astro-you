@@ -90,6 +90,35 @@ const PUBLIC_CHART_TYPES = new Set([
   "TAROT_THREE",
 ]);
 
+// The minimal natal set guests may request without an account — the SEO
+// acquisition pages (/free-kundali) and guest chat render a basic D1 chart
+// before signup. Gated by the stricter fail-closed per-IP budget below.
+const GUEST_CHART_TYPES = new Set(["D1"]);
+const GUEST_REQUESTS_PER_IP_PER_HOUR = 8;
+
+/**
+ * Fail-closed per-IP limiter for guest chart requests. "kundali_guest" is not
+ * enrolled in the shared limiter's FAIL_CLOSED_SCOPES, whose outage fallback
+ * reports `{ allowed: true, remaining: 0 }` — the same shape as the final
+ * in-budget request. Denying `remaining <= 0` (and sizing the limit one above
+ * the real budget) therefore also denies during limiter-store outages: an
+ * unauthenticated paid-API path must never fail open.
+ */
+async function allowAnonRequest(
+  req: Request,
+  scope: string,
+  budget: number,
+  windowMs: number,
+): Promise<boolean> {
+  const result = await checkRateLimit({
+    scope,
+    key: getRequestIdentifier(req),
+    limit: budget + 1,
+    windowMs,
+  });
+  return result.allowed && result.remaining > 0;
+}
+
 // Divisional charts handled by the default switch branch — an explicit
 // allowlist so an unknown chartType returns 400 instead of an unintended
 // (billable) upstream call.
@@ -184,13 +213,32 @@ export default async (req: Request, _context: Context) => {
     // Authentication: all chart types except the public/landing ones require a
     // verified Firebase ID token. This prevents anonymous abuse of the paid
     // astrology API. Public types (panchang/festivals/eclipses/tarot) stay open
-    // for the marketing pages but remain rate-limited above.
+    // for the marketing pages but remain rate-limited above. Guests may also
+    // request the basic natal set (GUEST_CHART_TYPES) under a strict
+    // fail-closed per-IP budget; authenticated behavior is unchanged.
     if (!PUBLIC_CHART_TYPES.has(String(chartType))) {
       try {
         await verifyToken(body.idToken);
       } catch (err) {
-        const status = err instanceof AuthError ? err.status : 401;
-        return json({ error: "Authentication required" }, status);
+        if (!GUEST_CHART_TYPES.has(String(chartType))) {
+          const status = err instanceof AuthError ? err.status : 401;
+          return json({ error: "Authentication required" }, status);
+        }
+        const guestAllowed = await allowAnonRequest(
+          req,
+          "kundali_guest",
+          GUEST_REQUESTS_PER_IP_PER_HOUR,
+          60 * 60 * 1000,
+        );
+        if (!guestAllowed) {
+          return json(
+            {
+              error:
+                "Too many chart requests. Sign in for full access, or try again later.",
+            },
+            429,
+          );
+        }
       }
     }
 

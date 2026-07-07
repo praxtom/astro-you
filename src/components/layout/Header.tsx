@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../../lib/useAuth";
 import { useHeaderScroll, useUserProfile } from "../../hooks";
 import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "../../lib/firebase";
+import { db } from "../../lib/firebase";
 import {
   ChevronDown,
   Crown,
@@ -21,7 +21,6 @@ import {
   Wallet,
   X,
 } from "lucide-react";
-import { signOut } from "firebase/auth";
 import { STORAGE_KEYS } from "../../lib/constants";
 import {
   SPACES,
@@ -46,7 +45,7 @@ interface HeaderProps {
 export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { profile } = useUserProfile();
   const { scrolled, isVisible } = useHeaderScroll();
 
@@ -54,15 +53,9 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
     location.pathname !== "/" && location.pathname !== "/landing";
 
   const handleLogout = async () => {
-    await signOut(auth);
-    // Clear session-only keys. Keep PROFILE in localStorage as a cache —
-    // Firestore is the source of truth and useUserProfile will re-sync on next login.
-    sessionStorage.removeItem(STORAGE_KEYS.GUEST_PROFILE);
-    sessionStorage.removeItem(STORAGE_KEYS.GUEST_COMPLETE);
-    sessionStorage.removeItem(STORAGE_KEYS.MODE);
-    sessionStorage.removeItem(STORAGE_KEYS.LOGIN_REDIRECT);
-    // Clear non-profile localStorage keys
-    localStorage.removeItem(STORAGE_KEYS.FREE_SECONDS);
+    // Storage cleanup is centralized in AuthContext.signOut so every logout
+    // path clears the same per-user keys (profile, drafts, guest markers).
+    await signOut();
     navigate("/");
   };
 

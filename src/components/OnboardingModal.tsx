@@ -1,8 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "../lib/useAuth";
-import { doc, setDoc } from "firebase/firestore";
+import { deleteField, doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { STORAGE_KEYS } from "../lib/constants";
+import {
+  birthDataChanged,
+  parseSuggestionCoordinates,
+  type BirthCoordinates,
+} from "../lib/birth-data";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -43,6 +48,7 @@ interface OnboardingModalProps {
     pob?: string;
     currentLocation?: string;
     birthTimeUnknown?: boolean;
+    coordinates?: { lat: number; lng: number };
   } | null;
 }
 
@@ -77,37 +83,45 @@ export default function OnboardingModal({
     birthTimeUnknown: false,
   });
 
+  // Geocoded birth-place coordinates, captured when the user picks a
+  // LocationInput suggestion. Optional: manual typing leaves this null.
+  const [birthCoordinates, setBirthCoordinates] =
+    useState<BirthCoordinates | null>(null);
+
   // Focus trap for accessibility
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === "Escape") {
-      onClose();
-      return;
-    }
-    if (e.key !== "Tab" || !modalRef.current) return;
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab" || !modalRef.current) return;
 
-    const focusable = modalRef.current.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    if (focusable.length === 0) return;
+      const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
 
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
 
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  }, [onClose]);
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    },
+    [onClose],
+  );
 
   useEffect(() => {
     if (isOpen) {
       document.addEventListener("keydown", handleKeyDown);
       setTimeout(() => {
         const first = modalRef.current?.querySelector<HTMLElement>(
-          'button, [href], input, select, textarea'
+          "button, [href], input, select, textarea",
         );
         first?.focus();
       }, 100);
@@ -128,20 +142,58 @@ export default function OnboardingModal({
           currentLocation: existingProfile.currentLocation || "",
           birthTimeUnknown: existingProfile.birthTimeUnknown || false,
         });
+        setBirthCoordinates(
+          parseSuggestionCoordinates(
+            existingProfile.coordinates?.lat,
+            existingProfile.coordinates?.lng,
+          ),
+        );
         // If profile already exists, start at identity step (skip upload)
         setStep("identity");
       } else {
         const saved = localStorage.getItem(STORAGE_KEYS.PROFILE);
         if (saved) {
-          setFormData(JSON.parse(saved));
+          try {
+            const parsed = JSON.parse(saved);
+            // Whitelist known fields — the synced profile JSON can carry
+            // extra keys (credits, subscription, ...) that must never
+            // round-trip into a save.
+            setFormData({
+              name: typeof parsed.name === "string" ? parsed.name : "",
+              gender: typeof parsed.gender === "string" ? parsed.gender : "",
+              dob: typeof parsed.dob === "string" ? parsed.dob : "",
+              tob: typeof parsed.tob === "string" ? parsed.tob : "",
+              pob: typeof parsed.pob === "string" ? parsed.pob : "",
+              currentLocation:
+                typeof parsed.currentLocation === "string"
+                  ? parsed.currentLocation
+                  : "",
+              birthTimeUnknown: Boolean(parsed.birthTimeUnknown),
+            });
+            setBirthCoordinates(
+              parseSuggestionCoordinates(
+                parsed.coordinates?.lat,
+                parsed.coordinates?.lng,
+              ),
+            );
+          } catch {
+            // Corrupt browser cache — start fresh.
+          }
         }
       }
     }
   }, [isOpen, existingProfile]);
 
-  const saveStepData = (data: typeof formData) => {
+  const saveStepData = (
+    data: typeof formData,
+    coords: BirthCoordinates | null | undefined = undefined,
+  ) => {
+    const nextCoords = coords === undefined ? birthCoordinates : coords;
     setFormData(data);
-    localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(data));
+    localStorage.setItem(
+      STORAGE_KEYS.PROFILE,
+      JSON.stringify(nextCoords ? { ...data, coordinates: nextCoords } : data),
+    );
   };
 
   const getCurrentLocation = () => {
@@ -158,7 +210,7 @@ export default function OnboardingModal({
 
           // Reverse geocoding using Nominatim
           const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
           );
           const data = await response.json();
 
@@ -200,7 +252,7 @@ export default function OnboardingModal({
         console.error(error);
         alert("Unable to retrieve your location");
         setIsLocating(false);
-      }
+      },
     );
   };
 
@@ -248,7 +300,7 @@ export default function OnboardingModal({
           } else {
             setParseError(
               result.error ||
-              "Could not parse chart. Please try a clearer image."
+                "Could not parse chart. Please try a clearer image.",
             );
           }
         } catch (err) {
@@ -293,31 +345,80 @@ export default function OnboardingModal({
 
   const finalizeJourney = async () => {
     setIsSaving(true);
+    const storedProfile = JSON.stringify(
+      birthCoordinates
+        ? { ...formData, coordinates: birthCoordinates }
+        : formData,
+    );
     try {
       if (user) {
         // Logged-in user: Save to Firestore
-        await setDoc(
-          doc(db, "users", user.uid),
-          {
-            profile: {
-              ...formData,
-              parsedChart: parsedChart, // Save reference to parsed chart if any
-            },
-            updatedAt: new Date(),
-          },
-          { merge: true }
+        const userRef = doc(db, "users", user.uid);
+        // Read the current profile so we can detect a birth-data change and
+        // clean up stale coordinates/cached charts in the same write.
+        const prevSnap = await getDoc(userRef);
+        const prevProfile = (prevSnap.data()?.profile ?? null) as Record<
+          string,
+          any
+        > | null;
+        const prevCoords = parseSuggestionCoordinates(
+          prevProfile?.coordinates?.lat,
+          prevProfile?.coordinates?.lng,
         );
-        localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(formData));
+
+        const profilePayload: Record<string, any> = {
+          ...formData,
+          parsedChart: parsedChart, // Save reference to parsed chart if any
+        };
+        if (birthCoordinates) {
+          profilePayload.coordinates = birthCoordinates;
+        } else if (
+          prevCoords &&
+          (prevProfile?.pob || "").trim() !== formData.pob.trim()
+        ) {
+          // pob changed without picking a suggestion — the stored coordinates
+          // belong to the old place and must not survive.
+          profilePayload.coordinates = deleteField();
+        }
+
+        const updates: Record<string, any> = {
+          profile: profilePayload,
+          updatedAt: new Date(),
+        };
+        if (
+          birthDataChanged(
+            prevProfile
+              ? {
+                  dob: prevProfile.dob,
+                  tob: prevProfile.tob,
+                  pob: prevProfile.pob,
+                  coordinates: prevCoords,
+                }
+              : null,
+            {
+              dob: formData.dob,
+              tob: formData.tob,
+              pob: formData.pob,
+              coordinates: birthCoordinates,
+            },
+          )
+        ) {
+          // Birth data changed → every cached chart is for the wrong sky.
+          // Clear them so useKundali and server-side AI context refetch.
+          updates.kundaliData = deleteField();
+          updates.kundaliData_D9 = deleteField();
+          updates.kundaliData_D10 = deleteField();
+        }
+
+        await setDoc(userRef, updates, { merge: true });
+        localStorage.setItem(STORAGE_KEYS.PROFILE, storedProfile);
         localStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");
       } else {
         // Guest path
-        sessionStorage.setItem(
-          STORAGE_KEYS.GUEST_PROFILE,
-          JSON.stringify(formData)
-        );
+        sessionStorage.setItem(STORAGE_KEYS.GUEST_PROFILE, storedProfile);
         sessionStorage.setItem(STORAGE_KEYS.GUEST_COMPLETE, "true");
         // Also keep in localStorage for continuity if they sign up later
-        localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(formData));
+        localStorage.setItem(STORAGE_KEYS.PROFILE, storedProfile);
       }
 
       if (onComplete) onComplete();
@@ -382,9 +483,10 @@ export default function OnboardingModal({
             transition={{
               type: "spring",
               duration: 0.5,
-              bounce: 0.2
+              bounce: 0.2,
             }}
-            className="w-full max-w-xl bg-[#0a0a0f] border border-white/10 rounded-[2rem] relative z-10 flex flex-col max-h-[90vh] overflow-hidden shadow-2xl">
+            className="w-full max-w-xl bg-[#0a0a0f] border border-white/10 rounded-[2rem] relative z-10 flex flex-col max-h-[90vh] overflow-hidden shadow-2xl"
+          >
             {/* Header */}
             <div className="p-6 border-b border-white/5 flex justify-between items-center">
               <div className="flex items-center gap-4">
@@ -398,7 +500,10 @@ export default function OnboardingModal({
                   </button>
                 )}
                 <div>
-                  <h3 id="onboarding-modal-title" className="text-xl font-display text-white">
+                  <h3
+                    id="onboarding-modal-title"
+                    className="text-xl font-display text-white"
+                  >
                     {step === "upload" && "Upload Kundali"}
                     {step === "identity" && "Personal Basis"}
                     {step === "temporal" && "Birth Time"}
@@ -431,11 +536,12 @@ export default function OnboardingModal({
                   return (
                     <div
                       key={s}
-                      className={`h-0.5 flex-1 rounded-full transition-all duration-700 ${i <= currentIndex ? "bg-gold" : "bg-white/5"
-                        }`}
+                      className={`h-0.5 flex-1 rounded-full transition-all duration-700 ${
+                        i <= currentIndex ? "bg-gold" : "bg-white/5"
+                      }`}
                     ></div>
                   );
-                }
+                },
               )}
             </div>
 
@@ -453,7 +559,8 @@ export default function OnboardingModal({
                   {step === "upload" && (
                     <div>
                       <p className="text-sm text-white/50 mb-4">
-                        Upload an image of your Kundali to auto-fill your profile.
+                        Upload an image of your Kundali to auto-fill your
+                        profile.
                       </p>
 
                       {/* Hidden file input */}
@@ -469,15 +576,18 @@ export default function OnboardingModal({
                       {!uploadedImage ? (
                         <label
                           htmlFor="modal-chart-upload"
-                            className={`flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${isUploading
-                            ? "border-gold/50 bg-gold/5"
-                            : "border-white/10 hover:border-gold/30 hover:bg-white/5"
-                            }`}
+                          className={`flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${
+                            isUploading
+                              ? "border-gold/50 bg-gold/5"
+                              : "border-white/10 hover:border-gold/30 hover:bg-white/5"
+                          }`}
                         >
                           {isUploading ? (
                             <div className="flex flex-col items-center">
                               <Loader2 className="w-8 h-8 text-gold animate-spin mb-4" />
-                              <p className="text-xs text-white/40">Uploading...</p>
+                              <p className="text-xs text-white/40">
+                                Uploading...
+                              </p>
                             </div>
                           ) : (
                             <div className="flex flex-col items-center">
@@ -521,7 +631,9 @@ export default function OnboardingModal({
                           {parseError && !isParsing && (
                             <div className="flex items-start gap-3 p-4 rounded-xl bg-red-500/5 border border-red-500/20">
                               <AlertCircle className="w-4 h-4 text-red-400 mt-0.5" />
-                              <p className="text-xs text-red-300/80">{parseError}</p>
+                              <p className="text-xs text-red-300/80">
+                                {parseError}
+                              </p>
                             </div>
                           )}
 
@@ -595,7 +707,10 @@ export default function OnboardingModal({
                             className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 focus:border-gold/50 transition-all outline-none text-white font-sans"
                             value={formData.name}
                             onChange={(e) =>
-                              saveStepData({ ...formData, name: e.target.value })
+                              saveStepData({
+                                ...formData,
+                                name: e.target.value,
+                              })
                             }
                           />
                         </div>
@@ -607,11 +722,14 @@ export default function OnboardingModal({
                             {["Male", "Female", "Other"].map((g) => (
                               <button
                                 key={g}
-                                onClick={() => saveStepData({ ...formData, gender: g })}
-                                className={`py-3 rounded-xl border text-xs font-sans transition-all font-bold tracking-widest uppercase ${formData.gender === g
-                                  ? "bg-gold border-gold text-[#030308] shadow-[0_0_15px_rgba(229,185,106,0.2)]"
-                                  : "bg-white/5 border-white/10 text-white/40 hover:border-white/30 hover:bg-white/10"
-                                  }`}
+                                onClick={() =>
+                                  saveStepData({ ...formData, gender: g })
+                                }
+                                className={`py-3 rounded-xl border text-xs font-sans transition-all font-bold tracking-widest uppercase ${
+                                  formData.gender === g
+                                    ? "bg-gold border-gold text-[#030308] shadow-[0_0_15px_rgba(229,185,106,0.2)]"
+                                    : "bg-white/5 border-white/10 text-white/40 hover:border-white/30 hover:bg-white/10"
+                                }`}
                               >
                                 {g}
                               </button>
@@ -648,11 +766,14 @@ export default function OnboardingModal({
                           </label>
                           <input
                             type="time"
-                            className={`w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 focus:border-gold/50 transition-all outline-none text-white font-sans appearance-none ${formData.birthTimeUnknown
-                              ? "opacity-30 pointer-events-none"
-                              : ""
-                              }`}
-                            value={formData.birthTimeUnknown ? "12:00" : formData.tob}
+                            className={`w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 focus:border-gold/50 transition-all outline-none text-white font-sans appearance-none ${
+                              formData.birthTimeUnknown
+                                ? "opacity-30 pointer-events-none"
+                                : ""
+                            }`}
+                            value={
+                              formData.birthTimeUnknown ? "12:00" : formData.tob
+                            }
                             onChange={(e) =>
                               saveStepData({ ...formData, tob: e.target.value })
                             }
@@ -679,8 +800,8 @@ export default function OnboardingModal({
                       {formData.birthTimeUnknown && (
                         <div className="mt-4 p-3 rounded-lg bg-gold/5 border border-gold/10">
                           <p className="text-xs text-gold/60 leading-relaxed">
-                            Note: Using 12:00 noon as a reference. Some chart aspects
-                            may be less precise.
+                            Note: Using 12:00 noon as a reference. Some chart
+                            aspects may be less precise.
                           </p>
                         </div>
                       )}
@@ -691,8 +812,8 @@ export default function OnboardingModal({
                   {step === "spatial" && (
                     <div>
                       <p className="text-sm text-white/50 mb-4">
-                        Precision is key. Where were you when the stars were aligned
-                        this way?
+                        Precision is key. Where were you when the stars were
+                        aligned this way?
                       </p>
                       <div className="space-y-4">
                         <label className="block text-xs uppercase tracking-[0.2em] font-bold text-white/30">
@@ -700,7 +821,23 @@ export default function OnboardingModal({
                         </label>
                         <LocationInput
                           value={formData.pob}
-                          onChange={(val) => saveStepData({ ...formData, pob: val })}
+                          onChange={(val) => {
+                            // Typing invalidates any previously selected
+                            // coordinates — they belong to another string.
+                            setBirthCoordinates(null);
+                            saveStepData({ ...formData, pob: val }, null);
+                          }}
+                          onSelect={(suggestion) => {
+                            const coords = parseSuggestionCoordinates(
+                              suggestion.lat,
+                              suggestion.lon,
+                            );
+                            setBirthCoordinates(coords);
+                            saveStepData(
+                              { ...formData, pob: suggestion.display_name },
+                              coords,
+                            );
+                          }}
                           placeholder="Search birth city..."
                         />
                       </div>
@@ -721,7 +858,10 @@ export default function OnboardingModal({
                           <LocationInput
                             value={formData.currentLocation}
                             onChange={(val) =>
-                              saveStepData({ ...formData, currentLocation: val })
+                              saveStepData({
+                                ...formData,
+                                currentLocation: val,
+                              })
                             }
                             placeholder="Search current city..."
                           />
@@ -746,7 +886,9 @@ export default function OnboardingModal({
                             <Navigation className="w-5 h-5 text-gold group-hover:scale-110 transition-transform" />
                           )}
                           <span className="text-xs font-bold uppercase tracking-widest text-white/60 group-hover:text-gold transition-colors">
-                            {isLocating ? "Locating..." : "Use My Current Location"}
+                            {isLocating
+                              ? "Locating..."
+                              : "Use My Current Location"}
                           </span>
                         </button>
                       </div>
@@ -762,7 +904,8 @@ export default function OnboardingModal({
                 onClick={nextStep}
                 disabled={
                   isSaving ||
-                  (step === "identity" && (!formData.name || !formData.gender)) ||
+                  (step === "identity" &&
+                    (!formData.name || !formData.gender)) ||
                   (step === "temporal" && (!formData.dob || !formData.tob)) ||
                   (step === "spatial" && !formData.pob) ||
                   (step === "present" && !formData.currentLocation)

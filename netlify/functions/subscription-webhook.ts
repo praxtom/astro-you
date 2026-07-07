@@ -1,6 +1,10 @@
 import { Config, Context } from "@netlify/functions";
+import Razorpay from "razorpay";
 import { db, FieldValue } from "./shared/firebase-admin";
-import { applyCreditChangeInTransaction } from "./shared/credits";
+import {
+  applyCreditChange,
+  applyCreditChangeInTransaction,
+} from "./shared/credits";
 import { getUsageLimit } from "./shared/entitlements";
 import { writeAuditLog } from "./shared/audit-log";
 import { verifyWebhookSignature } from "./shared/razorpay-payments";
@@ -12,6 +16,102 @@ import {
 // A "processing" event older than this is treated as stale (a crashed prior
 // run) and may be reprocessed, so a mid-flight crash can't wedge an event.
 const PROCESSING_STALE_MS = 5 * 60 * 1000;
+
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID || "",
+  key_secret: process.env.RAZORPAY_KEY_SECRET || "",
+});
+
+/**
+ * Resolve the AstroYou uid for a subscription event. Prefers `notes.uid` (set
+ * at subscription creation); falls back to the user doc that references this
+ * subscription id, so a payload with stripped notes still reaches the right
+ * account instead of silently dropping a paid event.
+ */
+async function resolveSubscriptionUid(
+  sub: { id?: string; notes?: Record<string, unknown> } | undefined,
+): Promise<string | undefined> {
+  const fromNotes = sub?.notes?.uid;
+  if (typeof fromNotes === "string" && fromNotes) return fromNotes;
+  if (!sub?.id) return undefined;
+  const match = await db
+    .collection("users")
+    .where("subscription.razorpaySubscriptionId", "==", sub.id)
+    .limit(1)
+    .get();
+  return match.empty ? undefined : match.docs[0].id;
+}
+
+/**
+ * Record that a subscription event could not be matched to any user (money may
+ * have moved without credits being granted) — flag for manual review instead
+ * of retrying forever.
+ */
+async function recordUnmatchedSubscriptionEvent(
+  eventDocId: string,
+  eventType: string,
+  sub: { id?: string } | undefined,
+) {
+  console.error(
+    `[Webhook] ${eventType} could not be matched to any user for subscription ${sub?.id} — manual review needed`,
+  );
+  await db
+    .collection("webhookEvents")
+    .doc(eventDocId)
+    .set(
+      { note: "uid_unresolved", subscriptionId: sub?.id || null },
+      { merge: true },
+    )
+    .catch((writeError) => {
+      console.error("[Webhook] Failed to note unmatched event:", writeError);
+    });
+  await writeAuditLog({
+    action: "subscription_webhook_unmatched",
+    entityType: "subscription",
+    entityId: sub?.id,
+    metadata: { eventType },
+  }).catch((auditError) => {
+    console.error("[Webhook] Audit log failed:", auditError);
+  });
+}
+
+/**
+ * Resurrection guard: the user document no longer exists (account deleted),
+ * so never re-create it from a webhook. For events that imply active billing,
+ * cancel the subscription at Razorpay immediately — the account is gone, stop
+ * charging the card.
+ */
+async function handleOrphanedSubscriptionEvent(
+  uid: string,
+  eventType: string,
+  sub: { id?: string },
+  cancelAtRazorpay: boolean,
+) {
+  console.error(
+    `[Webhook] ${eventType} for deleted user ${uid} (subscription ${sub.id}) — user doc NOT recreated`,
+  );
+  let cancelled = false;
+  if (cancelAtRazorpay && sub.id) {
+    try {
+      await razorpay.subscriptions.cancel(sub.id, false);
+      cancelled = true;
+    } catch (cancelError) {
+      console.error(
+        `[Webhook] Failed to cancel orphaned subscription ${sub.id}:`,
+        cancelError,
+      );
+    }
+  }
+  await writeAuditLog({
+    uid,
+    action: "subscription_webhook_orphaned",
+    entityType: "subscription",
+    entityId: sub.id,
+    metadata: { eventType, cancelledAtRazorpay: cancelled },
+  }).catch((auditError) => {
+    console.error("[Webhook] Audit log failed:", auditError);
+  });
+}
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
@@ -74,10 +174,12 @@ export default async (req: Request, _context: Context) => {
       case "subscription.activated":
       case "subscription.charged": {
         const sub = payload.subscription?.entity;
-        const uid = sub?.notes?.uid;
+        const uid = await resolveSubscriptionUid(sub);
         if (!uid) {
-          console.warn(
-            `[Webhook] ${eventType} missing notes.uid for subscription ${sub?.id} — credits NOT granted`,
+          await recordUnmatchedSubscriptionEvent(
+            resolvedEventId,
+            eventType,
+            sub,
           );
           break;
         }
@@ -101,8 +203,10 @@ export default async (req: Request, _context: Context) => {
         // next charge date so access never silently lapses while paid.
         const expiresAt = currentEnd || chargeAt || null;
 
-        await db.runTransaction(async (tx) => {
+        const userExists = await db.runTransaction(async (tx) => {
           const userSnap = await tx.get(userRef);
+          // Deleted account — never resurrect the user doc from a webhook.
+          if (!userSnap.exists) return false;
           const currentCredits = userSnap.data()?.credits ?? 0;
 
           tx.set(
@@ -139,7 +243,14 @@ export default async (req: Request, _context: Context) => {
             },
             currentCredits,
           );
+          return true;
         });
+
+        if (!userExists) {
+          // Account is gone but the subscription is live — stop billing.
+          await handleOrphanedSubscriptionEvent(uid, eventType, sub, true);
+          break;
+        }
 
         console.log(`[Webhook] User ${uid} activated ${tier}`);
         await writeAuditLog({
@@ -157,32 +268,36 @@ export default async (req: Request, _context: Context) => {
       case "subscription.halted":
       case "subscription.cancelled": {
         const sub = payload.subscription?.entity;
-        const uid = sub?.notes?.uid;
+        const uid = await resolveSubscriptionUid(sub);
         if (!uid) {
-          console.warn(
-            `[Webhook] ${eventType} missing notes.uid for subscription ${sub?.id}`,
+          await recordUnmatchedSubscriptionEvent(
+            resolvedEventId,
+            eventType,
+            sub,
           );
           break;
         }
 
-        await db
-          .collection("users")
-          .doc(uid)
-          .set(
-            {
-              subscription: {
-                tier: "free",
-                status:
-                  eventType === "subscription.cancelled"
-                    ? "cancelled"
-                    : "halted",
-                cancelledAt: new Date(),
-                // Drop access immediately — no longer a paying subscriber.
-                expiresAt: null,
-              },
+        const userRef = db.collection("users").doc(uid);
+        const userSnap = await userRef.get();
+        if (!userSnap.exists) {
+          await handleOrphanedSubscriptionEvent(uid, eventType, sub, false);
+          break;
+        }
+
+        await userRef.set(
+          {
+            subscription: {
+              tier: "free",
+              status:
+                eventType === "subscription.cancelled" ? "cancelled" : "halted",
+              cancelledAt: new Date(),
+              // Drop access immediately — no longer a paying subscriber.
+              expiresAt: null,
             },
-            { merge: true },
-          );
+          },
+          { merge: true },
+        );
 
         console.log(`[Webhook] User ${uid} subscription ${eventType}`);
         await writeAuditLog({
@@ -199,11 +314,20 @@ export default async (req: Request, _context: Context) => {
 
       case "subscription.pending": {
         const sub = payload.subscription?.entity;
-        const uid = sub?.notes?.uid;
+        const uid = await resolveSubscriptionUid(sub);
         if (!uid) {
-          console.warn(
-            `[Webhook] ${eventType} missing notes.uid for subscription ${sub?.id}`,
+          await recordUnmatchedSubscriptionEvent(
+            resolvedEventId,
+            eventType,
+            sub,
           );
+          break;
+        }
+
+        const userRef = db.collection("users").doc(uid);
+        const userSnap = await userRef.get();
+        if (!userSnap.exists) {
+          await handleOrphanedSubscriptionEvent(uid, eventType, sub, false);
           break;
         }
 
@@ -214,26 +338,275 @@ export default async (req: Request, _context: Context) => {
           ? new Date(sub.current_end * 1000)
           : new Date();
         const gracePeriodEnd = getSubscriptionGracePeriodEnd(paidThrough);
-        await db
-          .collection("users")
-          .doc(uid)
-          .set(
-            {
-              subscription: {
-                status: "pending",
-                gracePeriodEnd,
-                // Keep paid access alive through the grace period.
-                expiresAt: gracePeriodEnd,
-              },
+        await userRef.set(
+          {
+            subscription: {
+              status: "pending",
+              gracePeriodEnd,
+              // Keep paid access alive through the grace period.
+              expiresAt: gracePeriodEnd,
             },
-            { merge: true },
-          );
+          },
+          { merge: true },
+        );
         await writeAuditLog({
           uid,
           action: "subscription_webhook",
           entityType: "subscription",
           entityId: sub.id,
           metadata: { eventType, status: "pending" },
+        }).catch((auditError) => {
+          console.error("[Webhook] Audit log failed:", auditError);
+        });
+        break;
+      }
+
+      case "subscription.completed": {
+        // Final cycle charged and the subscription ended naturally. Keep the
+        // tier and paid access until the already-paid period ends; the daily
+        // lapse sweeper downgrades after expiresAt (+grace) passes.
+        const sub = payload.subscription?.entity;
+        const uid = await resolveSubscriptionUid(sub);
+        if (!uid) {
+          await recordUnmatchedSubscriptionEvent(
+            resolvedEventId,
+            eventType,
+            sub,
+          );
+          break;
+        }
+
+        const userRef = db.collection("users").doc(uid);
+        const userSnap = await userRef.get();
+        if (!userSnap.exists) {
+          await handleOrphanedSubscriptionEvent(uid, eventType, sub, false);
+          break;
+        }
+
+        const currentEnd = sub.current_end
+          ? new Date(sub.current_end * 1000)
+          : null;
+        await userRef.set(
+          {
+            subscription: {
+              status: "completed",
+              completedAt: new Date(),
+              // Access ends when the paid-through period ends.
+              ...(currentEnd ? { currentEnd, expiresAt: currentEnd } : {}),
+            },
+          },
+          { merge: true },
+        );
+        await writeAuditLog({
+          uid,
+          action: "subscription_webhook",
+          entityType: "subscription",
+          entityId: sub.id,
+          metadata: { eventType, status: "completed" },
+        }).catch((auditError) => {
+          console.error("[Webhook] Audit log failed:", auditError);
+        });
+        break;
+      }
+
+      case "subscription.paused": {
+        // Treat paused like halted: billing has stopped, so paid access stops.
+        const sub = payload.subscription?.entity;
+        const uid = await resolveSubscriptionUid(sub);
+        if (!uid) {
+          await recordUnmatchedSubscriptionEvent(
+            resolvedEventId,
+            eventType,
+            sub,
+          );
+          break;
+        }
+
+        const userRef = db.collection("users").doc(uid);
+        const userSnap = await userRef.get();
+        if (!userSnap.exists) {
+          await handleOrphanedSubscriptionEvent(uid, eventType, sub, false);
+          break;
+        }
+
+        await userRef.set(
+          {
+            subscription: {
+              tier: "free",
+              status: "paused",
+              pausedAt: new Date(),
+              expiresAt: null,
+            },
+          },
+          { merge: true },
+        );
+        await writeAuditLog({
+          uid,
+          action: "subscription_webhook",
+          entityType: "subscription",
+          entityId: sub.id,
+          metadata: { eventType, status: "paused" },
+        }).catch((auditError) => {
+          console.error("[Webhook] Audit log failed:", auditError);
+        });
+        break;
+      }
+
+      case "subscription.resumed": {
+        // Billing resumed — restore the paid tier. Credits are granted by the
+        // next subscription.charged event, not here.
+        const sub = payload.subscription?.entity;
+        const uid = await resolveSubscriptionUid(sub);
+        if (!uid) {
+          await recordUnmatchedSubscriptionEvent(
+            resolvedEventId,
+            eventType,
+            sub,
+          );
+          break;
+        }
+
+        const userRef = db.collection("users").doc(uid);
+        const userSnap = await userRef.get();
+        if (!userSnap.exists) {
+          await handleOrphanedSubscriptionEvent(uid, eventType, sub, true);
+          break;
+        }
+
+        const tier = resolveTierFromPlanId(sub.plan_id);
+        const currentEnd = sub.current_end
+          ? new Date(sub.current_end * 1000)
+          : null;
+        const chargeAt = sub.charge_at ? new Date(sub.charge_at * 1000) : null;
+        await userRef.set(
+          {
+            subscription: {
+              tier,
+              status: "active",
+              resumedAt: new Date(),
+              currentEnd,
+              chargeAt,
+              expiresAt: currentEnd || chargeAt || null,
+            },
+          },
+          { merge: true },
+        );
+        await writeAuditLog({
+          uid,
+          action: "subscription_webhook",
+          entityType: "subscription",
+          entityId: sub.id,
+          metadata: { eventType, status: "resumed", tier },
+        }).catch((auditError) => {
+          console.error("[Webhook] Audit log failed:", auditError);
+        });
+        break;
+      }
+
+      case "payment.captured": {
+        // Server-side fallback for one-time credit top-ups: if the buyer's tab
+        // closed before the browser called /api/pay/verify, the money was
+        // captured but credits were never granted. The shared ledger id
+        // (`razorpay_${payment_id}`) makes this replay-safe against the verify
+        // path — whichever runs second becomes a no-op duplicate.
+        const payment = payload.payment?.entity;
+        const orderId = payment?.order_id;
+        const paymentId = payment?.id;
+        if (!orderId || !paymentId) break;
+
+        const orderRef = db.collection("paymentOrders").doc(orderId);
+        const orderSnap = await orderRef.get();
+        const orderData = orderSnap.data();
+        // No top-up order doc → this capture is not a one-time top-up
+        // (e.g. a subscription invoice charge). Ignore.
+        if (!orderSnap.exists || !orderData) break;
+        // Already settled (by /api/pay/verify or a previous webhook run).
+        if (orderData.status !== "created") break;
+
+        const uid = orderData.uid;
+        const minutes = Number(orderData.minutes);
+        if (!uid || !Number.isFinite(minutes) || minutes <= 0) {
+          console.error(
+            `[Webhook] payment.captured for order ${orderId} has invalid order data — credits NOT granted`,
+          );
+          await writeAuditLog({
+            uid: typeof uid === "string" ? uid : undefined,
+            action: "payment_webhook_invalid_order",
+            entityType: "razorpay_payment",
+            entityId: paymentId,
+            metadata: { razorpay_order_id: orderId },
+          }).catch((auditError) => {
+            console.error("[Webhook] Audit log failed:", auditError);
+          });
+          break;
+        }
+
+        const userSnap = await db.collection("users").doc(uid).get();
+        if (!userSnap.exists) {
+          // Account deleted after paying — never resurrect the user doc.
+          console.error(
+            `[Webhook] payment.captured for deleted user ${uid} (order ${orderId})`,
+          );
+          await writeAuditLog({
+            uid,
+            action: "payment_webhook_orphaned",
+            entityType: "razorpay_payment",
+            entityId: paymentId,
+            metadata: { razorpay_order_id: orderId },
+          }).catch((auditError) => {
+            console.error("[Webhook] Audit log failed:", auditError);
+          });
+          break;
+        }
+
+        // Mirrors the crediting in razorpay-verify.ts, including the exact
+        // ledger id scheme; minutes are server-authoritative from the order
+        // doc written at order creation.
+        const creditResult = await applyCreditChange(
+          { db, FieldValue },
+          {
+            uid,
+            amount: minutes,
+            type: "purchase",
+            source: "razorpay",
+            referenceId: paymentId,
+            ledgerId: `razorpay_${paymentId}`,
+            metadata: {
+              razorpay_order_id: orderId,
+              razorpay_payment_id: paymentId,
+              paymentOrderId: orderRef.id,
+              amountInRupees: orderData.amountInRupees,
+              via: "webhook",
+            },
+          },
+        );
+
+        await orderRef.set(
+          {
+            status: "paid",
+            razorpayPaymentId: paymentId,
+            paidAt: FieldValue.serverTimestamp(),
+            balanceAfter: creditResult.balanceAfter,
+            duplicate: creditResult.duplicate,
+            settledVia: "webhook",
+          },
+          { merge: true },
+        );
+
+        console.log(
+          `[Webhook] payment.captured settled order ${orderId} for ${uid} (duplicate=${creditResult.duplicate})`,
+        );
+        await writeAuditLog({
+          uid,
+          action: "payment_captured_webhook",
+          entityType: "razorpay_payment",
+          entityId: paymentId,
+          metadata: {
+            razorpay_order_id: orderId,
+            creditsAdded: creditResult.duplicate ? 0 : minutes,
+            balanceAfter: creditResult.balanceAfter,
+            duplicate: creditResult.duplicate,
+          },
         }).catch((auditError) => {
           console.error("[Webhook] Audit log failed:", auditError);
         });

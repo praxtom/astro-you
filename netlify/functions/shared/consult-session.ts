@@ -98,10 +98,6 @@ export interface ConsultEndResult {
   cost: number;
 }
 
-type ConsultEndTransactionResult =
-  | ConsultEndResult
-  | { success: false; status: number; message: string };
-
 interface AuthLike {
   verifyIdToken(idToken: string): Promise<{ uid: string }>;
 }
@@ -219,6 +215,23 @@ export function parseConsultEndPayload(value: unknown): ConsultEndPayload {
     sessionId: value.sessionId,
     messageCount,
   };
+}
+
+/**
+ * How much to actually charge at finalize when the wallet may no longer cover
+ * the metered cost. Never negative, never more than the wallet — and never
+ * free while the user still has balance, otherwise a user could drain their
+ * credits mid-session (e.g. via synthesis) and walk away with a free
+ * consultation. `underbilled` is true when the charge is below the metered
+ * cost.
+ */
+export function calculateConsultCharge(
+  cost: number,
+  availableCredits: number,
+): { charge: number; underbilled: boolean } {
+  const balance = Math.max(0, Math.floor(availableCredits));
+  const charge = Math.min(Math.max(0, cost), balance);
+  return { charge, underbilled: charge < cost };
 }
 
 export function calculateConsultBill(
@@ -355,91 +368,77 @@ export async function finalizeConsultSession(
     .collection("consultations")
     .doc(params.sessionId);
 
-  const result: ConsultEndTransactionResult = await deps.db.runTransaction(
-    async (tx) => {
-      const userSnap = await tx.get(userRef);
-      const consultationSnap = await tx.get(consultationRef);
-      const consultation = consultationSnap.data();
+  return deps.db.runTransaction<ConsultEndResult>(async (tx) => {
+    const userSnap = await tx.get(userRef);
+    const consultationSnap = await tx.get(consultationRef);
+    const consultation = consultationSnap.data();
 
-      if (consultationSnap.exists === false || !consultation) {
-        throw new ConsultSessionError("Consultation session not found", 404);
-      }
+    if (consultationSnap.exists === false || !consultation) {
+      throw new ConsultSessionError("Consultation session not found", 404);
+    }
 
-      if (consultation.status === "ended") {
-        return {
-          success: true as const,
-          durationSeconds: consultation.duration,
-          minutes: consultation.minutes,
-          cost: consultation.cost,
-        };
-      }
+    if (consultation.status === "ended") {
+      return {
+        success: true as const,
+        durationSeconds: consultation.duration,
+        minutes: consultation.minutes,
+        cost: consultation.cost,
+      };
+    }
 
-      if (consultation.status !== "active") {
-        throw new ConsultSessionError(
-          "Consultation session is not active",
-          409,
-        );
-      }
+    if (consultation.status !== "active") {
+      throw new ConsultSessionError("Consultation session is not active", 409);
+    }
 
-      const persona = getConsultPersona(String(consultation.personaId || ""));
-      if (!persona) {
-        throw new ConsultSessionError("Unknown persona", 400);
-      }
+    const persona = getConsultPersona(String(consultation.personaId || ""));
+    if (!persona) {
+      throw new ConsultSessionError("Unknown persona", 400);
+    }
 
-      const startedAtMs =
-        typeof consultation.startedAtMs === "number"
-          ? consultation.startedAtMs
-          : 0;
-      if (!startedAtMs) {
-        throw new ConsultSessionError(
-          "Consultation session is missing start time",
-          400,
-        );
-      }
-
-      const pricePerMin =
-        typeof consultation.pricePerMin === "number"
-          ? consultation.pricePerMin
-          : persona.pricePerMin;
-      const credits = userSnap.data()?.credits ?? 0;
-      const startingBalanceBillableMinutes =
-        typeof consultation.maxBillableMinutes === "number"
-          ? consultation.maxBillableMinutes
-          : 0;
-      const currentBalanceBillableMinutes = Math.floor(credits / pricePerMin);
-      const maxBillableMinutes =
-        Math.max(
-          startingBalanceBillableMinutes,
-          currentBalanceBillableMinutes,
-        ) || undefined;
-      const { durationSeconds, minutes, cost } = calculateConsultBill(
-        startedAtMs,
-        now,
-        pricePerMin,
-        maxBillableMinutes,
+    const startedAtMs =
+      typeof consultation.startedAtMs === "number"
+        ? consultation.startedAtMs
+        : 0;
+    if (!startedAtMs) {
+      throw new ConsultSessionError(
+        "Consultation session is missing start time",
+        400,
       );
+    }
 
-      if (credits < cost) {
-        tx.update(consultationRef, {
-          status: "failed",
-          failureReason: "insufficient_credits",
-          attemptedCost: cost,
-          updatedAt: deps.FieldValue.serverTimestamp(),
-        });
-        return {
-          success: false as const,
-          status: 402,
-          message: "Insufficient credits for this consultation",
-        };
-      }
+    const pricePerMin =
+      typeof consultation.pricePerMin === "number"
+        ? consultation.pricePerMin
+        : persona.pricePerMin;
+    const credits = userSnap.data()?.credits ?? 0;
+    const startingBalanceBillableMinutes =
+      typeof consultation.maxBillableMinutes === "number"
+        ? consultation.maxBillableMinutes
+        : 0;
+    const currentBalanceBillableMinutes = Math.floor(credits / pricePerMin);
+    const maxBillableMinutes =
+      Math.max(startingBalanceBillableMinutes, currentBalanceBillableMinutes) ||
+      undefined;
+    const { durationSeconds, minutes, cost } = calculateConsultBill(
+      startedAtMs,
+      now,
+      pricePerMin,
+      maxBillableMinutes,
+    );
 
+    // Partial billing: if the wallet no longer covers the metered cost
+    // (e.g. credits were spent elsewhere mid-session), charge whatever
+    // balance remains — never negative, and never free while balance > 0.
+    const { charge, underbilled } = calculateConsultCharge(cost, credits);
+
+    if (charge > 0) {
       await applyCreditChangeInTransaction(
         tx,
         { FieldValue: deps.FieldValue },
         userRef,
         {
           uid,
-          amount: -cost,
+          amount: -charge,
           type: "consultation",
           source: "consult_end",
           referenceId: params.sessionId,
@@ -449,31 +448,28 @@ export async function finalizeConsultSession(
             minutes,
             durationSeconds,
             reason: params.reason ?? "client_end",
+            ...(underbilled ? { underbilled: true, meteredCost: cost } : {}),
           },
         },
         credits,
       );
-      tx.update(consultationRef, {
-        status: "ended",
-        endReason: params.reason ?? "client_end",
-        endedAt: deps.FieldValue.serverTimestamp(),
-        endedAtMs: now,
-        duration: durationSeconds,
-        minutes,
-        cost,
-        pricePerMin,
-        maxBillableMinutes,
-        messageCount: consultation.messageCount ?? params.messageCount ?? 0,
-        updatedAt: deps.FieldValue.serverTimestamp(),
-      });
+    }
+    tx.update(consultationRef, {
+      status: "ended",
+      endReason: params.reason ?? "client_end",
+      endedAt: deps.FieldValue.serverTimestamp(),
+      endedAtMs: now,
+      duration: durationSeconds,
+      minutes,
+      // The actual amount charged; `meteredCost` records the full price.
+      cost: charge,
+      ...(underbilled ? { underbilled: true, meteredCost: cost } : {}),
+      pricePerMin,
+      maxBillableMinutes,
+      messageCount: consultation.messageCount ?? params.messageCount ?? 0,
+      updatedAt: deps.FieldValue.serverTimestamp(),
+    });
 
-      return { success: true as const, durationSeconds, minutes, cost };
-    },
-  );
-
-  if (!result.success) {
-    throw new ConsultSessionError(result.message, result.status);
-  }
-
-  return result;
+    return { success: true as const, durationSeconds, minutes, cost: charge };
+  });
 }

@@ -10,19 +10,27 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isOwner(userId);
 
+      // Credits are granted exclusively by the server (credits-initialize
+      // writes the ledger entry) — a client create must not include them.
       allow create: if isOwner(userId)
                     && !('subscription' in request.resource.data)
-                    && (
-                      !('credits' in request.resource.data)
-                      || request.resource.data.credits == 15
-                    );
+                    && !('credits' in request.resource.data)
+                    && !('referral' in request.resource.data)
+                    && !('referredBy' in request.resource.data)
+                    && !('referralClaimedAt' in request.resource.data);
 
-      // Money and subscription state are server-owned through Admin SDK.
-      // Explicit field equality is more robust than diff().affectedKeys(),
-      // which only reports top-level keys and is easy to get subtly wrong.
+      // Money, subscription, and referral state are server-owned through
+      // Admin SDK. Explicit field equality is more robust than
+      // diff().affectedKeys(), which only reports top-level keys and is easy
+      // to get subtly wrong. Referral fields may be absent, so compare via
+      // get() with a null default — a client-writable referral.code would let
+      // an attacker hijack another user's referral rewards.
       allow update: if isOwner(userId)
                     && request.resource.data.credits == resource.data.credits
-                    && request.resource.data.subscription == resource.data.subscription;
+                    && request.resource.data.subscription == resource.data.subscription
+                    && request.resource.data.get('referral', null) == resource.data.get('referral', null)
+                    && request.resource.data.get('referredBy', null) == resource.data.get('referredBy', null)
+                    && request.resource.data.get('referralClaimedAt', null) == resource.data.get('referralClaimedAt', null);
 
       // Chats subcollection
       match /chats/{chatId} {

@@ -16,6 +16,7 @@ import {
 import {
   canUseFeature,
   getUsageLimit,
+  SUBSCRIPTION_GRACE_DAYS,
   type FeatureKey,
   type UsageLimitKey,
 } from "../lib/entitlements";
@@ -124,12 +125,16 @@ export function useSubscription(): UseSubscriptionResult {
     return () => unsubscribe();
   }, [user]);
 
-  // Check subscription validity
+  // Check subscription validity. Mirrors the server's grace window
+  // (netlify/functions/shared/subscription-plans.ts) so the client doesn't
+  // paywall a subscriber the server still treats as active — the server-side
+  // lapse sweeper downgrades the tier once the grace window truly passes.
   const isSubscriptionActive = useCallback(() => {
     if (subscription.tier === "free") return true;
     const expiresAtMs = toTimeMs(subscription.expiresAt);
     if (expiresAtMs === null) return false;
-    return expiresAtMs > Date.now();
+    const graceMs = SUBSCRIPTION_GRACE_DAYS * 24 * 60 * 60 * 1000;
+    return expiresAtMs + graceMs > Date.now();
   }, [subscription]);
 
   // Use one credit

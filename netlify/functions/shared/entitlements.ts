@@ -1,4 +1,8 @@
+// KEEP IN SYNC with src/lib/entitlements.ts (client copy) — parity is enforced by netlify/functions/__tests__/billing-entitlements-parity.test.ts.
 export type SubscriptionTier = "free" | "premium" | "pro";
+
+/** Days of continued paid access after `subscription.expiresAt` before the tier lapses. */
+export const SUBSCRIPTION_GRACE_DAYS = 3;
 
 export type FeatureKey =
   | "basic_profile"
@@ -77,7 +81,7 @@ export const ENTITLEMENTS: Record<SubscriptionTier, TierEntitlements> = {
     tier: "premium",
     displayName: "Premium",
     monthlyPriceInr: 499,
-    monthlyCredits: 900,
+    monthlyCredits: 700,
     features: {
       ...BASE_FEATURES,
       weekly_horoscope: true,
@@ -90,8 +94,8 @@ export const ENTITLEMENTS: Record<SubscriptionTier, TierEntitlements> = {
       pdf_reports: true,
     },
     limits: {
-      monthlyCredits: 900,
-      consultMinutesPerMonth: 180,
+      monthlyCredits: 700,
+      consultMinutesPerMonth: 140,
       synthesisMessagesPerDay: -1,
       pdfReportsPerMonth: 1,
       monthlyReportsPerMonth: 1,
@@ -102,7 +106,7 @@ export const ENTITLEMENTS: Record<SubscriptionTier, TierEntitlements> = {
     tier: "pro",
     displayName: "Pro",
     monthlyPriceInr: 999,
-    monthlyCredits: 2200,
+    monthlyCredits: 1600,
     features: {
       ...BASE_FEATURES,
       weekly_horoscope: true,
@@ -119,8 +123,8 @@ export const ENTITLEMENTS: Record<SubscriptionTier, TierEntitlements> = {
       voice_input: true,
     },
     limits: {
-      monthlyCredits: 2200,
-      consultMinutesPerMonth: 440,
+      monthlyCredits: 1600,
+      consultMinutesPerMonth: 320,
       synthesisMessagesPerDay: -1,
       pdfReportsPerMonth: 5,
       monthlyReportsPerMonth: 1,
@@ -137,10 +141,16 @@ export function getEntitlements(tier?: string | null): TierEntitlements {
   return ENTITLEMENTS[resolveTier(tier)];
 }
 
-export function canUseFeature(tier: string | null | undefined, featureKey: FeatureKey): boolean {
+export function canUseFeature(
+  tier: string | null | undefined,
+  featureKey: FeatureKey,
+): boolean {
   return Boolean(getEntitlements(tier).features[featureKey]);
 }
 
-export function getUsageLimit(tier: string | null | undefined, limitKey: UsageLimitKey): number {
+export function getUsageLimit(
+  tier: string | null | undefined,
+  limitKey: UsageLimitKey,
+): number {
   return getEntitlements(tier).limits[limitKey] ?? 0;
 }

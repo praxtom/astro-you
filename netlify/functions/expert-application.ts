@@ -4,6 +4,30 @@ import {
   buildExpertApplicationRecord,
   ExpertApplicationError,
 } from "./shared/expert-applications";
+import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit";
+
+/**
+ * Fail-closed per-IP limiter. "expert_apply" is not enrolled in the shared
+ * limiter's FAIL_CLOSED_SCOPES, whose outage fallback reports
+ * `{ allowed: true, remaining: 0 }` — the same shape as the final in-budget
+ * request. Denying `remaining <= 0` (and sizing the limit one above the real
+ * budget) therefore also denies during limiter-store outages, keeping this
+ * public write endpoint from failing open.
+ */
+async function allowAnonRequest(
+  req: Request,
+  scope: string,
+  budget: number,
+  windowMs: number,
+): Promise<boolean> {
+  const result = await checkRateLimit({
+    scope,
+    key: getRequestIdentifier(req),
+    limit: budget + 1,
+    windowMs,
+  });
+  return result.allowed && result.remaining > 0;
+}
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
@@ -11,6 +35,20 @@ export default async (req: Request, _context: Context) => {
   }
 
   try {
+    // Public endpoint — cap unauthenticated application writes per IP.
+    const allowed = await allowAnonRequest(
+      req,
+      "expert_apply",
+      3,
+      24 * 60 * 60 * 1000,
+    );
+    if (!allowed) {
+      return json(
+        { error: "Too many applications. Please try again tomorrow." },
+        429,
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
     const createdAt = FieldValue.serverTimestamp();
     const record = buildExpertApplicationRecord(body, createdAt);

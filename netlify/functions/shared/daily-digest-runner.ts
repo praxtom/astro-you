@@ -1,5 +1,9 @@
 import { db } from "./firebase-admin.js";
-import { buildDailyDigest } from "./digest.js";
+import {
+  buildDailyDigest,
+  buildUnsubscribeUrl,
+  resolveUnsubscribeSecret,
+} from "./digest.js";
 import { resolveResendApiKey } from "./env.js";
 import { buildUserContext } from "./user-context.js";
 
@@ -30,6 +34,41 @@ export async function generateDailyDigestForUser(input: {
     };
   }
 
+  // Email is always resolved from the user's own profile — never from caller
+  // input — so this can't be used to send a digest to an arbitrary address.
+  const email = profile.email || userData.email;
+  const resendApiKey = resolveResendApiKey();
+  const unsubscribeSecret = resolveUnsubscribeSecret();
+
+  // Fail fast BEFORE building user context: context building makes paid
+  // astrology API calls, so a user we can't email must not cost anything and
+  // must not get a digests doc written.
+  if (input.sendEmail) {
+    if (!email) {
+      return {
+        uid: input.uid,
+        emailSent: false,
+        skippedReason: "missing_email",
+      };
+    }
+    if (!resendApiKey) {
+      return {
+        uid: input.uid,
+        emailSent: false,
+        skippedReason: "missing_email_provider",
+      };
+    }
+    // Compliance fail-closed: never send a marketing/bulk email without a
+    // working one-click unsubscribe (Gmail/Yahoo bulk-sender requirement).
+    if (!unsubscribeSecret) {
+      return {
+        uid: input.uid,
+        emailSent: false,
+        skippedReason: "missing_unsubscribe_secret",
+      };
+    }
+  }
+
   // Idempotency for the scheduled path: one digest per user per UTC day. If the
   // cron double-fires, we skip re-sending instead of emailing twice.
   const dateStr = new Date().toISOString().split("T")[0];
@@ -52,9 +91,12 @@ export async function generateDailyDigestForUser(input: {
     }
   }
 
-  // Email is always resolved from the user's own profile — never from caller
-  // input — so this can't be used to send a digest to an arbitrary address.
-  const email = profile.email || userData.email;
+  // Gmail/Yahoo bulk-sender compliance: every email carries a tokenized
+  // one-click unsubscribe URL (header + visible footer link, no login needed).
+  const unsubscribeUrl = unsubscribeSecret
+    ? buildUnsubscribeUrl(input.uid, unsubscribeSecret)
+    : undefined;
+
   const { userContext } = await buildUserContext({ uid: input.uid });
   const digest = buildDailyDigest({
     name: userContext.name || profile.name || email?.split("@")[0] || "Seeker",
@@ -62,37 +104,35 @@ export async function generateDailyDigestForUser(input: {
     dashaInfo: userContext.dashaInfo,
     transitContext: userContext.transitContext,
     atman: userContext.atman || userData.atman,
+    unsubscribeUrl,
   });
 
   let emailSent = false;
   let skippedReason: string | undefined;
   if (input.sendEmail) {
-    const resendApiKey = resolveResendApiKey();
-    if (!email) {
-      skippedReason = "missing_email";
-    } else if (!resendApiKey) {
-      skippedReason = "missing_email_provider";
-    } else {
-      const response = await fetch("https://api.resend.com/emails", {
-        method: "POST",
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${resendApiKey}`,
+        // Resend dedupes retries carrying the same key.
+        "Idempotency-Key": `digest_${input.uid}_${dateStr}`,
+      },
+      body: JSON.stringify({
+        from:
+          process.env.DIGEST_FROM_EMAIL || "AstroYou <noreply@astroyou.app>",
+        to: email,
+        subject: digest.subject,
+        html: digest.html,
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${resendApiKey}`,
-          // Resend dedupes retries carrying the same key.
-          "Idempotency-Key": `digest_${input.uid}_${dateStr}`,
+          "List-Unsubscribe": `<${unsubscribeUrl}>`,
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
         },
-        body: JSON.stringify({
-          from:
-            process.env.DIGEST_FROM_EMAIL || "AstroYou <noreply@astroyou.app>",
-          to: email,
-          subject: digest.subject,
-          html: digest.html,
-        }),
-      });
-      emailSent = response.ok;
-      if (!response.ok) {
-        skippedReason = `email_provider_${response.status}`;
-      }
+      }),
+    });
+    emailSent = response.ok;
+    if (!response.ok) {
+      skippedReason = `email_provider_${response.status}`;
     }
   }
 

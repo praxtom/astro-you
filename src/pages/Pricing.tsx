@@ -212,7 +212,8 @@ export default function Pricing() {
             <div>
               <p className="platform-eyebrow mb-2">Consults</p>
               <p className="type-body-sm text-white/55">
-                Credits are charged by completed minutes.
+                Consult minutes are rounded up — a partial minute bills as a
+                full minute.
               </p>
             </div>
             <div>

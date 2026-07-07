@@ -54,13 +54,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const hasProfile = existingData?.profile?.dob;
 
           // Initialize credits server-side so the credit ledger is complete.
-          if (!existingData || existingData.credits === undefined) {
+          // Track success: if init fails, the referral claim below must be
+          // skipped this session — a successful claim would define `credits`,
+          // and the server guard would then treat the signup bonus as already
+          // granted, permanently skipping it. Both retry on next login.
+          let creditsReady = existingData?.credits !== undefined;
+          if (!creditsReady) {
             const idToken = await currentUser.getIdToken();
-            await fetch("/api/credits/initialize", {
+            const initRes = await fetch("/api/credits/initialize", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ idToken }),
             });
+            creditsReady = initRes.ok;
+            if (!initRes.ok) {
+              console.error(
+                "[Auth] Credits initialization failed:",
+                initRes.status,
+              );
+            }
             await setDoc(
               userDocRef,
               {
@@ -71,12 +83,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             );
           }
 
-          // Migrate guest/localStorage profile to Firestore if user has no profile yet
+          // Migrate a guest profile to Firestore if the user has no profile
+          // yet. Only trust artifacts of a real guest onboarding session —
+          // sessionStorage GUEST_PROFILE, or localStorage PROFILE when this
+          // session's GUEST_COMPLETE marker is present. A bare PROFILE left in
+          // localStorage by a previous account on this browser must never
+          // migrate into a new uid.
           if (!hasProfile) {
             const guestData = sessionStorage.getItem(
               STORAGE_KEYS.GUEST_PROFILE,
             );
-            const localData = localStorage.getItem(STORAGE_KEYS.PROFILE);
+            const guestComplete = sessionStorage.getItem(
+              STORAGE_KEYS.GUEST_COMPLETE,
+            );
+            const localData = guestComplete
+              ? localStorage.getItem(STORAGE_KEYS.PROFILE)
+              : null;
             const profileJson = guestData || localData;
 
             if (profileJson) {
@@ -124,6 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const pendingReferralCode =
             getPendingReferralCode() || urlReferralCode;
           if (
+            creditsReady &&
             pendingReferralCode &&
             !existingData?.referredBy &&
             !existingData?.referralClaimedAt
@@ -139,10 +162,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 }),
               });
 
+              // 400/404/409 are permanent (invalid, unknown, or already
+              // claimed) — drop the pending code. Keep it on 429/5xx so the
+              // claim retries on the next login.
               if (
                 response.ok ||
                 response.status === 400 ||
-                response.status === 404
+                response.status === 404 ||
+                response.status === 409
               ) {
                 clearPendingReferralCode();
               }
@@ -163,6 +190,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await firebaseSignOut(auth);
+    // Centralized logout cleanup — every per-user client artifact goes, so a
+    // different account signing in on this browser can never migrate the
+    // previous user's profile, drafts, or trial state into its own uid.
+    localStorage.removeItem(STORAGE_KEYS.PROFILE);
+    localStorage.removeItem(STORAGE_KEYS.PROFILE_COMPLETE);
+    localStorage.removeItem(STORAGE_KEYS.FREE_SECONDS);
+    sessionStorage.removeItem(STORAGE_KEYS.GUEST_PROFILE);
+    sessionStorage.removeItem(STORAGE_KEYS.GUEST_COMPLETE);
+    sessionStorage.removeItem(STORAGE_KEYS.MODE);
+    sessionStorage.removeItem(STORAGE_KEYS.LOGIN_REDIRECT);
+    sessionStorage.removeItem(STORAGE_KEYS.SYNTHESIS_DRAFT);
+    sessionStorage.removeItem(STORAGE_KEYS.CONSULT_DRAFT);
   };
 
   return (

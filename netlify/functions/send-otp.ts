@@ -1,12 +1,26 @@
 import { Config, Context } from "@netlify/functions";
-import { db } from "./shared/firebase-admin";
+import { db } from "./shared/firebase-admin.js";
 import { resolveResendApiKey } from "./shared/env.js";
 import { hashOtp } from "./shared/otp.js";
+import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit.js";
 import { randomInt } from "crypto";
 
 // Rate limit: max OTP requests per email per hour
 const MAX_REQUESTS_PER_HOUR = 5;
+// Rate limit: max OTP requests per IP per hour, across all email addresses
+const MAX_REQUESTS_PER_IP_PER_HOUR = 10;
 const COOLDOWN_MS = 60_000; // 60 seconds between requests
+
+// Practical email shape check. Also guards the Firestore doc id the address
+// becomes: no whitespace or path-breaking characters, bounded length.
+const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+
+/** True when `email` is a plausible, bounded email address. */
+export function isValidEmail(email: unknown): email is string {
+  return (
+    typeof email === "string" && email.length <= 254 && EMAIL_RE.test(email)
+  );
+}
 
 // Generate a cryptographically secure 6-digit code
 function generateOTP(): string {
@@ -25,12 +39,26 @@ export default async (req: Request, _context: Context) => {
   }
 
   try {
+    // Per-IP cap on top of the per-email transaction limits below — stops one
+    // client from email-bombing many different addresses and draining the
+    // Resend quota. The send_otp scope fails CLOSED in shared/rate-limit.ts.
+    const rateLimit = await checkRateLimit({
+      scope: "send_otp",
+      key: getRequestIdentifier(req),
+      limit: MAX_REQUESTS_PER_IP_PER_HOUR,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!rateLimit.allowed) {
+      return json({ error: "Too many requests. Please try again later." }, 429);
+    }
+
     const { email } = await req.json();
 
-    if (!email || typeof email !== "string" || !email.includes("@")) {
+    const normalizedEmail =
+      typeof email === "string" ? email.trim().toLowerCase() : "";
+    if (!isValidEmail(normalizedEmail)) {
       return json({ error: "Invalid email" }, 400);
     }
-    const normalizedEmail = email.toLowerCase().trim();
 
     const otp = generateOTP();
     const now = Date.now();
