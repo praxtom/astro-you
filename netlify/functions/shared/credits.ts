@@ -88,7 +88,9 @@ export class CreditError extends Error {
 }
 
 export function createLedgerId(type: CreditChangeType, referenceId: string) {
-  return `${type}_${referenceId}`.replace(/[^a-zA-Z0-9_.-]/g, "_").slice(0, 500);
+  return `${type}_${referenceId}`
+    .replace(/[^a-zA-Z0-9_.-]/g, "_")
+    .slice(0, 500);
 }
 
 export async function applyCreditChange(
@@ -114,7 +116,8 @@ export async function initializeUserCredits(
   deps: CreditDeps,
   input: InitializeUserCreditsInput,
 ): Promise<CreditChangeResult> {
-  const initialCredits = input.initialCredits ?? getUsageLimit("free", "monthlyCredits");
+  const initialCredits =
+    input.initialCredits ?? getUsageLimit("free", "monthlyCredits");
   const userRef = deps.db.collection("users").doc(input.uid);
   const ledgerRef = userRef.collection("creditLedger").doc("signup_bonus");
 
@@ -125,7 +128,11 @@ export async function initializeUserCredits(
     const balanceBefore = userData?.credits ?? 0;
     const existingLedger = ledgerSnap.data();
 
-    if (userData?.credits !== undefined || existingLedger) {
+    // Idempotency relies ONLY on the signup_bonus ledger sentinel. A defined
+    // `credits` field is NOT proof the bonus was granted — a referral claim
+    // can merge-set credits before initialization runs, and treating that as
+    // "already initialized" would permanently skip the signup bonus.
+    if (ledgerSnap.exists !== false && existingLedger) {
       return {
         balanceBefore,
         balanceAfter: balanceBefore,
@@ -174,7 +181,9 @@ export async function applyCreditChangeInTransaction(
 
   const ledgerId =
     input.ledgerId ||
-    (input.referenceId ? createLedgerId(input.type, input.referenceId) : undefined);
+    (input.referenceId
+      ? createLedgerId(input.type, input.referenceId)
+      : undefined);
   const ledgerRef = userRef.collection("creditLedger").doc(ledgerId);
 
   if (ledgerId) {

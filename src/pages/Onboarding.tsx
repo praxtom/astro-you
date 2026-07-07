@@ -1,8 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/useAuth";
-import { doc, setDoc } from "firebase/firestore";
+import { deleteField, doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
+import {
+  birthDataChanged,
+  parseSuggestionCoordinates,
+  type BirthCoordinates,
+} from "../lib/birth-data";
 import AuthModal from "../components/AuthModal";
 import {
   Loader2,
@@ -49,26 +54,39 @@ export default function Onboarding() {
     birthTimeUnknown: false,
   });
 
+  // Geocoded birth-place coordinates, captured when the user picks a
+  // LocationInput suggestion. Optional: manual typing leaves this null.
+  const [birthCoordinates, setBirthCoordinates] =
+    useState<BirthCoordinates | null>(null);
+
   // Preview: background-fetch kundali data when entering "present" step
   const [preview, setPreview] = useState<any>(null);
-  const { name, gender, dob, tob, pob, currentLocation, birthTimeUnknown } =
-    formData;
+  const { name, gender, dob, tob, pob, birthTimeUnknown } = formData;
 
   useEffect(() => {
-    if (step !== "present" || !dob || !tob || !pob || preview) return;
+    if (step !== "present" || !dob || !tob || !pob) return;
 
     const controller = new AbortController();
+    // Reset so going back and changing birth data never shows a stale preview.
+    setPreview(null);
+
     const birthData = {
       name,
       gender,
       dob,
       tob,
       pob,
-      currentLocation,
       birthTimeUnknown,
+      ...(birthCoordinates
+        ? { lat: birthCoordinates.lat, lng: birthCoordinates.lng }
+        : {}),
     };
 
-    postJson("/api/kundali", { birthData, chartType: "D1" }, { signal: controller.signal })
+    postJson(
+      "/api/kundali",
+      { birthData, chartType: "D1" },
+      { signal: controller.signal },
+    )
       .then((r) => r.json())
       .then((d) => setPreview(d))
       .catch((err) => {
@@ -77,29 +95,49 @@ export default function Onboarding() {
       });
 
     return () => controller.abort();
-  }, [
-    step,
-    name,
-    gender,
-    dob,
-    tob,
-    pob,
-    currentLocation,
-    birthTimeUnknown,
-    preview,
-  ]);
+  }, [step, name, gender, dob, tob, pob, birthTimeUnknown, birthCoordinates]);
 
   // Load existing data from localStorage (persists across sessions)
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.PROFILE);
-    if (saved) {
-      setFormData(JSON.parse(saved));
+    if (!saved) return;
+    try {
+      const parsed = JSON.parse(saved);
+      // Whitelist known fields — the synced profile JSON can carry extra keys
+      // (credits, subscription, ...) that must never round-trip into a save.
+      setFormData({
+        name: typeof parsed.name === "string" ? parsed.name : "",
+        gender: typeof parsed.gender === "string" ? parsed.gender : "",
+        dob: typeof parsed.dob === "string" ? parsed.dob : "",
+        tob: typeof parsed.tob === "string" ? parsed.tob : "",
+        pob: typeof parsed.pob === "string" ? parsed.pob : "",
+        currentLocation:
+          typeof parsed.currentLocation === "string"
+            ? parsed.currentLocation
+            : "",
+        birthTimeUnknown: Boolean(parsed.birthTimeUnknown),
+      });
+      setBirthCoordinates(
+        parseSuggestionCoordinates(
+          parsed.coordinates?.lat,
+          parsed.coordinates?.lng,
+        ),
+      );
+    } catch {
+      // Corrupt browser cache — start fresh.
     }
   }, []);
 
-  const saveStepData = (data: typeof formData) => {
+  const saveStepData = (
+    data: typeof formData,
+    coords: BirthCoordinates | null | undefined = undefined,
+  ) => {
+    const nextCoords = coords === undefined ? birthCoordinates : coords;
     setFormData(data);
-    localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(data));
+    localStorage.setItem(
+      STORAGE_KEYS.PROFILE,
+      JSON.stringify(nextCoords ? { ...data, coordinates: nextCoords } : data),
+    );
   };
 
   const getCurrentLocation = () => {
@@ -165,33 +203,85 @@ export default function Onboarding() {
 
   const finalizeJourney = async () => {
     const mode = sessionStorage.getItem(STORAGE_KEYS.MODE);
+    const storedProfile = JSON.stringify(
+      birthCoordinates
+        ? { ...formData, coordinates: birthCoordinates }
+        : formData,
+    );
 
     if (user || mode === "logged_in") {
       // Logged-in user: Save to Firestore (authoritative), then localStorage (backup)
       setIsSaving(true);
       try {
         if (user) {
-          await setDoc(
-            doc(db, "users", user.uid),
-            {
-              profile: {
-                ...formData,
-                parsedChart: parsedChart,
-              },
-              updatedAt: new Date(),
-            },
-            { merge: true },
+          const userRef = doc(db, "users", user.uid);
+          // Read the current profile so we can detect a birth-data change and
+          // clean up stale coordinates/cached charts in the same write.
+          const prevSnap = await getDoc(userRef);
+          const prevProfile = (prevSnap.data()?.profile ?? null) as Record<
+            string,
+            any
+          > | null;
+          const prevCoords = parseSuggestionCoordinates(
+            prevProfile?.coordinates?.lat,
+            prevProfile?.coordinates?.lng,
           );
+
+          const profilePayload: Record<string, any> = {
+            ...formData,
+            parsedChart: parsedChart,
+          };
+          if (birthCoordinates) {
+            profilePayload.coordinates = birthCoordinates;
+          } else if (
+            prevCoords &&
+            (prevProfile?.pob || "").trim() !== formData.pob.trim()
+          ) {
+            // pob changed without picking a suggestion — the stored
+            // coordinates belong to the old place and must not survive.
+            profilePayload.coordinates = deleteField();
+          }
+
+          const updates: Record<string, any> = {
+            profile: profilePayload,
+            updatedAt: new Date(),
+          };
+          if (
+            birthDataChanged(
+              prevProfile
+                ? {
+                    dob: prevProfile.dob,
+                    tob: prevProfile.tob,
+                    pob: prevProfile.pob,
+                    coordinates: prevCoords,
+                  }
+                : null,
+              {
+                dob: formData.dob,
+                tob: formData.tob,
+                pob: formData.pob,
+                coordinates: birthCoordinates,
+              },
+            )
+          ) {
+            // Birth data changed → every cached chart is for the wrong sky.
+            // Clear them so useKundali and server-side AI context refetch.
+            updates.kundaliData = deleteField();
+            updates.kundaliData_D9 = deleteField();
+            updates.kundaliData_D10 = deleteField();
+          }
+
+          await setDoc(userRef, updates, { merge: true });
         }
         // Only mark complete AFTER Firestore write succeeds
-        localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(formData));
+        localStorage.setItem(STORAGE_KEYS.PROFILE, storedProfile);
         localStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");
         trackAcquisitionEvent("onboarding_complete");
         navigate("/dashboard");
       } catch (err) {
         console.error("Error saving data:", err);
         // Save locally so user doesn't lose their input, but DON'T navigate away
-        localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(formData));
+        localStorage.setItem(STORAGE_KEYS.PROFILE, storedProfile);
         showError(
           "Save Error",
           "Could not save to cloud. Please check your connection and try again.",
@@ -202,12 +292,9 @@ export default function Onboarding() {
       }
     } else {
       // Guest path: sessionStorage + localStorage backup for later sign-up migration
-      sessionStorage.setItem(
-        STORAGE_KEYS.GUEST_PROFILE,
-        JSON.stringify(formData),
-      );
+      sessionStorage.setItem(STORAGE_KEYS.GUEST_PROFILE, storedProfile);
       sessionStorage.setItem(STORAGE_KEYS.GUEST_COMPLETE, "true");
-      localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(formData));
+      localStorage.setItem(STORAGE_KEYS.PROFILE, storedProfile);
       trackAcquisitionEvent("onboarding_complete");
       navigate("/dashboard");
     }
@@ -759,9 +846,21 @@ export default function Onboarding() {
                 placeholder="City, Province, Country"
                 value={formData.pob}
                 onChange={(val) => {
-                  const newData = { ...formData, pob: val };
-                  setFormData(newData);
-                  saveStepData(newData);
+                  // Typing invalidates any previously selected coordinates —
+                  // they belong to a different place string.
+                  setBirthCoordinates(null);
+                  saveStepData({ ...formData, pob: val }, null);
+                }}
+                onSelect={(suggestion) => {
+                  const coords = parseSuggestionCoordinates(
+                    suggestion.lat,
+                    suggestion.lon,
+                  );
+                  setBirthCoordinates(coords);
+                  saveStepData(
+                    { ...formData, pob: suggestion.display_name },
+                    coords,
+                  );
                 }}
               />
             </div>

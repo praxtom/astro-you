@@ -32,13 +32,65 @@ export default async (req: Request, _context: Context) => {
     const uid = decoded.uid;
     const tier = resolveTier(requestedTier);
     if (tier === "free") {
-      return new Response(JSON.stringify({ error: "Free tier does not need checkout" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "Free tier does not need checkout" }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
     }
     const planId = getRazorpayPlanId(tier);
     const entitlements = getEntitlements(tier);
+
+    // Dedupe: never stack a second live Razorpay subscription on top of an
+    // existing one — the old subscription's next `charged` webhook would flip
+    // the user's tier back and they would be double-billed.
+    const userSnap = await db.collection("users").doc(uid).get();
+    const existingSub = userSnap.data()?.subscription || {};
+    const existingSubId =
+      existingSub.razorpaySubscriptionId || existingSub.razorpaySubId;
+    const existingStatus = existingSub.status;
+    if (
+      existingSubId &&
+      (existingStatus === "active" || existingStatus === "pending")
+    ) {
+      const existingTier = resolveTier(existingSub.tier);
+      if (existingTier !== tier) {
+        return new Response(
+          JSON.stringify({
+            error: `You already have an active ${getEntitlements(existingTier).displayName} subscription. Please cancel it first, then subscribe to ${entitlements.displayName}.`,
+          }),
+          {
+            status: 409,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+      // Same plan — return the existing subscription instead of a duplicate.
+      let shortUrl: string | null = null;
+      try {
+        const existing = await razorpay.subscriptions.fetch(existingSubId);
+        shortUrl = (existing as { short_url?: string })?.short_url || null;
+      } catch (fetchErr) {
+        console.warn(
+          "[Subscription Create] Could not fetch existing subscription:",
+          fetchErr,
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          subscriptionId: existingSubId,
+          shortUrl,
+          tier,
+          existing: true,
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
 
     // Create Razorpay subscription
     const subscription = await razorpay.subscriptions.create({

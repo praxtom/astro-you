@@ -1,5 +1,8 @@
 import { Config, Context } from "@netlify/functions";
-import type { DocumentReference } from "firebase-admin/firestore";
+import type {
+  DocumentReference,
+  QueryDocumentSnapshot,
+} from "firebase-admin/firestore";
 import { db, auth } from "./shared/firebase-admin";
 import { enforceIpRateLimit, AuthError } from "./shared/require-auth";
 import { writeAuditLog } from "./shared/audit-log";
@@ -49,6 +52,7 @@ export default async (req: Request, _context: Context) => {
     const [
       chats,
       consultations,
+      friends,
       reports,
       remedyRequests,
       supportTickets,
@@ -62,8 +66,11 @@ export default async (req: Request, _context: Context) => {
       predictionFeedback,
       testimonialSubmissions,
     ] = await Promise.all([
-      readSubcollection(userRef, "chats"),
-      readSubcollection(userRef, "consultations"),
+      // Chats and consultations keep their transcripts in a `messages`
+      // subcollection — the most personal data in the export.
+      readSubcollectionWithMessages(userRef, "chats"),
+      readSubcollectionWithMessages(userRef, "consultations"),
+      readSubcollection(userRef, "friends"),
       readSubcollection(userRef, "reports"),
       readSubcollection(userRef, "remedyRequests"),
       readSubcollection(userRef, "supportTickets"),
@@ -78,15 +85,25 @@ export default async (req: Request, _context: Context) => {
       readSubcollection(userRef, "testimonialSubmissions"),
     ]);
 
+    const userData = userDoc.data() || {};
     const exportData = {
       exportDate: new Date().toISOString(),
-      profile: userDoc.data()?.profile || {},
-      credits: userDoc.data()?.credits,
-      subscription: userDoc.data()?.subscription,
-      atman: userDoc.data()?.atman || {},
-      kundaliData: userDoc.data()?.kundaliData || {},
+      profile: userData.profile || {},
+      email: userData.email,
+      credits: userData.credits,
+      subscription: userData.subscription,
+      referral: userData.referral,
+      referredBy: userData.referredBy,
+      referralClaimedAt: userData.referralClaimedAt,
+      chartUrl: userData.chartUrl,
+      thumbnailUrl: userData.thumbnailUrl,
+      atman: userData.atman || {},
+      kundaliData: userData.kundaliData || {},
+      kundaliData_D9: userData.kundaliData_D9,
+      kundaliData_D10: userData.kundaliData_D10,
       chats,
       consultations,
+      friends,
       reports,
       remedyRequests,
       supportTickets,
@@ -121,4 +138,50 @@ export const config: Config = { path: "/api/export-data" };
 async function readSubcollection(userRef: DocumentReference, name: string) {
   const snapshot = await userRef.collection(name).get();
   return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+}
+
+/**
+ * Read a subcollection and, for each doc, its `messages` subcollection.
+ * Messages are paged so a single huge thread can't blow up memory or the
+ * function timeout in one read.
+ */
+async function readSubcollectionWithMessages(
+  userRef: DocumentReference,
+  name: string,
+) {
+  const snapshot = await userRef.collection(name).get();
+  const out: Array<Record<string, unknown>> = [];
+  for (const doc of snapshot.docs) {
+    const data = doc.data();
+    const messages = await readMessagesPaged(doc.ref);
+    out.push({
+      id: doc.id,
+      ...data,
+      // Prefer the subcollection transcript; fall back to a legacy inline
+      // `messages` array field if that's all the doc has.
+      messages: messages.length
+        ? messages
+        : Array.isArray(data.messages)
+          ? data.messages
+          : [],
+    });
+  }
+  return out;
+}
+
+const MESSAGE_PAGE_SIZE = 200;
+
+async function readMessagesPaged(parent: DocumentReference) {
+  const collection = parent.collection("messages");
+  const messages: Array<Record<string, unknown>> = [];
+  let cursor: QueryDocumentSnapshot | undefined;
+  for (;;) {
+    let query = collection.limit(MESSAGE_PAGE_SIZE);
+    if (cursor) query = query.startAfter(cursor);
+    const page = await query.get();
+    messages.push(...page.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    if (page.size < MESSAGE_PAGE_SIZE) break;
+    cursor = page.docs[page.size - 1];
+  }
+  return messages;
 }

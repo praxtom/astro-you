@@ -88,10 +88,20 @@ export function useKundali(
 
         console.log("[useKundali] Fetching from API...");
 
-        // Fetch from API if not cached
+        // Fetch from API if not cached. The server's subject builder expects
+        // flat lat/lng (see kundali.ts / astro-api.ts buildSubject), so flatten
+        // profile.coordinates when present — this skips server-side geocoding
+        // of the pob string. Coordinates stay optional.
+        const requestPayload = requestBirthData.coordinates
+          ? {
+              ...requestBirthData,
+              lat: requestBirthData.coordinates.lat,
+              lng: requestBirthData.coordinates.lng,
+            }
+          : requestBirthData;
         const response = await postJson(
           "/api/kundali",
-          { birthData: requestBirthData, chartType },
+          { birthData: requestPayload, chartType },
           { signal },
         );
 

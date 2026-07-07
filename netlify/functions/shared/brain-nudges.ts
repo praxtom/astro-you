@@ -12,6 +12,20 @@ import {
   normalizeAtmanData,
   validateNudgeInput,
 } from "../../../src/lib/atman-schema.js";
+import { buildUnsubscribeUrl, resolveUnsubscribeSecret } from "./digest.js";
+
+/**
+ * Best-effort one-click unsubscribe URL for a user's nudge emails. Returns
+ * undefined (falling back to the settings link) when EMAIL_UNSUB_SECRET is not
+ * configured, so a missing secret never crashes the scheduled nudge run.
+ */
+function resolveNudgeUnsubscribeUrl(uid: string): string | undefined {
+  try {
+    return buildUnsubscribeUrl(uid, resolveUnsubscribeSecret());
+  } catch {
+    return undefined;
+  }
+}
 
 type UserDocSnapshot = {
   exists: boolean;
@@ -47,6 +61,9 @@ export interface BrainNudgeEmail {
   subject: string;
   html: string;
   text: string;
+  uid: string;
+  /** Tokenized one-click unsubscribe URL, when EMAIL_UNSUB_SECRET is set. */
+  unsubscribeUrl?: string;
 }
 
 export interface BrainPushNotification {
@@ -326,7 +343,13 @@ export async function runProactiveBrainForUser(
   ) {
     try {
       await deps.sendEmail(
-        buildNudgeEmail(profile.email, profile.name || "Friend", candidate),
+        buildNudgeEmail(
+          profile.email,
+          profile.name || "Friend",
+          candidate,
+          input.uid,
+          resolveNudgeUnsubscribeUrl(input.uid),
+        ),
       );
       emailSent = true;
     } catch (error: any) {
@@ -458,12 +481,20 @@ export function buildNudgeEmail(
   to: string,
   name: string,
   candidate: BrainNudgeCandidate,
+  uid: string,
+  unsubscribeUrl?: string,
 ): BrainNudgeEmail {
   const subject = `${name}, ${candidate.title}`;
   const settingsUrl = `${(process.env.APP_BASE_URL || "https://astroyou.app").replace(/\/$/, "")}/settings`;
-  const text = `${candidate.message}\n\nWhy this now: ${candidate.reason}\n\nManage notifications: ${settingsUrl}`;
-  const html = `<div style="font-family:Inter,Arial,sans-serif;line-height:1.6;color:#f8f5ee;background:#08080d;padding:24px;border-radius:16px"><h2 style="color:#E5B96A;margin-top:0">${escapeHtml(candidate.title)}</h2><p>${escapeHtml(candidate.message)}</p><p style="color:#a7a2b8;font-size:13px">Why this now: ${escapeHtml(candidate.reason)}</p><p style="color:#6b6780;font-size:12px;margin-top:24px">You're receiving this because you enabled spiritual nudges. <a href="${settingsUrl}" style="color:#8a86a0">Manage or turn off notifications</a>.</p></div>`;
-  return { to, subject, text, html };
+  // Prefer the one-click unsubscribe link (no login) when available; fall back
+  // to the settings page otherwise.
+  const optOutUrl = unsubscribeUrl || settingsUrl;
+  const optOutLabel = unsubscribeUrl
+    ? "Unsubscribe"
+    : "Manage or turn off notifications";
+  const text = `${candidate.message}\n\nWhy this now: ${candidate.reason}\n\nUnsubscribe: ${optOutUrl}`;
+  const html = `<div style="font-family:Inter,Arial,sans-serif;line-height:1.6;color:#f8f5ee;background:#08080d;padding:24px;border-radius:16px"><h2 style="color:#E5B96A;margin-top:0">${escapeHtml(candidate.title)}</h2><p>${escapeHtml(candidate.message)}</p><p style="color:#a7a2b8;font-size:13px">Why this now: ${escapeHtml(candidate.reason)}</p><p style="color:#6b6780;font-size:12px;margin-top:24px">You're receiving this because you enabled spiritual nudges. <a href="${optOutUrl}" style="color:#8a86a0">${optOutLabel}</a>.</p></div>`;
+  return { to, subject, text, html, uid, unsubscribeUrl };
 }
 
 export function buildPushNotification(

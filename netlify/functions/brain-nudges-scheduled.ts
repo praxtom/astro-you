@@ -72,6 +72,15 @@ function createEmailSender() {
         to: email.to,
         subject: email.subject,
         html: email.html,
+        // One-click unsubscribe for bulk-sender (Gmail/Yahoo) compliance.
+        ...(email.unsubscribeUrl
+          ? {
+              headers: {
+                "List-Unsubscribe": `<${email.unsubscribeUrl}>`,
+                "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+              },
+            }
+          : {}),
       }),
     });
 

@@ -276,9 +276,9 @@ test("endConsultSession lets added credits extend the billable session window", 
   assert.equal(result.cost, 35);
 });
 
-test("endConsultSession rejects insufficient credits without charging user", async () => {
+test("endConsultSession partial-bills the remaining balance when credits no longer cover the cost", async () => {
   const now = 1_800_000;
-  const startedAt = now - 61_000;
+  const startedAt = now - 61_000; // 2 billable minutes at 5/min → metered cost 10
   const { deps, writes } = createDeps(5, now, {
     "users/user_123/consultations/session_123": {
       personaId: "guru-vidyanath",
@@ -289,23 +289,23 @@ test("endConsultSession rejects insufficient credits without charging user", asy
     },
   });
 
-  await assert.rejects(
-    () =>
-      endConsultSession(deps, {
-        idToken: "valid-token",
-        sessionId: "session_123",
-      }),
-    (error) =>
-      error instanceof ConsultSessionError &&
-      error.status === 402 &&
-      error.message === "Insufficient credits for this consultation",
-  );
+  const result = await endConsultSession(deps, {
+    idToken: "valid-token",
+    sessionId: "session_123",
+  });
 
-  assert.equal(writes.length, 1);
-  assert.equal(writes[0].type, "update");
-  assert.equal(writes[0].path, "users/user_123/consultations/session_123");
-  assert.equal(writes[0].data.status, "failed");
-  assert.equal(writes[0].data.failureReason, "insufficient_credits");
+  // Charged the wallet's remaining 5 (never the full 10, never free, never negative).
+  assert.equal(result.cost, 5);
+  assert.equal(result.minutes, 2);
+
+  const closeWrite = writes.find(
+    (w) => w.path === "users/user_123/consultations/session_123",
+  );
+  assert.ok(closeWrite);
+  assert.equal(closeWrite.data.status, "ended");
+  assert.equal(closeWrite.data.cost, 5);
+  assert.equal(closeWrite.data.underbilled, true);
+  assert.equal(closeWrite.data.meteredCost, 10);
 });
 
 test("endConsultSession rejects unknown personas before billing", async () => {
