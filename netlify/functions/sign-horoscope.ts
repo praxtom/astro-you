@@ -7,12 +7,22 @@ import {
   BirthData,
 } from "./shared/astro-api.js";
 import { getCachedOrFetch } from "./shared/cache.js";
+import { enforceIpRateLimit, AuthError } from "./shared/require-auth.js";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
   });
+
+// Reject dates far outside a sensible window — varying `date` freely would
+// defeat the cache and mint unbounded billable upstream calls.
+const MAX_DATE_SKEW_MS = 366 * 24 * 60 * 60 * 1000;
+function isDateInRange(date: string): boolean {
+  const t = Date.parse(`${date}T00:00:00Z`);
+  if (Number.isNaN(t)) return false;
+  return Math.abs(t - Date.now()) <= MAX_DATE_SKEW_MS;
+}
 
 // Canonical sign names mapped to a dob safely inside each sign's date range —
 // the shared getDailyHoroscopeText() derives the sign from dob, so these
@@ -86,6 +96,17 @@ export default async (req: Request, _context: Context) => {
     return new Response("Method Not Allowed", { status: 405 });
 
   try {
+    // Public, unauthenticated endpoint fronting the paid astrology API — cap
+    // per-IP so it can't be looped into unbounded billable calls. Fails closed
+    // (see FAIL_CLOSED_SCOPES) so a limiter outage can't be used to rack spend.
+    try {
+      await enforceIpRateLimit(req, "sign_horoscope", 60, 60 * 60 * 1000);
+    } catch (err) {
+      if (err instanceof AuthError)
+        return json({ error: err.message }, err.status);
+      throw err;
+    }
+
     const body = await req.json();
 
     // Validate everything BEFORE it becomes a cache key or upstream call —
@@ -102,6 +123,9 @@ export default async (req: Request, _context: Context) => {
       (typeof body.date !== "string" || !DATE_RE.test(body.date))
     ) {
       return json({ error: "Invalid date (expected YYYY-MM-DD)" }, 400);
+    }
+    if (typeof body.date === "string" && !isDateInRange(body.date)) {
+      return json({ error: "Date out of supported range" }, 400);
     }
     const date = body.date as string | undefined;
 

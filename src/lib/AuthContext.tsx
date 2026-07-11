@@ -5,7 +5,7 @@ import {
   signOut as firebaseSignOut,
   getRedirectResult,
 } from "firebase/auth";
-import { auth, db } from "./firebase";
+import { auth, db, enableAnalytics } from "./firebase";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { STORAGE_KEYS } from "./constants";
 import {
@@ -44,6 +44,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+
+      // Signing in follows the Terms/Privacy notice shown at the auth modal, so
+      // treat an authenticated session as analytics consent — GA4 stays off for
+      // anonymous visitors who never accepted it.
+      if (currentUser) enableAnalytics();
 
       // Initialize user doc + migrate guest/localStorage profile data on first login
       if (currentUser) {
@@ -202,6 +207,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem(STORAGE_KEYS.LOGIN_REDIRECT);
     sessionStorage.removeItem(STORAGE_KEYS.SYNTHESIS_DRAFT);
     sessionStorage.removeItem(STORAGE_KEYS.CONSULT_DRAFT);
+    // Reset the anonymous analytics device id so a different account signing in
+    // on this browser isn't linked to the previous user's events.
+    localStorage.removeItem("astroyou:analytics_id");
   };
 
   return (

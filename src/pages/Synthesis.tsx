@@ -28,12 +28,14 @@ import AuthModal from "../components/AuthModal";
 import OnboardingModal from "../components/OnboardingModal";
 import { useAuth } from "../lib/useAuth";
 import { useUserProfile, useKundali } from "../hooks";
+import { useSubscription } from "../hooks/useSubscription";
 import type { ChartType } from "../hooks/useKundali";
 import {
   doc,
   updateDoc,
   collection,
   addDoc,
+  setDoc,
   query,
   orderBy,
   limit,
@@ -59,6 +61,7 @@ import ConversationsList from "../components/synthesis/ConversationsList";
 import { NightSky } from "../components/layout/NightSky";
 import type { UserRoutine } from "../types/user";
 import { STORAGE_KEYS, FREE_LIMIT_SECONDS } from "../lib/constants";
+import { parseStoredJSON } from "../lib/safeStorage";
 import { useErrorToast, useSuccessToast } from "../components/ui/toast-context";
 import {
   hasVisibleStreamingContent,
@@ -87,6 +90,9 @@ export default function Synthesis() {
   const showSuccess = useSuccessToast();
 
   const [birthData, setBirthData] = useState<any>(null);
+  // Active paid subscribers get unmetered chat server-side, so the client must
+  // not paywall them at 0 credits (it would contradict the "unlimited" promise).
+  const { isSubscribed } = useSubscription();
 
   // Atman Integration
   const { isAnxious, isChaotic, isReactive, atmanState, refreshAtman } =
@@ -233,16 +239,16 @@ export default function Synthesis() {
     if (isLoadingProfile) return;
 
     if (!user) {
-      const guestData = sessionStorage.getItem(STORAGE_KEYS.GUEST_PROFILE);
       const guestComplete = sessionStorage.getItem(STORAGE_KEYS.GUEST_COMPLETE);
+      const guest = parseStoredJSON(sessionStorage, STORAGE_KEYS.GUEST_PROFILE);
 
-      if (guestData && guestComplete) {
-        setBirthData(JSON.parse(guestData));
+      if (guest && guestComplete) {
+        setBirthData(guest);
       } else {
         // No guest data? Try localStorage before forcing onboarding
-        const localData = localStorage.getItem(STORAGE_KEYS.PROFILE);
-        if (localData) {
-          setBirthData(JSON.parse(localData));
+        const local = parseStoredJSON(localStorage, STORAGE_KEYS.PROFILE);
+        if (local) {
+          setBirthData(local);
         } else {
           setShowOnboardingModal(true);
         }
@@ -256,9 +262,9 @@ export default function Synthesis() {
   const handleOnboardingComplete = () => {
     // For guest users, we need to manually pick up the data from sessionStorage
     if (!user) {
-      const guestData = sessionStorage.getItem(STORAGE_KEYS.GUEST_PROFILE);
-      if (guestData) {
-        setBirthData(JSON.parse(guestData));
+      const guest = parseStoredJSON(sessionStorage, STORAGE_KEYS.GUEST_PROFILE);
+      if (guest) {
+        setBirthData(guest);
       }
     }
     // For logged-in users, useUserProfile's onSnapshot will auto-update hookBirthData
@@ -501,7 +507,7 @@ export default function Synthesis() {
 
     const isOutOfTime = !user
       ? secondsUsed >= FREE_LIMIT_SECONDS
-      : credits <= 0;
+      : credits <= 0 && !isSubscribed;
 
     if (isOutOfTime) {
       if (!user) setShowAuthModal(true);
@@ -584,6 +590,11 @@ export default function Synthesis() {
               { role: userMsg.role, content: userMsg.content },
             ].slice(-10);
 
+      // Pre-generate the assistant message id so the server can durably persist
+      // the reply under the SAME doc id the client writes — if the tab closes
+      // before the client's write, the server's copy survives (no duplicate).
+      const aiMsgClientId = `assistant_${crypto.randomUUID()}`;
+
       const idToken = user ? await user.getIdToken() : undefined;
       const response = await fetch("/api/synthesis", {
         method: "POST",
@@ -604,6 +615,8 @@ export default function Synthesis() {
               : undefined,
           messageCount: messages.filter((m) => m.id !== "welcome").length,
           idToken,
+          chatId: user ? chatId : undefined,
+          assistantMessageId: user ? aiMsgClientId : undefined,
         }),
       });
 
@@ -709,7 +722,6 @@ export default function Synthesis() {
       }
 
       if (user && chatId) {
-        const aiMsgClientId = `assistant_${Date.now()}`;
         const aiMsg: Message = {
           id: `pending_${aiMsgClientId}`,
           clientId: aiMsgClientId,
@@ -722,15 +734,26 @@ export default function Synthesis() {
         setStreamingContent(null);
         setMessages((prev) => [...prev, aiMsg]);
 
-        // Write to Firestore — onSnapshot will confirm the local message.
-        await addDoc(
-          collection(db, "users", user.uid, "chats", chatId, "messages"),
+        // Write to the deterministic doc id (same as the server's persist), so
+        // the two writes converge instead of duplicating. onSnapshot then
+        // confirms the local message by clientId.
+        await setDoc(
+          doc(
+            db,
+            "users",
+            user.uid,
+            "chats",
+            chatId,
+            "messages",
+            aiMsgClientId,
+          ),
           {
             role: "assistant",
             content: finalContent,
             clientId: aiMsgClientId,
             timestamp: serverTimestamp(),
           },
+          { merge: true },
         );
       } else {
         // Guest: clear streaming, then add message directly
@@ -1093,6 +1116,7 @@ export default function Synthesis() {
                     />
                     <textarea
                       rows={1}
+                      aria-label="Ask Jyotish a question"
                       placeholder="Ask Jyotish..."
                       className="max-h-32 min-w-0 flex-1 resize-none appearance-none overflow-hidden border-0 bg-transparent py-1 font-sans text-sm leading-6 text-white/85 outline-none placeholder:text-white/28 focus:border-0 focus:outline-none focus:ring-0 md:text-[0.95rem]"
                       style={{ height: "auto" }}
@@ -1280,6 +1304,7 @@ export default function Synthesis() {
                   </div>
                 </div>
                 <select
+                  aria-label="Select chart type"
                   value={currentChartType}
                   onChange={(e) =>
                     setCurrentChartType(e.target.value as ChartType)

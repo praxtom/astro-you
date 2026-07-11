@@ -44,6 +44,7 @@ function createDeps(
   credits: number | undefined,
   now: number,
   documents: Record<string, Record<string, unknown>> = {},
+  userExtra: Record<string, unknown> = {},
 ) {
   const writes: Write[] = [];
   const deps: ConsultSessionDeps = {
@@ -63,7 +64,10 @@ function createDeps(
             if (ref.path === "users/user_123") {
               return {
                 exists: true,
-                data: () => (credits === undefined ? {} : { credits }),
+                data: () =>
+                  credits === undefined
+                    ? { ...userExtra }
+                    : { credits, ...userExtra },
               };
             }
 
@@ -116,13 +120,115 @@ test("startConsultSession creates an active server-owned session", async () => {
     estimatedMinutes: 5,
     preferredLanguage: "Hindi",
   });
-  assert.equal(writes.length, 1);
+  // Session doc + the single-active pointer on the user doc.
+  assert.equal(writes.length, 2);
   assert.equal(writes[0].type, "set");
   assert.equal(writes[0].path, "users/user_123/consultations/generated");
   assert.equal(writes[0].data.status, "active");
   assert.equal(writes[0].data.startedAtMs, now);
   assert.equal(writes[0].data.maxBillableMinutes, 5);
   assert.equal(writes[0].data.preferredLanguage, "Hindi");
+  assert.equal(writes[1].type, "set");
+  assert.equal(writes[1].path, "users/user_123");
+  assert.equal(writes[1].data.activeConsultSessionId, "generated");
+});
+
+test("startConsultSession rejects a second concurrent session for another persona", async () => {
+  const now = 1_800_000;
+  // The user already has a live session (pointer set) for a different persona.
+  const { deps, writes } = createDeps(
+    200,
+    now,
+    {
+      "users/user_123/consultations/live_session": {
+        personaId: "acharya-priya",
+        status: "active",
+        startedAtMs: 1_700_000,
+        pricePerMin: 5,
+      },
+    },
+    { activeConsultSessionId: "live_session" },
+  );
+
+  await assert.rejects(
+    () =>
+      startConsultSession(deps, {
+        idToken: "valid-token",
+        personaId: "guru-vidyanath",
+      }),
+    (error) => error instanceof ConsultSessionError && error.status === 409,
+  );
+
+  assert.equal(writes.length, 0);
+});
+
+test("startConsultSession ignores a stale existingSessionId while the pointer session is live", async () => {
+  const now = 1_800_000;
+  // Regression: a client-supplied ENDED session id must not beat the pointer —
+  // falling through on it would open a second live meter next to the active
+  // session (the parallel-billing abuse).
+  const { deps, writes } = createDeps(
+    200,
+    now,
+    {
+      "users/user_123/consultations/live_session": {
+        personaId: "acharya-priya",
+        status: "active",
+        startedAtMs: 1_700_000,
+        pricePerMin: 5,
+      },
+      "users/user_123/consultations/old_ended": {
+        personaId: "guru-vidyanath",
+        status: "ended",
+        startedAtMs: 1_500_000,
+        pricePerMin: 5,
+      },
+    },
+    { activeConsultSessionId: "live_session" },
+  );
+
+  await assert.rejects(
+    () =>
+      startConsultSession(deps, {
+        idToken: "valid-token",
+        personaId: "guru-vidyanath",
+        existingSessionId: "old_ended",
+      }),
+    (error) => error instanceof ConsultSessionError && error.status === 409,
+  );
+
+  // No new session, no pointer overwrite.
+  assert.equal(writes.length, 0);
+});
+
+test("startConsultSession resumes the live session when the pointer matches", async () => {
+  const now = 1_800_000;
+  // No explicit existingSessionId — resume is driven purely by the pointer.
+  const { deps, writes } = createDeps(
+    25,
+    now,
+    {
+      "users/user_123/consultations/live_session": {
+        personaId: "guru-vidyanath",
+        status: "active",
+        startedAtMs: 1_700_000,
+        pricePerMin: 5,
+        maxBillableMinutes: 5,
+        preferredLanguage: "Hindi",
+      },
+    },
+    { activeConsultSessionId: "live_session" },
+  );
+
+  const result = await startConsultSession(deps, {
+    idToken: "valid-token",
+    personaId: "guru-vidyanath",
+  });
+
+  assert.equal(result.sessionId, "live_session");
+  assert.equal(result.startedAt, 1_700_000);
+  // Resuming the already-live session writes nothing.
+  assert.equal(writes.length, 0);
 });
 
 test("startConsultSession rejects users without one minute of credits", async () => {

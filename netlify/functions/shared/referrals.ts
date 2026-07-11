@@ -43,6 +43,17 @@ export function createReferralCode(uid: string): string {
   return `STAR${safeUid.slice(0, 6).padEnd(6, "X")}`;
 }
 
+/**
+ * Mask an email for storage in ANOTHER user's tree. The referrer only needs to
+ * recognize whom they invited, not hold the referee's raw address — which would
+ * also survive the referee's account deletion. "john.doe@gmail.com" → "j***@gmail.com".
+ */
+export function maskEmail(email: string): string {
+  const at = email.indexOf("@");
+  if (at <= 0) return "***";
+  return `${email[0]}***@${email.slice(at + 1)}`;
+}
+
 export function normalizeReferralCode(code: unknown): string {
   const normalized =
     typeof code === "string"
@@ -73,8 +84,8 @@ export function buildReferralClaimRecord(
   }
 
   const refereeEmail =
-    typeof input.refereeEmail === "string"
-      ? input.refereeEmail.trim().toLowerCase().slice(0, 160)
+    typeof input.refereeEmail === "string" && input.refereeEmail.includes("@")
+      ? maskEmail(input.refereeEmail.trim().toLowerCase().slice(0, 160))
       : null;
 
   return {

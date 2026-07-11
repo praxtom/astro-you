@@ -107,8 +107,11 @@ export default async (req: Request, _context: Context) => {
         };
       }
 
-      // Valid — consume the OTP so it can't be reused.
-      tx.delete(otpRef);
+      // Valid. Defer deletion until AFTER the token mints — deleting here would
+      // make a retry say "No code found" if user creation or token minting
+      // fails, forcing the user to wait 60s for a fresh code. The window in
+      // which the (already-correct) code stays valid only lets the legitimate
+      // holder re-sign into the same account, which is idempotent.
       return { ok: true };
     });
 
@@ -137,6 +140,12 @@ export default async (req: Request, _context: Context) => {
     );
 
     const customToken = await auth.createCustomToken(userRecord.uid);
+
+    // Sign-in fully succeeded — consume the OTP now so it can't be reused.
+    await otpRef
+      .delete()
+      .catch((e) => console.error("[Verify OTP] OTP cleanup failed:", e));
+
     return json({ success: true, token: customToken }, 200);
   } catch (error: any) {
     console.error("Verify OTP Error:", error);

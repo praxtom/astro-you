@@ -198,7 +198,6 @@ export default function Compatibility() {
       });
 
       const data = await response.json();
-      console.log("[Compatibility] Match Data:", data);
       if (data.error) throw new Error(data.error);
       setMatchResult(data);
     } catch (err: any) {

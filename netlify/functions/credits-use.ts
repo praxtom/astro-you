@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Config, Context } from "@netlify/functions";
 import { auth, db, FieldValue } from "./shared/firebase-admin";
 import { applyCreditChange } from "./shared/credits";
@@ -30,6 +31,10 @@ export default async (req: Request, _context: Context) => {
         amount: -1,
         type: "synthesis",
         source,
+        // A ledgerId is required — without it applyCreditChange calls
+        // .doc(undefined), which throws. Unique per call (this endpoint is a
+        // manual deduct, not an idempotent retry).
+        ledgerId: `credits_use_${randomUUID()}`,
         metadata: { source },
       },
     );

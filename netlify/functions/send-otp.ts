@@ -142,10 +142,9 @@ export default async (req: Request, _context: Context) => {
     });
 
     if (!resendRes.ok) {
-      const detail = await resendRes.text().catch(() => "");
-      console.error(
-        `[Send OTP] Resend failed (${resendRes.status}): ${detail}`,
-      );
+      // Log only the status — the Resend error body can echo the recipient
+      // email address, which must not land in server logs.
+      console.error(`[Send OTP] Resend failed (${resendRes.status})`);
       // Roll back the OTP doc so the user can retry cleanly.
       await otpRef.delete().catch(() => undefined);
       return json({ error: "Could not send code. Please try again." }, 502);

@@ -85,6 +85,16 @@ export default async (req: Request, _context: Context) => {
       readSubcollection(userRef, "testimonialSubmissions"),
     ]);
 
+    // The user's own analytics events live in a top-level collection outside
+    // their subtree — include them so the export is a complete record of the
+    // personal data held about them.
+    const analyticsEvents = await db
+      .collection("analyticsEvents")
+      .where("uid", "==", uid)
+      .get()
+      .then((snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+      .catch(() => [] as Array<Record<string, unknown>>);
+
     const userData = userDoc.data() || {};
     const exportData = {
       exportDate: new Date().toISOString(),
@@ -116,6 +126,7 @@ export default async (req: Request, _context: Context) => {
       consultationReviews,
       predictionFeedback,
       testimonialSubmissions,
+      analyticsEvents,
     };
 
     return new Response(JSON.stringify(exportData, null, 2), {
@@ -126,10 +137,17 @@ export default async (req: Request, _context: Context) => {
       },
     });
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    // Never echo the raw error — it can leak internal paths / Firestore details.
+    console.error("[ExportData] Failed:", err);
+    return new Response(
+      JSON.stringify({
+        error: "Could not export your data. Please try again.",
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
   }
 };
 

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Config, Context } from "@netlify/functions";
 import { getTransitChart, getTransitReport } from "./shared/astro-api";
 import { generateTransitSummary } from "./shared/gemini";
@@ -8,12 +9,20 @@ import {
   enforceIpRateLimit,
   AuthError,
 } from "./shared/require-auth";
+import {
+  reserveFeatureCredits,
+  insufficientCreditsResponse,
+  stableChargeKey,
+  CreditError,
+  type FeatureCharge,
+} from "./shared/feature-credits";
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
     return new Response("Method Not Allowed", { status: 405 });
   }
 
+  let charge: FeatureCharge | null = null;
   try {
     const { birthData, transitDate, idToken } = await req.json();
 
@@ -40,10 +49,35 @@ export default async (req: Request, _context: Context) => {
       });
     }
 
+    // Transit Oracle is a premium surface — reserve credits before the paid
+    // API calls. Refunded by the outer catch if the chart fetch fails. Keyed
+    // per chart + transit date so re-viewing the same day's transits (which
+    // the 12h report cache serves anyway) doesn't bill again.
+    try {
+      charge = await reserveFeatureCredits(
+        decoded.uid,
+        "transit",
+        stableChargeKey(
+          birthData.dob,
+          birthData.tob,
+          birthData.pob,
+          transitDate || new Date().toISOString().split("T")[0],
+        ),
+      );
+    } catch (err) {
+      if (err instanceof CreditError) return insufficientCreditsResponse();
+      throw err;
+    }
+
     // Fetch both transit positions and the interpretive report.
-    // Cache key includes tob + pob so users sharing a birthdate don't collide.
+    // Cache key covers dob + tob + pob so users sharing a birthdate don't
+    // collide — hashed so raw birth data never appears in a doc ID.
     const today = new Date().toISOString().split("T")[0];
-    const reportKey = `${birthData.dob}_${birthData.tob}_${(birthData.pob || "").replace(/[/\s]/g, "_")}_${transitDate || today}`;
+    const reportKey = createHash("sha256")
+      .update(
+        `${birthData.dob}_${birthData.tob}_${birthData.pob || ""}_${transitDate || today}`,
+      )
+      .digest("hex");
     console.log(
       `[Transit] Fetching chart and report for ${transitDate || "today"}...`,
     );
@@ -52,17 +86,25 @@ export default async (req: Request, _context: Context) => {
         console.log("[Transit] Chart data received");
         return d;
       }),
+      // A report failure must not fail the whole request — the chart is still
+      // useful. getCachedOrFetch propagates the fetcher throw (so nothing is
+      // cached on failure); we degrade to empty predictions in-memory only.
       getCachedOrFetch(
         "transit_reports",
         reportKey,
         () => getTransitReport(birthData, transitDate),
         12, // 12-hour TTL for transit reports
-      ).then((d) => {
-        console.log(
-          `[Transit] Report data received (${(d as any)?.length || 0} events)`,
-        );
-        return d;
-      }),
+      )
+        .then((d) => {
+          console.log(
+            `[Transit] Report data received (${Array.isArray(d) ? d.length : 0} events)`,
+          );
+          return d;
+        })
+        .catch((err) => {
+          console.error("[Transit] Report fetch failed, degrading:", err);
+          return [] as any[];
+        }),
     ]);
 
     // Generate Gemini summary if we have report data
@@ -94,6 +136,7 @@ export default async (req: Request, _context: Context) => {
     );
   } catch (error: any) {
     console.error("Transit function error:", error);
+    if (charge) await charge.refund();
     return new Response(
       JSON.stringify({ error: "Transit request failed. Please try again." }),
       {

@@ -13,6 +13,8 @@ import {
   useDashaPeriods,
 } from "../hooks";
 import { STORAGE_KEYS } from "../lib/constants";
+import { parseStoredJSON } from "../lib/safeStorage";
+import SectionErrorBoundary from "../components/SectionErrorBoundary";
 import { useErrorToast } from "../components/ui/toast-context";
 
 import Header from "../components/layout/Header";
@@ -86,9 +88,12 @@ export default function Dashboard() {
   // Guest mode fallback — no account, but birth data stashed during onboarding
   useEffect(() => {
     if (!user && !isLoading) {
-      const stored = sessionStorage.getItem(STORAGE_KEYS.GUEST_PROFILE);
+      const stored = parseStoredJSON(
+        sessionStorage,
+        STORAGE_KEYS.GUEST_PROFILE,
+      );
       if (stored) {
-        setGuestData(JSON.parse(stored));
+        setGuestData(stored);
       } else {
         navigate("/");
       }
@@ -218,101 +223,107 @@ export default function Dashboard() {
 
         <div className="mt-12 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_22rem] gap-x-10 gap-y-12 items-start">
           {/* ── The day, read closely ── */}
-          <div className="space-y-10 min-w-0">
-            <TodayTriptych
-              atmanState={atmanState}
-              panchang={panchang}
-              panchangError={panchangError}
-              isSignedIn={Boolean(user)}
-              onSaveIntention={() =>
-                user ? setShowDailyAltar(true) : navigate("/onboarding")
-              }
-            />
+          <SectionErrorBoundary label="daily panel">
+            <div className="space-y-10 min-w-0">
+              <TodayTriptych
+                atmanState={atmanState}
+                panchang={panchang}
+                panchangError={panchangError}
+                isSignedIn={Boolean(user)}
+                onSaveIntention={() =>
+                  user ? setShowDailyAltar(true) : navigate("/onboarding")
+                }
+              />
 
-            {user && atmanState?.routines && atmanState.routines.length > 0 && (
-              <div className="glass rounded-3xl p-5 animate-reveal-progressive">
-                <DharmaList
-                  routines={atmanState.routines}
-                  userId={user.uid}
-                  onComplete={refreshAtman}
-                />
+              {user &&
+                atmanState?.routines &&
+                atmanState.routines.length > 0 && (
+                  <div className="glass rounded-3xl p-5 animate-reveal-progressive">
+                    <DharmaList
+                      routines={atmanState.routines}
+                      userId={user.uid}
+                      onComplete={refreshAtman}
+                    />
+                  </div>
+                )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-reveal-progressive">
+                <PanchangCard />
+                <YogaCard birthData={userData} />
               </div>
-            )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-reveal-progressive">
-              <PanchangCard />
-              <YogaCard birthData={userData} />
+              {dashaPeriods.length > 0 && (
+                <DashaTimeline periods={dashaPeriods} />
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-reveal-progressive">
+                <SadeSatiCard birthData={userData} />
+                <NakshatraCard birthData={userData} />
+              </div>
             </div>
-
-            {dashaPeriods.length > 0 && (
-              <DashaTimeline periods={dashaPeriods} />
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-reveal-progressive">
-              <SadeSatiCard birthData={userData} />
-              <NakshatraCard birthData={userData} />
-            </div>
-          </div>
+          </SectionErrorBoundary>
 
           {/* ── The margin notes ── */}
-          <aside className="space-y-6 min-w-0">
-            {/* Today's reading */}
-            <section className="relative glass rounded-3xl p-6 animate-reveal-progressive overflow-visible">
-              <span className="absolute -top-3 left-6 px-2 bg-bg-app text-gold/80 text-[0.6rem] font-bold uppercase tracking-[0.35em]">
-                Today's Word
-              </span>
-              {isPredictionLoading && !prediction && !predictionError ? (
-                <div className="flex items-center gap-2 text-sm text-white/45">
-                  <Sparkles size={14} className="text-gold" />
-                  Preparing today's guidance…
-                </div>
-              ) : (
-                <>
-                  <p className="font-display text-lg text-white/75 leading-relaxed italic">
-                    {prediction || readingFallback}
-                  </p>
-                  <button
-                    onClick={() => navigate("/forecast")}
-                    className="mt-4 text-xs uppercase tracking-[0.2em] font-bold text-gold hover:text-white transition-colors inline-flex items-center gap-1.5 group"
-                  >
-                    Open forecast
-                    <ArrowUpRight
-                      size={12}
-                      className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"
-                    />
-                  </button>
-                </>
+          <SectionErrorBoundary label="side panel">
+            <aside className="space-y-6 min-w-0">
+              {/* Today's reading */}
+              <section className="relative glass rounded-3xl p-6 animate-reveal-progressive overflow-visible">
+                <span className="absolute -top-3 left-6 px-2 bg-bg-app text-gold/80 text-[0.6rem] font-bold uppercase tracking-[0.35em]">
+                  Today's Word
+                </span>
+                {isPredictionLoading && !prediction && !predictionError ? (
+                  <div className="flex items-center gap-2 text-sm text-white/45">
+                    <Sparkles size={14} className="text-gold" />
+                    Preparing today's guidance…
+                  </div>
+                ) : (
+                  <>
+                    <p className="font-display text-lg text-white/75 leading-relaxed italic">
+                      {prediction || readingFallback}
+                    </p>
+                    <button
+                      onClick={() => navigate("/forecast")}
+                      className="mt-4 text-xs uppercase tracking-[0.2em] font-bold text-gold hover:text-white transition-colors inline-flex items-center gap-1.5 group"
+                    >
+                      Open forecast
+                      <ArrowUpRight
+                        size={12}
+                        className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"
+                      />
+                    </button>
+                  </>
+                )}
+              </section>
+
+              {user && atmanState && (
+                <SoulInsightCard
+                  atmanState={atmanState}
+                  onOpenSadhanaPath={() => setShowDailyAltar(true)}
+                />
               )}
-            </section>
 
-            {user && atmanState && (
-              <SoulInsightCard
-                atmanState={atmanState}
-                onOpenSadhanaPath={() => setShowDailyAltar(true)}
-              />
-            )}
+              {user && (
+                <MemoryPanel
+                  atmanState={atmanState}
+                  hasBirthData={hasBirthData}
+                />
+              )}
 
-            {user && (
-              <MemoryPanel
-                atmanState={atmanState}
+              <DashaCard />
+              <RemediesCard birthData={userData} />
+              <FestivalCard />
+
+              <UtilityDock
+                profile={profile}
                 hasBirthData={hasBirthData}
+                downloadingNatal={downloadingNatal}
+                onDownloadNatalReport={handleDownloadNatalReport}
+                onUpdateBirthData={() => setShowOnboardingModal(true)}
+                onOpenAltar={() => setShowDailyAltar(true)}
+                onShareChart={() => setShowChartShare(true)}
               />
-            )}
-
-            <DashaCard />
-            <RemediesCard birthData={userData} />
-            <FestivalCard />
-
-            <UtilityDock
-              profile={profile}
-              hasBirthData={hasBirthData}
-              downloadingNatal={downloadingNatal}
-              onDownloadNatalReport={handleDownloadNatalReport}
-              onUpdateBirthData={() => setShowOnboardingModal(true)}
-              onOpenAltar={() => setShowDailyAltar(true)}
-              onShareChart={() => setShowChartShare(true)}
-            />
-          </aside>
+            </aside>
+          </SectionErrorBoundary>
         </div>
       </main>
 
@@ -330,8 +341,11 @@ export default function Dashboard() {
         onClose={() => setShowOnboardingModal(false)}
         onComplete={() => {
           if (!user) {
-            const stored = sessionStorage.getItem(STORAGE_KEYS.GUEST_PROFILE);
-            if (stored) setGuestData(JSON.parse(stored));
+            const stored = parseStoredJSON(
+              sessionStorage,
+              STORAGE_KEYS.GUEST_PROFILE,
+            );
+            if (stored) setGuestData(stored);
           }
         }}
         existingProfile={profile}

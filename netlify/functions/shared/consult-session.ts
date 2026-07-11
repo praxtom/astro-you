@@ -120,7 +120,11 @@ interface DocumentSnapshotLike {
 interface TransactionLike {
   get(ref: DocumentRefLike): Promise<DocumentSnapshotLike>;
   update(ref: DocumentRefLike, data: Record<string, unknown>): void;
-  set(ref: DocumentRefLike, data: Record<string, unknown>): void;
+  set(
+    ref: DocumentRefLike,
+    data: Record<string, unknown>,
+    options?: { merge?: boolean },
+  ): void;
 }
 
 interface DbLike {
@@ -269,36 +273,62 @@ export async function startConsultSession(
 
   return deps.db.runTransaction(async (tx) => {
     const userSnap = await tx.get(userRef);
-    const credits = userSnap.data()?.credits ?? 0;
-    let consultationRef = payload.existingSessionId
-      ? userRef.collection("consultations").doc(payload.existingSessionId)
-      : userRef.collection("consultations").doc();
+    const userData = userSnap.data();
+    const credits = userData?.credits ?? 0;
 
-    if (payload.existingSessionId) {
-      const existingSnap = await tx.get(consultationRef);
-      const existing = existingSnap.data();
-      if (
-        existingSnap.exists !== false &&
+    // Single active consultation per user. `activeConsultSessionId` on the user
+    // doc is the lock: because a new session writes it, two parallel starts both
+    // write the user doc and Firestore serializes them — the loser retries, sees
+    // the pointer, and resumes/rejects instead of opening a second meter. This
+    // closes the abuse where K parallel sessions each reserve the full balance
+    // (maxBillableMinutes = floor(credits/price)) but only the first bills it.
+    const pointerId =
+      typeof userData?.activeConsultSessionId === "string"
+        ? userData.activeConsultSessionId
+        : undefined;
+
+    // Check the pointer FIRST — it is the authoritative lock. If the
+    // client-supplied existingSessionId took precedence, a stale/ended id
+    // would fall through the resume check and open a second live meter next
+    // to the pointer's still-active session, resurrecting the parallel-billing
+    // abuse. The payload id is only consulted as a legacy fallback (sessions
+    // created before the pointer existed).
+    const candidateIds = [pointerId, payload.existingSessionId].filter(
+      (id, idx, arr): id is string => Boolean(id) && arr.indexOf(id) === idx,
+    );
+
+    for (const candidateId of candidateIds) {
+      const resumeRef = userRef.collection("consultations").doc(candidateId);
+      const resumeSnap = await tx.get(resumeRef);
+      const existing = resumeSnap.data();
+      const isActive =
+        resumeSnap.exists !== false &&
         existing?.status === "active" &&
-        existing.personaId === persona.id &&
-        typeof existing.startedAtMs === "number"
-      ) {
-        return {
-          success: true,
-          sessionId: payload.existingSessionId,
-          personaId: persona.id,
-          startedAt: existing.startedAtMs,
-          pricePerMin: existing.pricePerMin ?? persona.pricePerMin,
-          credits,
-          estimatedMinutes: existing.maxBillableMinutes ?? 1,
-          preferredLanguage:
-            normalizePreferredLanguage(existing.preferredLanguage) ||
-            preferredLanguage,
-        };
-      }
+        typeof existing.startedAtMs === "number";
 
-      consultationRef = userRef.collection("consultations").doc();
+      if (!isActive) continue; // stale (ended/missing) — try next candidate
+
+      if (existing.personaId !== persona.id) {
+        // A different persona's meter is already running — one at a time.
+        throw new ConsultSessionError(
+          "You already have an active consultation. Please end it before starting a new one.",
+          409,
+        );
+      }
+      return {
+        success: true,
+        sessionId: candidateId,
+        personaId: persona.id,
+        startedAt: existing.startedAtMs,
+        pricePerMin: existing.pricePerMin ?? persona.pricePerMin,
+        credits,
+        estimatedMinutes: existing.maxBillableMinutes ?? 1,
+        preferredLanguage:
+          normalizePreferredLanguage(existing.preferredLanguage) ||
+          preferredLanguage,
+      };
     }
+    // No live session found — start fresh, overwriting the pointer below.
 
     const estimatedMinutes = Math.floor(credits / persona.pricePerMin);
 
@@ -309,6 +339,7 @@ export async function startConsultSession(
       );
     }
 
+    const consultationRef = userRef.collection("consultations").doc();
     tx.set(consultationRef, {
       personaId: persona.id,
       status: "active",
@@ -322,6 +353,11 @@ export async function startConsultSession(
       createdAt: deps.FieldValue.serverTimestamp(),
       updatedAt: deps.FieldValue.serverTimestamp(),
     });
+    tx.set(
+      userRef,
+      { activeConsultSessionId: consultationRef.id || "" },
+      { merge: true },
+    );
 
     return {
       success: true,
@@ -373,11 +409,23 @@ export async function finalizeConsultSession(
     const consultationSnap = await tx.get(consultationRef);
     const consultation = consultationSnap.data();
 
+    // Release the single-active-session lock if it points at this session, so
+    // the user can start a new consultation after this one closes. Deferred as a
+    // write until after all reads (Firestore requires reads before writes).
+    const releasesLock =
+      userSnap.data()?.activeConsultSessionId === params.sessionId;
+    const releaseLock = () => {
+      if (releasesLock) {
+        tx.set(userRef, { activeConsultSessionId: null }, { merge: true });
+      }
+    };
+
     if (consultationSnap.exists === false || !consultation) {
       throw new ConsultSessionError("Consultation session not found", 404);
     }
 
     if (consultation.status === "ended") {
+      releaseLock();
       return {
         success: true as const,
         durationSeconds: consultation.duration,
@@ -469,6 +517,7 @@ export async function finalizeConsultSession(
       messageCount: consultation.messageCount ?? params.messageCount ?? 0,
       updatedAt: deps.FieldValue.serverTimestamp(),
     });
+    releaseLock();
 
     return { success: true as const, durationSeconds, minutes, cost: charge };
   });

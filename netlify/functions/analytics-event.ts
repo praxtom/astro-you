@@ -44,7 +44,16 @@ export default async (req: Request, _context: Context) => {
       FieldValue.serverTimestamp(),
     );
 
-    const ref = await db.collection("analyticsEvents").add(record);
+    // expiresAt lets a Firestore TTL policy on `analyticsEvents` auto-reap old
+    // events (the collection is otherwise unbounded — one doc per event). NOTE:
+    // the TTL policy must be enabled in the Firebase console targeting this field.
+    const EVENT_RETENTION_DAYS = 180;
+    const ref = await db.collection("analyticsEvents").add({
+      ...record,
+      expiresAt: new Date(
+        Date.now() + EVENT_RETENTION_DAYS * 24 * 60 * 60 * 1000,
+      ),
+    });
     return json({ success: true, eventId: ref.id });
   } catch (error: any) {
     console.error("[AnalyticsEvent] Error:", error);

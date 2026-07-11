@@ -6,6 +6,7 @@
 import { useCallback, useState, useEffect } from "react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
+import { devLog } from "../lib/devLog";
 import { useAuth } from "../lib/useAuth";
 import type { KundaliData, BirthData, PlanetaryPosition } from "../types";
 import { useRequestBirthData } from "./useRequestBirthData";
@@ -32,14 +33,14 @@ export function useKundali(
 
   const fetchKundali = useCallback(
     async (signal?: AbortSignal) => {
-      console.log("[useKundali] fetchKundali called with:", {
+      devLog("[useKundali] fetchKundali called with:", {
         birthData: requestBirthData,
         chartType,
         userId: user?.uid,
       });
 
       if (!requestBirthData?.dob || !requestBirthData.tob) {
-        console.log("[useKundali] Missing required fields, returning early:", {
+        devLog("[useKundali] Missing required fields, returning early:", {
           hasBirthData: !!requestBirthData,
           dob: requestBirthData?.dob,
           tob: requestBirthData?.tob,
@@ -70,7 +71,7 @@ export function useKundali(
               cachedData.planetary_positions &&
               cachedData.planetary_positions.length > 0
             ) {
-              console.log(
+              devLog(
                 "[useKundali] Using cached data with",
                 cachedData.planetary_positions.length,
                 "planets",
@@ -79,14 +80,14 @@ export function useKundali(
               setLoading(false);
               return;
             } else {
-              console.log(
+              devLog(
                 "[useKundali] Cached data is empty or invalid, will fetch from API",
               );
             }
           }
         }
 
-        console.log("[useKundali] Fetching from API...");
+        devLog("[useKundali] Fetching from API...");
 
         // Fetch from API if not cached. The server's subject builder expects
         // flat lat/lng (see kundali.ts / astro-api.ts buildSubject), so flatten
@@ -147,7 +148,7 @@ export function useKundali(
             is_retrograde: true, // Nodes are always retrograde
             nakshatra: "", // Will be calculated if needed
           });
-          console.log(
+          devLog(
             "[useKundali] Calculated Ketu position:",
             signOrder[ketuSignIdx],
             ketuHouse,

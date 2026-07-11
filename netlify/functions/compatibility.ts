@@ -7,12 +7,20 @@ import {
   enforceIpRateLimit,
   AuthError,
 } from "./shared/require-auth";
+import {
+  reserveFeatureCredits,
+  insufficientCreditsResponse,
+  stableChargeKey,
+  CreditError,
+  type FeatureCharge,
+} from "./shared/feature-credits";
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
     return new Response("Method Not Allowed", { status: 405 });
   }
 
+  let charge: FeatureCharge | null = null;
   try {
     const { maleData, femaleData, useVedicMatching, idToken } =
       await req.json();
@@ -40,6 +48,29 @@ export default async (req: Request, _context: Context) => {
       );
     }
 
+    // Synastry is a premium surface — reserve credits before the paid API
+    // calls. Refunded below if matching yields no data or an error is thrown.
+    // Keyed per pair per day so re-running the same match (retry, back-nav)
+    // doesn't bill again — a NEW pair is a new charge.
+    try {
+      charge = await reserveFeatureCredits(
+        decoded.uid,
+        "compatibility",
+        stableChargeKey(
+          new Date().toISOString().split("T")[0],
+          maleData.dob,
+          maleData.tob,
+          maleData.pob,
+          femaleData.dob,
+          femaleData.tob,
+          femaleData.pob,
+        ),
+      );
+    } catch (err) {
+      if (err instanceof CreditError) return insufficientCreditsResponse();
+      throw err;
+    }
+
     // Determine whether to include Vedic Kundli matching
     const shouldUseVedic =
       useVedicMatching === true ||
@@ -62,6 +93,7 @@ export default async (req: Request, _context: Context) => {
     const [matchData, vedicMatching] = await Promise.all(promises);
 
     if (!matchData) {
+      if (charge) await charge.refund();
       return new Response(
         JSON.stringify({ error: "Failed to fetch compatibility data" }),
         { status: 500, headers: { "Content-Type": "application/json" } },
@@ -96,12 +128,12 @@ export default async (req: Request, _context: Context) => {
         status: 200,
         headers: {
           "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
         },
       },
     );
   } catch (error: any) {
     console.error("[Compatibility] Error:", error);
+    if (charge) await charge.refund();
     return new Response(
       JSON.stringify({
         error: "Compatibility request failed. Please try again.",

@@ -159,9 +159,11 @@ export default async (req: Request, _context: Context) => {
               .find((message) => message.role === "user")?.content || "";
           const safe = <T>(promise: Promise<T>): Promise<T | null> =>
             promise.catch((err) => {
+              // Log only the error name/type — AI SDK messages can echo prompt
+              // or response fragments containing the user's chat content.
               console.warn(
                 "[Consult Message] Brain task failed:",
-                err?.message || err,
+                err?.name || "error",
               );
               return null;
             });

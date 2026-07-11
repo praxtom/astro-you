@@ -32,6 +32,9 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      // Discourage console.log in the client bundle (can leak PII to a user's
+      // DevTools). Use devLog() for debug output; console.warn/error are allowed.
+      "no-console": ["warn", { allow: ["warn", "error"] }],
       "no-empty": "warn",
       "no-unused-vars": "off",
       "no-useless-escape": "warn",

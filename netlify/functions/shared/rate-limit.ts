@@ -37,9 +37,16 @@ const FAIL_CLOSED_SCOPES = new Set([
   "proactive_nudge",
   "consult_message",
   "consult_start",
+  "ai_consult",
   "pdf_report",
   "trust_submit",
   "referral_claim",
+  // Public endpoints that front the paid astrology API — fail closed so a
+  // rate-limit-store outage can't be exploited to rack up upstream spend.
+  "sign_horoscope",
+  "horoscope",
+  "transit",
+  "compatibility",
 ]);
 
 export async function checkRateLimit(
@@ -87,7 +94,11 @@ export async function checkRateLimit(
       };
     });
   } catch (error) {
-    const failClosed = FAIL_CLOSED_SCOPES.has(options.scope);
+    // kundali.ts uses dynamic `astro_<chartType>` scopes — all front the paid
+    // astrology API, so treat the whole prefix as fail-closed.
+    const failClosed =
+      FAIL_CLOSED_SCOPES.has(options.scope) ||
+      options.scope.startsWith("astro_");
     console.error(
       `[RateLimit] Firestore check failed for ${options.scope}; ${failClosed ? "DENYING" : "allowing"} request.`,
       error,

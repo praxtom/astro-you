@@ -1,5 +1,14 @@
-export const LEGAL_EFFECTIVE_DATE = "May 30, 2026";
+export const LEGAL_EFFECTIVE_DATE = "July 11, 2026";
 export const SUPPORT_EMAIL = "support@astroyou.com";
+
+// TODO(legal): confirm the Grievance Officer named below (DPDP Act §13 requires
+// a reachable grievance contact) and have counsel review the Privacy Policy
+// sections before launch — the processor list, retention periods, and transfer
+// disclosures were drafted by engineering and are not a substitute for review.
+export const GRIEVANCE_OFFICER = {
+  name: "[Grievance Officer name]",
+  email: "grievance@astroyou.com",
+};
 
 export interface LegalSection {
   title: string;
@@ -91,38 +100,65 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     ],
   },
   {
-    title: "3. AI and Astrology Providers",
+    title: "3. Service Providers We Share Data With",
     content: [
-      "Astrology providers receive the birth and location fields required to calculate charts and timings.",
-      "AI providers receive the prompt, chart context, chat content, and relevant saved memory needed to generate a response.",
-      "Payment providers process payment data. AstroYou does not store full card numbers, CVV, UPI PIN, OTPs, or net-banking passwords.",
+      "We use the following processors to run AstroYou, and share only the data each needs for its function:",
+      "Google (Firebase Authentication, Firestore, Cloud Storage, Cloud Functions/Netlify hosting): stores your account, profile, birth data, chats, and product records, and handles sign-in.",
+      "astrology-api.io (chart calculation): receives the birth date, time, and place/coordinates needed to compute charts, dashas, and timings. It does not need and should not receive your real name.",
+      "Google Gemini (AI generation): receives the prompt, chart context, relevant chat content, and saved guidance memory needed to generate a response.",
+      "Razorpay (payments and subscriptions): processes your payment. AstroYou never stores full card numbers, CVV, UPI PIN, OTPs, or net-banking passwords.",
+      "Resend (email delivery): receives your email address and the content of transactional and digest emails you have enabled.",
+      "Google Analytics / Firebase Analytics (usage measurement): receives product usage events. It is loaded only after you accept the privacy notice at sign-in; anonymous visitors are not tracked.",
     ],
   },
   {
-    title: "4. Storage and Security",
+    title: "4. International Transfers",
+    content: [
+      "Some of these providers process data on servers outside India (for example in the United States or European Union). Where data is transferred across borders, we rely on the provider's contractual and technical safeguards and process it consistent with applicable law.",
+    ],
+  },
+  {
+    title: "5. Sensitive Data",
+    content: [
+      "Guidance features store emotional-state notes, relationship context, and reflections you choose to share. This may be treated as sensitive or special-category personal data under laws such as the GDPR. We use it only to personalize your guidance and remember context, and you can remove it through Support.",
+    ],
+  },
+  {
+    title: "6. How Long We Keep Data",
+    content: [
+      "Account, profile, birth data, and saved guidance: kept while your account is active, and deleted or anonymized within 30 days of an account-deletion request, except records we must retain longer.",
+      "Payment, invoice, and credit-ledger records: retained for up to 8 years to meet tax, accounting, and fraud-prevention obligations.",
+      "One-time login codes: deleted or expired within minutes. Rate-limit and short-lived cache records expire automatically, typically within a day.",
+      "Analytics and email-engagement events: retained in aggregated or limited form for product measurement and then rotated.",
+    ],
+  },
+  {
+    title: "7. Storage and Security",
     content: [
       "AstroYou stores account and product data in Firebase/Firestore and related cloud services. Access is account-bound and server operations use privileged backend credentials.",
-      "No system is risk-free. If we discover a serious security issue affecting your data, we will take reasonable steps to investigate, contain, and notify affected users where required.",
+      "No system is risk-free. If we discover a serious security issue affecting your data, we will take reasonable steps to investigate, contain, and notify affected users and authorities where required.",
     ],
   },
   {
-    title: "5. Your Choices",
+    title: "8. Your Rights",
     content: [
       "You can export supported account data from Settings.",
-      "You can request to delete your account, correct account data, or remove eligible saved guidance data through Support. Some records may be retained where needed for payments, fraud prevention, legal obligations, dispute handling, or accounting.",
+      "You can request access to, correction of, or deletion of your account and eligible saved guidance data through Support. Some records may be retained where needed for payments, fraud prevention, legal obligations, dispute handling, or accounting.",
+      "You can withdraw analytics consent by signing out, which stops analytics on this browser.",
       "You can opt out of optional notifications where the app provides that control.",
     ],
   },
   {
-    title: "6. Children",
+    title: "9. Children",
     content: [
-      "AstroYou is not intended for children under 13. If a child has provided personal data, contact Support so we can review deletion.",
+      "AstroYou is not intended for children under 18. In line with India's Digital Personal Data Protection Act, we do not knowingly process the personal data of a child (a person under 18) without verifiable parental or guardian consent. If you believe a child has provided personal data, contact the Grievance Officer or Support so we can review and delete it.",
     ],
   },
   {
-    title: "7. Contact",
+    title: "10. Grievance Officer and Contact",
     content: [
-      `Privacy questions, correction requests, export issues, and deletion requests can be sent to ${SUPPORT_EMAIL}.`,
+      `In accordance with applicable data-protection law, you may contact our Grievance Officer, ${GRIEVANCE_OFFICER.name}, at ${GRIEVANCE_OFFICER.email} for privacy concerns, access, correction, or deletion requests. We aim to acknowledge grievances within the timelines required by law.`,
+      `General privacy questions, export issues, and deletion requests can also be sent to ${SUPPORT_EMAIL}.`,
     ],
   },
 ];

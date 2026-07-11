@@ -406,6 +406,15 @@ export default function Onboarding() {
       setStep("spatial");
     } else if (step === "spatial") {
       if (!formData.pob) return;
+      // Require a geocoded selection — a free-typed place that doesn't resolve
+      // would let onboarding finish, then fail every chart call with a generic
+      // 500. birthCoordinates is only set when a dropdown suggestion is picked.
+      if (!birthCoordinates) {
+        showError(
+          "Please pick your birth place from the suggestions so we can locate it accurately.",
+        );
+        return;
+      }
       setStep("present");
     } else {
       finalizeJourney();
@@ -758,10 +767,14 @@ export default function Onboarding() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-xs font-bold">
+                <label
+                  htmlFor="onboarding-dob"
+                  className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-xs font-bold"
+                >
                   Birth Date
                 </label>
                 <input
+                  id="onboarding-dob"
                   type="date"
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-gold/50 transition-all text-base font-sans font-light appearance-none invert-calendar-icon"
                   value={formData.dob}
@@ -773,10 +786,14 @@ export default function Onboarding() {
                 />
               </div>
               <div>
-                <label className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-xs font-bold">
+                <label
+                  htmlFor="onboarding-tob"
+                  className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-xs font-bold"
+                >
                   Birth Time
                 </label>
                 <input
+                  id="onboarding-tob"
                   type="time"
                   className={`w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-gold/50 transition-all text-base font-sans font-light appearance-none invert-calendar-icon ${
                     formData.birthTimeUnknown

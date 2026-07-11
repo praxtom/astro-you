@@ -99,9 +99,24 @@ const DailyForecast: React.FC = () => {
           period,
         });
 
-        if (!response.ok) throw new Error("Failed to fetch forecast");
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}) as any);
+          // Out of credits must be SHOWN, not papered over with fallback
+          // content — otherwise the user never learns why the real forecast
+          // isn't loading.
+          if (response.status === 402) {
+            setForecast(null);
+            setError(
+              body.error ||
+                "You're out of credits. Top up to unlock this forecast.",
+            );
+            return;
+          }
+          throw new Error(body.error || "Failed to fetch forecast");
+        }
         const data = await response.json();
         setForecast(data);
+        setError(null);
       } catch (err: any) {
         console.error("Error fetching forecast:", err);
         setForecast(buildFallbackForecast(period));

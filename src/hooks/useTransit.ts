@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../lib/useAuth";
 import { NatalTransitData } from "../types/kundali";
 import { STORAGE_KEYS } from "../lib/constants";
+import { parseStoredJSON } from "../lib/safeStorage";
 import { postJson } from "../lib/apiFetch";
 
 interface TransitState {
@@ -26,9 +27,11 @@ export function useTransit(transitDate?: string) {
     const controller = new AbortController();
 
     async function fetchTransit() {
-      // Get birth data from localStorage (guest or user)
-      const storedProfile = localStorage.getItem(STORAGE_KEYS.PROFILE);
-      if (!storedProfile) {
+      // Get birth data from localStorage (guest or user). parseStoredJSON clears
+      // a corrupt value and returns null instead of throwing, which would
+      // otherwise leave this hook stuck at loading:true forever.
+      const birthData = parseStoredJSON(localStorage, STORAGE_KEYS.PROFILE);
+      if (!birthData) {
         setState((prev) => ({
           ...prev,
           loading: false,
@@ -37,15 +40,17 @@ export function useTransit(transitDate?: string) {
         return;
       }
 
-      const birthData = JSON.parse(storedProfile);
-
       try {
         setState((prev) => ({ ...prev, loading: true, error: null }));
 
-        const response = await postJson("/api/transit", {
+        const response = await postJson(
+          "/api/transit",
+          {
             birthData,
             transitDate: transitDate || new Date().toISOString().split("T")[0],
-          }, { signal: controller.signal });
+          },
+          { signal: controller.signal },
+        );
 
         const result = await response.json();
 

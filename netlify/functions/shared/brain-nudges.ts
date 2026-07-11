@@ -21,7 +21,9 @@ import { buildUnsubscribeUrl, resolveUnsubscribeSecret } from "./digest.js";
  */
 function resolveNudgeUnsubscribeUrl(uid: string): string | undefined {
   try {
-    return buildUnsubscribeUrl(uid, resolveUnsubscribeSecret());
+    const secret = resolveUnsubscribeSecret();
+    if (!secret) return undefined;
+    return buildUnsubscribeUrl(uid, secret);
   } catch {
     return undefined;
   }

@@ -48,29 +48,32 @@ export default function AuthModal({
   const modalRef = useRef<HTMLDivElement>(null);
 
   // Focus trap for accessibility
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === "Escape") {
-      onClose();
-      return;
-    }
-    if (e.key !== "Tab" || !modalRef.current) return;
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab" || !modalRef.current) return;
 
-    const focusable = modalRef.current.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    if (focusable.length === 0) return;
+      const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
 
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
 
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  }, [onClose]);
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    },
+    [onClose],
+  );
 
   // Manage focus trap lifecycle
   useEffect(() => {
@@ -79,7 +82,7 @@ export default function AuthModal({
       // Focus first interactive element on open
       setTimeout(() => {
         const first = modalRef.current?.querySelector<HTMLElement>(
-          'button, [href], input, select, textarea'
+          "button, [href], input, select, textarea",
         );
         first?.focus();
       }, 100);
@@ -157,6 +160,21 @@ export default function AuthModal({
     if (value && index === 5 && newOtp.every((d) => d !== "")) {
       handleVerifyOTP(newOtp.join(""));
     }
+  };
+
+  const handleOtpPaste = (e: React.ClipboardEvent) => {
+    const digits = e.clipboardData
+      .getData("text")
+      .replace(/\D/g, "")
+      .slice(0, 6);
+    if (!digits) return;
+    e.preventDefault();
+    const newOtp = ["", "", "", "", "", ""];
+    for (let i = 0; i < digits.length; i++) newOtp[i] = digits[i];
+    setOtp(newOtp);
+    const nextIndex = Math.min(digits.length, 5);
+    otpRefs[nextIndex].current?.focus();
+    if (digits.length === 6) handleVerifyOTP(digits);
   };
 
   const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
@@ -261,7 +279,7 @@ export default function AuthModal({
             transition={{
               type: "spring",
               duration: 0.5,
-              bounce: 0.3
+              bounce: 0.3,
             }}
             className="w-full max-w-md glass p-10 md:p-12 relative z-10 border border-white/10 rounded-3xl"
           >
@@ -285,7 +303,12 @@ export default function AuthModal({
                   <span className="section-label mb-4 opacity-60">
                     Secure Login
                   </span>
-                  <h2 id="auth-modal-title" className="text-title text-3xl mb-4">{title}</h2>
+                  <h2
+                    id="auth-modal-title"
+                    className="text-title text-3xl mb-4"
+                  >
+                    {title}
+                  </h2>
                   <p className="text-body text-sm opacity-70 px-4">{message}</p>
                 </div>
 
@@ -369,6 +392,28 @@ export default function AuthModal({
                       </>
                     )}
                   </button>
+
+                  <p className="text-white/40 text-[11px] leading-relaxed text-center mt-4">
+                    By continuing you agree to our{" "}
+                    <a
+                      href="/terms"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-white/60 underline hover:text-white/80"
+                    >
+                      Terms of Service
+                    </a>{" "}
+                    and{" "}
+                    <a
+                      href="/privacy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-white/60 underline hover:text-white/80"
+                    >
+                      Privacy Policy
+                    </a>
+                    , and consent to analytics cookies.
+                  </p>
                 </form>
               </motion.div>
             ) : (
@@ -420,6 +465,7 @@ export default function AuthModal({
                       value={digit}
                       onChange={(e) => handleOtpChange(index, e.target.value)}
                       onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                      onPaste={handleOtpPaste}
                       className="w-11 h-14 text-center text-xl font-bold bg-white/5 border border-white/20 rounded-xl outline-none focus:border-gold/50 focus:bg-gold/5 transition-all font-sans"
                       disabled={isLoading}
                     />
@@ -436,7 +482,8 @@ export default function AuthModal({
                 <div className="text-center">
                   {countdown > 0 ? (
                     <p className="text-xs text-white/40 font-sans">
-                      Resend code in <span className="text-gold">{countdown}s</span>
+                      Resend code in{" "}
+                      <span className="text-gold">{countdown}s</span>
                     </p>
                   ) : (
                     <button

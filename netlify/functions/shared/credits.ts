@@ -4,6 +4,7 @@ export type CreditChangeType =
   | "purchase"
   | "consultation"
   | "synthesis"
+  | "feature"
   | "report"
   | "refund"
   | "admin_adjustment"

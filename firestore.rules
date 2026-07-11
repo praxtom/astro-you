@@ -104,10 +104,11 @@ service cloud.firestore {
       }
 
       // Referrals — reward grants are server-owned (Admin SDK) to prevent
-      // self-referral / reward farming. Owner may read their own.
+      // self-referral / reward farming. Each doc holds a referee's (masked)
+      // contact, so it is served ONLY via the referral-info API, never read
+      // directly — otherwise a referrer could list their referees' data.
       match /referrals/{docId} {
-        allow read: if isOwner(userId);
-        allow write: if false;
+        allow read, write: if false;
       }
     }
 
@@ -117,9 +118,11 @@ service cloud.firestore {
       allow write: if false; // Admin SDK only
     }
 
+    // Transit report cache — served exclusively by the transit function via
+    // Admin SDK. Client reads would let any signed-in user list the collection
+    // and harvest other users' birth data from cached docs.
     match /transit_reports/{docId} {
-      allow read: if request.auth != null;
-      allow write: if false; // Admin SDK only
+      allow read, write: if false; // Admin SDK only
     }
 
     // ── OTP collection — server-only (no client access) ──────────────

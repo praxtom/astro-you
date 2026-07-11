@@ -390,15 +390,20 @@ export default function ConsultChat() {
         let chunkText = "";
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
+          let data: any;
           try {
-            const data = JSON.parse(line.slice(6));
-            if (data.type === "delta") {
-              chunkText += data.text;
-            } else if (data.type === "done" && data.interactionId) {
-              setInteractionId(data.interactionId);
-            }
+            data = JSON.parse(line.slice(6));
           } catch {
-            // skip malformed SSE lines
+            continue; // skip malformed SSE lines
+          }
+          if (data.type === "delta") {
+            chunkText += data.text;
+          } else if (data.type === "done" && data.interactionId) {
+            setInteractionId(data.interactionId);
+          } else if (data.type === "error") {
+            // A mid-stream server error (e.g. Gemini failure) must surface —
+            // otherwise the reply silently stalls while the meter keeps running.
+            throw new Error(data.error || "The consultation was interrupted.");
           }
         }
         fullContent += chunkText;

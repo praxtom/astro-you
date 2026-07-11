@@ -43,6 +43,8 @@ export default async (req: Request, _context: Context) => {
     panchangData,
     personaId,
     idToken,
+    chatId,
+    assistantMessageId,
   } = body;
 
   let uid: string | undefined = undefined;
@@ -176,16 +178,29 @@ export default async (req: Request, _context: Context) => {
     }
   };
 
-  const { userContext, kundaliSummary } = await buildUserContext({
-    uid,
-    birthData,
-    kundaliData,
-    previousInteractionId,
-    atmanData,
-    recentSummaries: recentSummaries || undefined,
-    yogaData,
-    panchangData,
-  });
+  // Build context inside the refund path: a Firestore blip here would otherwise
+  // throw a 500 AFTER the credit was reserved, leaving the user charged for
+  // nothing.
+  let userContext, kundaliSummary;
+  try {
+    ({ userContext, kundaliSummary } = await buildUserContext({
+      uid,
+      birthData,
+      kundaliData,
+      previousInteractionId,
+      atmanData,
+      recentSummaries: recentSummaries || undefined,
+      yogaData,
+      panchangData,
+    }));
+  } catch (err) {
+    await refundCredit();
+    console.error("[Synthesis] Context build failed:", err);
+    return new Response(
+      JSON.stringify({ error: "Could not start synthesis. Please try again." }),
+      { status: 500, headers: { "Content-Type": "application/json" } },
+    );
+  }
 
   const encoder = new TextEncoder();
   const isFirstMessage = !previousInteractionId;
@@ -322,6 +337,53 @@ export default async (req: Request, _context: Context) => {
           "blueprint",
           "map",
         ].some((k) => lowerMsg.includes(k));
+
+        // Persist the assistant reply server-side so a user who closes the tab
+        // before the client's own write still keeps the answer they paid for.
+        // The doc id is the client-supplied assistantMessageId, so this is
+        // idempotent with the client's setDoc — no duplicate message.
+        if (
+          uid &&
+          typeof chatId === "string" &&
+          chatId &&
+          typeof assistantMessageId === "string" &&
+          assistantMessageId
+        ) {
+          try {
+            const chatRef = db
+              .collection("users")
+              .doc(uid)
+              .collection("chats")
+              .doc(chatId);
+            await chatRef
+              .collection("messages")
+              .doc(assistantMessageId)
+              .set(
+                {
+                  role: "assistant",
+                  content: fullContent,
+                  clientId: assistantMessageId,
+                  interactionId: interactionId || null,
+                  timestamp: FieldValue.serverTimestamp(),
+                },
+                { merge: true },
+              );
+            await chatRef.set(
+              {
+                ...(interactionId ? { lastInteractionId: interactionId } : {}),
+                lastInteractionAt: FieldValue.serverTimestamp(),
+                ...(generatedTitle ? { title: generatedTitle } : {}),
+              },
+              { merge: true },
+            );
+          } catch (persistErr: any) {
+            // Never fail the response over persistence — the client also writes.
+            console.error(
+              "[Synthesis] Server-side reply persist failed:",
+              persistErr?.name || "error",
+            );
+          }
+        }
 
         // Send final metadata event
         send({

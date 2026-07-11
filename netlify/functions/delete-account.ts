@@ -67,6 +67,40 @@ export default async (req: Request, _context: Context) => {
     // hit the function timeout with no retry path (the auth user is gone).
     await db.recursiveDelete(userRef);
 
+    // Erase the referee-side records this user seeded in OTHER users' trees —
+    // recursiveDelete(userRef) only clears this user's own subtree, so their
+    // (masked) email would otherwise persist forever under each referrer.
+    await db
+      .collectionGroup("referrals")
+      .where("refereeUid", "==", uid)
+      .get()
+      .then(async (snap) => {
+        await Promise.all(snap.docs.map((d) => d.ref.delete()));
+      })
+      .catch((refErr) => {
+        console.error("[Delete Account] Referral cleanup failed:", refErr);
+      });
+
+    // Purge this user's records from top-level collections that live OUTSIDE
+    // their subtree — recursiveDelete(userRef) doesn't reach them, so they would
+    // otherwise survive deletion (erasure-request failure). Best-effort: a
+    // failure here must not block the deletion the user requested. At large
+    // scale these should move to a batched/background purge.
+    for (const coll of [
+      "analyticsEvents",
+      "trustModerationQueue",
+      "expertApplications",
+    ]) {
+      await db
+        .collection(coll)
+        .where("uid", "==", uid)
+        .get()
+        .then((snap) => Promise.all(snap.docs.map((d) => d.ref.delete())))
+        .catch((cleanupErr) => {
+          console.error(`[Delete Account] ${coll} cleanup failed:`, cleanupErr);
+        });
+    }
+
     // The OTP login doc is keyed by email, outside the user tree.
     if (email) {
       await db
