@@ -153,6 +153,10 @@ export default function ConsultChat() {
   const sessionEndedRef = useRef(false);
   const sessionStartingRef = useRef(false);
   const startPromiseRef = useRef<Promise<SessionInfo | null> | null>(null);
+  // True when the last start attempt was a resume-only probe that found no
+  // live sitting. A send that happened to await that probe must try again on
+  // the create path instead of silently dropping the user's message.
+  const resumeMissRef = useRef(false);
   const idTokenRef = useRef<string | null>(null);
   const sessionInfoRef = useRef<SessionInfo | null>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
@@ -240,138 +244,161 @@ export default function ConsultChat() {
 
   /**
    * Lazily create (or resume) the billing session. Called on mount only when a
-   * stored session id exists (the meter is already running server-side), and
-   * otherwise from the first sendMessage — so billing never starts before the
-   * user actually says something.
+   * stored session id exists — and then with `resumeOnly`, so the server picks
+   * up a live sitting but never opens a new one — and otherwise from the first
+   * sendMessage, so billing never starts before the user actually says
+   * something.
    */
-  const ensureSession = useCallback(async (): Promise<SessionInfo | null> => {
-    if (sessionInfoRef.current) return sessionInfoRef.current;
-    if (sessionEndedRef.current || !user || !persona) return null;
-    if (startPromiseRef.current) return startPromiseRef.current;
+  const ensureSession = useCallback(
+    async (options?: { resumeOnly?: boolean }): Promise<SessionInfo | null> => {
+      if (sessionInfoRef.current) return sessionInfoRef.current;
+      if (sessionEndedRef.current || !user || !persona) return null;
+      if (startPromiseRef.current) return startPromiseRef.current;
 
-    sessionStartingRef.current = true;
-    const startPromise = (async (): Promise<SessionInfo | null> => {
-      try {
-        const idToken = await user.getIdToken();
-        idTokenRef.current = idToken;
-        const res = await fetch("/api/consult/start", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            idToken,
-            personaId: persona.id,
-            preferredLanguage,
-            existingSessionId: sessionStorage.getItem(
-              getConsultSessionStorageKey(persona.id, preferredLanguage),
-            ),
-          }),
-        });
-        const data = await res.json().catch(() => ({}));
-
-        if (
-          res.status === 409 &&
-          data?.code === "active_session" &&
-          typeof data.activeSessionId === "string"
-        ) {
-          // Another sitting's meter is running — let the user choose.
-          setActiveConflict({
-            activeSessionId: data.activeSessionId,
-            activePersonaId:
-              typeof data.activePersonaId === "string"
-                ? data.activePersonaId
-                : "",
+      const resumeOnly = options?.resumeOnly === true;
+      sessionStartingRef.current = true;
+      const startPromise = (async (): Promise<SessionInfo | null> => {
+        resumeMissRef.current = false;
+        try {
+          const idToken = await user.getIdToken();
+          idTokenRef.current = idToken;
+          const res = await fetch("/api/consult/start", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              idToken,
+              personaId: persona.id,
+              preferredLanguage,
+              resumeOnly,
+              existingSessionId: sessionStorage.getItem(
+                getConsultSessionStorageKey(persona.id, preferredLanguage),
+              ),
+            }),
           });
-          return null;
-        }
-        if (!res.ok) throw new Error(data.error || "Could not start session");
+          const data = await res.json().catch(() => ({}));
 
-        const info: SessionInfo = {
-          sessionId: data.sessionId,
-          startedAt: data.startedAt,
-          pricePerMin: data.pricePerMin,
-          estimatedMinutes: data.estimatedMinutes,
-          preferredLanguage: data.preferredLanguage || preferredLanguage,
-        };
-
-        if (leftRef.current) {
-          // The user navigated away while start was in flight — the unmount
-          // flush found nothing to end, so end this session right now rather
-          // than leaving a billed meter running until the reaper.
-          sessionEndedRef.current = true;
-          const endBody = JSON.stringify({
-            idToken,
-            sessionId: info.sessionId,
-            messageCount: messagesRef.current.length,
-          });
-          if (navigator.sendBeacon) {
-            navigator.sendBeacon(
-              "/api/consult/end",
-              new Blob([endBody], { type: "application/json" }),
-            );
-          } else {
-            fetch("/api/consult/end", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: endBody,
-              keepalive: true,
-            }).catch(() => {});
+          if (
+            res.status === 409 &&
+            data?.code === "active_session" &&
+            typeof data.activeSessionId === "string"
+          ) {
+            // Another sitting's meter is running — let the user choose.
+            setActiveConflict({
+              activeSessionId: data.activeSessionId,
+              activePersonaId:
+                typeof data.activePersonaId === "string"
+                  ? data.activePersonaId
+                  : "",
+            });
+            return null;
           }
-          sessionStorage.removeItem(
+          if (!res.ok) throw new Error(data.error || "Could not start session");
+
+          if (data?.resumed === false && !data?.sessionId) {
+            // Nothing to resume: the stored id points at a sitting the
+            // pagehide beacon already closed. Drop the dead pointer and stay
+            // pre-meter — the transcript stays for continuity, and the next
+            // message opens a fresh sitting. Nothing was billed for the
+            // reload itself.
+            resumeMissRef.current = true;
+            sessionStorage.removeItem(
+              getConsultSessionStorageKey(persona.id, preferredLanguage),
+            );
+            return null;
+          }
+
+          const info: SessionInfo = {
+            sessionId: data.sessionId,
+            startedAt: data.startedAt,
+            pricePerMin: data.pricePerMin,
+            estimatedMinutes: data.estimatedMinutes,
+            preferredLanguage: data.preferredLanguage || preferredLanguage,
+          };
+
+          if (leftRef.current) {
+            // The user navigated away while start was in flight — the unmount
+            // flush found nothing to end, so end this session right now rather
+            // than leaving a billed meter running until the reaper.
+            sessionEndedRef.current = true;
+            const endBody = JSON.stringify({
+              idToken,
+              sessionId: info.sessionId,
+              messageCount: messagesRef.current.length,
+            });
+            if (navigator.sendBeacon) {
+              navigator.sendBeacon(
+                "/api/consult/end",
+                new Blob([endBody], { type: "application/json" }),
+              );
+            } else {
+              fetch("/api/consult/end", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: endBody,
+                keepalive: true,
+              }).catch(() => {});
+            }
+            sessionStorage.removeItem(
+              getConsultSessionStorageKey(persona.id, preferredLanguage),
+            );
+            sessionStorage.removeItem(
+              getConsultTranscriptStorageKey(persona.id, preferredLanguage),
+            );
+            return null;
+          }
+
+          sessionInfoRef.current = info;
+          setSessionInfo(info);
+          setSessionActive(true);
+          setBillingError(null);
+          setInteractionId(undefined);
+          setElapsedSeconds(
+            Math.max(0, Math.floor((Date.now() - info.startedAt) / 1000)),
+          );
+          sessionStorage.setItem(
             getConsultSessionStorageKey(persona.id, preferredLanguage),
+            info.sessionId,
           );
-          sessionStorage.removeItem(
-            getConsultTranscriptStorageKey(persona.id, preferredLanguage),
+          trackAcquisitionEvent("consult_started", { personaId: persona.id });
+          return info;
+        } catch (err) {
+          console.error("Failed to start consultation session:", err);
+          const rawMsg =
+            err instanceof Error && err.message
+              ? err.message
+              : "Could not start consultation session.";
+          // The server's 402 wording varies slightly — normalize it so the
+          // "Add time" CTA (keyed on the constant) always appears.
+          setBillingError(
+            rawMsg.startsWith("Insufficient credits")
+              ? INSUFFICIENT_CREDITS_MSG
+              : rawMsg,
           );
+          setSessionActive(false);
           return null;
+        } finally {
+          sessionStartingRef.current = false;
+          startPromiseRef.current = null;
         }
+      })();
+      startPromiseRef.current = startPromise;
+      return startPromise;
+    },
+    [user, persona, preferredLanguage],
+  );
 
-        sessionInfoRef.current = info;
-        setSessionInfo(info);
-        setSessionActive(true);
-        setBillingError(null);
-        setInteractionId(undefined);
-        setElapsedSeconds(
-          Math.max(0, Math.floor((Date.now() - info.startedAt) / 1000)),
-        );
-        sessionStorage.setItem(
-          getConsultSessionStorageKey(persona.id, preferredLanguage),
-          info.sessionId,
-        );
-        trackAcquisitionEvent("consult_started", { personaId: persona.id });
-        return info;
-      } catch (err) {
-        console.error("Failed to start consultation session:", err);
-        const rawMsg =
-          err instanceof Error && err.message
-            ? err.message
-            : "Could not start consultation session.";
-        // The server's 402 wording varies slightly — normalize it so the
-        // "Add time" CTA (keyed on the constant) always appears.
-        setBillingError(
-          rawMsg.startsWith("Insufficient credits")
-            ? INSUFFICIENT_CREDITS_MSG
-            : rawMsg,
-        );
-        setSessionActive(false);
-        return null;
-      } finally {
-        sessionStartingRef.current = false;
-        startPromiseRef.current = null;
-      }
-    })();
-    startPromiseRef.current = startPromise;
-    return startPromise;
-  }, [user, persona, preferredLanguage]);
-
-  // Refresh-resume: only when a stored session id exists is the meter already
-  // running server-side, so only then do we call start on mount.
+  // Refresh-resume: a stored session id only *might* mean the meter is still
+  // running server-side — on a reload the pagehide beacon has usually ended it
+  // already. `resumeOnly` lets the server pick the sitting back up if it is
+  // genuinely live and otherwise say "nothing to resume", so a reload can
+  // never open a billed session behind the user's back.
   useEffect(() => {
     if (authLoading || !user || !persona) return;
     const stored = sessionStorage.getItem(
       getConsultSessionStorageKey(persona.id, preferredLanguage),
     );
     if (!stored) return;
-    ensureSession();
+    ensureSession({ resumeOnly: true });
   }, [authLoading, user, persona, preferredLanguage, ensureSession]);
 
   // Credit gate before a session exists. Uses the live wallet balance so a
@@ -522,13 +549,37 @@ export default function ConsultChat() {
     setReplyAnnouncement("");
 
     // First message starts the meter; later messages reuse the session.
-    const info = await ensureSession();
+    let info = await ensureSession();
+    // A mount-time resume probe may have resolved to "nothing to resume"
+    // while the user was already typing. That probe is not allowed to open a
+    // sitting, so try once more — this time on the create path.
+    if (
+      !info &&
+      resumeMissRef.current &&
+      !leftRef.current &&
+      !sessionEndedRef.current
+    ) {
+      info = await ensureSession();
+    }
     // Re-check the leave/end flags: if start resolved just before unmount,
     // the flush has already ended this session — posting now would be a
     // stray write to a closed session (and a state update after unmount).
-    if (!info || leftRef.current || sessionEndedRef.current) {
-      // Start failed / conflict card is showing / page left — keep the draft
-      // so nothing the user typed is lost.
+    if (leftRef.current) {
+      sendingRef.current = false;
+      return;
+    }
+    if (sessionEndedRef.current) {
+      // A `pagehide` flush already closed this sitting and the page came back
+      // (bfcache restore). The composer still looks live, so say plainly that
+      // the sitting is over and offer a fresh one instead of swallowing every
+      // send. The draft stays in the box.
+      markSessionClosed();
+      sendingRef.current = false;
+      return;
+    }
+    if (!info) {
+      // Start failed / conflict card is showing — keep the draft so nothing
+      // the user typed is lost.
       sendingRef.current = false;
       return;
     }

@@ -217,12 +217,12 @@ export default function Synthesis() {
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   // Rails are in-flow on desktop and modal drawers on smaller viewports.
   // Keep the state synchronized when the viewport crosses the breakpoint.
-  const [isDesktopViewport, setIsDesktopViewport] = useState(
-    getIsDesktopViewport,
-  );
-  const initialRails = getDefaultSynthesisRails(
-    getIsDesktopViewport(),
-    Boolean(user),
+  const [isDesktopViewport, setIsDesktopViewport] =
+    useState(getIsDesktopViewport);
+  // Lazy: this is only ever read at mount, and computing it means a
+  // matchMedia() call — don't pay for it on every render.
+  const [initialRails] = useState(() =>
+    getDefaultSynthesisRails(isDesktopViewport, Boolean(user)),
   );
   const [showConversations, setShowConversations] = useState(
     initialRails.conversations,
@@ -263,10 +263,16 @@ export default function Synthesis() {
   // guest → signed-in transition (not on "New conversation" resets).
   const prevUidRef = useRef<string | null>(null);
 
+  // Resetting both rails to their defaults is a visible jolt (an open drawer
+  // snaps shut), so this must only re-run on things that actually change the
+  // defaults: the viewport crossing the breakpoint, and signing in or out.
+  // Depending on `user` itself re-ran it on every new user object — a token
+  // refresh alone was enough to close a drawer mid-read.
+  const isSignedIn = Boolean(user);
   useEffect(() => {
     const mediaQuery = window.matchMedia(DESKTOP_MEDIA_QUERY);
     const syncLayout = (matches: boolean) => {
-      const next = getDefaultSynthesisRails(matches, Boolean(user));
+      const next = getDefaultSynthesisRails(matches, isSignedIn);
       setIsDesktopViewport(matches);
       setShowConversations(next.conversations);
       setShowBlueprint(next.blueprint);
@@ -277,7 +283,7 @@ export default function Synthesis() {
     syncLayout(mediaQuery.matches);
     mediaQuery.addEventListener("change", handleChange);
     return () => mediaQuery.removeEventListener("change", handleChange);
-  }, [user]);
+  }, [isSignedIn]);
 
   const closeConversations = useCallback(
     (restoreFocus = false) => {
@@ -860,8 +866,7 @@ export default function Synthesis() {
     let chatIdAtSend = currentChatId;
     sendChatIdRef.current = chatIdAtSend;
     const isCurrent = () =>
-      !controller.signal.aborted &&
-      currentChatIdRef.current === chatIdAtSend;
+      !controller.signal.aborted && currentChatIdRef.current === chatIdAtSend;
 
     streamBufferRef.current = "";
     const flushStream = () => {
@@ -1383,157 +1388,158 @@ export default function Synthesis() {
           <div className="flex-1 flex relative z-10 overflow-hidden">
             <main
               className="flex-1 flex flex-col overflow-hidden min-w-0 lg:order-2"
-              inert={
-                !isDesktopViewport && (showConversations || showBlueprint)
-              }
+              inert={!isDesktopViewport && (showConversations || showBlueprint)}
             >
               <div className="relative flex-1 min-h-0">
-              <div
-                ref={scrollRef}
-                onScroll={handleThreadScroll}
-                className="h-full overflow-y-auto overflow-x-hidden custom-scrollbar"
-              >
                 <div
-                  className={`mx-auto flex min-h-full max-w-3xl flex-col space-y-6 px-4 py-7 md:px-6 ${
-                    isIntroConversation ? "justify-center" : "justify-end"
-                  }`}
+                  ref={scrollRef}
+                  onScroll={handleThreadScroll}
+                  className="h-full overflow-y-auto overflow-x-hidden custom-scrollbar"
                 >
-                  {isIntroConversation && (
-                    <div className="flex flex-col items-center gap-6 px-3 py-8 text-center">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full border border-gold/25 bg-gold/10 shadow-[0_0_35px_rgba(255,205,106,0.12)]">
-                        <Sparkles size={18} className="text-gold" />
+                  <div
+                    className={`mx-auto flex min-h-full max-w-3xl flex-col space-y-6 px-4 py-7 md:px-6 ${
+                      isIntroConversation ? "justify-center" : "justify-end"
+                    }`}
+                  >
+                    {isIntroConversation && (
+                      <div className="flex flex-col items-center gap-6 px-3 py-8 text-center">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full border border-gold/25 bg-gold/10 shadow-[0_0_35px_rgba(255,205,106,0.12)]">
+                          <Sparkles size={18} className="text-gold" />
+                        </div>
+                        <div className="max-w-xl">
+                          <h1 className="font-display text-3xl italic leading-tight text-white/90 md:text-4xl">
+                            What would you ask the sky?
+                          </h1>
+                          <p className="mx-auto mt-4 max-w-lg text-sm leading-7 text-white/48">
+                            {messages[0]?.content || welcomeMessage.content}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-center gap-2 max-w-lg">
+                          {OPENING_QUESTIONS.map((q) => (
+                            <button
+                              key={q}
+                              onClick={() => setInput(q)}
+                              className="rounded-full border border-white/10 bg-white/[0.02] px-4 py-2 text-xs text-white/50 transition-colors hover:border-gold/30 hover:text-gold"
+                            >
+                              {q}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                      <div className="max-w-xl">
-                        <h1 className="font-display text-3xl italic leading-tight text-white/90 md:text-4xl">
-                          What would you ask the sky?
-                        </h1>
-                        <p className="mx-auto mt-4 max-w-lg text-sm leading-7 text-white/48">
-                          {messages[0]?.content || welcomeMessage.content}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap items-center justify-center gap-2 max-w-lg">
-                        {OPENING_QUESTIONS.map((q) => (
-                          <button
-                            key={q}
-                            onClick={() => setInput(q)}
-                            className="rounded-full border border-white/10 bg-white/[0.02] px-4 py-2 text-xs text-white/50 transition-colors hover:border-gold/30 hover:text-gold"
-                          >
-                            {q}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                    )}
 
-                  {messages
-                    .filter((m, i, arr) => {
-                      if (isIntroConversation && m.id === "welcome") {
-                        return false;
-                      }
-                      // Hide the last assistant message while streaming to prevent duplicate bubbles
-                      // onSnapshot may deliver the Firestore message before streamingContent clears
-                      if (
-                        hasStreamingContent &&
-                        m.role === "assistant" &&
-                        i === arr.length - 1
-                      )
-                        return false;
-                      return true;
-                    })
-                    .map((m) => (
+                    {messages
+                      .filter((m, i, arr) => {
+                        if (isIntroConversation && m.id === "welcome") {
+                          return false;
+                        }
+                        // Hide the last assistant message while streaming to prevent duplicate bubbles
+                        // onSnapshot may deliver the Firestore message before streamingContent clears
+                        if (
+                          hasStreamingContent &&
+                          m.role === "assistant" &&
+                          i === arr.length - 1
+                        )
+                          return false;
+                        return true;
+                      })
+                      .map((m) => (
+                        <MessageBubble
+                          key={m.clientId || m.id}
+                          role={m.role}
+                          content={m.content}
+                          timeLabel={formatMessageTime(m.timestamp)}
+                          reveal={m.role === "assistant" && !m.clientId}
+                        />
+                      ))}
+
+                    {/* Streaming reveal */}
+                    {hasStreamingContent && (
                       <MessageBubble
-                        key={m.clientId || m.id}
-                        role={m.role}
-                        content={m.content}
-                        timeLabel={formatMessageTime(m.timestamp)}
-                        reveal={m.role === "assistant" && !m.clientId}
+                        role="assistant"
+                        content={streamingContent}
+                        timeLabel="Now"
+                        streaming
                       />
-                    ))}
+                    )}
 
-                  {/* Streaming reveal */}
-                  {hasStreamingContent && (
-                    <MessageBubble
-                      role="assistant"
-                      content={streamingContent}
-                      timeLabel="Now"
-                      streaming
-                    />
-                  )}
-
-                  {isSynthesizing && (
-                    <div
-                      className="flex justify-start animate-in fade-in duration-300"
-                      role="status"
-                      aria-live="polite"
-                    >
-                      <div className="max-w-[85%]">
-                        <div className="text-[0.65rem] font-bold uppercase tracking-[0.3em] mb-1.5 text-gold/50">
-                          Jyotish
-                        </div>
-                        <div className="pl-5 border-l border-gold/30 flex items-center gap-3 py-1">
-                          <Loader2
-                            size={14}
-                            className="animate-spin text-gold"
-                          />
-                          <span className="text-[0.65rem] uppercase tracking-[0.3em] text-gold/60 animate-pulse">
-                            Reading the sky…
-                          </span>
+                    {isSynthesizing && (
+                      <div
+                        className="flex justify-start animate-in fade-in duration-300"
+                        role="status"
+                        aria-live="polite"
+                      >
+                        <div className="max-w-[85%]">
+                          <div className="text-[0.65rem] font-bold uppercase tracking-[0.3em] mb-1.5 text-gold/50">
+                            Jyotish
+                          </div>
+                          <div className="pl-5 border-l border-gold/30 flex items-center gap-3 py-1">
+                            <Loader2
+                              size={14}
+                              className="animate-spin text-gold"
+                            />
+                            <span className="text-[0.65rem] uppercase tracking-[0.3em] text-gold/60 animate-pulse">
+                              Reading the sky…
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {/* Routine suggestion teaser — shows in chat before modal opens */}
-                  {suggestedRoutine && (
-                    <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-500">
-                      <div className="max-w-[85%]">
-                        <div className="px-4 py-3 rounded-2xl border border-gold/20 bg-gold/5 flex items-center gap-3">
-                          <Sparkles size={14} className="text-gold shrink-0" />
-                          <span className="text-sm text-gold/80">
-                            Jyotish has a practice suggestion for you...
-                          </span>
+                    {/* Routine suggestion teaser — shows in chat before modal opens */}
+                    {suggestedRoutine && (
+                      <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-500">
+                        <div className="max-w-[85%]">
+                          <div className="px-4 py-3 rounded-2xl border border-gold/20 bg-gold/5 flex items-center gap-3">
+                            <Sparkles
+                              size={14}
+                              className="text-gold shrink-0"
+                            />
+                            <span className="text-sm text-gold/80">
+                              Jyotish has a practice suggestion for you...
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {/* Out-of-credits notice — in-thread, replaces the old native alert() */}
-                  {showCreditsNotice && user && (
-                    <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
-                      <div className="max-w-[85%] rounded-2xl border border-gold/20 bg-gold/5 px-5 py-4">
-                        <p className="mb-1 text-sm text-white/85">
-                          Your celestial minutes have concluded.
-                        </p>
-                        <p className="mb-3 text-xs text-white/45">
-                          Add more to continue this conversation.
-                        </p>
-                        <div className="flex items-center gap-3">
-                          <button
-                            type="button"
-                            onClick={() => handlePurchase(60, 499)}
-                            disabled={isPaying}
-                            className="flex min-h-11 items-center gap-2 rounded-xl bg-gold/90 px-4 py-2 text-[0.65rem] font-bold uppercase tracking-[0.2em] text-black transition-colors hover:bg-gold disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {isPaying ? (
-                              <Loader2 size={12} className="animate-spin" />
-                            ) : (
-                              <Sparkles size={12} />
-                            )}
-                            Buy credits
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setShowCreditsNotice(false)}
-                            className="flex min-h-11 items-center px-2 text-xs text-white/40 transition-colors hover:text-white/70"
-                          >
-                            Not now
-                          </button>
+                    {/* Out-of-credits notice — in-thread, replaces the old native alert() */}
+                    {showCreditsNotice && user && (
+                      <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <div className="max-w-[85%] rounded-2xl border border-gold/20 bg-gold/5 px-5 py-4">
+                          <p className="mb-1 text-sm text-white/85">
+                            Your celestial minutes have concluded.
+                          </p>
+                          <p className="mb-3 text-xs text-white/45">
+                            Add more to continue this conversation.
+                          </p>
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => handlePurchase(60, 499)}
+                              disabled={isPaying}
+                              className="flex min-h-11 items-center gap-2 rounded-xl bg-gold/90 px-4 py-2 text-[0.65rem] font-bold uppercase tracking-[0.2em] text-black transition-colors hover:bg-gold disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {isPaying ? (
+                                <Loader2 size={12} className="animate-spin" />
+                              ) : (
+                                <Sparkles size={12} />
+                              )}
+                              Buy credits
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShowCreditsNotice(false)}
+                              className="flex min-h-11 items-center px-2 text-xs text-white/40 transition-colors hover:text-white/70"
+                            >
+                              Not now
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
 
                 {/* Jump to latest — shown when the reader has scrolled up */}
                 {showJumpToLatest && (

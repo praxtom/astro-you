@@ -289,6 +289,138 @@ test("startConsultSession resumes an active existing session", async () => {
   assert.equal(writes.length, 0);
 });
 
+test("startConsultSession with resumeOnly creates nothing for a stale pointer", async () => {
+  const now = 1_800_000;
+  // The page-reload shape: the `pagehide` beacon ended the sitting server-side
+  // but the client kept the id so the sitting could resume. Without resumeOnly
+  // this fell through to opening a brand-new billed session at mount, running
+  // the meter while the user only reads.
+  const { deps, writes } = createDeps(
+    25,
+    now,
+    {
+      "users/user_123/consultations/ended_session": {
+        personaId: "guru-vidyanath",
+        status: "ended",
+        startedAtMs: 1_700_000,
+        pricePerMin: 5,
+      },
+    },
+    { activeConsultSessionId: "ended_session" },
+  );
+
+  const result = await startConsultSession(deps, {
+    idToken: "valid-token",
+    personaId: "guru-vidyanath",
+    existingSessionId: "ended_session",
+    resumeOnly: true,
+  });
+
+  assert.deepEqual(result, {
+    success: true,
+    resumed: false,
+    sessionId: null,
+  });
+  // Nothing created, no pointer overwrite — and so nothing billable.
+  assert.equal(writes.length, 0);
+});
+
+test("startConsultSession with resumeOnly reports nothing to resume when no session is stored", async () => {
+  const now = 1_800_000;
+  const { deps, writes } = createDeps(25, now);
+
+  const result = await startConsultSession(deps, {
+    idToken: "valid-token",
+    personaId: "guru-vidyanath",
+    resumeOnly: true,
+  });
+
+  assert.deepEqual(result, {
+    success: true,
+    resumed: false,
+    sessionId: null,
+  });
+  assert.equal(writes.length, 0);
+});
+
+test("startConsultSession with resumeOnly still resumes a genuinely live session", async () => {
+  const now = 1_800_000;
+  const { deps, writes } = createDeps(
+    25,
+    now,
+    {
+      "users/user_123/consultations/live_session": {
+        personaId: "guru-vidyanath",
+        status: "active",
+        startedAtMs: 1_700_000,
+        pricePerMin: 5,
+        maxBillableMinutes: 5,
+        preferredLanguage: "Marathi",
+      },
+    },
+    { activeConsultSessionId: "live_session" },
+  );
+
+  const result = await startConsultSession(deps, {
+    idToken: "valid-token",
+    personaId: "guru-vidyanath",
+    existingSessionId: "live_session",
+    resumeOnly: true,
+  });
+
+  assert.deepEqual(result, {
+    success: true,
+    sessionId: "live_session",
+    personaId: "guru-vidyanath",
+    startedAt: 1_700_000,
+    pricePerMin: 5,
+    credits: 25,
+    estimatedMinutes: 5,
+    preferredLanguage: "Marathi",
+  });
+  assert.equal(writes.length, 0);
+});
+
+test("startConsultSession without resumeOnly still creates a session over a stale pointer", async () => {
+  const now = 1_800_000;
+  // Backward compatibility: the first-message path sends no resumeOnly flag
+  // and must keep opening a fresh sitting exactly as before.
+  const { deps, writes } = createDeps(
+    25,
+    now,
+    {
+      "users/user_123/consultations/ended_session": {
+        personaId: "guru-vidyanath",
+        status: "ended",
+        startedAtMs: 1_700_000,
+        pricePerMin: 5,
+      },
+    },
+    { activeConsultSessionId: "ended_session" },
+  );
+
+  const result = await startConsultSession(deps, {
+    idToken: "valid-token",
+    personaId: "guru-vidyanath",
+    existingSessionId: "ended_session",
+  });
+
+  assert.deepEqual(result, {
+    success: true,
+    sessionId: "generated",
+    personaId: "guru-vidyanath",
+    startedAt: now,
+    pricePerMin: 5,
+    credits: 25,
+    estimatedMinutes: 5,
+    preferredLanguage: "English",
+  });
+  assert.equal(writes.length, 2);
+  assert.equal(writes[0].path, "users/user_123/consultations/generated");
+  assert.equal(writes[0].data.status, "active");
+  assert.equal(writes[1].data.activeConsultSessionId, "generated");
+});
+
 test("endConsultSession deducts credits and closes active sessions", async () => {
   const now = 1_800_000;
   const startedAt = now - 61_000;

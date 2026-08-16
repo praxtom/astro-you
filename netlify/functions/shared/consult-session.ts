@@ -23,10 +23,6 @@ export const CONSULT_PERSONAS: Record<
   ]),
 );
 
-export const PERSONA_PRICES: Record<string, number> = Object.fromEntries(
-  PERSONAS.map((p) => [p.id, p.pricePerMin]),
-);
-
 export type ConsultSessionStatus = "active" | "ended" | "failed" | "refunded";
 
 export interface ConsultStartPayload {
@@ -34,6 +30,15 @@ export interface ConsultStartPayload {
   personaId: string;
   existingSessionId?: string;
   preferredLanguage?: string;
+  /**
+   * "Pick up a sitting that is already running, but never open a new one."
+   * The client sets this on the mount-time resume path, where a stored session
+   * id may already be dead (the `pagehide` beacon ends the sitting server-side
+   * but deliberately keeps the id so a reload can resume). Without it, that
+   * stale id falls through the resume check and a fresh meter starts while the
+   * user is only reading — defeating "the meter starts on the first message".
+   */
+  resumeOnly?: boolean;
 }
 
 export interface ConsultStartResult {
@@ -46,6 +51,21 @@ export interface ConsultStartResult {
   estimatedMinutes: number;
   preferredLanguage: string;
 }
+
+/**
+ * A `resumeOnly` start that found nothing live to pick up. The request itself
+ * succeeded — no session was created, nothing is being billed — so the client
+ * simply stays in the pre-meter state and lets the first message open a fresh
+ * sitting through the normal (non-`resumeOnly`) path.
+ */
+export interface ConsultNothingToResumeResult {
+  success: true;
+  resumed: false;
+  sessionId: null;
+}
+
+export type ConsultStartResponse =
+  ConsultStartResult | ConsultNothingToResumeResult;
 
 export interface ConsultEndPayload {
   idToken: string;
@@ -172,6 +192,9 @@ export function parseConsultStartPayload(value: unknown): ConsultStartPayload {
         ? value.existingSessionId
         : undefined,
     preferredLanguage: normalizePreferredLanguage(value.preferredLanguage),
+    // Absent (or anything other than an explicit `true`) keeps the original
+    // behaviour: a start that may create a session.
+    resumeOnly: value.resumeOnly === true,
   };
 }
 
@@ -278,7 +301,7 @@ export function calculateConsultBill(
 export async function startConsultSession(
   deps: ConsultSessionDeps,
   rawPayload: unknown,
-): Promise<ConsultStartResult> {
+): Promise<ConsultStartResponse> {
   const payload = parseConsultStartPayload(rawPayload);
   const persona = getConsultPersona(payload.personaId);
 
@@ -292,7 +315,7 @@ export async function startConsultSession(
   const userRef = deps.db.collection("users").doc(uid);
   const preferredLanguage = payload.preferredLanguage || "English";
 
-  return deps.db.runTransaction(async (tx) => {
+  return deps.db.runTransaction<ConsultStartResponse>(async (tx) => {
     const userSnap = await tx.get(userRef);
     const userData = userSnap.data();
     const credits = userData?.credits ?? 0;
@@ -344,7 +367,7 @@ export async function startConsultSession(
         );
       }
       return {
-        success: true,
+        success: true as const,
         sessionId: candidateId,
         personaId: persona.id,
         startedAt: existing.startedAtMs,
@@ -356,7 +379,18 @@ export async function startConsultSession(
           preferredLanguage,
       };
     }
-    // No live session found — start fresh, overwriting the pointer below.
+    // No live session found. A resume-only start stops right here: the caller
+    // is the page-mount path, and creating a session there would run the meter
+    // while the user is merely reading a restored transcript.
+    if (payload.resumeOnly) {
+      return {
+        success: true as const,
+        resumed: false as const,
+        sessionId: null,
+      };
+    }
+
+    // Otherwise start fresh, overwriting the pointer below.
 
     const estimatedMinutes = Math.floor(credits / persona.pricePerMin);
 
@@ -388,7 +422,7 @@ export async function startConsultSession(
     );
 
     return {
-      success: true,
+      success: true as const,
       sessionId: consultationRef.id || "",
       personaId: persona.id,
       startedAt: now,

@@ -180,7 +180,7 @@ Confirm `src/lib/personas.ts` has no browser-only imports (it is plain data). Ad
 
 - Modify: `src/components/layout/Header.tsx:345` (`md:hidden` → `lg:hidden` on the hamburger; ensure the mobile drawer also opens at `md`–`lg`)
 - Modify: `index.html:5` → `content="width=device-width, initial-scale=1.0, viewport-fit=cover"`
-- Modify: `netlify.toml` CSP: `script-src` add `https://cdn.razorpay.com`; add `media-src 'self' https://cdn.pixabay.com` (audio) — keep everything else identical
+- Modify: `netlify.toml` CSP: `script-src` add `https://cdn.razorpay.com` — keep everything else identical. (No `media-src` directive: the Prana sounds are synthesised in the browser with the Web Audio API, so there is no audio file — remote or self-hosted — for the CSP to allow.)
 - Modify: `src/hooks/useCreditTopup.ts` — drop `useRazorpay()`; inside `buyCredits` `await loadRazorpayCheckout()` (from `src/lib/razorpay-loader.ts`) before reading `window.Razorpay`; keep the "Payment system is still loading" error only for a rejected load. Remove `useRazorpay` from `src/hooks/index.ts` and delete `src/hooks/useRazorpay.ts` if nothing else imports it.
 - Modify: `src/hooks/useLastChat.ts:29` → `orderBy("lastUpdatedAt", "desc")`
 - Modify: `docs/ROADMAP.md` §5.6: mark `/consult/:personaId` profile page ✅ (complete), consultation chat ✅, per-minute billing → "server-authoritative session billing ✅ (charged at finalize; client meter cosmetic)", note "AI guide labels ✅ 2026-08-17", and note the two new personas (`ishaan-rao`, `tara-kapoor`).
@@ -199,6 +199,6 @@ Confirm `src/lib/personas.ts` has no browser-only imports (it is plain data). Ad
 
 - [ ] `pnpm test` (types + 216+ function tests) green; `pnpm run lint` clean or only pre-existing warnings; `pnpm run build` succeeds.
 - [ ] `netlify dev --port 8888`; `GET /api/health` 200; `POST /api/kundali` 200 (checks firebase-admin 14 runtime doesn't crash the functions — the last commits reverted 14 for an ESM jose crash; report if it recurs).
-- [ ] Playwright pass at 375/768/1440 as guest with seeded profile: `/consult` shows header nav at 768; `/consult/meera-devi/chat` stays on the page and shows AuthModal (no `/onboarding`); `/consult/meera-devi` guest CTA reads "Sign in to begin — 15 free credits"; SpaceTabs visible on `/consult`; no horizontal overflow; console has no CSP errors for pixabay.
+- [ ] Playwright pass at 375/768/1440 as guest with seeded profile: `/consult` shows header nav at 768; `/consult/meera-devi/chat` stays on the page and shows AuthModal (no `/onboarding`); `/consult/meera-devi` guest CTA reads "Sign in to begin — 15 free credits"; SpaceTabs visible on `/consult`; no horizontal overflow; console has no CSP errors.
 - [ ] Persona parity test passes; `GET` `/consult/tara-kapoor` renders.
 - [ ] Squash-review the diff for accidental changes to the WIP files.
