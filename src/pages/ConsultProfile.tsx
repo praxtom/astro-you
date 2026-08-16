@@ -9,13 +9,20 @@ import {
   Star,
   Wallet,
 } from "lucide-react";
+import AuthModal from "../components/AuthModal";
 import Header from "../components/layout/Header";
 import { NightSky } from "../components/layout/NightSky";
+import { SpaceTabs } from "../components/layout/SpaceTabs";
 import { useAuth } from "../lib/useAuth";
-import { useTrustSummary, useUserProfile } from "../hooks";
+import { useSubscription, useTrustSummary, useUserProfile } from "../hooks";
 import { useCreditTopup } from "../hooks/useCreditTopup";
 import { DEFAULT_CREDIT_PACK } from "../lib/credit-packs";
 import { PersonaPortrait } from "../components/consult/PersonaPortrait";
+import {
+  hasBirthChart,
+  saveConsultIntent,
+} from "../components/consult/consult-resume";
+import { auth } from "../lib/firebase";
 import { getPlatformLanguage } from "../lib/languages";
 import { getPersonaTrustDisplay } from "../lib/trust-summary";
 import { trackAcquisitionEvent } from "../lib/acquisition";
@@ -25,13 +32,16 @@ export default function ConsultProfile() {
   const { personaId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { profile, loading } = useUserProfile();
+  const { profile, birthData, loading: profileLoading } = useUserProfile();
+  const { credits, loading: creditsLoading } = useSubscription();
   const { summary: trustSummary } = useTrustSummary();
   const { buyCredits, isPaying, error: paymentError } = useCreditTopup();
   const persona = getPersonaById(personaId || "");
   const [selectedLanguage, setSelectedLanguage] = useState(
     persona?.languages[0] || "English",
   );
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
 
   useEffect(() => {
     if (!persona || !profile?.language) return;
@@ -49,22 +59,21 @@ export default function ConsultProfile() {
     });
   }, [persona]);
 
-  if (!persona) {
-    navigate("/consult");
-    return null;
-  }
+  // An unknown guide sends you back to the Circle — after the render, not during.
+  useEffect(() => {
+    if (!persona) navigate("/consult", { replace: true });
+  }, [persona, navigate]);
+
+  if (!persona) return null;
 
   const accent = getPersonaAccent(persona.id);
-  const credits = profile?.credits ?? 0;
+  const isGuest = !user;
   const estimatedMinutes = Math.floor(credits / persona.pricePerMin);
   const hasEnoughCredits = credits >= persona.pricePerMin;
   const trustDisplay = getPersonaTrustDisplay(trustSummary, persona.id);
 
-  const startSession = (draftQuestion?: string) => {
-    if (!user) {
-      navigate("/onboarding");
-      return;
-    }
+  /** Enter the sitting, carrying the opening question if there is one. */
+  const enterSitting = (draftQuestion?: string | null) => {
     if (draftQuestion) {
       sessionStorage.setItem(STORAGE_KEYS.CONSULT_DRAFT, draftQuestion);
     }
@@ -73,12 +82,50 @@ export default function ConsultProfile() {
     );
   };
 
+  const startSession = (draftQuestion?: string) => {
+    if (!user) {
+      setPendingQuestion(draftQuestion ?? null);
+      setShowAuthModal(true);
+      return;
+    }
+    // Signed in but no chart on file: the same detour, for the same reason.
+    if (!profileLoading && !birthData) {
+      if (draftQuestion) {
+        sessionStorage.setItem(STORAGE_KEYS.CONSULT_DRAFT, draftQuestion);
+      }
+      saveConsultIntent({ personaId: persona.id, language: selectedLanguage });
+      navigate("/onboarding");
+      return;
+    }
+    enterSitting(draftQuestion);
+  };
+
+  /**
+   * After signing in: this guide reads a chart, and a brand-new account has
+   * none. Collect the birth details first, remembering the guide and the
+   * question so the Circle can pick the sitting up again afterwards.
+   */
+  const resumeAfterSignIn = async (draftQuestion?: string | null) => {
+    if (draftQuestion) {
+      sessionStorage.setItem(STORAGE_KEYS.CONSULT_DRAFT, draftQuestion);
+    }
+    const uid = auth.currentUser?.uid;
+    if (uid && (await hasBirthChart(uid))) {
+      enterSitting(draftQuestion);
+      return;
+    }
+    saveConsultIntent({ personaId: persona.id, language: selectedLanguage });
+    navigate("/onboarding");
+  };
+
   return (
     <div className="min-h-screen bg-bg-app text-white selection:bg-gold/30">
       <NightSky />
       <Header />
 
       <main className="container mx-auto pt-28 px-6 pb-16 relative z-10 max-w-5xl">
+        <SpaceTabs />
+
         <button
           onClick={() => navigate("/consult")}
           className="mb-8 flex items-center gap-2 text-[0.65rem] font-bold uppercase tracking-[0.25em] text-white/35 hover:text-gold transition-colors"
@@ -103,6 +150,9 @@ export default function ConsultProfile() {
               <span className="inline-flex items-center gap-1.5 text-emerald-300/90">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 Available now
+              </span>
+              <span className="rounded-full border border-white/20 bg-white/8 px-2.5 py-1 text-[0.65rem] font-bold uppercase tracking-[0.15em] text-white/60">
+                AI guide · always available
               </span>
               <span className="text-gold font-display text-base">
                 {persona.pricePerMin} cr / min
@@ -210,7 +260,7 @@ export default function ConsultProfile() {
               <div className="flex items-baseline justify-between">
                 <span className="text-white/40">Balance</span>
                 <span className="font-display text-lg text-white">
-                  {loading ? "…" : `${credits} cr`}
+                  {isGuest ? "—" : creditsLoading ? "…" : `${credits} cr`}
                 </span>
               </div>
               <div className="flex items-baseline justify-between border-t border-white/8 pt-3">
@@ -222,9 +272,18 @@ export default function ConsultProfile() {
               <div className="flex items-baseline justify-between border-t border-white/8 pt-3">
                 <span className="text-white/40">Time available</span>
                 <span className="font-display text-lg text-white">
-                  {loading ? "…" : `${estimatedMinutes} min`}
+                  {isGuest
+                    ? "—"
+                    : creditsLoading
+                      ? "…"
+                      : `${estimatedMinutes} min`}
                 </span>
               </div>
+              {isGuest && (
+                <p className="text-xs text-white/30">
+                  Sign in to see your balance.
+                </p>
+              )}
               <label className="block border-t border-white/8 pt-3">
                 <span className="text-white/40 text-xs">Language</span>
                 <select
@@ -245,7 +304,7 @@ export default function ConsultProfile() {
               </label>
             </div>
 
-            {!loading && !hasEnoughCredits && (
+            {!isGuest && !creditsLoading && !hasEnoughCredits && (
               <div className="mt-5 flex gap-3 rounded-xl border border-amber-400/20 bg-amber-500/10 p-3 text-left">
                 <AlertCircle
                   size={16}
@@ -261,7 +320,26 @@ export default function ConsultProfile() {
               <p className="mt-4 text-xs text-red-400">{paymentError}</p>
             )}
 
-            {hasEnoughCredits ? (
+            {isGuest ? (
+              <button
+                onClick={() => {
+                  setPendingQuestion(null);
+                  setShowAuthModal(true);
+                }}
+                className="mt-6 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gold text-black text-center text-[0.65rem] font-bold uppercase tracking-[0.12em] leading-relaxed hover:bg-gold/90 transition-colors"
+              >
+                <Sparkles size={14} className="shrink-0" />
+                Sign in to begin — 15 free credits
+              </button>
+            ) : creditsLoading ? (
+              <button
+                disabled
+                className="mt-6 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white/40 text-[0.65rem] font-bold uppercase tracking-[0.2em]"
+              >
+                <Loader2 size={14} className="animate-spin" />
+                Reading your balance
+              </button>
+            ) : hasEnoughCredits ? (
               <button
                 onClick={() => startSession()}
                 className="mt-6 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gold text-black text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors"
@@ -271,11 +349,7 @@ export default function ConsultProfile() {
               </button>
             ) : (
               <button
-                onClick={() =>
-                  user
-                    ? buyCredits(DEFAULT_CREDIT_PACK.minutes)
-                    : navigate("/onboarding")
-                }
+                onClick={() => buyCredits(DEFAULT_CREDIT_PACK.minutes)}
                 disabled={isPaying}
                 className="mt-6 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gold text-black text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors disabled:opacity-60"
               >
@@ -294,6 +368,22 @@ export default function ConsultProfile() {
           </aside>
         </div>
       </main>
+
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => {
+          setShowAuthModal(false);
+          setPendingQuestion(null);
+        }}
+        onSuccess={() => {
+          setShowAuthModal(false);
+          const draft = pendingQuestion;
+          setPendingQuestion(null);
+          void resumeAfterSignIn(draft);
+        }}
+        title="Sign in to begin"
+        message={`${persona.name} reads your chart, so we need to know whose it is. New accounts start with 15 free credits.`}
+      />
     </div>
   );
 }

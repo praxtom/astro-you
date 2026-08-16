@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/useAuth";
-import { db } from "../lib/firebase";
+import { auth, db } from "../lib/firebase";
 import {
   PERSONAS,
   getPersonaById,
@@ -19,9 +19,17 @@ import {
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { motion } from "framer-motion";
+import AuthModal from "../components/AuthModal";
 import Header from "../components/layout/Header";
 import { NightSky } from "../components/layout/NightSky";
+import { SpaceTabs } from "../components/layout/SpaceTabs";
 import { PersonaPortrait } from "../components/consult/PersonaPortrait";
+import {
+  hasBirthChart,
+  saveConsultIntent,
+  takeConsultIntent,
+} from "../components/consult/consult-resume";
 import { TrustProofStrip } from "../components/trust/TrustProofStrip";
 import { useSubscription, useTrustSummary, useUserProfile } from "../hooks";
 import { useConsciousness } from "../hooks/useConsciousness";
@@ -99,7 +107,7 @@ export default function Consult() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { credits, tier } = useSubscription();
-  const { profile } = useUserProfile();
+  const { profile, birthData, loading: profileLoading } = useUserProfile();
   const { atmanState } = useConsciousness();
   const { summary: trustSummary } = useTrustSummary();
   const [filter, setFilter] = useState("All");
@@ -107,6 +115,10 @@ export default function Consult() {
   const [search, setSearch] = useState("");
   const [history, setHistory] = useState<any[]>([]);
   const [openSitting, setOpenSitting] = useState<any | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [pendingPersona, setPendingPersona] = useState<AstrologerPersona | null>(
+    null,
+  );
 
   const languages = useMemo(
     () => [
@@ -118,36 +130,97 @@ export default function Consult() {
 
   useEffect(() => {
     if (!user) return;
+    let cancelled = false;
     const fetchHistory = async () => {
-      const { collection, query, orderBy, limit, getDocs } =
-        await import("firebase/firestore");
-      const q = query(
-        collection(db, "users", user.uid, "consultations"),
-        orderBy("createdAt", "desc"),
-        limit(6),
-      );
-      const snap = await getDocs(q);
-      setHistory(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      try {
+        const { collection, query, orderBy, limit, getDocs } =
+          await import("firebase/firestore");
+        const q = query(
+          collection(db, "users", user.uid, "consultations"),
+          orderBy("createdAt", "desc"),
+          limit(24),
+        );
+        const snap = await getDocs(q);
+        if (cancelled) return;
+        // Only closed sittings belong here — an active one is still running.
+        setHistory(
+          snap.docs
+            .map((d) => ({ id: d.id, ...(d.data() as Record<string, any>) }))
+            .filter((item: any) => item.status === "ended")
+            .slice(0, 6),
+        );
+      } catch (err) {
+        if (cancelled) return;
+        console.error("Could not load past sittings:", err);
+        setHistory([]);
+      }
     };
     fetchHistory();
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
-  /** Begin directly in the guide's chat, in the user's preferred language. */
-  const beginSession = (persona: AstrologerPersona) => {
-    if (!user) {
-      navigate("/onboarding");
-      return;
-    }
+  /** The guide's tongue, preferring the one the user reads the app in. */
+  const resolveLanguage = (persona: AstrologerPersona) => {
     const preferred = profile?.language
       ? getPlatformLanguage(profile.language).label
       : "";
-    const language = persona.languages.includes(preferred)
+    return persona.languages.includes(preferred)
       ? preferred
       : persona.languages[0] || "English";
-    navigate(
-      `/consult/${persona.id}/chat?lang=${encodeURIComponent(language)}`,
-    );
   };
+
+  /** Open the guide's chat, in the user's preferred language. */
+  const enterSitting = (persona: AstrologerPersona, language?: string) => {
+    const lang = language || resolveLanguage(persona);
+    navigate(`/consult/${persona.id}/chat?lang=${encodeURIComponent(lang)}`);
+  };
+
+  /**
+   * After signing in: a guide can only read a chart that exists. A brand-new
+   * account has none, so collect the birth details first and remember the
+   * sitting — the Circle picks it up again below once there's a chart.
+   */
+  const resumeAfterSignIn = async (persona: AstrologerPersona) => {
+    const language = resolveLanguage(persona);
+    const uid = auth.currentUser?.uid;
+    if (uid && (await hasBirthChart(uid))) {
+      enterSitting(persona, language);
+      return;
+    }
+    saveConsultIntent({ personaId: persona.id, language });
+    navigate("/onboarding");
+  };
+
+  /** Begin directly in the guide's chat — asking who you are first, if we must. */
+  const beginSession = (persona: AstrologerPersona) => {
+    if (!user) {
+      setPendingPersona(persona);
+      setShowAuthModal(true);
+      return;
+    }
+    // Signed in but no chart on file: the same detour, for the same reason.
+    if (!profileLoading && !birthData) {
+      saveConsultIntent({
+        personaId: persona.id,
+        language: resolveLanguage(persona),
+      });
+      navigate("/onboarding");
+      return;
+    }
+    enterSitting(persona);
+  };
+
+  // A sitting deferred for onboarding lands back here, once there is a chart.
+  useEffect(() => {
+    if (!user || !birthData) return;
+    const intent = takeConsultIntent();
+    if (!intent) return;
+    const persona = getPersonaById(intent.personaId);
+    if (persona) enterSitting(persona, intent.language || undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, birthData]);
 
   const visiblePersonas = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -193,22 +266,9 @@ export default function Consult() {
 
       <main className="container mx-auto pt-28 px-6 pb-16 relative z-10 max-w-6xl">
         {/* ── Masthead ── */}
-        <div className="flex items-baseline gap-4 animate-reveal-progressive">
-          <p className="text-gold/80 text-[0.65rem] font-bold uppercase tracking-[0.4em]">
-            The Circle
-          </p>
-          <span className="hidden sm:block flex-1 h-px bg-linear-to-r from-gold/25 to-transparent" />
-          {user && (
-            <button
-              onClick={() => navigate("/pricing")}
-              className="text-[0.65rem] uppercase tracking-[0.25em] text-white/35 hover:text-gold transition-colors"
-            >
-              {credits} credits · {tier} — top up
-            </button>
-          )}
-        </div>
+        <SpaceTabs />
 
-        <div className="mt-6 grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-x-12 gap-y-6 items-end animate-reveal-progressive">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-x-12 gap-y-6 items-end animate-reveal-progressive">
           <div>
             <h1 className="font-display leading-[1.05]">
               <span className="block text-2xl md:text-3xl text-white/55 italic">
@@ -225,124 +285,136 @@ export default function Consult() {
               dasha timing, and what you've shared before — no queues, no meters
               running at ₹50 a minute. Choose the voice that fits the question.
             </p>
+            {user && (
+              <button
+                onClick={() => navigate("/pricing")}
+                className="mt-4 text-[0.65rem] uppercase tracking-[0.25em] text-white/35 hover:text-gold transition-colors"
+              >
+                {credits} credits · {tier} — top up
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="mt-8">
-          <TrustProofStrip />
-        </div>
+        {/* On phones the guides lead — trust signals follow the grid. */}
+        <div className="flex flex-col">
+          <div className="order-4 lg:order-1 mt-10 lg:mt-8">
+            <TrustProofStrip />
+          </div>
 
-        {/* ── Attuned to you now ── */}
-        {attuned.length > 0 && (
-          <section className="mt-10 animate-reveal-progressive">
-            <p className="text-[0.6rem] font-bold uppercase tracking-[0.35em] text-white/25 mb-4">
-              Attuned to you now
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {attuned.map(({ persona, reason }) => (
-                <button
-                  key={persona.id}
-                  onClick={() => beginSession(persona)}
-                  className="group flex items-center gap-4 text-left rounded-2xl border border-gold/15 bg-gold/3 hover:bg-gold/8 hover:border-gold/30 transition-all p-4"
+          {/* ── Attuned to you now ── */}
+          {attuned.length > 0 && (
+            <section className="order-1 lg:order-2 mt-8 lg:mt-10 animate-reveal-progressive">
+              <p className="text-[0.6rem] font-bold uppercase tracking-[0.35em] text-white/25 mb-4">
+                Attuned to you now
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {attuned.map(({ persona, reason }) => (
+                  <button
+                    key={persona.id}
+                    onClick={() => beginSession(persona)}
+                    className="group flex items-center gap-4 text-left rounded-2xl border border-gold/15 bg-gold/3 hover:bg-gold/8 hover:border-gold/30 transition-all p-4"
+                  >
+                    <PersonaPortrait persona={persona} size="md" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-display italic text-lg text-white/90 leading-tight">
+                        {persona.name}
+                      </p>
+                      <p className="text-xs text-white/40 mt-0.5">{reason}</p>
+                    </div>
+                    <ArrowUpRight
+                      size={15}
+                      className="shrink-0 text-gold/0 group-hover:text-gold transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                    />
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* ── Finding band ── */}
+          <section className="order-2 lg:order-3 mt-10 border-y border-white/8 animate-reveal-progressive">
+            <div className="flex flex-col lg:flex-row lg:items-center divide-y lg:divide-y-0 lg:divide-x divide-white/8">
+              <label className="relative flex items-center gap-3 px-1 py-3 lg:flex-1">
+                <Search size={15} className="text-white/30 shrink-0 ml-1" />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Career, love, remedies, timing…"
+                  className="w-full bg-transparent outline-none text-sm text-white/80 placeholder:text-white/25"
+                />
+              </label>
+              <label className="relative flex items-center gap-2 px-1 lg:px-4 py-3">
+                <Globe
+                  size={14}
+                  className="text-white/30 shrink-0 ml-1 lg:ml-0"
+                />
+                <select
+                  aria-label="Language"
+                  value={languageFilter}
+                  onChange={(event) => setLanguageFilter(event.target.value)}
+                  className="bg-transparent outline-none text-sm text-white/55 cursor-pointer"
                 >
-                  <PersonaPortrait persona={persona} size="md" />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-display italic text-lg text-white/90 leading-tight">
-                      {persona.name}
-                    </p>
-                    <p className="text-xs text-white/40 mt-0.5">{reason}</p>
-                  </div>
-                  <ArrowUpRight
-                    size={15}
-                    className="shrink-0 text-gold/0 group-hover:text-gold transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-                  />
-                </button>
-              ))}
+                  {languages.map((language) => (
+                    <option
+                      key={language}
+                      value={language}
+                      className="bg-[#111118]"
+                    >
+                      {language}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex items-center gap-1.5 overflow-x-auto px-1 lg:px-4 py-2 scrollbar-none">
+                {SPECIALTIES.map((specialty) => (
+                  <button
+                    key={specialty}
+                    onClick={() => setFilter(specialty)}
+                    className={`inline-flex items-center min-h-11 rounded-full px-4 text-[0.65rem] font-bold uppercase tracking-[0.15em] whitespace-nowrap transition-all ${
+                      filter === specialty
+                        ? "bg-gold text-black"
+                        : "text-white/35 hover:text-white"
+                    }`}
+                  >
+                    {specialty}
+                  </button>
+                ))}
+              </div>
             </div>
           </section>
-        )}
 
-        {/* ── Finding band ── */}
-        <section className="mt-10 border-y border-white/8 animate-reveal-progressive">
-          <div className="flex flex-col lg:flex-row lg:items-center divide-y lg:divide-y-0 lg:divide-x divide-white/8">
-            <label className="relative flex items-center gap-3 px-1 py-3 lg:flex-1">
-              <Search size={15} className="text-white/30 shrink-0 ml-1" />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Career, love, remedies, timing…"
-                className="w-full bg-transparent outline-none text-sm text-white/80 placeholder:text-white/25"
+          {/* ── The guides ── */}
+          <section className="order-3 lg:order-4 mt-8 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            {visiblePersonas.map((persona) => (
+              <GuideCard
+                key={persona.id}
+                persona={persona}
+                trustSummary={trustSummary}
+                onBegin={() => beginSession(persona)}
+                onDossier={() => navigate(`/consult/${persona.id}/profile`)}
               />
-            </label>
-            <label className="relative flex items-center gap-2 px-1 lg:px-4 py-3">
-              <Globe
-                size={14}
-                className="text-white/30 shrink-0 ml-1 lg:ml-0"
-              />
-              <select
-                value={languageFilter}
-                onChange={(event) => setLanguageFilter(event.target.value)}
-                className="bg-transparent outline-none text-sm text-white/55 cursor-pointer"
-              >
-                {languages.map((language) => (
-                  <option
-                    key={language}
-                    value={language}
-                    className="bg-[#111118]"
-                  >
-                    {language}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="flex gap-1.5 overflow-x-auto px-1 lg:px-4 py-3 scrollbar-none">
-              {SPECIALTIES.map((specialty) => (
+            ))}
+
+            {visiblePersonas.length === 0 && (
+              <div className="md:col-span-2 xl:col-span-3 py-16 text-center">
+                <p className="font-display italic text-2xl text-white/50">
+                  No guide matches that search.
+                </p>
                 <button
-                  key={specialty}
-                  onClick={() => setFilter(specialty)}
-                  className={`rounded-full px-3 py-1.5 text-[0.65rem] font-bold uppercase tracking-[0.15em] whitespace-nowrap transition-all ${
-                    filter === specialty
-                      ? "bg-gold text-black"
-                      : "text-white/35 hover:text-white"
-                  }`}
+                  onClick={() => {
+                    setSearch("");
+                    setFilter("All");
+                    setLanguageFilter("All languages");
+                  }}
+                  className="mt-5 px-5 py-2.5 rounded-xl border border-gold/30 text-gold text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:bg-gold hover:text-black transition-colors"
                 >
-                  {specialty}
+                  Clear filters
                 </button>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ── The guides ── */}
-        <section className="mt-8 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-          {visiblePersonas.map((persona) => (
-            <GuideCard
-              key={persona.id}
-              persona={persona}
-              trustSummary={trustSummary}
-              onBegin={() => beginSession(persona)}
-              onDossier={() => navigate(`/consult/${persona.id}/profile`)}
-            />
-          ))}
-
-          {visiblePersonas.length === 0 && (
-            <div className="md:col-span-2 xl:col-span-3 py-16 text-center">
-              <p className="font-display italic text-2xl text-white/50">
-                No guide matches that search.
-              </p>
-              <button
-                onClick={() => {
-                  setSearch("");
-                  setFilter("All");
-                  setLanguageFilter("All languages");
-                }}
-                className="mt-5 px-5 py-2.5 rounded-xl border border-gold/30 text-gold text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:bg-gold hover:text-black transition-colors"
-              >
-                Clear filters
-              </button>
-            </div>
-          )}
-        </section>
+              </div>
+            )}
+          </section>
+        </div>
 
         {/* ── Past sittings ── */}
         {history.length > 0 && (
@@ -409,6 +481,22 @@ export default function Consult() {
         />
       )}
 
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => {
+          setShowAuthModal(false);
+          setPendingPersona(null);
+        }}
+        onSuccess={() => {
+          setShowAuthModal(false);
+          const persona = pendingPersona;
+          setPendingPersona(null);
+          if (persona) void resumeAfterSignIn(persona);
+        }}
+        title="Sign in to begin"
+        message="Every guide in the Circle reads your chart, so we need to know whose it is. New accounts start with 15 free credits."
+      />
+
       <footer className="container mx-auto max-w-6xl px-6 py-8 border-t border-white/5 relative z-10">
         <p className="text-[0.6rem] uppercase tracking-[0.35em] text-white/20">
           Guidance billed by the minute · charged only when the session closes
@@ -451,12 +539,17 @@ function GuideCard({
           <h3 className="font-display italic text-2xl text-white/95 leading-tight">
             {persona.name}
           </h3>
-          <p
-            className="text-[0.6rem] font-bold uppercase tracking-[0.25em] mt-1.5"
-            style={{ color: accent }}
-          >
-            {persona.title}
-          </p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <p
+              className="text-[0.6rem] font-bold uppercase tracking-[0.25em]"
+              style={{ color: accent }}
+            >
+              {persona.title}
+            </p>
+            <span className="rounded-full border border-white/20 bg-white/8 px-2.5 py-1 text-[0.65rem] font-bold uppercase tracking-[0.15em] text-white/60">
+              AI guide
+            </span>
+          </div>
           <p className="mt-2 text-[0.65rem] uppercase tracking-[0.15em] text-white/30">
             {persona.languages.join(" · ")}
           </p>
@@ -535,6 +628,49 @@ function TranscriptDrawer({
   const [transcript, setTranscript] = useState<TranscriptMessage[] | null>(
     null,
   );
+  const panelRef = useRef<HTMLElement>(null);
+  const closeRef = useRef(onClose);
+  const titleId = useId();
+
+  useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
+
+  // Dialog manners: focus moves into the drawer on open, Escape closes it,
+  // and focus returns to whatever opened it.
+  useEffect(() => {
+    const trigger = document.activeElement as HTMLElement | null;
+    panelRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeRef.current();
+        return;
+      }
+      if (event.key !== "Tab" || !panelRef.current) return;
+      const focusable = panelRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      const inside = panelRef.current.contains(active);
+      // The panel itself holds focus on open, so it counts as the top edge.
+      const atStart = active === first || active === panelRef.current;
+      if (event.shiftKey && (atStart || !inside)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !inside)) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      trigger?.focus?.();
+    };
+  }, []);
 
   useEffect(() => {
     if (!userId || !item?.id) return;
@@ -574,16 +710,32 @@ function TranscriptDrawer({
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <button
+      <motion.button
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.2 }}
         onClick={onClose}
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 cursor-default"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-default"
         aria-label="Close transcript"
       />
-      <aside className="relative h-full w-full max-w-lg bg-[#06060c]/97 backdrop-blur-2xl border-l border-white/10 flex flex-col animate-in slide-in-from-right duration-300">
+      <motion.aside
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        initial={{ x: 24, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+        className="relative h-full w-full max-w-lg bg-[#06060c]/97 backdrop-blur-2xl border-l border-white/10 flex flex-col outline-none"
+      >
         <header className="flex items-center gap-4 p-5 border-b border-white/5">
           {persona && <PersonaPortrait persona={persona} size="md" />}
           <div className="min-w-0 flex-1">
-            <p className="font-display italic text-xl text-white/95 leading-tight">
+            <p
+              id={titleId}
+              className="font-display italic text-xl text-white/95 leading-tight"
+            >
               {persona?.name || item.personaName || "Consultation"}
             </p>
             <p className="text-xs text-white/35 mt-0.5">
@@ -649,7 +801,7 @@ function TranscriptDrawer({
             </button>
           </footer>
         )}
-      </aside>
+      </motion.aside>
     </div>
   );
 }
