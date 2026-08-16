@@ -190,10 +190,10 @@ export default function OnboardingModal({
   ) => {
     const nextCoords = coords === undefined ? birthCoordinates : coords;
     setFormData(data);
-    localStorage.setItem(
-      STORAGE_KEYS.PROFILE,
-      JSON.stringify(nextCoords ? { ...data, coordinates: nextCoords } : data),
-    );
+    // Keep in-progress edits inside the wizard. The canonical PROFILE key is
+    // written only by finalizeJourney, so an abandoned draft can never look
+    // like a completed personalized profile to the rest of the app.
+    if (nextCoords !== birthCoordinates) setBirthCoordinates(nextCoords);
   };
 
   const getCurrentLocation = () => {
@@ -425,8 +425,7 @@ export default function OnboardingModal({
       onClose();
     } catch (err) {
       console.error("Error saving data:", err);
-      alert("Something went wrong. Your progress is saved locally.");
-      onClose();
+      alert("We couldn't save your profile. Please try again.");
     } finally {
       setIsSaving(false);
     }
@@ -485,7 +484,7 @@ export default function OnboardingModal({
               duration: 0.5,
               bounce: 0.2,
             }}
-            className="w-full max-w-xl bg-[#0a0a0f] border border-white/10 rounded-[2rem] relative z-10 flex flex-col max-h-[90vh] overflow-hidden shadow-2xl"
+            className="w-full max-w-xl bg-[#0a0a0f] border border-white/10 rounded-[2rem] relative z-10 flex flex-col max-h-[min(90dvh,56rem)] overflow-hidden shadow-2xl"
           >
             {/* Header */}
             <div className="p-6 border-b border-white/5 flex justify-between items-center">
@@ -522,7 +521,18 @@ export default function OnboardingModal({
             </div>
 
             {/* Progress */}
-            <div className="flex px-4 py-2 gap-1.5">
+            <div
+              className="flex px-4 py-2 gap-1.5"
+              role="progressbar"
+              aria-label="Profile setup progress"
+              aria-valuemin={1}
+              aria-valuemax={5}
+              aria-valuenow={
+                ["upload", "identity", "temporal", "spatial", "present"].indexOf(
+                  step,
+                ) + 1
+              }
+            >
               {["upload", "identity", "temporal", "spatial", "present"].map(
                 (s, i) => {
                   const steps = [
@@ -536,7 +546,7 @@ export default function OnboardingModal({
                   return (
                     <div
                       key={s}
-                      className={`h-0.5 flex-1 rounded-full transition-all duration-700 ${
+                      className={`h-0.5 flex-1 rounded-full transition-colors duration-700 ${
                         i <= currentIndex ? "bg-gold" : "bg-white/5"
                       }`}
                     ></div>
@@ -576,7 +586,7 @@ export default function OnboardingModal({
                       {!uploadedImage ? (
                         <label
                           htmlFor="modal-chart-upload"
-                          className={`flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${
+                          className={`flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-2xl cursor-pointer transition-colors ${
                             isUploading
                               ? "border-gold/50 bg-gold/5"
                               : "border-white/10 hover:border-gold/30 hover:bg-white/5"
@@ -586,7 +596,7 @@ export default function OnboardingModal({
                             <div className="flex flex-col items-center">
                               <Loader2 className="w-8 h-8 text-gold animate-spin mb-4" />
                               <p className="text-xs text-white/40">
-                                Uploading...
+                                Uploading…
                               </p>
                             </div>
                           ) : (
@@ -612,18 +622,24 @@ export default function OnboardingModal({
                               className="w-full h-32 object-contain"
                             />
                             <button
+                              type="button"
                               onClick={clearUpload}
                               className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white/60 hover:text-white"
+                              aria-label="Remove uploaded chart"
                             >
                               <X size={14} />
                             </button>
                           </div>
 
                           {isParsing && (
-                            <div className="flex items-center justify-center gap-3 py-4 rounded-xl bg-white/5 border border-white/5">
+                            <div
+                              className="flex items-center justify-center gap-3 py-4 rounded-xl bg-white/5 border border-white/5"
+                              role="status"
+                              aria-live="polite"
+                            >
                               <Loader2 className="w-4 h-4 text-gold animate-spin" />
                               <span className="text-xs text-white/40">
-                                Analyzing celestial patterns...
+                                Analyzing celestial patterns…
                               </span>
                             </div>
                           )}
@@ -631,7 +647,10 @@ export default function OnboardingModal({
                           {parseError && !isParsing && (
                             <div className="flex items-start gap-3 p-4 rounded-xl bg-red-500/5 border border-red-500/20">
                               <AlertCircle className="w-4 h-4 text-red-400 mt-0.5" />
-                              <p className="text-xs text-red-300/80">
+                              <p
+                                className="text-xs text-red-300/80"
+                                role="alert"
+                              >
                                 {parseError}
                               </p>
                             </div>
@@ -698,13 +717,19 @@ export default function OnboardingModal({
                       </p>
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-xs uppercase tracking-[0.2em] font-bold text-white/30 mb-2">
+                          <label
+                            htmlFor="onboarding-name"
+                            className="block text-xs uppercase tracking-[0.2em] font-bold text-white/30 mb-2"
+                          >
                             Full Name
                           </label>
                           <input
+                            id="onboarding-name"
+                            name="name"
+                            autoComplete="name"
                             type="text"
-                            placeholder="Enter your name"
-                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 focus:border-gold/50 transition-all outline-none text-white font-sans"
+                            placeholder="Enter your name…"
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 focus:border-gold/50 transition-colors outline-none text-white font-sans"
                             value={formData.name}
                             onChange={(e) =>
                               saveStepData({
@@ -714,18 +739,20 @@ export default function OnboardingModal({
                             }
                           />
                         </div>
-                        <div>
-                          <label className="block text-xs uppercase tracking-[0.2em] font-bold text-white/30 mb-2">
+                        <fieldset>
+                          <legend className="block text-xs uppercase tracking-[0.2em] font-bold text-white/30 mb-2">
                             Gender
-                          </label>
+                          </legend>
                           <div className="grid grid-cols-3 gap-3">
                             {["Male", "Female", "Other"].map((g) => (
                               <button
                                 key={g}
+                                type="button"
+                                aria-pressed={formData.gender === g}
                                 onClick={() =>
                                   saveStepData({ ...formData, gender: g })
                                 }
-                                className={`py-3 rounded-xl border text-xs font-sans transition-all font-bold tracking-widest uppercase ${
+                                className={`py-3 rounded-xl border text-xs font-sans transition-colors font-bold tracking-widest uppercase ${
                                   formData.gender === g
                                     ? "bg-gold border-gold text-[#030308] shadow-[0_0_15px_rgba(229,185,106,0.2)]"
                                     : "bg-white/5 border-white/10 text-white/40 hover:border-white/30 hover:bg-white/10"
@@ -735,7 +762,7 @@ export default function OnboardingModal({
                               </button>
                             ))}
                           </div>
-                        </div>
+                        </fieldset>
                       </div>
                     </div>
                   )}
@@ -748,12 +775,18 @@ export default function OnboardingModal({
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-xs uppercase tracking-[0.2em] font-bold text-white/30 mb-2">
+                          <label
+                            htmlFor="onboarding-birth-date"
+                            className="block text-xs uppercase tracking-[0.2em] font-bold text-white/30 mb-2"
+                          >
                             Birth Date
                           </label>
                           <input
+                            id="onboarding-birth-date"
+                            name="birth-date"
+                            autoComplete="bday"
                             type="date"
-                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 focus:border-gold/50 transition-all outline-none text-white font-sans appearance-none"
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 focus:border-gold/50 transition-colors outline-none text-white font-sans appearance-none"
                             value={formData.dob}
                             onChange={(e) =>
                               saveStepData({ ...formData, dob: e.target.value })
@@ -761,14 +794,21 @@ export default function OnboardingModal({
                           />
                         </div>
                         <div>
-                          <label className="block text-xs uppercase tracking-[0.2em] font-bold text-white/30 mb-2">
+                          <label
+                            htmlFor="onboarding-birth-time"
+                            className="block text-xs uppercase tracking-[0.2em] font-bold text-white/30 mb-2"
+                          >
                             Birth Time
                           </label>
                           <input
+                            id="onboarding-birth-time"
+                            name="birth-time"
+                            autoComplete="off"
                             type="time"
-                            className={`w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 focus:border-gold/50 transition-all outline-none text-white font-sans appearance-none ${
+                            disabled={formData.birthTimeUnknown}
+                            className={`w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 focus:border-gold/50 transition-colors outline-none text-white font-sans appearance-none ${
                               formData.birthTimeUnknown
-                                ? "opacity-30 pointer-events-none"
+                                ? "opacity-30"
                                 : ""
                             }`}
                             value={
@@ -782,6 +822,8 @@ export default function OnboardingModal({
                       </div>
                       <label className="flex items-center gap-3 mt-4 cursor-pointer group">
                         <input
+                          id="onboarding-birth-time-unknown"
+                          name="birth-time-unknown"
                           type="checkbox"
                           checked={formData.birthTimeUnknown}
                           onChange={(e) =>
@@ -791,7 +833,7 @@ export default function OnboardingModal({
                               tob: e.target.checked ? "12:00" : formData.tob,
                             })
                           }
-                          className="w-4 h-4 rounded border-white/20 bg-white/5 checked:bg-gold checked:border-gold appearance-none cursor-pointer transition-all"
+                          className="w-4 h-4 rounded border-white/20 bg-white/5 checked:bg-gold checked:border-gold appearance-none cursor-pointer transition-colors"
                         />
                         <span className="text-xs text-white/40 group-hover:text-white/60 transition-colors">
                           I don't know my exact birth time
@@ -816,10 +858,11 @@ export default function OnboardingModal({
                         aligned this way?
                       </p>
                       <div className="space-y-4">
-                        <label className="block text-xs uppercase tracking-[0.2em] font-bold text-white/30">
-                          Birth Location
-                        </label>
                         <LocationInput
+                          inputId="onboarding-birth-location"
+                          name="birth-location"
+                          autoComplete="off"
+                          label="Birth Location"
                           value={formData.pob}
                           onChange={(val) => {
                             // Typing invalidates any previously selected
@@ -838,7 +881,7 @@ export default function OnboardingModal({
                               coords,
                             );
                           }}
-                          placeholder="Search birth city..."
+                          placeholder="Search birth city…"
                         />
                       </div>
                     </div>
@@ -852,10 +895,11 @@ export default function OnboardingModal({
                       </p>
                       <div className="space-y-4">
                         <div className="space-y-4">
-                          <label className="block text-xs uppercase tracking-[0.2em] font-bold text-white/30">
-                            Current Location
-                          </label>
                           <LocationInput
+                            inputId="onboarding-current-location"
+                            name="current-location"
+                            autoComplete="off"
+                            label="Current Location"
                             value={formData.currentLocation}
                             onChange={(val) =>
                               saveStepData({
@@ -863,7 +907,7 @@ export default function OnboardingModal({
                                 currentLocation: val,
                               })
                             }
-                            placeholder="Search current city..."
+                            placeholder="Search current city…"
                           />
                         </div>
 
@@ -878,7 +922,7 @@ export default function OnboardingModal({
                         <button
                           onClick={getCurrentLocation}
                           disabled={isLocating}
-                          className="w-full flex items-center justify-center gap-3 py-4 rounded-xl border border-white/10 hover:border-gold/30 hover:bg-gold/5 transition-all group"
+                          className="w-full flex items-center justify-center gap-3 py-4 rounded-xl border border-white/10 hover:border-gold/30 hover:bg-gold/5 transition-colors group"
                         >
                           {isLocating ? (
                             <Loader2 className="w-5 h-5 text-gold animate-spin" />
@@ -887,7 +931,7 @@ export default function OnboardingModal({
                           )}
                           <span className="text-xs font-bold uppercase tracking-widest text-white/60 group-hover:text-gold transition-colors">
                             {isLocating
-                              ? "Locating..."
+                              ? "Locating…"
                               : "Use My Current Location"}
                           </span>
                         </button>
@@ -910,7 +954,7 @@ export default function OnboardingModal({
                   (step === "spatial" && !formData.pob) ||
                   (step === "present" && !formData.currentLocation)
                 }
-                className="btn btn-primary w-full py-3 rounded-xl font-bold tracking-widest uppercase flex items-center justify-center gap-2 group disabled:opacity-30 disabled:grayscale transition-all hover:scale-[1.02] active:scale-[0.98]"
+                className="btn btn-primary w-full py-3 rounded-xl font-bold tracking-widest uppercase flex items-center justify-center gap-2 group disabled:opacity-30 disabled:grayscale transition-[color,background-color,border-color,transform,opacity] hover:scale-[1.02] active:scale-[0.98]"
               >
                 {isSaving ? (
                   <Loader2 className="animate-spin" size={20} />

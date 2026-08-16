@@ -60,8 +60,12 @@ export default function ConversationsList({
 
   if (isLoading)
     return (
-      <div className="p-4 text-xs uppercase tracking-widest opacity-20">
-        Aligning...
+      <div
+        className="p-4 text-xs uppercase tracking-widest opacity-20"
+        role="status"
+        aria-live="polite"
+      >
+        Aligning…
       </div>
     );
 
@@ -71,12 +75,14 @@ export default function ConversationsList({
       <div className="px-3 py-2 border-b border-white/5">
         <div className="relative">
           <input
+            name="conversation-search"
+            autoComplete="off"
             type="text"
-            placeholder="Search conversations..."
+            placeholder="Search conversations…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             aria-label="Search conversations"
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 pl-8 text-xs text-white/80 placeholder:text-white/30 focus:outline-none focus:border-gold/50 focus:ring-1 focus:ring-gold/20 transition-all"
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 pl-8 text-xs text-white/80 placeholder:text-white/30 focus:outline-none focus:border-gold/50 focus:ring-1 focus:ring-gold/20 transition-colors"
           />
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -131,14 +137,22 @@ export default function ConversationsList({
             <div
               key={chat.id}
               role="listitem"
-              className={`group flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-all border-l-2 cursor-pointer ${
+              className={`group flex items-center justify-between transition-colors hover:bg-white/5 ${
                 currentId === chat.id
-                  ? "border-gold bg-gold/5"
-                  : "border-transparent"
+                  ? "bg-gold/5"
+                  : ""
               }`}
-              onClick={() => onSelect(chat.id)}
             >
-              <div className="flex-1 min-w-0">
+              <button
+                type="button"
+                onClick={() => onSelect(chat.id)}
+                aria-current={currentId === chat.id ? "page" : undefined}
+                className={`min-w-0 flex-1 border-l-2 px-4 py-3 text-left transition-colors ${
+                  currentId === chat.id
+                    ? "border-gold"
+                    : "border-transparent"
+                }`}
+              >
                 <div className="text-xs font-medium text-white/80 truncate mb-1">
                   {chat.title || "Untitled Synthesis"}
                 </div>
@@ -146,14 +160,14 @@ export default function ConversationsList({
                   {chat.lastUpdatedAt?.toDate?.().toLocaleDateString() ||
                     "Recent"}
                 </div>
-              </div>
+              </button>
 
               {confirmingDelete === chat.id ? (
-                <div className="flex items-center gap-1 animate-in fade-in duration-200">
+                <div className="flex items-center gap-1 pr-3 animate-in fade-in duration-200">
                   <span className="text-xs text-red-400 mr-1">Delete?</span>
                   <button
                     onClick={(e) => handleConfirmDelete(e, chat.id)}
-                    className="p-1 rounded hover:bg-red-500/30 text-red-400 transition-all"
+                    className="p-1 rounded hover:bg-red-500/30 text-red-400 transition-colors"
                     aria-label="Confirm delete"
                   >
                     <svg
@@ -173,7 +187,7 @@ export default function ConversationsList({
                   </button>
                   <button
                     onClick={handleCancelDelete}
-                    className="p-1 rounded hover:bg-white/10 text-white/50 transition-all"
+                    className="p-1 rounded hover:bg-white/10 text-white/50 transition-colors"
                     aria-label="Cancel delete"
                   >
                     <svg
@@ -196,7 +210,7 @@ export default function ConversationsList({
               ) : (
                 <button
                   onClick={(e) => handleDeleteClick(e, chat.id)}
-                  className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-500/20 text-white/30 hover:text-red-400 transition-all"
+                  className="mr-3 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 p-1.5 rounded-lg hover:bg-red-500/20 text-white/30 hover:text-red-400 transition-[color,background-color,opacity]"
                   aria-label="Delete conversation"
                 >
                   <svg

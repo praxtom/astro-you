@@ -278,7 +278,7 @@ function ShadowPlanet({
 // --- Enhanced Sun with Corona ---
 function VedicSun({ isVisible = true }: { isVisible?: boolean }) {
   const meshRef = useRef<THREE.Mesh>(null!);
-  const texture = useLoader(THREE.TextureLoader, "/assets/planets/sun.png");
+  const texture = useLoader(THREE.TextureLoader, "/assets/planets/sun.jpg");
 
   useFrame(() => {
     meshRef.current.rotation.y -= 0.0006;
@@ -442,7 +442,7 @@ export default function CelestialEngine({
     {
       name: "Moon",
       size: 0.5,
-      textureMap: "/assets/planets/mercury.png",
+      textureMap: "/assets/planets/mercury.jpg",
       color: "#e8e8f0",
       transitSpeed: 8,
       startHouse: 2,
@@ -453,7 +453,7 @@ export default function CelestialEngine({
     {
       name: "Mercury",
       size: 0.28,
-      textureMap: "/assets/planets/mercury.png",
+      textureMap: "/assets/planets/mercury.jpg",
       color: "#90EE90",
       transitSpeed: 22,
       startHouse: 4,
@@ -464,7 +464,7 @@ export default function CelestialEngine({
     {
       name: "Venus",
       size: 0.42,
-      textureMap: "/assets/planets/venus.png",
+      textureMap: "/assets/planets/venus.jpg",
       color: "#ff69b4",
       transitSpeed: 28,
       startHouse: 6,
@@ -475,7 +475,7 @@ export default function CelestialEngine({
     {
       name: "Mars",
       size: 0.38,
-      textureMap: "/assets/planets/mars.png",
+      textureMap: "/assets/planets/mars.jpg",
       color: "#ff4500",
       transitSpeed: 40,
       startHouse: 8,
@@ -486,7 +486,7 @@ export default function CelestialEngine({
     {
       name: "Jupiter",
       size: 0.75,
-      textureMap: "/assets/planets/jupiter.png",
+      textureMap: "/assets/planets/jupiter.jpg",
       color: "#ffd700",
       transitSpeed: 85,
       startHouse: 10,
@@ -497,7 +497,7 @@ export default function CelestialEngine({
     {
       name: "Saturn",
       size: 0.6,
-      textureMap: "/assets/planets/saturn.png",
+      textureMap: "/assets/planets/saturn.jpg",
       color: "#4a5568",
       transitSpeed: 140,
       startHouse: 5,

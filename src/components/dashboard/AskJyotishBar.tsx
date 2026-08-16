@@ -57,8 +57,10 @@ export const AskJyotishBar: React.FC<AskJyotishBarProps> = ({ lastChat }) => {
       >
         <div className="absolute -inset-px rounded-2xl bg-linear-to-r from-gold/0 via-gold/25 to-gold/0 opacity-0 group-focus-within:opacity-100 transition-opacity duration-700 blur-sm pointer-events-none" />
         <div className="relative flex items-center gap-3 rounded-2xl border border-white/10 bg-white/4 backdrop-blur-xl px-5 py-4 transition-colors group-focus-within:border-gold/40">
-          <Sparkles size={18} className="text-gold shrink-0" />
+          <Sparkles size={18} className="text-gold shrink-0" aria-hidden="true" />
           <input
+            name="jyotish-question"
+            autoComplete="off"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             placeholder={`Ask Jyotish — “${SUGGESTIONS[suggestionIndex]}”`}
@@ -70,7 +72,7 @@ export const AskJyotishBar: React.FC<AskJyotishBarProps> = ({ lastChat }) => {
             className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gold text-black text-xs font-bold uppercase tracking-[0.15em] hover:bg-gold/90 transition-colors"
           >
             Ask
-            <ArrowUpRight size={13} />
+            <ArrowUpRight size={13} aria-hidden="true" />
           </button>
         </div>
       </form>

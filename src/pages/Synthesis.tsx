@@ -3,11 +3,11 @@ import {
   lazy,
   useState,
   useEffect,
+  useLayoutEffect,
   useRef,
   useMemo,
   useCallback,
 } from "react";
-import { postJson } from "../lib/apiFetch";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Send,
@@ -15,6 +15,8 @@ import {
   Loader2,
   Sparkles,
   ChevronLeft,
+  ChevronDown,
+  ArrowDown,
   Plus,
   History,
   X,
@@ -22,6 +24,7 @@ import {
   Download,
   Save,
   Share2,
+  Users,
 } from "lucide-react";
 import ChartShareModal from "../components/ChartShareModal";
 import AuthModal from "../components/AuthModal";
@@ -33,24 +36,25 @@ import type { ChartType } from "../hooks/useKundali";
 import {
   doc,
   updateDoc,
+  deleteDoc,
   collection,
   addDoc,
   setDoc,
   query,
   orderBy,
   limit,
+  limitToLast,
   onSnapshot,
   getDocs,
   serverTimestamp,
+  writeBatch,
+  Timestamp,
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { trackAcquisitionEvent } from "../lib/acquisition";
 import { loadRazorpayCheckout } from "../lib/razorpay-loader";
 import { SynthesisSEO } from "../components/SEO";
 import Kundali from "../components/astrology/Kundali";
-import type { KundaliData } from "../types";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { downloadChart } from "../lib/chartStorage";
 import { useConsciousness } from "../hooks/useConsciousness";
 import { PranaOverlay } from "../components/prana/PranaOverlay";
@@ -58,10 +62,12 @@ import { DharmaList } from "../components/dharma/DharmaList";
 import { RoutineProposal } from "../components/dharma/RoutineProposal";
 import { DailyAltar } from "../components/sadhana/DailyAltar";
 import ConversationsList from "../components/synthesis/ConversationsList";
+import MessageBubble from "../components/synthesis/MessageBubble";
 import { NightSky } from "../components/layout/NightSky";
 import type { UserRoutine } from "../types/user";
 import { STORAGE_KEYS, FREE_LIMIT_SECONDS } from "../lib/constants";
-import { parseStoredJSON } from "../lib/safeStorage";
+import { parseCompletedBirthProfile } from "../lib/profile-readiness";
+import { getDefaultSynthesisRails } from "../lib/synthesis-layout";
 import { useErrorToast, useSuccessToast } from "../components/ui/toast-context";
 import {
   hasVisibleStreamingContent,
@@ -81,6 +87,57 @@ const OPENING_QUESTIONS = [
   "What is my Moon trying to teach me?",
   "When is a good time to start something new?",
 ];
+
+const DESKTOP_MEDIA_QUERY = "(min-width: 1024px)";
+
+const getIsDesktopViewport = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia(DESKTOP_MEDIA_QUERY).matches;
+
+const CHAT_TITLE_MAX_CHARS = 40;
+/** First-message chat title; the ellipsis is appended only when truncated. */
+const makeChatTitle = (text: string) => {
+  const trimmed = text.trim();
+  return trimmed.length > CHAT_TITLE_MAX_CHARS
+    ? `${trimmed.slice(0, CHAT_TITLE_MAX_CHARS).trimEnd()}…`
+    : trimmed;
+};
+
+/** Auto-scroll only while the reader is this close to the latest message. */
+const NEAR_BOTTOM_THRESHOLD_PX = 120;
+/** Firestore batched writes cap at 500 operations; stay comfortably under. */
+const DELETE_BATCH_SIZE = 400;
+/** Cap the live message subscription — very long chats keep the newest turns. */
+const MESSAGE_WINDOW = 200;
+
+const formatMessageTime = (date: Date) =>
+  date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+/** Toast title for a failed send, keyed on the HTTP status (if any). */
+const sendFailureTitle = (status?: number) => {
+  switch (status) {
+    case 401:
+      return "Sign in to continue";
+    case 402:
+      return "Out of credits";
+    case 429:
+      return "Slow down — try again shortly";
+    default:
+      return "Connection lost";
+  }
+};
+
+class SendError extends Error {
+  status?: number;
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = "SendError";
+    this.status = status;
+  }
+}
+
+const isKundaliRateLimited = (error: string | null) =>
+  Boolean(error && /429|too many/i.test(error));
 
 export default function Synthesis() {
   const navigate = useNavigate();
@@ -116,39 +173,26 @@ export default function Synthesis() {
     }
   }, [isAnxious, isChaotic, isReactive]);
 
-  // Use centralized hooks for data access (when user is logged in)
+  // Use centralized hooks for data access
   const [currentChartType, setCurrentChartType] = useState<ChartType>("D1");
   const {
     profile,
     birthData: hookBirthData,
     loading: isLoadingProfile,
   } = useUserProfile();
-  const { kundaliData: hookKundaliData, loading: isLoadingHookKundali } =
-    useKundali(hookBirthData, currentChartType);
-
-  // Memoize Markdown components to prevent remounting subtrees on every render
-  const markdownComponents = useMemo(
-    () => ({
-      p: ({ children }: any) => (
-        <p className="mb-4 last:mb-0 text-sm md:text-base leading-relaxed whitespace-pre-wrap font-sans font-light">
-          {children}
-        </p>
-      ),
-      li: ({ children }: any) => <li className="mb-2 last:mb-0">{children}</li>,
-      h1: ({ children }: any) => (
-        <h1 className="font-display text-xl text-gold mt-6 mb-3">{children}</h1>
-      ),
-      h2: ({ children }: any) => (
-        <h2 className="font-display text-lg text-gold mt-5 mb-2">{children}</h2>
-      ),
-      h3: ({ children }: any) => (
-        <h3 className="font-display text-base text-gold mt-4 mb-2">
-          {children}
-        </h3>
-      ),
-    }),
-    [],
-  );
+  // One chart fetch for everyone: `birthData` is the unified source (Firestore
+  // profile for signed-in users, session storage for guests), so guests no
+  // longer trigger a second ad-hoc /api/kundali request on top of this one.
+  const {
+    kundaliData: hookKundaliData,
+    loading: isLoadingHookKundali,
+    error: kundaliError,
+  } = useKundali(birthData, currentChartType);
+  // The hook keeps its last successful chart when birth data disappears
+  // (e.g. sign-out into an empty guest session) — never show it in that case.
+  const kundaliData = birthData ? hookKundaliData : null;
+  const isLoadingKundali = Boolean(birthData) && isLoadingHookKundali;
+  const kundaliRateLimited = isKundaliRateLimited(kundaliError);
 
   // Local state - needed for guest mode and chat functionality
   const [messages, setMessages] = useState<Message[]>([]);
@@ -166,22 +210,157 @@ export default function Synthesis() {
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
-  const [kundaliData, setKundaliData] = useState<KundaliData | null>(null);
-  const [isLoadingKundali, setIsLoadingKundali] = useState(false);
-  // Rails are open by default on desktop (in-flow panels) and closed on
-  // mobile, where they act as overlay drawers instead.
-  const isDesktop = () =>
-    typeof window !== "undefined" &&
-    window.matchMedia("(min-width: 1024px)").matches;
-  const [showConversations, setShowConversations] = useState(isDesktop);
-  const [showBlueprint, setShowBlueprint] = useState(isDesktop);
+  // Shown in-thread when a signed-in user tries to send with no credits left.
+  const [showCreditsNotice, setShowCreditsNotice] = useState(false);
+  // Visually-hidden live region so screen readers hear when a reply lands.
+  const [replyAnnouncement, setReplyAnnouncement] = useState("");
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  // Rails are in-flow on desktop and modal drawers on smaller viewports.
+  // Keep the state synchronized when the viewport crosses the breakpoint.
+  const [isDesktopViewport, setIsDesktopViewport] = useState(
+    getIsDesktopViewport,
+  );
+  const initialRails = getDefaultSynthesisRails(
+    getIsDesktopViewport(),
+    Boolean(user),
+  );
+  const [showConversations, setShowConversations] = useState(
+    initialRails.conversations,
+  );
+  const [showBlueprint, setShowBlueprint] = useState(initialRails.blueprint);
   const [showExpandedChart, setShowExpandedChart] = useState(false);
   const [interactionId, setInteractionId] = useState<string | null>(null);
   const [streamingContent, setStreamingContent] = useState<string | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const conversationsToggleRef = useRef<HTMLButtonElement>(null);
+  const blueprintToggleRef = useRef<HTMLButtonElement>(null);
+  const conversationsPanelRef = useRef<HTMLElement>(null);
+  const blueprintPanelRef = useRef<HTMLElement>(null);
+  const conversationsCloseRef = useRef<HTMLButtonElement>(null);
+  const blueprintCloseRef = useRef<HTMLButtonElement>(null);
   const prevChatIdRef = useRef<string | null>(null); // Track previous chat ID to detect sidebar navigation
   const pendingMessagesRef = useRef<Message[]>([]);
+  // Latest-value mirrors so async send/migration code can check state without
+  // closing over a stale render.
+  const currentChatIdRef = useRef<string | null>(id || null);
+  const messagesRef = useRef<Message[]>([]);
+  // In-flight send bookkeeping: one request at a time, abortable, and pinned
+  // to the chat it was sent from.
+  const sendAbortRef = useRef<AbortController | null>(null);
+  const sendChatIdRef = useRef<string | null>(null);
+  const sendingRef = useRef(false);
+  // Streaming deltas accumulate here and flush to state once per frame.
+  const streamBufferRef = useRef("");
+  const streamFrameRef = useRef<number | null>(null);
+  const isNearBottomRef = useRef(true);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const replyAnnounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const guestMigrationRef = useRef(false);
+  // Previous auth uid, so the guest-turn migration only fires on an actual
+  // guest → signed-in transition (not on "New conversation" resets).
+  const prevUidRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(DESKTOP_MEDIA_QUERY);
+    const syncLayout = (matches: boolean) => {
+      const next = getDefaultSynthesisRails(matches, Boolean(user));
+      setIsDesktopViewport(matches);
+      setShowConversations(next.conversations);
+      setShowBlueprint(next.blueprint);
+    };
+    const handleChange = (event: MediaQueryListEvent) =>
+      syncLayout(event.matches);
+
+    syncLayout(mediaQuery.matches);
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, [user]);
+
+  const closeConversations = useCallback(
+    (restoreFocus = false) => {
+      setShowConversations(false);
+      if (restoreFocus && !isDesktopViewport) {
+        requestAnimationFrame(() => conversationsToggleRef.current?.focus());
+      }
+    },
+    [isDesktopViewport],
+  );
+
+  const closeBlueprint = useCallback(
+    (restoreFocus = false) => {
+      setShowBlueprint(false);
+      if (restoreFocus && !isDesktopViewport) {
+        requestAnimationFrame(() => blueprintToggleRef.current?.focus());
+      }
+    },
+    [isDesktopViewport],
+  );
+
+  const toggleConversations = () => {
+    const willOpen = !showConversations;
+    setShowConversations(willOpen);
+    if (willOpen && !isDesktopViewport) setShowBlueprint(false);
+  };
+
+  const toggleBlueprint = () => {
+    const willOpen = !showBlueprint;
+    setShowBlueprint(willOpen);
+    if (willOpen && !isDesktopViewport) setShowConversations(false);
+  };
+
+  useEffect(() => {
+    if (isDesktopViewport) return;
+
+    const activePanel = showConversations
+      ? conversationsPanelRef.current
+      : showBlueprint
+        ? blueprintPanelRef.current
+        : null;
+    const firstControl = showConversations
+      ? conversationsCloseRef.current
+      : blueprintCloseRef.current;
+    if (!activePanel) return;
+
+    requestAnimationFrame(() => firstControl?.focus());
+    const handleDrawerKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (showConversations) closeConversations(true);
+        else closeBlueprint(true);
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const focusable = Array.from(
+        activePanel.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => !element.hasAttribute("inert"));
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleDrawerKeyDown);
+    return () => document.removeEventListener("keydown", handleDrawerKeyDown);
+  }, [
+    closeBlueprint,
+    closeConversations,
+    isDesktopViewport,
+    showBlueprint,
+    showConversations,
+  ]);
 
   // P0: Load recent chat summaries for guru's diary (last 3 chats with summaries)
   const loadRecentSummaries = useCallback(async () => {
@@ -227,31 +406,34 @@ export default function Synthesis() {
     }
   }, [hookBirthData]);
 
-  // Sync credits from profile
+  // Sync credits from profile. The server charges before generation and this
+  // snapshot is the authoritative balance — the client never decrements.
   useEffect(() => {
     if (profile) {
       setCredits(profile.credits || 0);
     }
   }, [profile]);
 
+  useEffect(() => {
+    if (credits > 0 || isSubscribed) setShowCreditsNotice(false);
+  }, [credits, isSubscribed]);
+
   // 2. Handle guest data and onboarding trigger
   useEffect(() => {
     if (isLoadingProfile) return;
 
     if (!user) {
-      const guestComplete = sessionStorage.getItem(STORAGE_KEYS.GUEST_COMPLETE);
-      const guest = parseStoredJSON(sessionStorage, STORAGE_KEYS.GUEST_PROFILE);
+      const guest = parseCompletedBirthProfile(
+        sessionStorage.getItem(STORAGE_KEYS.GUEST_PROFILE),
+        sessionStorage.getItem(STORAGE_KEYS.GUEST_COMPLETE),
+      );
 
-      if (guest && guestComplete) {
+      if (guest) {
         setBirthData(guest);
+        setShowOnboardingModal(false);
       } else {
-        // No guest data? Try localStorage before forcing onboarding
-        const local = parseStoredJSON(localStorage, STORAGE_KEYS.PROFILE);
-        if (local) {
-          setBirthData(local);
-        } else {
-          setShowOnboardingModal(true);
-        }
+        setBirthData(null);
+        setShowOnboardingModal(true);
       }
     } else if (!hookBirthData) {
       // Logged in but no profile data found in Firestore
@@ -262,7 +444,10 @@ export default function Synthesis() {
   const handleOnboardingComplete = () => {
     // For guest users, we need to manually pick up the data from sessionStorage
     if (!user) {
-      const guest = parseStoredJSON(sessionStorage, STORAGE_KEYS.GUEST_PROFILE);
+      const guest = parseCompletedBirthProfile(
+        sessionStorage.getItem(STORAGE_KEYS.GUEST_PROFILE),
+        sessionStorage.getItem(STORAGE_KEYS.GUEST_COMPLETE),
+      );
       if (guest) {
         setBirthData(guest);
       }
@@ -270,54 +455,42 @@ export default function Synthesis() {
     // For logged-in users, useUserProfile's onSnapshot will auto-update hookBirthData
   };
 
-  // Fetch Kundali for guests or when data/type changes
+  // Surface chart failures with the real cause. Keyed on the error string only:
+  // useKundali resets it before every retry, so each failure announces once.
+  const kundaliErrorContextRef = useRef({
+    isGuest: !user,
+    chartType: currentChartType,
+  });
   useEffect(() => {
-    if (!user && birthData) {
-      const fetchGuestKundali = async () => {
-        setIsLoadingKundali(true);
-        try {
-          const response = await postJson("/api/kundali", {
-            birthData,
-            chartType: currentChartType,
-          });
-
-          if (response.status === 401) {
-            // Guest access doesn't cover this chart type — invite sign-in
-            // instead of implying the birth data is wrong.
-            setShowAuthModal(true);
-            return;
-          }
-          if (!response.ok) throw new Error("API error");
-
-          const data = await response.json();
-          setKundaliData(data);
-        } catch (err) {
-          console.error("Error fetching guest Kundali:", err);
-          showError(
-            "Chart Unavailable",
-            "We couldn't load your chart right now. Sign in for full access, or try again shortly.",
-          );
-        } finally {
-          setIsLoadingKundali(false);
-        }
-      };
-      fetchGuestKundali();
-    }
-  }, [birthData, user, currentChartType, showError]);
-
-  // Sync hook data to local state when available (for logged-in users)
+    kundaliErrorContextRef.current = {
+      isGuest: !user,
+      chartType: currentChartType,
+    };
+  }, [user, currentChartType]);
   useEffect(() => {
-    if (hookKundaliData && user) {
-      setKundaliData(hookKundaliData);
-      setIsLoadingKundali(false);
+    if (!kundaliError) return;
+    const { isGuest, chartType } = kundaliErrorContextRef.current;
+    if (isKundaliRateLimited(kundaliError)) {
+      showError(
+        "Chart is rate-limited",
+        "Try again in a few minutes — your birth details are fine.",
+      );
+      return;
     }
-  }, [hookKundaliData, user]);
-
-  useEffect(() => {
-    if (user) {
-      setIsLoadingKundali(isLoadingHookKundali);
+    if (isGuest && chartType !== "D1") {
+      // Guest access covers the natal chart only — invite sign-in instead of
+      // implying the birth data is wrong.
+      setShowAuthModal(true);
+      return;
     }
-  }, [isLoadingHookKundali, user]);
+    console.error("Error fetching Kundali:", kundaliError);
+    showError(
+      "Chart Unavailable",
+      isGuest
+        ? "We couldn't load your chart right now. Sign in for full access, or try again shortly."
+        : "We couldn't load your chart right now. Please try again shortly.",
+    );
+  }, [kundaliError, showError]);
 
   // Handle Chat Persistence & Loading
   useEffect(() => {
@@ -331,14 +504,88 @@ export default function Synthesis() {
       pendingMessagesRef.current = [];
     }
     prevChatIdRef.current = currentChatId;
+    // Entering a (different) chat always starts pinned to the latest message.
+    isNearBottomRef.current = true;
+    setShowJumpToLatest(false);
+
+    // Detect the guest → signed-in transition before recording the new uid.
+    const wasGuest = prevUidRef.current === null;
+    prevUidRef.current = user?.uid ?? null;
 
     if (!user) {
+      guestMigrationRef.current = false;
       pendingMessagesRef.current = [];
       setMessages([welcomeMessage]);
       return;
     }
 
     if (!currentChatId) {
+      if (guestMigrationRef.current) {
+        // Migration already in flight — keep the guest turns on screen.
+        return;
+      }
+      // The user just signed in mid-conversation: preserve their guest turns
+      // by writing them into a fresh chat doc instead of resetting to the
+      // welcome message. Only on a real guest → user transition; a signed-in
+      // user starting a "New conversation" must simply get a fresh thread.
+      const guestTurns = wasGuest
+        ? messagesRef.current.filter((m) => m.id !== "welcome")
+        : [];
+      if (guestTurns.length > 0) {
+        guestMigrationRef.current = true;
+        const migrateGuestTurns = async () => {
+          try {
+            const firstUserTurn = guestTurns.find((m) => m.role === "user");
+            const chatRef = await addDoc(
+              collection(db, "users", user.uid, "chats"),
+              {
+                userId: user.uid,
+                title: makeChatTitle(
+                  firstUserTurn?.content || "Guest conversation",
+                ),
+                createdAt: serverTimestamp(),
+                lastUpdatedAt: serverTimestamp(),
+              },
+            );
+            const batch = writeBatch(db);
+            guestTurns.forEach((m) => {
+              batch.set(
+                doc(
+                  collection(
+                    db,
+                    "users",
+                    user.uid,
+                    "chats",
+                    chatRef.id,
+                    "messages",
+                  ),
+                ),
+                {
+                  role: m.role,
+                  content: m.content,
+                  clientId: m.clientId ?? m.id,
+                  // Preserve the original ordering of the guest turns.
+                  timestamp: Timestamp.fromDate(m.timestamp),
+                },
+              );
+            });
+            await batch.commit();
+            setCurrentChatId(chatRef.id);
+            navigate(`/synthesis/${chatRef.id}`, { replace: true });
+            guestMigrationRef.current = false;
+          } catch (err) {
+            console.error(
+              "[Synthesis] Guest conversation migration failed:",
+              err,
+            );
+            guestMigrationRef.current = false;
+            setMessages([welcomeMessage]);
+          }
+        };
+        void migrateGuestTurns();
+        // Keep the guest turns on screen while they migrate.
+        return;
+      }
       setMessages([welcomeMessage]);
       return;
     }
@@ -353,10 +600,12 @@ export default function Synthesis() {
       );
     });
 
-    // Load messages for specific chat
+    // Load messages for specific chat (windowed: very long chats keep the
+    // newest turns instead of subscribing to the full history).
     const q = query(
       collection(db, "users", user.uid, "chats", currentChatId, "messages"),
       orderBy("timestamp", "asc"),
+      limitToLast(MESSAGE_WINDOW),
     );
 
     const unsubscribeMessages = onSnapshot(q, (snapshot) => {
@@ -390,12 +639,44 @@ export default function Synthesis() {
       unsubscribeChat();
       unsubscribeMessages();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, currentChatId, welcomeMessage]);
 
-  // Update currentChatId when URL param changes
+  // Keep chat state in lockstep with the URL, including browser back/forward:
+  // navigating back to /synthesis must reset to a fresh conversation.
   useEffect(() => {
-    if (id) setCurrentChatId(id);
+    setCurrentChatId(id ?? null);
   }, [id]);
+
+  // Latest-value mirrors for async code paths (send completion, migration).
+  useEffect(() => {
+    currentChatIdRef.current = currentChatId;
+  }, [currentChatId]);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  // Abort an in-flight send when the user moves to a different chat…
+  useEffect(() => {
+    if (sendAbortRef.current && sendChatIdRef.current !== currentChatId) {
+      sendAbortRef.current.abort();
+    }
+  }, [currentChatId]);
+
+  // …and on unmount (also drop any pending streaming flush / announcement).
+  useEffect(() => {
+    return () => {
+      sendAbortRef.current?.abort();
+      if (streamFrameRef.current !== null) {
+        cancelAnimationFrame(streamFrameRef.current);
+        streamFrameRef.current = null;
+      }
+      if (replyAnnounceTimerRef.current !== null) {
+        clearTimeout(replyAnnounceTimerRef.current);
+        replyAnnounceTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // Initialize trial timer from localStorage
   useEffect(() => {
@@ -458,24 +739,37 @@ export default function Synthesis() {
         description: `Purchase ${minutes} Minutes`,
         order_id: order.id,
         handler: async (response: any) => {
-          const verifyResp = await fetch("/api/pay/verify", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              ...response,
-              idToken: await user.getIdToken(),
-            }),
-          });
-          const verifyData = await verifyResp.json();
+          // A thrown fetch or a non-JSON error body must never leave the user
+          // with a silent, unacknowledged payment.
+          try {
+            const verifyResp = await fetch("/api/pay/verify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                ...response,
+                idToken: await user.getIdToken(),
+              }),
+            });
+            if (!verifyResp.ok) {
+              throw new Error(`Verification failed (${verifyResp.status})`);
+            }
+            const verifyData = await verifyResp.json();
 
-          if (verifyData.status === "success") {
-            setCredits((prev) => prev + minutes);
-            trackAcquisitionEvent("first_payment", { amount: price });
-            showSuccess(
-              "Minutes Added",
-              `${minutes} minutes were added to your account.`,
-            );
-          } else {
+            if (verifyData.status === "success") {
+              setCredits((prev) => prev + minutes);
+              trackAcquisitionEvent("first_payment", { amount: price });
+              showSuccess(
+                "Minutes Added",
+                `${minutes} minutes were added to your account.`,
+              );
+            } else {
+              showError(
+                "Payment Verification Failed",
+                "Please contact support.",
+              );
+            }
+          } catch (err) {
+            console.error("[Synthesis] Payment verification failed:", err);
             showError("Payment Verification Failed", "Please contact support.");
           }
         },
@@ -503,7 +797,24 @@ export default function Synthesis() {
 
   // Handle message sending
   const handleSend = async () => {
-    if (!input.trim() || isSynthesizing || authLoading) return;
+    if (
+      !input.trim() ||
+      isSynthesizing ||
+      sendingRef.current ||
+      streamingContent !== null ||
+      authLoading
+    )
+      return;
+
+    // Only gate on missing birth data once the profile has actually loaded —
+    // useUserProfile has no synchronous hydration, so a signed-in user who
+    // sends before the first snapshot must not have their send swallowed
+    // (the server can build context from the uid). Matches the onboarding
+    // effect's own isLoadingProfile gate.
+    if (!birthData && !isLoadingProfile) {
+      setShowOnboardingModal(true);
+      return;
+    }
 
     const isOutOfTime = !user
       ? secondsUsed >= FREE_LIMIT_SECONDS
@@ -511,13 +822,12 @@ export default function Synthesis() {
 
     if (isOutOfTime) {
       if (!user) setShowAuthModal(true);
-      else
-        alert(
-          "Your celestial minutes have concluded. Purchase more to continue.",
-        );
+      else setShowCreditsNotice(true);
       return;
     }
+    setShowCreditsNotice(false);
 
+    const originalDraft = input;
     const userMsgContent = input;
     const userMsgClientId = `user_${Date.now()}`;
     const userMsg: Message = {
@@ -535,7 +845,30 @@ export default function Synthesis() {
     }
 
     setInput("");
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
     setIsSynthesizing(true);
+
+    // One request at a time, abortable (unmount / chat switch), and pinned to
+    // the chat it was sent from so a late completion can never leak its result
+    // into a different conversation.
+    sendingRef.current = true;
+    // Whether the assistant reply reached the UI/store — a failure AFTER that
+    // point (e.g. the convergence setDoc) must not restore the draft.
+    let replyDelivered = false;
+    const controller = new AbortController();
+    sendAbortRef.current = controller;
+    let chatIdAtSend = currentChatId;
+    sendChatIdRef.current = chatIdAtSend;
+    const isCurrent = () =>
+      !controller.signal.aborted &&
+      currentChatIdRef.current === chatIdAtSend;
+
+    streamBufferRef.current = "";
+    const flushStream = () => {
+      streamFrameRef.current = null;
+      if (!isCurrent()) return;
+      setStreamingContent(streamBufferRef.current);
+    };
 
     try {
       let chatId = currentChatId;
@@ -546,12 +879,17 @@ export default function Synthesis() {
           collection(db, "users", user.uid, "chats"),
           {
             userId: user.uid,
-            title: userMsgContent.substring(0, 40) + "...",
+            title: makeChatTitle(userMsgContent),
             createdAt: serverTimestamp(),
             lastUpdatedAt: serverTimestamp(),
           },
         );
         chatId = newChatRef.id;
+        // This send now belongs to the chat it just created — moving the app
+        // into that chat must not abort it, and its results apply there.
+        chatIdAtSend = chatId;
+        sendChatIdRef.current = chatId;
+        currentChatIdRef.current = chatId; // sync before React commits
         setCurrentChatId(chatId);
         navigate(`/synthesis/${chatId}`, { replace: true });
         trackAcquisitionEvent("first_chat");
@@ -599,6 +937,7 @@ export default function Synthesis() {
       const response = await fetch("/api/synthesis", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           // If interactionId exists, Google manages history. If it is missing
           // after refresh/reopen, include recent visible turns as fallback.
@@ -620,6 +959,8 @@ export default function Synthesis() {
         }),
       });
 
+      // Read the status BEFORE touching the stream so failures get the right
+      // toast (401/402/429 vs a generic connection error).
       if (!response.ok) {
         const errorText = await response.text().catch(() => "");
         let errorMsg = "The cosmos is momentarily unreachable.";
@@ -628,14 +969,13 @@ export default function Synthesis() {
         } catch {
           errorMsg = errorText || errorMsg;
         }
-        throw new Error(errorMsg);
+        throw new SendError(errorMsg, response.status);
       }
 
       // --- Real SSE Stream Consumption ---
       const reader = response.body!.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
-      let fullContent = "";
       let metadata: any = null;
 
       setIsSynthesizing(false); // Hide loader, streaming content will show instead
@@ -659,8 +999,12 @@ export default function Synthesis() {
             const event = JSON.parse(jsonStr);
 
             if (event.type === "delta" && event.text) {
-              fullContent += event.text;
-              setStreamingContent(fullContent);
+              // Deltas accumulate in a ref and flush at most once per frame —
+              // per-token setState would re-render the whole thread per token.
+              streamBufferRef.current += event.text;
+              if (streamFrameRef.current === null) {
+                streamFrameRef.current = requestAnimationFrame(flushStream);
+              }
             } else if (event.type === "done") {
               metadata = event;
             } else if (event.type === "error") {
@@ -678,21 +1022,40 @@ export default function Synthesis() {
         }
       }
 
+      // The stream is over: cancel any pending flush so a late frame cannot
+      // repaint the streaming bubble after the final message is applied.
+      if (streamFrameRef.current !== null) {
+        cancelAnimationFrame(streamFrameRef.current);
+        streamFrameRef.current = null;
+      }
+
+      const fullContent = streamBufferRef.current;
       if (!fullContent && !metadata) {
         throw new Error("No response from the cosmos");
       }
 
       const finalContent = metadata?.content || fullContent;
 
-      // The credit is now reserved/charged server-side inside /api/synthesis
-      // (before the model runs, refunded on failure). The user-profile snapshot
-      // will reflect the authoritative balance; decrement locally for snappy UI.
-      if (user) {
-        setCredits((prev) => Math.max(0, prev - 1));
+      // NOTE: no client-side credit decrement here. The credit is charged
+      // server-side before generation and the profile snapshot already
+      // reflects the authoritative balance — decrementing locally as well
+      // showed users a balance one lower than they actually had.
+
+      // Announce the reply for screen readers (visually hidden live region).
+      if (isCurrent()) {
+        if (replyAnnounceTimerRef.current !== null) {
+          clearTimeout(replyAnnounceTimerRef.current);
+        }
+        setReplyAnnouncement("Jyotish replied");
+        // Clear after a beat so the next reply's identical text re-announces.
+        replyAnnounceTimerRef.current = setTimeout(() => {
+          setReplyAnnouncement("");
+          replyAnnounceTimerRef.current = null;
+        }, 3000);
       }
 
       // Handle Routine Suggestion — delay to let the response settle visually
-      if (metadata?.suggestedRoutine) {
+      if (metadata?.suggestedRoutine && isCurrent()) {
         setTimeout(() => setSuggestedRoutine(metadata.suggestedRoutine), 2000);
       }
 
@@ -705,7 +1068,7 @@ export default function Synthesis() {
 
       // Store the new interaction ID for next turn
       if (metadata?.interactionId) {
-        setInteractionId(metadata.interactionId);
+        if (isCurrent()) setInteractionId(metadata.interactionId);
         if (user && chatId) {
           updateDoc(doc(db, "users", user.uid, "chats", chatId), {
             lastInteractionId: metadata.interactionId,
@@ -722,21 +1085,27 @@ export default function Synthesis() {
       }
 
       if (user && chatId) {
-        const aiMsg: Message = {
-          id: `pending_${aiMsgClientId}`,
-          clientId: aiMsgClientId,
-          pending: true,
-          role: "assistant",
-          content: finalContent,
-          timestamp: new Date(),
-        };
-        pendingMessagesRef.current = [...pendingMessagesRef.current, aiMsg];
-        setStreamingContent(null);
-        setMessages((prev) => [...prev, aiMsg]);
+        replyDelivered = true;
+        // UI state only applies to the chat this send belongs to — a reply
+        // finishing after the user switched chats must not surface there.
+        if (isCurrent()) {
+          const aiMsg: Message = {
+            id: `pending_${aiMsgClientId}`,
+            clientId: aiMsgClientId,
+            pending: true,
+            role: "assistant",
+            content: finalContent,
+            timestamp: new Date(),
+          };
+          pendingMessagesRef.current = [...pendingMessagesRef.current, aiMsg];
+          setStreamingContent(null);
+          setMessages((prev) => [...prev, aiMsg]);
+        }
 
         // Write to the deterministic doc id (same as the server's persist), so
         // the two writes converge instead of duplicating. onSnapshot then
-        // confirms the local message by clientId.
+        // confirms the local message by clientId. The write is keyed on the
+        // originating chatId, so it is safe even after a chat switch.
         await setDoc(
           doc(
             db,
@@ -755,8 +1124,9 @@ export default function Synthesis() {
           },
           { merge: true },
         );
-      } else {
+      } else if (isCurrent()) {
         // Guest: clear streaming, then add message directly
+        replyDelivered = true;
         setStreamingContent(null);
         const aiMsgClientId = `assistant_${Date.now()}`;
         const aiMsg: Message = {
@@ -770,16 +1140,34 @@ export default function Synthesis() {
       }
 
       // Auto-action if suggested
-      if (metadata?.suggestAction === "show_chart") {
+      if (metadata?.suggestAction === "show_chart" && isCurrent()) {
         setTimeout(() => setShowExpandedChart(true), 1500);
       }
     } catch (err) {
+      // Aborted sends (unmount / chat switch) end silently — the finally
+      // block cleans up; no toast, no state applied to the wrong chat.
+      if (
+        controller.signal.aborted ||
+        (err instanceof Error && err.name === "AbortError")
+      ) {
+        return;
+      }
       console.error(err);
+      const status = err instanceof SendError ? err.status : undefined;
       const errorMessage =
         err instanceof Error
           ? err.message
           : "Could not reach the cosmos. Please try sending your message again.";
       setStreamingContent(null);
+      // Give the user their words back so a failed send costs nothing to
+      // retry — but never clobber text they typed while waiting, and never
+      // restore when the reply already landed (e.g. only the convergence
+      // setDoc failed).
+      if (!replyDelivered) {
+        setInput((current) => (current.trim() ? current : originalDraft));
+      }
+      if (status === 402) setShowCreditsNotice(true);
+      if (status === 401) setShowAuthModal(true);
       if (!user) {
         const aiMsg: Message = {
           id: (Date.now() + 1).toString(),
@@ -789,17 +1177,51 @@ export default function Synthesis() {
         };
         setMessages((prev) => [...prev, aiMsg]);
       }
-      showError("Connection Lost", errorMessage);
+      showError(sendFailureTitle(status), errorMessage);
     } finally {
+      sendingRef.current = false;
+      if (sendAbortRef.current === controller) {
+        sendAbortRef.current = null;
+        sendChatIdRef.current = null;
+      }
+      if (streamFrameRef.current !== null) {
+        cancelAnimationFrame(streamFrameRef.current);
+        streamFrameRef.current = null;
+      }
+      streamBufferRef.current = "";
+      if (controller.signal.aborted) {
+        // A stale flush must not leave the old reply on screen in a new chat.
+        setStreamingContent(null);
+      }
       setIsSynthesizing(false);
     }
   };
 
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, isSynthesizing, streamingContent]);
+  // Follow the conversation only while the reader is already near the bottom;
+  // never yank them down while they are re-reading earlier messages.
+  const handleThreadScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const nearBottom =
+      el.scrollHeight - el.scrollTop - el.clientHeight <
+      NEAR_BOTTOM_THRESHOLD_PX;
+    isNearBottomRef.current = nearBottom;
+    setShowJumpToLatest(!nearBottom);
+  }, []);
+
+  const jumpToLatest = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    isNearBottomRef.current = true;
+    setShowJumpToLatest(false);
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, []);
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !isNearBottomRef.current) return;
+    el.scrollTop = el.scrollHeight;
+  }, [messages, isSynthesizing, streamingContent, showCreditsNotice]);
 
   const remainingSeconds = Math.max(0, FREE_LIMIT_SECONDS - secondsUsed);
   const hasStreamingContent = hasVisibleStreamingContent(streamingContent);
@@ -841,12 +1263,19 @@ export default function Synthesis() {
         onRefresh={refreshAtman}
       />
 
-      <div className="h-screen flex flex-col bg-bg-app text-content-primary overflow-hidden relative selection:bg-gold/30 selection:text-white">
+      <div className="h-[100dvh] min-h-[100dvh] flex flex-col bg-bg-app text-content-primary overflow-hidden relative selection:bg-gold/30 selection:text-white">
         <NightSky />
+
+        {/* Screen-reader announcement when a reply completes. Lives at the
+            page root: inside <main> it would go inert while a mobile drawer
+            is open and announcements would be dropped. */}
+        <div role="status" aria-live="polite" className="sr-only">
+          {replyAnnouncement}
+        </div>
 
         {/* ── Top bar ── */}
         {!showPrana && (
-          <header className="relative z-30 flex items-center justify-between gap-3 px-4 md:px-6 py-3 border-b border-white/5 bg-bg-app/70 backdrop-blur-xl">
+          <header className="relative z-30 flex items-center justify-between gap-3 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 md:px-6 border-b border-white/5 bg-bg-app/70 backdrop-blur-xl">
             <div className="flex items-center gap-2">
               <button
                 onClick={() => navigate("/dashboard")}
@@ -858,7 +1287,8 @@ export default function Synthesis() {
               </button>
               {user && (
                 <button
-                  onClick={() => setShowConversations((v) => !v)}
+                  ref={conversationsToggleRef}
+                  onClick={toggleConversations}
                   className={`flex items-center gap-2 p-2 rounded-xl transition-colors ${
                     showConversations
                       ? "text-gold"
@@ -866,6 +1296,8 @@ export default function Synthesis() {
                   }`}
                   title="Conversations"
                   aria-label="Toggle conversations"
+                  aria-expanded={showConversations}
+                  aria-controls="synthesis-conversations-panel"
                 >
                   <History size={15} />
                   <span className="hidden md:inline text-[0.65rem] font-bold uppercase tracking-[0.2em]">
@@ -916,12 +1348,26 @@ export default function Synthesis() {
                 </div>
               )}
               <button
-                onClick={() => setShowBlueprint((v) => !v)}
+                onClick={() => navigate("/consult")}
+                className="flex items-center gap-2 p-2 rounded-xl text-white/35 hover:text-gold transition-colors"
+                title="The Circle"
+                aria-label="The Circle"
+              >
+                <Users size={15} />
+                <span className="hidden md:inline text-[0.65rem] font-bold uppercase tracking-[0.2em]">
+                  The Circle
+                </span>
+              </button>
+              <button
+                ref={blueprintToggleRef}
+                onClick={toggleBlueprint}
                 className={`flex items-center gap-2 p-2 rounded-xl transition-colors ${
                   showBlueprint ? "text-gold" : "text-white/35 hover:text-gold"
                 }`}
                 title="Your celestial blueprint"
                 aria-label="Toggle chart panel"
+                aria-expanded={showBlueprint}
+                aria-controls="synthesis-blueprint-panel"
               >
                 <Compass size={15} />
                 <span className="hidden md:inline text-[0.65rem] font-bold uppercase tracking-[0.2em]">
@@ -935,10 +1381,17 @@ export default function Synthesis() {
         {/* ── Body: rails + conversation ── */}
         {!showPrana && (
           <div className="flex-1 flex relative z-10 overflow-hidden">
-            <div className="flex-1 flex flex-col overflow-hidden min-w-0 lg:order-2">
+            <main
+              className="flex-1 flex flex-col overflow-hidden min-w-0 lg:order-2"
+              inert={
+                !isDesktopViewport && (showConversations || showBlueprint)
+              }
+            >
+              <div className="relative flex-1 min-h-0">
               <div
                 ref={scrollRef}
-                className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar"
+                onScroll={handleThreadScroll}
+                className="h-full overflow-y-auto overflow-x-hidden custom-scrollbar"
               >
                 <div
                   className={`mx-auto flex min-h-full max-w-3xl flex-col space-y-6 px-4 py-7 md:px-6 ${
@@ -951,9 +1404,9 @@ export default function Synthesis() {
                         <Sparkles size={18} className="text-gold" />
                       </div>
                       <div className="max-w-xl">
-                        <h4 className="font-display text-3xl italic leading-tight text-white/90 md:text-4xl">
+                        <h1 className="font-display text-3xl italic leading-tight text-white/90 md:text-4xl">
                           What would you ask the sky?
-                        </h4>
+                        </h1>
                         <p className="mx-auto mt-4 max-w-lg text-sm leading-7 text-white/48">
                           {messages[0]?.content || welcomeMessage.content}
                         </p>
@@ -988,93 +1441,33 @@ export default function Synthesis() {
                       return true;
                     })
                     .map((m) => (
-                      <div
+                      <MessageBubble
                         key={m.clientId || m.id}
-                        className={`flex ${
-                          m.role === "user" ? "justify-end" : "justify-start"
-                        } ${
-                          m.role === "user"
-                            ? "animate-message-send"
-                            : m.clientId
-                              ? ""
-                              : "animate-reveal-progressive"
-                        }`}
-                      >
-                        <div className="max-w-[90%] md:max-w-[85%] group">
-                          <div
-                            className={`text-[0.6rem] font-bold uppercase tracking-[0.3em] mb-1.5 flex items-center gap-2 ${
-                              m.role === "user"
-                                ? "flex-row-reverse text-white/25"
-                                : "flex-row text-gold/50"
-                            }`}
-                          >
-                            {m.role === "user" ? "You" : "Jyotish"}
-                            <span className="text-white/15">·</span>
-                            <span className="text-white/20 font-normal tracking-[0.15em]">
-                              {m.timestamp.toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </span>
-                          </div>
-                          {m.role === "user" ? (
-                            <div className="px-5 py-3 rounded-2xl rounded-tr-md bg-gold/8 border border-gold/15 text-white/85 transition-colors group-hover:bg-gold/10">
-                              <ReactMarkdown
-                                remarkPlugins={[remarkGfm]}
-                                components={markdownComponents as any}
-                              >
-                                {m.content}
-                              </ReactMarkdown>
-                            </div>
-                          ) : (
-                            <div className="pl-5 border-l border-gold/30">
-                              <div
-                                className={`prose-cosmic ${
-                                  m.clientId ? "" : "animate-reveal-progressive"
-                                }`}
-                              >
-                                <ReactMarkdown
-                                  remarkPlugins={[remarkGfm]}
-                                  components={markdownComponents as any}
-                                >
-                                  {m.content}
-                                </ReactMarkdown>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                        role={m.role}
+                        content={m.content}
+                        timeLabel={formatMessageTime(m.timestamp)}
+                        reveal={m.role === "assistant" && !m.clientId}
+                      />
                     ))}
 
                   {/* Streaming reveal */}
                   {hasStreamingContent && (
-                    <div className="flex justify-start animate-in fade-in duration-300">
-                      <div className="max-w-[90%] md:max-w-[85%]">
-                        <div className="text-[0.6rem] font-bold uppercase tracking-[0.3em] mb-1.5 flex items-center gap-2 text-gold/50">
-                          Jyotish
-                          <span className="text-white/15">·</span>
-                          <span className="text-white/20 font-normal tracking-[0.15em]">
-                            Now
-                          </span>
-                        </div>
-                        <div className="pl-5 border-l border-gold/30">
-                          <div className="prose-cosmic">
-                            <ReactMarkdown
-                              remarkPlugins={[remarkGfm]}
-                              components={markdownComponents as any}
-                            >
-                              {streamingContent}
-                            </ReactMarkdown>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    <MessageBubble
+                      role="assistant"
+                      content={streamingContent}
+                      timeLabel="Now"
+                      streaming
+                    />
                   )}
 
                   {isSynthesizing && (
-                    <div className="flex justify-start animate-in fade-in duration-300">
+                    <div
+                      className="flex justify-start animate-in fade-in duration-300"
+                      role="status"
+                      aria-live="polite"
+                    >
                       <div className="max-w-[85%]">
-                        <div className="text-[0.6rem] font-bold uppercase tracking-[0.3em] mb-1.5 text-gold/50">
+                        <div className="text-[0.65rem] font-bold uppercase tracking-[0.3em] mb-1.5 text-gold/50">
                           Jyotish
                         </div>
                         <div className="pl-5 border-l border-gold/30 flex items-center gap-3 py-1">
@@ -1103,21 +1496,74 @@ export default function Synthesis() {
                       </div>
                     </div>
                   )}
+
+                  {/* Out-of-credits notice — in-thread, replaces the old native alert() */}
+                  {showCreditsNotice && user && (
+                    <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
+                      <div className="max-w-[85%] rounded-2xl border border-gold/20 bg-gold/5 px-5 py-4">
+                        <p className="mb-1 text-sm text-white/85">
+                          Your celestial minutes have concluded.
+                        </p>
+                        <p className="mb-3 text-xs text-white/45">
+                          Add more to continue this conversation.
+                        </p>
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => handlePurchase(60, 499)}
+                            disabled={isPaying}
+                            className="flex min-h-11 items-center gap-2 rounded-xl bg-gold/90 px-4 py-2 text-[0.65rem] font-bold uppercase tracking-[0.2em] text-black transition-colors hover:bg-gold disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {isPaying ? (
+                              <Loader2 size={12} className="animate-spin" />
+                            ) : (
+                              <Sparkles size={12} />
+                            )}
+                            Buy credits
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowCreditsNotice(false)}
+                            className="flex min-h-11 items-center px-2 text-xs text-white/40 transition-colors hover:text-white/70"
+                          >
+                            Not now
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
+                {/* Jump to latest — shown when the reader has scrolled up */}
+                {showJumpToLatest && (
+                  <button
+                    type="button"
+                    onClick={jumpToLatest}
+                    className="absolute bottom-4 left-1/2 z-10 flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-full border border-white/15 bg-[#06060c]/90 px-5 py-2 text-[0.65rem] font-bold uppercase tracking-[0.2em] text-white/70 backdrop-blur-xl transition-colors hover:border-gold/30 hover:text-gold animate-in fade-in slide-in-from-bottom-2 duration-200"
+                  >
+                    <ArrowDown size={12} />
+                    Jump to latest
+                  </button>
+                )}
+              </div>
+
               {/* ── Input ── */}
-              <div className="border-t border-white/[0.04] bg-bg-app/92 px-4 pb-4 pt-3 backdrop-blur-xl md:px-6">
+              <div className="border-t border-white/[0.04] bg-bg-app/92 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl md:px-6">
                 <div className="mx-auto max-w-2xl">
                   <div className="flex items-end gap-2 rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2.5 transition-colors focus-within:border-gold/30 focus-within:bg-white/[0.05]">
                     <Sparkles
                       size={16}
                       className="mb-1.5 shrink-0 text-gold/75"
+                      aria-hidden="true"
                     />
                     <textarea
+                      ref={textareaRef}
                       rows={1}
+                      name="jyotish-question"
+                      autoComplete="off"
                       aria-label="Ask Jyotish a question"
-                      placeholder="Ask Jyotish..."
+                      placeholder="Ask Jyotish…"
                       className="max-h-32 min-w-0 flex-1 resize-none appearance-none overflow-hidden border-0 bg-transparent py-1 font-sans text-sm leading-6 text-white/85 outline-none placeholder:text-white/28 focus:border-0 focus:outline-none focus:ring-0 md:text-[0.95rem]"
                       style={{ height: "auto" }}
                       value={input}
@@ -1126,20 +1572,30 @@ export default function Synthesis() {
                         e.target.style.height = "auto";
                         e.target.style.height = e.target.scrollHeight + "px";
                       }}
-                      onKeyDown={(e) =>
-                        e.key === "Enter" &&
-                        !e.shiftKey &&
-                        (e.preventDefault(), handleSend())
-                      }
+                      onKeyDown={(e) => {
+                        if (
+                          e.key === "Enter" &&
+                          !e.shiftKey &&
+                          !e.nativeEvent.isComposing
+                        ) {
+                          e.preventDefault();
+                          handleSend();
+                        }
+                      }}
                     />
                     <button
                       onClick={handleSend}
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-all ${
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-colors ${
                         input.trim()
                           ? "bg-gold/90 text-black hover:bg-gold"
                           : "text-white/20"
                       }`}
-                      disabled={isSynthesizing || authLoading || !input.trim()}
+                      disabled={
+                        isSynthesizing ||
+                        hasStreamingContent ||
+                        authLoading ||
+                        !input.trim()
+                      }
                       aria-label="Send message"
                     >
                       <Send size={16} />
@@ -1162,14 +1618,14 @@ export default function Synthesis() {
                   </div>
                 )}
               </div>
-            </div>
+            </main>
 
             {/* ── Drawer backdrop (mobile only) ── */}
             {(showConversations || showBlueprint) && (
               <button
                 onClick={() => {
-                  setShowConversations(false);
-                  setShowBlueprint(false);
+                  if (showConversations) closeConversations(true);
+                  if (showBlueprint) closeBlueprint(true);
                 }}
                 className="lg:hidden absolute inset-0 z-40 bg-black/55 backdrop-blur-sm animate-in fade-in duration-200 cursor-default"
                 aria-label="Close panel"
@@ -1179,7 +1635,13 @@ export default function Synthesis() {
             {/* ── Left rail: Conversations (in-flow on desktop, drawer on mobile) ── */}
             {user && (
               <aside
-                className={`z-50 flex flex-col transition-all duration-300 max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:w-80 max-lg:max-w-[85vw] max-lg:bg-[#06060c]/95 max-lg:backdrop-blur-2xl max-lg:border-r max-lg:border-white/10 ${
+                ref={conversationsPanelRef}
+                id="synthesis-conversations-panel"
+                role={isDesktopViewport ? "complementary" : "dialog"}
+                aria-modal={!isDesktopViewport ? true : undefined}
+                aria-labelledby="synthesis-conversations-title"
+                inert={!showConversations}
+                className={`z-50 flex flex-col overscroll-contain transition-[width,transform,opacity] duration-300 max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:w-80 max-lg:max-w-[85vw] max-lg:bg-[#06060c]/95 max-lg:backdrop-blur-2xl max-lg:border-r max-lg:border-white/10 ${
                   showConversations
                     ? "max-lg:translate-x-0"
                     : "max-lg:-translate-x-full"
@@ -1192,11 +1654,15 @@ export default function Synthesis() {
               >
                 <div className="p-4 border-b border-white/5">
                   <div className="flex items-center justify-between mb-3 px-1">
-                    <p className="text-[0.6rem] font-bold uppercase tracking-[0.35em] text-white/25">
+                    <p
+                      id="synthesis-conversations-title"
+                      className="text-[0.65rem] font-bold uppercase tracking-[0.35em] text-white/45"
+                    >
                       Conversations
                     </p>
                     <button
-                      onClick={() => setShowConversations(false)}
+                      ref={conversationsCloseRef}
+                      onClick={() => closeConversations(true)}
                       className="p-1.5 rounded-lg text-white/30 hover:text-gold transition-colors"
                       aria-label="Close conversations"
                     >
@@ -1206,7 +1672,7 @@ export default function Synthesis() {
                   <button
                     onClick={() => {
                       setCurrentChatId(null);
-                      setShowConversations(false);
+                      closeConversations();
                       navigate("/synthesis");
                     }}
                     className="w-full py-2.5 rounded-xl border border-gold/30 text-gold text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:bg-gold hover:text-black transition-colors flex items-center justify-center gap-2 group whitespace-nowrap"
@@ -1225,14 +1691,33 @@ export default function Synthesis() {
                     currentId={currentChatId}
                     onSelect={(id) => {
                       setCurrentChatId(id);
-                      setShowConversations(false);
+                      closeConversations();
                       navigate(`/synthesis/${id}`);
                     }}
                     onDelete={async (id) => {
                       try {
-                        // Delete chat document from Firestore
-                        const { deleteDoc } =
-                          await import("firebase/firestore");
+                        // Deleting a document does NOT delete its
+                        // subcollections — remove the chat's messages first
+                        // (batched under Firestore's 500-op limit) so they
+                        // don't linger orphaned.
+                        const messagesCol = collection(
+                          db,
+                          "users",
+                          user.uid,
+                          "chats",
+                          id,
+                          "messages",
+                        );
+                        for (;;) {
+                          const snap = await getDocs(
+                            query(messagesCol, limit(DELETE_BATCH_SIZE)),
+                          );
+                          if (snap.empty) break;
+                          const batch = writeBatch(db);
+                          snap.docs.forEach((d) => batch.delete(d.ref));
+                          await batch.commit();
+                          if (snap.size < DELETE_BATCH_SIZE) break;
+                        }
                         await deleteDoc(
                           doc(db, "users", user.uid, "chats", id),
                         );
@@ -1267,7 +1752,13 @@ export default function Synthesis() {
 
             {/* ── Right rail: Celestial Blueprint (in-flow on desktop, drawer on mobile) ── */}
             <aside
-              className={`z-50 flex flex-col overflow-y-auto custom-scrollbar transition-all duration-300 max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:w-96 max-lg:max-w-[90vw] max-lg:bg-[#06060c]/95 max-lg:backdrop-blur-2xl max-lg:border-l max-lg:border-white/10 max-lg:p-4 ${
+              ref={blueprintPanelRef}
+              id="synthesis-blueprint-panel"
+              role={isDesktopViewport ? "complementary" : "dialog"}
+              aria-modal={!isDesktopViewport ? true : undefined}
+              aria-labelledby="synthesis-blueprint-title"
+              inert={!showBlueprint}
+              className={`z-50 flex flex-col overflow-y-auto overscroll-contain custom-scrollbar transition-[width,transform,opacity,padding] duration-300 max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:w-96 max-lg:max-w-[90vw] max-lg:bg-[#06060c]/95 max-lg:backdrop-blur-2xl max-lg:border-l max-lg:border-white/10 max-lg:p-4 ${
                 showBlueprint
                   ? "max-lg:translate-x-0"
                   : "max-lg:translate-x-full"
@@ -1280,7 +1771,10 @@ export default function Synthesis() {
             >
               <header className="mb-5">
                 <div className="flex items-center justify-between gap-3 mb-2">
-                  <p className="text-gold/80 text-[0.58rem] font-bold uppercase tracking-[0.32em] leading-4">
+                  <p
+                    id="synthesis-blueprint-title"
+                    className="text-gold/80 text-[0.58rem] font-bold uppercase tracking-[0.32em] leading-4"
+                  >
                     Celestial Blueprint
                   </p>
                   <div className="flex items-center gap-2">
@@ -1295,7 +1789,8 @@ export default function Synthesis() {
                       </button>
                     )}
                     <button
-                      onClick={() => setShowBlueprint(false)}
+                      ref={blueprintCloseRef}
+                      onClick={() => closeBlueprint(true)}
                       className="p-1.5 rounded-lg text-white/30 hover:text-gold transition-colors"
                       aria-label="Close blueprint"
                     >
@@ -1303,21 +1798,28 @@ export default function Synthesis() {
                     </button>
                   </div>
                 </div>
-                <select
-                  aria-label="Select chart type"
-                  value={currentChartType}
-                  onChange={(e) =>
-                    setCurrentChartType(e.target.value as ChartType)
-                  }
-                  className="w-full cursor-pointer appearance-none border-none bg-transparent p-0 font-display text-lg italic text-white/85 transition-colors hover:text-gold focus:ring-0"
-                >
-                  <option value="D1" className="bg-black not-italic">
-                    Natal Chart (D1)
-                  </option>
-                  <option value="D9" className="bg-black not-italic">
-                    Navamsa (D9)
-                  </option>
-                </select>
+                <div className="relative">
+                  <select
+                    aria-label="Select chart type"
+                    value={currentChartType}
+                    onChange={(e) =>
+                      setCurrentChartType(e.target.value as ChartType)
+                    }
+                    className="w-full cursor-pointer appearance-none border-none bg-transparent p-0 pr-6 font-display text-lg italic text-white/85 transition-colors hover:text-gold focus:ring-0"
+                  >
+                    <option value="D1" className="bg-black not-italic">
+                      Natal Chart (D1)
+                    </option>
+                    <option value="D9" className="bg-black not-italic">
+                      Navamsa (D9)
+                    </option>
+                  </select>
+                  <ChevronDown
+                    size={14}
+                    aria-hidden="true"
+                    className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 text-white/40"
+                  />
+                </div>
                 <div className="mt-3 h-px bg-linear-to-r from-gold/25 to-transparent" />
               </header>
 
@@ -1325,7 +1827,7 @@ export default function Synthesis() {
                 <div className="flex-1 flex flex-col items-center justify-center gap-4 opacity-40">
                   <Loader2 className="animate-spin" size={32} />
                   <span className="text-xs uppercase tracking-widest text-center">
-                    Calculating Planetary Alignments...
+                    Calculating Planetary Alignments…
                   </span>
                 </div>
               ) : kundaliData ? (
@@ -1337,6 +1839,7 @@ export default function Synthesis() {
                     <button
                       onClick={() => setShowExpandedChart(true)}
                       className="relative block w-full cursor-zoom-in rounded-xl transition-transform duration-500 group hover:scale-[1.01]"
+                      aria-label="Expand natal chart"
                     >
                       <div className="absolute inset-0 rounded-full bg-gold/5 opacity-0 blur-2xl transition-opacity group-hover:opacity-100" />
                       <Kundali data={kundaliData} className="compact" />
@@ -1359,6 +1862,7 @@ export default function Synthesis() {
                       }
                       className="flex items-center justify-center rounded-xl bg-white/5 p-2 transition-all hover:bg-white/10 group"
                       title="Download Chart"
+                      aria-label="Download chart"
                     >
                       <Download
                         size={16}
@@ -1369,6 +1873,7 @@ export default function Synthesis() {
                       onClick={() => setShowShareModal(true)}
                       className="rounded-xl bg-white/5 p-2 text-white/40 transition-all hover:bg-white/10 hover:text-gold"
                       title="Share chart"
+                      aria-label="Share chart"
                     >
                       <Share2 size={16} />
                     </button>
@@ -1415,9 +1920,13 @@ export default function Synthesis() {
                   </div>
                 </div>
               ) : (
-                <div className="flex-1 flex flex-col items-center justify-center opacity-20 text-center p-12">
+                <div className="flex-1 flex flex-col items-center justify-center opacity-30 text-center p-12">
                   <p className="text-xs uppercase tracking-[0.3em] font-light">
-                    Birth data required
+                    {kundaliRateLimited
+                      ? "Chart is rate-limited — try again in a few minutes"
+                      : birthData?.dob && birthData?.tob
+                        ? "Chart unavailable — try again shortly"
+                        : "Birth data required"}
                   </p>
                 </div>
               )}

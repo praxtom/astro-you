@@ -29,10 +29,10 @@ export const AskJyotishBridge: React.FC<AskJyotishBridgeProps> = ({
   return (
     <button
       onClick={ask}
-      className="group mt-10 flex w-full items-center gap-4 rounded-2xl border border-gold/15 bg-gold/3 hover:bg-gold/8 hover:border-gold/30 transition-all p-5 text-left"
+      className="group mt-10 flex w-full items-center gap-4 rounded-2xl border border-gold/15 bg-gold/3 hover:bg-gold/8 hover:border-gold/30 transition-colors p-5 text-left"
     >
       <span className="shrink-0 rounded-xl bg-gold/10 p-2.5 text-gold">
-        <Sparkles size={16} />
+        <Sparkles size={16} aria-hidden="true" />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-[0.6rem] font-bold uppercase tracking-[0.3em] text-gold/70">
@@ -44,7 +44,8 @@ export const AskJyotishBridge: React.FC<AskJyotishBridgeProps> = ({
       </span>
       <ArrowUpRight
         size={16}
-        className="shrink-0 text-gold/40 group-hover:text-gold transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+        aria-hidden="true"
+        className="shrink-0 text-gold/40 group-hover:text-gold transition-[color,transform] group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
       />
     </button>
   );

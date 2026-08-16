@@ -12,7 +12,11 @@ export default async (_req: Request, _context: Context) => {
   const required: Record<string, boolean> = {
     firebaseAdmin: Boolean(process.env.FIREBASE_SERVICE_ACCOUNT),
     gemini: Boolean(process.env.GEMINI_API_KEY),
-    astrologyApi: Boolean(process.env.ASTROLOGY_API_KEY),
+    // Mirror resolveAstrologyApiKey() — the app accepts either name, so the
+    // probe must check both or it false-reports "degraded" while the feature works.
+    astrologyApi: Boolean(
+      process.env.ASTROLOGY_API_KEY || process.env.ASTROYOU_API_KEY,
+    ),
     razorpay: Boolean(
       process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET,
     ),

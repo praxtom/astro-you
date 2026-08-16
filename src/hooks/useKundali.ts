@@ -107,7 +107,9 @@ export function useKundali(
         );
 
         if (!response.ok) {
-          throw new Error(`Failed to fetch ${chartType} chart data`);
+          throw new Error(
+            `Failed to fetch ${chartType} chart data (${response.status})`,
+          );
         }
 
         const data = await response.json();

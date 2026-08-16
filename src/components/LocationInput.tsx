@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { MapPin, Loader2, X } from "lucide-react";
 
@@ -14,6 +14,9 @@ interface LocationInputProps {
   onSelect?: (suggestion: LocationSuggestion) => void;
   placeholder?: string;
   label?: string;
+  inputId?: string;
+  name?: string;
+  autoComplete?: string;
   className?: string;
   icon?: React.ReactNode;
 }
@@ -32,6 +35,9 @@ export default function LocationInput({
   onSelect,
   placeholder = "Search for a city...",
   label,
+  inputId,
+  name,
+  autoComplete = "off",
   className = "",
   icon,
 }: LocationInputProps) {
@@ -39,11 +45,15 @@ export default function LocationInput({
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [activeSuggestion, setActiveSuggestion] = useState(-1);
   const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const portalRef = useRef<HTMLDivElement>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const generatedId = useId();
+  const resolvedInputId = inputId || `location-${generatedId}`;
+  const listboxId = `${resolvedInputId}-suggestions`;
 
   // Update position for portal
   const updatePosition = () => {
@@ -114,6 +124,7 @@ export default function LocationInput({
 
       setSuggestions(filtered);
       setIsOpen(filtered.length > 0);
+      setActiveSuggestion(filtered.length > 0 ? 0 : -1);
       if (filtered.length > 0) updatePosition();
     } catch (error) {
       console.error("Location search error:", error);
@@ -140,21 +151,61 @@ export default function LocationInput({
     onChange(displayName);
     if (onSelect) onSelect(suggestion);
     setIsOpen(false);
+    setActiveSuggestion(-1);
+  };
+
+  const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isOpen || suggestions.length === 0) return;
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveSuggestion((current) =>
+        current < suggestions.length - 1 ? current + 1 : 0,
+      );
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveSuggestion((current) =>
+        current > 0 ? current - 1 : suggestions.length - 1,
+      );
+    } else if (event.key === "Enter" && activeSuggestion >= 0) {
+      event.preventDefault();
+      handleSelect(suggestions[activeSuggestion]);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      setIsOpen(false);
+      setActiveSuggestion(-1);
+    }
   };
 
   return (
     <div className={`relative ${className}`} ref={containerRef}>
       {label && (
-        <label className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-xs font-bold">
+        <label
+          htmlFor={resolvedInputId}
+          className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-xs font-bold"
+        >
           {label}
         </label>
       )}
       <div className="relative group">
         <input
           ref={inputRef}
+          id={resolvedInputId}
+          name={name}
+          autoComplete={autoComplete}
           type="text"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={isOpen && suggestions.length > 0}
+          aria-controls={listboxId}
+          aria-activedescendant={
+            isOpen && activeSuggestion >= 0
+              ? `${listboxId}-${activeSuggestion}`
+              : undefined
+          }
           value={query}
           onChange={handleInputChange}
+          onKeyDown={handleInputKeyDown}
           onFocus={() => {
             if (query.length >= 3 && suggestions.length > 0) {
               setIsOpen(true);
@@ -162,19 +213,24 @@ export default function LocationInput({
             }
           }}
           placeholder={placeholder}
-          className="w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 outline-none focus:border-gold/50 transition-all text-xl font-sans font-light pr-14"
+          aria-label={label ? undefined : placeholder}
+          className="w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 outline-none focus:border-gold/50 transition-colors text-xl font-sans font-light pr-14"
         />
         <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
           {isLoading ? (
             <Loader2 className="w-5 h-5 text-gold animate-spin" />
           ) : query ? (
             <button
+              type="button"
               onClick={() => {
                 setQuery("");
                 onChange("");
                 setSuggestions([]);
+                setIsOpen(false);
+                setActiveSuggestion(-1);
               }}
               className="text-white/20 hover:text-white/60 transition-colors"
+              aria-label="Clear location"
             >
               <X size={18} />
             </button>
@@ -190,6 +246,9 @@ export default function LocationInput({
         createPortal(
           <div
             ref={portalRef}
+            id={listboxId}
+            role="listbox"
+            aria-label={`${label || "Location"} suggestions`}
             className="fixed z-[3000] mt-2 bg-[#0a0a0f] border border-white/10 rounded-xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200"
             style={{
               top: coords.top,
@@ -201,8 +260,16 @@ export default function LocationInput({
               {suggestions.map((s, i) => (
                 <button
                   key={i}
+                  id={`${listboxId}-${i}`}
+                  type="button"
+                  role="option"
+                  tabIndex={-1}
+                  aria-selected={activeSuggestion === i}
                   onClick={() => handleSelect(s)}
-                  className="w-full text-left px-4 py-3 hover:bg-white/5 transition-colors border-b border-white/5 last:border-none flex items-start gap-3 group"
+                  onMouseEnter={() => setActiveSuggestion(i)}
+                  className={`w-full text-left px-4 py-3 transition-colors border-b border-white/5 last:border-none flex items-start gap-3 group ${
+                    activeSuggestion === i ? "bg-white/5" : "hover:bg-white/5"
+                  }`}
                 >
                   <MapPin className="w-4 h-4 text-gold/40 group-hover:text-gold transition-colors mt-0.5" />
                   <div>

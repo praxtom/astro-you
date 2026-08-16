@@ -96,13 +96,13 @@ const CHART_FONT = "/fonts/PlusJakartaSans-600.woff";
 
 /** Surface textures for the classical planets (the Moon borrows Mercury's cratered grey). */
 const PLANET_TEXTURE_PATHS: Record<string, string> = {
-  Sun: "/assets/planets/sun.png",
-  Moon: "/assets/planets/mercury.png",
-  Mercury: "/assets/planets/mercury.png",
-  Venus: "/assets/planets/venus.png",
-  Mars: "/assets/planets/mars.png",
-  Jupiter: "/assets/planets/jupiter.png",
-  Saturn: "/assets/planets/saturn.png",
+  Sun: "/assets/planets/sun.jpg",
+  Moon: "/assets/planets/mercury.jpg",
+  Mercury: "/assets/planets/mercury.jpg",
+  Venus: "/assets/planets/venus.jpg",
+  Mars: "/assets/planets/mars.jpg",
+  Jupiter: "/assets/planets/jupiter.jpg",
+  Saturn: "/assets/planets/saturn.jpg",
 };
 
 const EXCLUDED_PLANET_NAMES = new Set([
