@@ -29,8 +29,8 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
     const getDefaultSound = (): SoundType => {
         switch (mode) {
             case 'calm': return 'brown_noise';
-            case 'energize': return '432hz';
-            case 'balance': return 'om_mantra';
+            case 'energize':
+            case 'balance': return '432hz';
             default: return 'brown_noise';
         }
     };
@@ -45,7 +45,7 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
         isPlaying,
         currentSound,
         volume
-    } = useAudio(getDefaultSound(), { loop: true, autoPlay: true });
+    } = useAudio(getDefaultSound(), { loop: true });
 
     // Breath timings based on mode
     const timings = useMemo(() => {
@@ -132,7 +132,6 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
         switch (sound) {
             case 'brown_noise': return <Waves size={16} />;
             case '432hz': return <Wind size={16} />;
-            case 'om_mantra': return <Music2 size={16} />;
             default: return <Circle size={16} />;
         }
     };
