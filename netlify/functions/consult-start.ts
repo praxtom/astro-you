@@ -38,9 +38,13 @@ export default async (req: Request, _context: Context) => {
     });
   } catch (error: any) {
     console.error("[Consult Start] Error:", error);
+    // `details` carries machine-readable context (e.g. the 409's
+    // { code: "active_session", activeSessionId, activePersonaId }) so the
+    // client can resume or end the blocking session instead of dead-ending.
     return new Response(
       JSON.stringify({
         error: error.message || "Could not start consultation",
+        ...(error.details ?? {}),
       }),
       {
         status: error.status || 500,

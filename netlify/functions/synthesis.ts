@@ -107,6 +107,25 @@ export default async (req: Request, _context: Context) => {
     );
   }
 
+  // Bound the prompt payload: an unbounded transcript (or a single huge
+  // message) is a cheap way to run up our Gemini bill on one credit, and can
+  // blow the model's context window. Applies to the history we replay too.
+  if (!isWithinSynthesisInputLimits(messages)) {
+    return new Response(JSON.stringify({ error: "Message too long" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  if (
+    chatMessages !== undefined &&
+    !isWithinSynthesisInputLimits(chatMessages)
+  ) {
+    return new Response(JSON.stringify({ error: "Message too long" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   // Reserve 1 credit BEFORE the (expensive) Gemini call so a user cannot get
   // free generations by dropping the connection or blocking a client-side
   // deduction. Refunded inside the stream if generation produces nothing.
@@ -424,6 +443,21 @@ export default async (req: Request, _context: Context) => {
     },
   });
 };
+
+/** Per-message character cap for anything we forward to the model. */
+const MAX_SYNTHESIS_MESSAGE_CHARS = 8000;
+/** Maximum number of messages accepted in a single synthesis payload. */
+const MAX_SYNTHESIS_MESSAGES = 60;
+
+function isWithinSynthesisInputLimits(value: unknown): boolean {
+  if (!Array.isArray(value)) return true;
+  if (value.length > MAX_SYNTHESIS_MESSAGES) return false;
+  return value.every(
+    (message) =>
+      typeof message?.content !== "string" ||
+      message.content.length <= MAX_SYNTHESIS_MESSAGE_CHARS,
+  );
+}
 
 export const config: Config = {
   path: "/api/synthesis",

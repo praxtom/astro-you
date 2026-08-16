@@ -1,61 +1,31 @@
 import { applyCreditChangeInTransaction } from "./credits.js";
+import { PERSONAS } from "../../../src/lib/personas.js";
 
-export const PERSONA_PRICES: Record<string, number> = {
-  "guru-vidyanath": 5,
-  "arjun-sharma": 8,
-  "meera-devi": 5,
-  "pandit-raghunath": 10,
-  "dr-shanti": 8,
-  "nanda-ji": 5,
-};
-
+/**
+ * Single source of truth for guides: the server registry is derived from the
+ * client catalogue (`src/lib/personas.ts`) so a guide can never be listed in
+ * the UI but rejected by `/api/consult/start` as "Unknown persona", and prices
+ * can never drift between the card the user sees and the meter they are billed
+ * on.
+ */
 export const CONSULT_PERSONAS: Record<
   string,
   { id: string; name: string; pricePerMin: number; promptModifier: string }
-> = {
-  "guru-vidyanath": {
-    id: "guru-vidyanath",
-    name: "Guru Vidyanath",
-    pricePerMin: 5,
-    promptModifier:
-      "You are a spiritual guru. Focus on soul evolution, karma, meditation practices, and inner peace. Use gentle wisdom. Suggest mantras and breathing exercises when appropriate.",
-  },
-  "arjun-sharma": {
-    id: "arjun-sharma",
-    name: "Arjun Sharma",
-    pricePerMin: 8,
-    promptModifier:
-      "You are a career and finance astrologer. Focus on professional growth, business timing, investments, and wealth yogas. Give actionable advice with specific timeframes based on dashas and transits.",
-  },
-  "meera-devi": {
-    id: "meera-devi",
-    name: "Meera Devi",
-    pricePerMin: 5,
-    promptModifier:
-      "You are a relationship astrologer. Focus on love, compatibility, marriage timing, and emotional healing. Be empathetic. Reference Venus, Moon, and 7th house placements. Give hope but be honest about challenges.",
-  },
-  "pandit-raghunath": {
-    id: "pandit-raghunath",
-    name: "Pandit Raghunath",
-    pricePerMin: 10,
-    promptModifier:
-      "You are a traditional Vedic Jyotish pandit. Use classical terminology. Focus on doshas (Manglik, Sade Sati, Kaal Sarpa), remedies (gemstones, mantras, pujas), and muhurat selection. Reference shastras when relevant.",
-  },
-  "dr-shanti": {
-    id: "dr-shanti",
-    name: "Dr. Shanti",
-    pricePerMin: 8,
-    promptModifier:
-      "You are a health and wellness astrologer. Focus on medical astrology, Ayurvedic constitution (dosha), health timing, and preventive care. Reference 6th house, Saturn, and Mars placements for health insights. Never diagnose - suggest consulting doctors for serious concerns.",
-  },
-  "nanda-ji": {
-    id: "nanda-ji",
-    name: "Nanda Ji",
-    pricePerMin: 5,
-    promptModifier:
-      "You are a practical life advisor using astrology. Focus on family matters, property decisions, children's education, travel timing, and muhurat selection. Be warm and reassuring. Give specific date/time recommendations when possible.",
-  },
-};
+> = Object.fromEntries(
+  PERSONAS.map((p) => [
+    p.id,
+    {
+      id: p.id,
+      name: p.name,
+      pricePerMin: p.pricePerMin,
+      promptModifier: p.promptModifier,
+    },
+  ]),
+);
+
+export const PERSONA_PRICES: Record<string, number> = Object.fromEntries(
+  PERSONAS.map((p) => [p.id, p.pricePerMin]),
+);
 
 export type ConsultSessionStatus = "active" | "ended" | "failed" | "refunded";
 
@@ -146,11 +116,22 @@ export interface ConsultSessionDeps {
 
 export class ConsultSessionError extends Error {
   status: number;
+  /**
+   * Machine-readable context for the client (e.g. the id/persona of the session
+   * that is blocking a new start), spread into the JSON error body by the
+   * endpoint so the UI can offer "resume" or "end it" instead of a dead end.
+   */
+  details?: Record<string, unknown>;
 
-  constructor(message: string, status: number) {
+  constructor(
+    message: string,
+    status: number,
+    details?: Record<string, unknown>,
+  ) {
     super(message);
     this.name = "ConsultSessionError";
     this.status = status;
+    this.details = details;
   }
 }
 
@@ -238,13 +219,53 @@ export function calculateConsultCharge(
   return { charge, underbilled: charge < cost };
 }
 
+/**
+ * The live billable-minute cap for a session: the greater of the cap reserved
+ * at start and what the wallet funds *right now*. Reading it live means a
+ * mid-session top-up actually extends the session instead of the meter staying
+ * frozen at the balance the user happened to have when they pressed start.
+ * Returns `undefined` when there is no cap to apply (zero funded minutes), so
+ * callers can treat it as "no cap recorded" exactly as before.
+ */
+export function computeBillableCapMinutes(
+  session: { maxBillableMinutes?: unknown; pricePerMin?: unknown },
+  currentCredits: number,
+  fallbackPricePerMin: number,
+): number | undefined {
+  const pricePerMin =
+    typeof session.pricePerMin === "number" && session.pricePerMin > 0
+      ? session.pricePerMin
+      : fallbackPricePerMin;
+  const startCap =
+    typeof session.maxBillableMinutes === "number" &&
+    Number.isFinite(session.maxBillableMinutes)
+      ? Math.max(0, Math.floor(session.maxBillableMinutes))
+      : 0;
+  const credits = Number.isFinite(currentCredits)
+    ? Math.max(0, currentCredits)
+    : 0;
+  const liveCap =
+    pricePerMin > 0 ? Math.max(0, Math.floor(credits / pricePerMin)) : 0;
+
+  return Math.max(startCap, liveCap) || undefined;
+}
+
 export function calculateConsultBill(
   startedAt: number,
   now: number,
   pricePerMin: number,
   maxBillableMinutes?: number,
+  messageCount?: number,
 ) {
   const durationSeconds = Math.max(1, Math.round((now - startedAt) / 1000));
+
+  // Zero-message waiver: a session where the user never sent anything (opened
+  // the guide, changed their mind) cost us nothing and gave them nothing —
+  // don't charge the one-minute minimum for it.
+  if (messageCount === 0) {
+    return { durationSeconds, minutes: 0, cost: 0 };
+  }
+
   const elapsedMinutes = Math.max(1, Math.ceil(durationSeconds / 60));
   const minutes = maxBillableMinutes
     ? Math.min(elapsedMinutes, maxBillableMinutes)
@@ -310,9 +331,16 @@ export async function startConsultSession(
 
       if (existing.personaId !== persona.id) {
         // A different persona's meter is already running — one at a time.
+        // Hand back which session is blocking so the client can offer to resume
+        // or end it rather than showing an unactionable error.
         throw new ConsultSessionError(
           "You already have an active consultation. Please end it before starting a new one.",
           409,
+          {
+            code: "active_session",
+            activeSessionId: candidateId,
+            activePersonaId: existing.personaId,
+          },
         );
       }
       return {
@@ -459,19 +487,19 @@ export async function finalizeConsultSession(
         ? consultation.pricePerMin
         : persona.pricePerMin;
     const credits = userSnap.data()?.credits ?? 0;
-    const startingBalanceBillableMinutes =
-      typeof consultation.maxBillableMinutes === "number"
-        ? consultation.maxBillableMinutes
-        : 0;
-    const currentBalanceBillableMinutes = Math.floor(credits / pricePerMin);
-    const maxBillableMinutes =
-      Math.max(startingBalanceBillableMinutes, currentBalanceBillableMinutes) ||
-      undefined;
+    const maxBillableMinutes = computeBillableCapMinutes(
+      consultation,
+      credits,
+      persona.pricePerMin,
+    );
     const { durationSeconds, minutes, cost } = calculateConsultBill(
       startedAtMs,
       now,
       pricePerMin,
       maxBillableMinutes,
+      typeof consultation.messageCount === "number"
+        ? consultation.messageCount
+        : undefined,
     );
 
     // Partial billing: if the wallet no longer covers the metered cost

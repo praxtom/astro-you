@@ -14,6 +14,7 @@
   "include": [
     "src/types/user.ts",
     "src/lib/atman-schema.ts",
+    "src/lib/personas.ts",
     "src/lib/pwa-install.ts",
     "src/lib/referrals.ts",
     "netlify/functions/shared/ai-guidance-policy.ts",

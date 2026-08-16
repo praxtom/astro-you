@@ -6,7 +6,10 @@ import {
   synthesizeStream,
   UserContext,
 } from "./shared/gemini";
-import { getConsultPersona } from "./shared/consult-session";
+import {
+  computeBillableCapMinutes,
+  getConsultPersona,
+} from "./shared/consult-session";
 import { buildUserContext } from "./shared/user-context";
 import { checkRateLimit } from "./shared/rate-limit";
 import { persistAtmanInsights } from "./shared/atman-brain";
@@ -72,19 +75,32 @@ export default async (req: Request, _context: Context) => {
       return json({ error: "Consultation session is not active" }, 409);
     }
 
+    const persona = getConsultPersona(String(session.personaId || ""));
+    if (!persona) {
+      return json({ error: "Unknown persona" }, 400);
+    }
+
     // Mid-session credit guard: once the user has used the minutes their balance
     // funded, stop serving (paid) AI responses. Without this a user could run a
     // session indefinitely and only be billed up to the cap on finalize, while
     // we keep paying for Gemini calls past their funded time.
+    //
+    // The cap is recomputed from the LIVE wallet balance rather than the value
+    // frozen into the session at start, so topping up mid-session actually
+    // extends the consultation instead of leaving the user locked out until
+    // they end and restart.
     const startedAtMs =
       typeof session.startedAtMs === "number" ? session.startedAtMs : null;
-    const maxBillableMinutes =
-      typeof session.maxBillableMinutes === "number"
-        ? session.maxBillableMinutes
-        : null;
-    if (startedAtMs && maxBillableMinutes) {
+    if (startedAtMs) {
+      const userSnap = await db.collection("users").doc(uid).get();
+      const credits = userSnap.data()?.credits ?? 0;
+      const capMinutes = computeBillableCapMinutes(
+        session,
+        credits,
+        persona.pricePerMin,
+      );
       const elapsedMinutes = Math.floor((Date.now() - startedAtMs) / 60_000);
-      if (elapsedMinutes >= maxBillableMinutes) {
+      if (capMinutes !== undefined && elapsedMinutes >= capMinutes) {
         return json(
           {
             error: "Your consultation time is up. Please top up to continue.",
@@ -93,11 +109,6 @@ export default async (req: Request, _context: Context) => {
           402,
         );
       }
-    }
-
-    const persona = getConsultPersona(String(session.personaId || ""));
-    if (!persona) {
-      return json({ error: "Unknown persona" }, 400);
     }
     const preferredLanguage =
       typeof session.preferredLanguage === "string"
@@ -153,6 +164,17 @@ export default async (req: Request, _context: Context) => {
             },
             { merge: true },
           );
+          // Emit `done` as soon as the answer is on disk — the per-minute meter
+          // is running, so the user must not be kept waiting on the (slow,
+          // best-effort) brain tasks below. `brainUpdated` arrives afterwards
+          // in its own `brain` event.
+          send({
+            type: "done",
+            content: fullContent,
+            interactionId,
+            suggestedRoutine: suggestedRoutine || null,
+          });
+
           const lastUserMessage =
             [...(body.messages || [])]
               .reverse()
@@ -196,11 +218,8 @@ export default async (req: Request, _context: Context) => {
           );
 
           send({
-            type: "done",
-            content: fullContent,
-            interactionId,
+            type: "brain",
             brainUpdated: Boolean(brainResult?.persisted),
-            suggestedRoutine: suggestedRoutine || null,
           });
           controller.close();
         } catch (error: any) {

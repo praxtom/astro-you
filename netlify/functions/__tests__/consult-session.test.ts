@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  computeBillableCapMinutes,
   ConsultSessionError,
   endConsultSession,
   finalizeConsultSession,
@@ -156,7 +157,14 @@ test("startConsultSession rejects a second concurrent session for another person
         idToken: "valid-token",
         personaId: "guru-vidyanath",
       }),
-    (error) => error instanceof ConsultSessionError && error.status === 409,
+    (error) =>
+      error instanceof ConsultSessionError &&
+      error.status === 409 &&
+      // The client needs to know WHICH session is blocking so it can offer to
+      // resume or end it instead of dead-ending the user.
+      error.details?.code === "active_session" &&
+      error.details?.activeSessionId === "live_session" &&
+      error.details?.activePersonaId === "acharya-priya",
   );
 
   assert.equal(writes.length, 0);
@@ -412,6 +420,134 @@ test("endConsultSession partial-bills the remaining balance when credits no long
   assert.equal(closeWrite.data.cost, 5);
   assert.equal(closeWrite.data.underbilled, true);
   assert.equal(closeWrite.data.meteredCost, 10);
+});
+
+test("computeBillableCapMinutes lifts the cap when credits are topped up mid-session", () => {
+  // Started with 10 credits at 5/min → cap 2. After a top-up to 20 the live
+  // wallet funds 4 minutes, so the cap must grow rather than stay frozen.
+  assert.equal(
+    computeBillableCapMinutes({ maxBillableMinutes: 2, pricePerMin: 5 }, 20, 5),
+    4,
+  );
+  // Spending credits elsewhere never shrinks the cap reserved at start.
+  assert.equal(
+    computeBillableCapMinutes({ maxBillableMinutes: 2, pricePerMin: 5 }, 0, 5),
+    2,
+  );
+  // Falls back to the persona price when the session has none recorded.
+  assert.equal(computeBillableCapMinutes({}, 20, 5), 4);
+  // No funded minutes at all → no cap value to apply.
+  assert.equal(computeBillableCapMinutes({}, 4, 5), undefined);
+  // Junk values do not produce NaN/Infinity caps.
+  assert.equal(
+    computeBillableCapMinutes(
+      { maxBillableMinutes: "5", pricePerMin: 0 },
+      20,
+      5,
+    ),
+    4,
+  );
+});
+
+test("endConsultSession bills the topped-up minutes past the start cap", async () => {
+  const now = 1_800_000;
+  const startedAt = now - 4 * 60_000; // 4 elapsed minutes
+  // Start cap was 2 minutes (10 credits at 5/min); the user topped up to 20.
+  const { deps } = createDeps(20, now, {
+    "users/user_123/consultations/session_123": {
+      personaId: "guru-vidyanath",
+      status: "active",
+      startedAtMs: startedAt,
+      pricePerMin: 5,
+      maxBillableMinutes: 2,
+      messageCount: 3,
+    },
+  });
+
+  const result = await endConsultSession(deps, {
+    idToken: "valid-token",
+    sessionId: "session_123",
+  });
+
+  assert.equal(result.minutes, 4);
+  assert.equal(result.cost, 20);
+});
+
+test("finalizeConsultSession waives the minimum for a session with zero messages", async () => {
+  const now = 1_800_000;
+  const startedAt = now - 61_000; // would otherwise bill 2 minutes at 5/min
+  const { deps, writes } = createDeps(
+    25,
+    now,
+    {
+      "users/user_123/consultations/session_123": {
+        personaId: "guru-vidyanath",
+        status: "active",
+        startedAtMs: startedAt,
+        pricePerMin: 5,
+        maxBillableMinutes: 5,
+        messageCount: 0,
+      },
+    },
+    { activeConsultSessionId: "session_123" },
+  );
+
+  const result = await finalizeConsultSession(deps, {
+    uid: "user_123",
+    sessionId: "session_123",
+    reason: "auto_timeout",
+  });
+
+  assert.deepEqual(result, {
+    success: true,
+    durationSeconds: 61,
+    minutes: 0,
+    cost: 0,
+  });
+
+  // No credit deduction and no ledger entry — just the close and the lock release.
+  const closeWrite = writes.find(
+    (w) => w.path === "users/user_123/consultations/session_123",
+  );
+  assert.ok(closeWrite);
+  assert.equal(closeWrite.data.status, "ended");
+  assert.equal(closeWrite.data.cost, 0);
+  assert.equal(closeWrite.data.minutes, 0);
+  // Not flagged as underbilled — nothing was owed.
+  assert.equal(closeWrite.data.underbilled, undefined);
+  assert.equal(
+    writes.some((w) => (w.path || "").includes("creditLedger")),
+    false,
+  );
+  // The single-active-session lock is still released so the user is not stuck.
+  const lockRelease = writes.find(
+    (w) =>
+      w.path === "users/user_123" && w.data.activeConsultSessionId === null,
+  );
+  assert.ok(lockRelease, "expected the active-session lock to be released");
+});
+
+test("finalizeConsultSession still bills a session that had messages", async () => {
+  const now = 1_800_000;
+  const startedAt = now - 61_000;
+  const { deps } = createDeps(25, now, {
+    "users/user_123/consultations/session_123": {
+      personaId: "guru-vidyanath",
+      status: "active",
+      startedAtMs: startedAt,
+      pricePerMin: 5,
+      maxBillableMinutes: 5,
+      messageCount: 1,
+    },
+  });
+
+  const result = await finalizeConsultSession(deps, {
+    uid: "user_123",
+    sessionId: "session_123",
+  });
+
+  assert.equal(result.minutes, 2);
+  assert.equal(result.cost, 10);
 });
 
 test("endConsultSession rejects unknown personas before billing", async () => {
