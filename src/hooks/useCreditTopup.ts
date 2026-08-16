@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { useAuth } from "../lib/useAuth";
-import { useRazorpay } from "./useRazorpay";
+import { loadRazorpayCheckout } from "../lib/razorpay-loader";
 import { getCreditPack } from "../lib/credit-packs";
 import { trackAcquisitionEvent } from "../lib/acquisition";
 
@@ -31,7 +31,6 @@ interface RazorpayOrderResponse {
 
 export function useCreditTopup() {
   const { user } = useAuth();
-  const isRazorpayLoaded = useRazorpay();
   const [isPaying, setIsPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,7 +42,9 @@ export function useCreditTopup() {
       }
 
       const pack = getCreditPack(minutes);
-      if (!isRazorpayLoaded) {
+      try {
+        await loadRazorpayCheckout();
+      } catch {
         setError("Payment system is still loading.");
         return false;
       }
@@ -69,13 +70,13 @@ export function useCreditTopup() {
             amount: pack.amountInRupees,
           }),
         });
-        const order = (await orderResponse.json().catch(() => ({}))) as Partial<
-          RazorpayOrderResponse
-        > & { error?: string };
+        const order = (await orderResponse
+          .json()
+          .catch(() => ({}))) as Partial<RazorpayOrderResponse> & {
+          error?: string;
+        };
         if (!orderResponse.ok || !order.id) {
-          throw new Error(
-            order.error || "Could not start payment.",
-          );
+          throw new Error(order.error || "Could not start payment.");
         }
         const orderId = order.id;
 
@@ -112,7 +113,9 @@ export function useCreditTopup() {
                   .json()
                   .catch(() => ({}));
                 if (!verifyResponse.ok || verifyData.status !== "success") {
-                  throw new Error(verifyData.error || "Payment verification failed.");
+                  throw new Error(
+                    verifyData.error || "Payment verification failed.",
+                  );
                 }
                 trackAcquisitionEvent("credit_topup_completed", {
                   amount: pack.amountInRupees,
@@ -122,7 +125,9 @@ export function useCreditTopup() {
                 resolve(true);
               } catch (err) {
                 const message =
-                  err instanceof Error ? err.message : "Payment verification failed.";
+                  err instanceof Error
+                    ? err.message
+                    : "Payment verification failed.";
                 setError(message);
                 setIsPaying(false);
                 resolve(false);
@@ -140,8 +145,8 @@ export function useCreditTopup() {
         return false;
       }
     },
-    [isRazorpayLoaded, user],
+    [user],
   );
 
-  return { buyCredits, isPaying, error, isReady: isRazorpayLoaded };
+  return { buyCredits, isPaying, error };
 }

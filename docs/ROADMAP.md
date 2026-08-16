@@ -928,7 +928,7 @@ Competitor Comparison:
 
 ---
 
-## Phase 5.6: AI Astrologer Marketplace 🔄 (Personas ✅, Chat ✅, Billing/Reviews partial)
+## Phase 5.6: AI Astrologer Marketplace 🔄 (Personas ✅, Profile ✅, Chat ✅, Billing ✅ session-level, Reviews partial)
 
 > **Insight**: AstroTalk charges ₹15-100/min for "human astrologers" — many are actually bots.
 > We build the same UX pattern (browse experts → pick one → pay per min) but with transparent,
@@ -946,6 +946,8 @@ Competitor Comparison:
     - [x] **Pandit Raghunath** — Traditional Vedic, doshas, remedies (uses classical Jyotish prompt)
     - [x] **Dr. Shanti** — Health, wellness, biorhythms (uses wellness prompt)
     - [x] **Nanda Ji** — Family, children, property, muhurat (uses practical life prompt)
+    - [x] **Ishaan Rao** — Business timing: launches, negotiations, partnerships (uses business-timing prompt)
+    - [x] **Tara Kapoor** — Cross-life generalist: love, career, self-patterns (uses life-pattern prompt)
 - [x] Create persona data model (`src/lib/personas.ts`)
     ```
     { name, title, specialty, avatar, bio, languages, rating, totalConsultations,
@@ -961,11 +963,11 @@ Competitor Comparison:
     - [x] Persona cards: avatar, name, specialty, rating, price, "Online" badge
     - [x] Filter by specialty (Career, Love, Spiritual, Health, Family)
     - [x] Sort by rating / price / popularity
-- [ ] Create `/consult/:personaId` — Astrologer profile page (currently navigates directly to chat)
-    - [ ] Full bio, specialties, languages, sample responses
-    - [ ] "Start Consultation" CTA with price display
-    - [ ] Rating display + review count
-    - [ ] "Always Available" badge (competitive advantage)
+- [x] Create `/consult/:personaId` — Astrologer profile page (the "dossier")
+    - [x] Full bio, specialties, languages, sample questions
+    - [x] "Start Consultation" CTA with price display
+    - [x] Rating display + review count (when approved reviews exist)
+    - [x] "Available now" badge (competitive advantage)
 - [x] Create `/consult/:personaId/chat` — Consultation chat view
     - [x] Same Synthesis streaming engine, different persona prompt
     - [x] Per-minute timer with live cost display
@@ -974,7 +976,7 @@ Competitor Comparison:
     - [ ] Consultation summary generated at end (partial)
 - [ ] Consultation history page — past sessions with each astrologer
 
-### Per-Minute Billing System
+### Per-Minute Billing System — server-authoritative session billing ✅ (charged at finalize; client meter cosmetic)
 
 - [ ] Credit-to-minutes conversion: 1 credit = 1 minute
 - [ ] Real-time minute counter during consultation (visible to user)
@@ -983,6 +985,11 @@ Competitor Comparison:
 - [ ] Session auto-end with graceful "time's up" message
 - [ ] "Buy more minutes" inline during consultation
 - [ ] Consultation receipt (persona, duration, cost, summary)
+
+> **2026-08-17 (guidance-flow audit fixes):** all 8 personas are startable (client and
+> server now share one registry); the meter starts on the user's first message, not on page
+> mount, and zero-message sittings are not billed; the mid-session cap follows live credits so
+> a top-up extends the sitting; every guide is labelled "AI guide" per `src/lib/trust-policy.ts`.
 
 ### Rating & Review System
 

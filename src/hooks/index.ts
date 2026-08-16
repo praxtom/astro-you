@@ -2,7 +2,6 @@
  * Hooks barrel export - Import all hooks from single entry point
  */
 
-export { useRazorpay } from "./useRazorpay";
 export { useCreditTopup } from "./useCreditTopup";
 export { useUserProfile } from "./useUserProfile";
 export { useKundali, getKundaliSummary } from "./useKundali";

@@ -26,7 +26,7 @@ export function useLastChat() {
     const fetchLastChat = async () => {
       try {
         const chatsRef = collection(db, "users", user.uid, "chats");
-        const q = query(chatsRef, orderBy("updatedAt", "desc"), limit(1));
+        const q = query(chatsRef, orderBy("lastUpdatedAt", "desc"), limit(1));
         const snap = await getDocs(q);
         if (cancelled || snap.empty) return;
         const doc = snap.docs[0];
