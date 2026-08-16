@@ -167,6 +167,7 @@ export default function ConsultChat() {
   const leftRef = useRef(false);
   const ratingModalRef = useRef<HTMLDivElement>(null);
   const firstStarRef = useRef<HTMLButtonElement>(null);
+  const backButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     sessionInfoRef.current = sessionInfo;
@@ -522,9 +523,12 @@ export default function ConsultChat() {
 
     // First message starts the meter; later messages reuse the session.
     const info = await ensureSession();
-    if (!info) {
-      // Start failed / conflict card is showing — keep the draft so nothing
-      // the user typed is lost.
+    // Re-check the leave/end flags: if start resolved just before unmount,
+    // the flush has already ended this session — posting now would be a
+    // stray write to a closed session (and a state update after unmount).
+    if (!info || leftRef.current || sessionEndedRef.current) {
+      // Start failed / conflict card is showing / page left — keep the draft
+      // so nothing the user typed is lost.
       sendingRef.current = false;
       return;
     }
@@ -537,6 +541,10 @@ export default function ConsultChat() {
 
     const controller = new AbortController();
     streamAbortRef.current = controller;
+    // Hoisted so the catch can tell "reply already delivered, stream died
+    // during the brain drain" from a real failure the user must act on.
+    let doneReceived = false;
+    let fullContent = "";
 
     try {
       const idToken = await user.getIdToken();
@@ -567,7 +575,6 @@ export default function ConsultChat() {
 
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
-      let fullContent = "";
       let pendingBuffer = "";
 
       while (reader) {
@@ -601,6 +608,7 @@ export default function ConsultChat() {
             }
             // Fully re-open the composer here: the send guard must not stay
             // held through the trailing brain work.
+            doneReceived = true;
             sendingRef.current = false;
             setIsStreaming(false);
             setReplyAnnouncement("Reply received");
@@ -641,6 +649,15 @@ export default function ConsultChat() {
         persistMessage(info.sessionId, "assistant", fullContent);
       }
     } catch (err) {
+      if (doneReceived) {
+        // The reply was fully delivered before the stream died (connection
+        // drop during the brain drain) — persist it since the normal path
+        // didn't get to, and surface nothing: there is no failure here the
+        // user needs to act on.
+        if (fullContent)
+          persistMessage(info.sessionId, "assistant", fullContent);
+        return;
+      }
       if (controller.signal.aborted) {
         // Session ended or page left mid-reply — nothing to surface.
         return;
@@ -775,11 +792,24 @@ export default function ConsultChat() {
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
+    // Captured at open time (per lint) — the back button node is stable for
+    // the component's whole life, so this is the same node at close time.
+    const backButton = backButtonRef.current;
     const t = setTimeout(() => firstStarRef.current?.focus(), 50);
     return () => {
       clearTimeout(t);
-      // Best effort — the trigger may have unmounted with the session bar.
-      if (returnFocusTo?.isConnected) returnFocusTo.focus();
+      // The real triggers (End button, composer) unmount with the session
+      // bar once the session ends, so the captured element is usually gone
+      // or was document.body all along. Fall back to the back button — the
+      // one control that is always mounted — so focus never drops to the
+      // document start.
+      const target =
+        returnFocusTo &&
+        returnFocusTo !== document.body &&
+        returnFocusTo.isConnected
+          ? returnFocusTo
+          : backButton;
+      target?.focus();
     };
   }, [showRating]);
 
@@ -906,6 +936,7 @@ export default function ConsultChat() {
         <div className="flex items-center justify-between max-w-3xl mx-auto">
           <div className="flex items-center gap-3 min-w-0">
             <button
+              ref={backButtonRef}
               onClick={() => {
                 if (sessionInfo && sessionActive && !sessionEndedRef.current) {
                   endSession();
@@ -929,7 +960,7 @@ export default function ConsultChat() {
                 </span>
               </div>
               <p
-                className="flex items-center gap-1.5 text-[0.55rem] font-bold uppercase tracking-[0.25em]"
+                className="flex items-center gap-1.5 text-[0.65rem] font-bold uppercase tracking-[0.25em]"
                 style={{ color: accent }}
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />

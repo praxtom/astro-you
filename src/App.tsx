@@ -64,6 +64,12 @@ function App() {
   // Use base path for animation key so /synthesis and /synthesis/:id don't trigger transitions
   const getAnimationKey = (pathname: string) => {
     const segments = pathname.split("/").filter(Boolean);
+    // A consult chat is a per-guide, per-sitting surface: hopping straight from
+    // one guide's sitting to another must remount, or the new guide inherits the
+    // previous transcript and the old session never gets its unmount cleanup.
+    if (segments[0] === "consult" && segments[2] === "chat") {
+      return `/consult/${segments[1]}/chat`;
+    }
     // For paths like /synthesis/abc123, use just /synthesis as the key
     return "/" + (segments[0] || "");
   };
