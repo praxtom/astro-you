@@ -66,6 +66,10 @@
  */
 
 import { resolveAstrologyApiKey } from "./env.js";
+import {
+  classifyUpstreamChartError,
+  type UpstreamChartErrorKind,
+} from "./astro-error-classify.js";
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -150,6 +154,33 @@ async function apiFetch(
     ...init,
     signal: init.signal ?? AbortSignal.timeout(ASTRO_API_TIMEOUT_MS),
   });
+}
+
+/**
+ * A chart failure carrying *why* it failed, so callers can say something
+ * actionable instead of "please try again" for a birth time that can never
+ * succeed. See astro-error-classify.ts.
+ */
+export class AstroChartError extends Error {
+  constructor(
+    message: string,
+    readonly kind: UpstreamChartErrorKind,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "AstroChartError";
+    Object.setPrototypeOf(this, AstroChartError.prototype);
+  }
+}
+
+/** Throw a classified error for a failed chart response. */
+async function throwChartError(res: Response, label: string): Promise<never> {
+  const body = await res.text();
+  throw new AstroChartError(
+    `${label} error: ${res.status} - ${body}`,
+    classifyUpstreamChartError(res.status, body),
+    res.status,
+  );
 }
 
 /** Standard DateTimeLocation object used by most endpoints. */
@@ -380,10 +411,14 @@ export function normalizeDivisionalChartResponse(
   // Preserve compatibility with the older keyed response shape.
   if (!chart) {
     const keyedChart =
-      envelope?.[chartType] || apiResponse?.[chartType] || apiResponse?.data?.[chartType];
+      envelope?.[chartType] ||
+      apiResponse?.[chartType] ||
+      apiResponse?.data?.[chartType];
     const legacy = transformKundaliResponse(keyedChart || {});
     if (legacy.planetary_positions.length > 0) return legacy;
-    throw new Error(`Divisional chart ${chartType} was missing from the response`);
+    throw new Error(
+      `Divisional chart ${chartType} was missing from the response`,
+    );
   }
 
   const rawPositions: any[] = Array.isArray(chart.positions)
@@ -422,16 +457,18 @@ export function normalizeDivisionalChartResponse(
           position?.house === undefined
             ? derivedHouse
             : parseHouseNumber(position.house),
-        is_retrograde:
-          position?.retrograde || position?.is_retrograde || false,
+        is_retrograde: position?.retrograde || position?.is_retrograde || false,
       };
     })
-    .filter((position: PlanetaryPosition | null): position is PlanetaryPosition =>
-      Boolean(position),
+    .filter(
+      (position: PlanetaryPosition | null): position is PlanetaryPosition =>
+        Boolean(position),
     );
 
   if (planetary_positions.length === 0) {
-    throw new Error(`Divisional chart ${chartType} contained no planet positions`);
+    throw new Error(
+      `Divisional chart ${chartType} contained no planet positions`,
+    );
   }
 
   const ascendantPosition = planetary_positions.find(
@@ -485,8 +522,7 @@ export async function getNatalChart(
     headers: getHeaders(),
     body: JSON.stringify(parseBirthData(birthData)),
   });
-  if (!res.ok)
-    throw new Error(`Natal chart error: ${res.status} - ${await res.text()}`);
+  if (!res.ok) await throwChartError(res, "Natal chart");
   return transformKundaliResponse(await res.json());
 }
 

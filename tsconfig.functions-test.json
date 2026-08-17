@@ -25,6 +25,7 @@
     "src/lib/synthesis-layout.ts",
     "src/components/synthesis/MessageBubble.tsx",
     "netlify/functions/shared/ai-guidance-policy.ts",
+    "netlify/functions/shared/astro-error-classify.ts",
     "netlify/functions/shared/entitlements.ts",
     "netlify/functions/shared/subscription-plans.ts",
     "netlify/functions/shared/razorpay-payments.ts",

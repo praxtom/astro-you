@@ -416,6 +416,25 @@ export default async (req: Request, _context: Context) => {
     }
   } catch (error: any) {
     console.error("[Kundali] Error:", error);
+
+    // A birth time that fell in a daylight-saving gap, or in a repeated
+    // fall-back hour, can never succeed on retry — so it must not get the
+    // generic "please try again". Matched on `name` rather than `instanceof`
+    // so the guard survives differing class identities across bundles.
+    if (error?.name === "AstroChartError" && error.kind === "dst_ambiguous") {
+      return json(
+        {
+          error:
+            "That birth time doesn't map to a single moment in your birth " +
+            "city — it either never occurred or occurred twice when the " +
+            "clocks changed for daylight saving. Please check the time on " +
+            "your birth record; if it's correct, try it one hour later.",
+          code: "dst_ambiguous",
+        },
+        422,
+      );
+    }
+
     // Generic message — never leak upstream/Firestore internals to the client.
     return json({ error: "Astrology request failed. Please try again." }, 500);
   }
