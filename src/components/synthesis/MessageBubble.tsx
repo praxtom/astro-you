@@ -30,8 +30,6 @@ const REMARK_PLUGINS = [remarkGfm];
 interface MessageBubbleProps {
   role: "user" | "assistant";
   content: string;
-  /** Pre-formatted time shown next to the speaker label ("Now" while streaming). */
-  timeLabel: string;
   /**
    * Persisted assistant replies (no clientId) get the progressive reveal;
    * replies we just streamed in do not, since the user already watched them
@@ -49,7 +47,6 @@ interface MessageBubbleProps {
 function MessageBubbleImpl({
   role,
   content,
-  timeLabel,
   reveal = false,
   streaming = false,
 }: MessageBubbleProps) {
@@ -69,19 +66,8 @@ function MessageBubbleImpl({
       aria-busy={streaming || undefined}
     >
       <div className="max-w-[90%] md:max-w-[85%] group">
-        <div
-          className={`text-[0.65rem] font-bold uppercase tracking-[0.3em] mb-1.5 flex items-center gap-2 ${
-            isUser ? "flex-row-reverse text-white/45" : "flex-row text-gold/50"
-          }`}
-        >
-          {isUser ? "You" : "Jyotish"}
-          <span className="text-white/15">·</span>
-          <span className="text-white/40 font-normal tracking-[0.15em]">
-            {timeLabel}
-          </span>
-        </div>
         {isUser ? (
-          <div className="px-5 py-3 rounded-2xl rounded-tr-md bg-gold/8 border border-gold/15 text-white/85 transition-colors group-hover:bg-gold/10">
+          <div className="px-4 py-2 rounded-2xl rounded-tr-md bg-gold/8 border border-gold/15 text-white/85 transition-colors group-hover:bg-gold/10">
             <ReactMarkdown
               remarkPlugins={REMARK_PLUGINS}
               components={markdownComponents as any}
@@ -90,17 +76,15 @@ function MessageBubbleImpl({
             </ReactMarkdown>
           </div>
         ) : (
-          <div className="pl-5 border-l border-gold/30">
-            <div
-              className={`prose-cosmic ${reveal ? "animate-reveal-progressive" : ""}`}
+          <div
+            className={`prose-cosmic ${reveal ? "animate-reveal-progressive" : ""}`}
+          >
+            <ReactMarkdown
+              remarkPlugins={REMARK_PLUGINS}
+              components={markdownComponents as any}
             >
-              <ReactMarkdown
-                remarkPlugins={REMARK_PLUGINS}
-                components={markdownComponents as any}
-              >
-                {content}
-              </ReactMarkdown>
-            </div>
+              {content}
+            </ReactMarkdown>
           </div>
         )}
       </div>

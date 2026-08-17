@@ -15,16 +15,10 @@ import {
   Loader2,
   Sparkles,
   ChevronLeft,
-  ChevronDown,
   ArrowDown,
-  Plus,
-  History,
-  X,
-  Compass,
   Download,
   Save,
   Share2,
-  Users,
 } from "lucide-react";
 import ChartShareModal from "../components/ChartShareModal";
 import AuthModal from "../components/AuthModal";
@@ -32,7 +26,6 @@ import OnboardingModal from "../components/OnboardingModal";
 import { useAuth } from "../lib/useAuth";
 import { useUserProfile, useKundali } from "../hooks";
 import { useSubscription } from "../hooks/useSubscription";
-import type { ChartType } from "../hooks/useKundali";
 import {
   doc,
   updateDoc,
@@ -62,12 +55,26 @@ import { DharmaList } from "../components/dharma/DharmaList";
 import { RoutineProposal } from "../components/dharma/RoutineProposal";
 import { DailyAltar } from "../components/sadhana/DailyAltar";
 import ConversationsList from "../components/synthesis/ConversationsList";
+import {
+  BlueprintPanelControls,
+  BlueprintToggleButton,
+  ChartTypeSelector,
+  ComposerVoiceButton,
+  ConversationPanelHeader,
+  SynthesisComposerTextarea,
+  SynthesisPanelLaunchers,
+  appendDictationTranscript,
+} from "../components/synthesis/ConversationsListView";
 import MessageBubble from "../components/synthesis/MessageBubble";
 import { NightSky } from "../components/layout/NightSky";
 import type { UserRoutine } from "../types/user";
 import { STORAGE_KEYS, FREE_LIMIT_SECONDS } from "../lib/constants";
 import { parseCompletedBirthProfile } from "../lib/profile-readiness";
-import { getDefaultSynthesisRails } from "../lib/synthesis-layout";
+import {
+  getDefaultSynthesisRails,
+  SYNTHESIS_MESSAGE_SPACING_CLASS,
+  SYNTHESIS_PANEL_SURFACE_CLASS,
+} from "../lib/synthesis-layout";
 import { useErrorToast, useSuccessToast } from "../components/ui/toast-context";
 import {
   hasVisibleStreamingContent,
@@ -76,6 +83,45 @@ import {
 } from "../lib/synthesis-messages";
 
 type Message = SynthesisMessage;
+
+interface SpeechRecognitionResultEventLike extends Event {
+  results: ArrayLike<{
+    0: { transcript: string };
+    isFinal: boolean;
+  }>;
+}
+
+interface SpeechRecognitionErrorEventLike extends Event {
+  error: string;
+}
+
+interface BrowserSpeechRecognition {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onstart: (() => void) | null;
+  onend: (() => void) | null;
+  onresult: ((event: SpeechRecognitionResultEventLike) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+}
+
+type SpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
+
+function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null {
+  if (typeof window === "undefined") return null;
+  const speechWindow = window as typeof window & {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  };
+  return (
+    speechWindow.SpeechRecognition ||
+    speechWindow.webkitSpeechRecognition ||
+    null
+  );
+}
 
 const CelestialChart = lazy(
   () => import("../components/astrology/CelestialChart"),
@@ -109,9 +155,6 @@ const NEAR_BOTTOM_THRESHOLD_PX = 120;
 const DELETE_BATCH_SIZE = 400;
 /** Cap the live message subscription — very long chats keep the newest turns. */
 const MESSAGE_WINDOW = 200;
-
-const formatMessageTime = (date: Date) =>
-  date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 /** Toast title for a failed send, keyed on the HTTP status (if any). */
 const sendFailureTitle = (status?: number) => {
@@ -174,7 +217,7 @@ export default function Synthesis() {
   }, [isAnxious, isChaotic, isReactive]);
 
   // Use centralized hooks for data access
-  const [currentChartType, setCurrentChartType] = useState<ChartType>("D1");
+  const [currentChartType, setCurrentChartType] = useState<"D1" | "D9">("D1");
   const {
     profile,
     birthData: hookBirthData,
@@ -232,6 +275,8 @@ export default function Synthesis() {
   const [interactionId, setInteractionId] = useState<string | null>(null);
   const [streamingContent, setStreamingContent] = useState<string | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const isDictationSupported = getSpeechRecognitionConstructor() !== null;
   const scrollRef = useRef<HTMLDivElement>(null);
   const conversationsToggleRef = useRef<HTMLButtonElement>(null);
   const blueprintToggleRef = useRef<HTMLButtonElement>(null);
@@ -254,7 +299,8 @@ export default function Synthesis() {
   const streamBufferRef = useRef("");
   const streamFrameRef = useRef<number | null>(null);
   const isNearBottomRef = useRef(true);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const replyAnnounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -316,6 +362,68 @@ export default function Synthesis() {
     setShowBlueprint(willOpen);
     if (willOpen && !isDesktopViewport) setShowConversations(false);
   };
+
+  const toggleDictation = useCallback(() => {
+    if (recognitionRef.current && isListening) {
+      recognitionRef.current.stop();
+      return;
+    }
+
+    const Recognition = getSpeechRecognitionConstructor();
+    if (!Recognition) return;
+
+    const recognition = new Recognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = navigator.language || "en-IN";
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+    };
+    recognition.onerror = (event) => {
+      setIsListening(false);
+      recognitionRef.current = null;
+      const permissionDenied =
+        event.error === "not-allowed" || event.error === "service-not-allowed";
+      showError(
+        permissionDenied ? "Microphone Access Needed" : "Dictation Unavailable",
+        permissionDenied
+          ? "Allow microphone access in your browser, then try again."
+          : "Voice dictation could not start. Please try again.",
+      );
+    };
+    recognition.onresult = (event) => {
+      let transcript = "";
+      for (let index = 0; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        if (result?.isFinal) transcript += result[0]?.transcript || "";
+      }
+      if (!transcript.trim()) return;
+      setInput((current) => appendDictationTranscript(current, transcript));
+      requestAnimationFrame(() => composerRef.current?.focus());
+    };
+
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+    } catch {
+      recognitionRef.current = null;
+      setIsListening(false);
+      showError(
+        "Dictation Unavailable",
+        "Voice dictation could not start. Please try again.",
+      );
+    }
+  }, [isListening, showError]);
+
+  useEffect(
+    () => () => {
+      recognitionRef.current?.abort();
+      recognitionRef.current = null;
+    },
+    [],
+  );
 
   useEffect(() => {
     if (isDesktopViewport) return;
@@ -851,7 +959,6 @@ export default function Synthesis() {
     }
 
     setInput("");
-    if (textareaRef.current) textareaRef.current.style.height = "auto";
     setIsSynthesizing(true);
 
     // One request at a time, abortable (unmount / chat switch), and pinned to
@@ -1278,114 +1385,18 @@ export default function Synthesis() {
           {replyAnnouncement}
         </div>
 
-        {/* ── Top bar ── */}
-        {!showPrana && (
-          <header className="relative z-30 flex items-center justify-between gap-3 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 md:px-6 border-b border-white/5 bg-bg-app/70 backdrop-blur-xl">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => navigate("/dashboard")}
-                className="p-2 rounded-xl text-white/35 hover:text-gold transition-colors"
-                title="Back to Home"
-                aria-label="Back to dashboard"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              {user && (
-                <button
-                  ref={conversationsToggleRef}
-                  onClick={toggleConversations}
-                  className={`flex items-center gap-2 p-2 rounded-xl transition-colors ${
-                    showConversations
-                      ? "text-gold"
-                      : "text-white/35 hover:text-gold"
-                  }`}
-                  title="Conversations"
-                  aria-label="Toggle conversations"
-                  aria-expanded={showConversations}
-                  aria-controls="synthesis-conversations-panel"
-                >
-                  <History size={15} />
-                  <span className="hidden md:inline text-[0.65rem] font-bold uppercase tracking-[0.2em]">
-                    History
-                  </span>
-                </button>
-              )}
-            </div>
-
-            <div className="absolute left-1/2 -translate-x-1/2 text-center pointer-events-none">
-              <p className="font-display text-xl text-white/85 leading-none">
-                Jyotish
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {!user ? (
-                <div className="flex items-center gap-1.5 text-[0.65rem] font-mono px-2.5 py-1 rounded-full border border-gold/30 text-gold bg-gold/5">
-                  <Clock size={10} />
-                  <span>
-                    {Math.floor(remainingSeconds / 60)}:
-                    {(remainingSeconds % 60).toString().padStart(2, "0")}
-                  </span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1 rounded-full border border-gold/30 bg-gold/5 p-1 text-gold">
-                  <div className="flex items-center gap-1.5 px-2 text-[0.65rem] font-mono">
-                    <Sparkles size={10} />
-                    <span>{credits}m</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handlePurchase(60, 499)}
-                    disabled={isPaying}
-                    className="flex h-6 items-center gap-1 rounded-full bg-gold/10 px-2 text-[0.58rem] font-bold uppercase tracking-[0.16em] text-gold transition-colors hover:bg-gold/20 disabled:cursor-not-allowed disabled:opacity-50"
-                    title="Add more minutes"
-                    aria-label="Add more minutes"
-                  >
-                    {isPaying ? (
-                      <Loader2 size={10} className="animate-spin" />
-                    ) : (
-                      <Plus size={11} />
-                    )}
-                    <span className="hidden sm:inline">
-                      {isPaying ? "Adding" : "Add"}
-                    </span>
-                  </button>
-                </div>
-              )}
-              <button
-                onClick={() => navigate("/consult")}
-                className="flex items-center gap-2 p-2 rounded-xl text-white/35 hover:text-gold transition-colors"
-                title="The Circle"
-                aria-label="The Circle"
-              >
-                <Users size={15} />
-                <span className="hidden md:inline text-[0.65rem] font-bold uppercase tracking-[0.2em]">
-                  The Circle
-                </span>
-              </button>
-              <button
-                ref={blueprintToggleRef}
-                onClick={toggleBlueprint}
-                className={`flex items-center gap-2 p-2 rounded-xl transition-colors ${
-                  showBlueprint ? "text-gold" : "text-white/35 hover:text-gold"
-                }`}
-                title="Your celestial blueprint"
-                aria-label="Toggle chart panel"
-                aria-expanded={showBlueprint}
-                aria-controls="synthesis-blueprint-panel"
-              >
-                <Compass size={15} />
-                <span className="hidden md:inline text-[0.65rem] font-bold uppercase tracking-[0.2em]">
-                  Blueprint
-                </span>
-              </button>
-            </div>
-          </header>
-        )}
-
         {/* ── Body: rails + conversation ── */}
         {!showPrana && (
           <div className="flex-1 flex relative z-10 overflow-hidden">
+            <SynthesisPanelLaunchers
+              canOpenConversations={Boolean(user)}
+              conversationsOpen={showConversations}
+              blueprintOpen={showBlueprint}
+              onOpenConversations={toggleConversations}
+              onOpenBlueprint={toggleBlueprint}
+              conversationsButtonRef={conversationsToggleRef}
+              blueprintButtonRef={blueprintToggleRef}
+            />
             <main
               className="flex-1 flex flex-col overflow-hidden min-w-0 lg:order-2"
               inert={!isDesktopViewport && (showConversations || showBlueprint)}
@@ -1397,7 +1408,7 @@ export default function Synthesis() {
                   className="h-full overflow-y-auto overflow-x-hidden custom-scrollbar"
                 >
                   <div
-                    className={`mx-auto flex min-h-full max-w-3xl flex-col space-y-6 px-4 py-7 md:px-6 ${
+                    className={`mx-auto flex min-h-full max-w-3xl flex-col ${SYNTHESIS_MESSAGE_SPACING_CLASS} px-4 py-7 md:px-6 ${
                       isIntroConversation ? "justify-center" : "justify-end"
                     }`}
                   >
@@ -1448,7 +1459,6 @@ export default function Synthesis() {
                           key={m.clientId || m.id}
                           role={m.role}
                           content={m.content}
-                          timeLabel={formatMessageTime(m.timestamp)}
                           reveal={m.role === "assistant" && !m.clientId}
                         />
                       ))}
@@ -1458,7 +1468,6 @@ export default function Synthesis() {
                       <MessageBubble
                         role="assistant"
                         content={streamingContent}
-                        timeLabel="Now"
                         streaming
                       />
                     )}
@@ -1558,26 +1567,10 @@ export default function Synthesis() {
               <div className="border-t border-white/[0.04] bg-bg-app/92 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl md:px-6">
                 <div className="mx-auto max-w-2xl">
                   <div className="flex items-end gap-2 rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2.5 transition-colors focus-within:border-gold/30 focus-within:bg-white/[0.05]">
-                    <Sparkles
-                      size={16}
-                      className="mb-1.5 shrink-0 text-gold/75"
-                      aria-hidden="true"
-                    />
-                    <textarea
-                      ref={textareaRef}
-                      rows={1}
-                      name="jyotish-question"
-                      autoComplete="off"
-                      aria-label="Ask Jyotish a question"
-                      placeholder="Ask Jyotish…"
-                      className="max-h-32 min-w-0 flex-1 resize-none appearance-none overflow-hidden border-0 bg-transparent py-1 font-sans text-sm leading-6 text-white/85 outline-none placeholder:text-white/28 focus:border-0 focus:outline-none focus:ring-0 md:text-[0.95rem]"
-                      style={{ height: "auto" }}
+                    <SynthesisComposerTextarea
+                      composerRef={composerRef}
                       value={input}
-                      onChange={(e) => {
-                        setInput(e.target.value);
-                        e.target.style.height = "auto";
-                        e.target.style.height = e.target.scrollHeight + "px";
-                      }}
+                      onValueChange={setInput}
                       onKeyDown={(e) => {
                         if (
                           e.key === "Enter" &&
@@ -1588,6 +1581,11 @@ export default function Synthesis() {
                           handleSend();
                         }
                       }}
+                    />
+                    <ComposerVoiceButton
+                      isListening={isListening}
+                      isSupported={isDictationSupported}
+                      onToggle={toggleDictation}
                     />
                     <button
                       onClick={handleSend}
@@ -1647,49 +1645,30 @@ export default function Synthesis() {
                 aria-modal={!isDesktopViewport ? true : undefined}
                 aria-labelledby="synthesis-conversations-title"
                 inert={!showConversations}
-                className={`z-50 flex flex-col overscroll-contain transition-[width,transform,opacity] duration-300 max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:w-80 max-lg:max-w-[85vw] max-lg:bg-[#06060c]/95 max-lg:backdrop-blur-2xl max-lg:border-r max-lg:border-white/10 ${
+                className={`z-50 flex flex-col ${SYNTHESIS_PANEL_SURFACE_CLASS} overscroll-contain transition-[width,transform,opacity] duration-300 max-lg:absolute max-lg:inset-y-0 max-lg:left-0 max-lg:w-80 max-lg:max-w-[85vw] max-lg:backdrop-blur-2xl max-lg:border-r max-lg:border-white/10 ${
                   showConversations
                     ? "max-lg:translate-x-0"
                     : "max-lg:-translate-x-full"
-                } lg:order-1 lg:relative lg:overflow-hidden lg:bg-white/2 ${
+                } lg:order-1 lg:relative lg:overflow-hidden ${
                   showConversations
-                    ? "lg:w-64 lg:border-r lg:border-white/5"
+                    ? "lg:w-72 lg:border-r lg:border-white/5"
                     : "lg:w-0 lg:opacity-0 lg:pointer-events-none"
                 }`}
                 aria-hidden={!showConversations}
               >
-                <div className="p-4 border-b border-white/5">
-                  <div className="flex items-center justify-between mb-3 px-1">
-                    <p
-                      id="synthesis-conversations-title"
-                      className="text-[0.65rem] font-bold uppercase tracking-[0.35em] text-white/45"
-                    >
-                      Conversations
-                    </p>
-                    <button
-                      ref={conversationsCloseRef}
-                      onClick={() => closeConversations(true)}
-                      className="p-1.5 rounded-lg text-white/30 hover:text-gold transition-colors"
-                      aria-label="Close conversations"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setCurrentChatId(null);
-                      closeConversations();
-                      navigate("/synthesis");
-                    }}
-                    className="w-full py-2.5 rounded-xl border border-gold/30 text-gold text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:bg-gold hover:text-black transition-colors flex items-center justify-center gap-2 group whitespace-nowrap"
-                  >
-                    <Plus
-                      size={13}
-                      className="group-hover:rotate-90 transition-transform"
-                    />
-                    New conversation
-                  </button>
-                </div>
+                <ConversationPanelHeader
+                  closeButtonRef={conversationsCloseRef}
+                  onHome={() => navigate("/dashboard")}
+                  onNewConversation={() => {
+                    setCurrentChatId(null);
+                    closeConversations();
+                    navigate("/synthesis");
+                  }}
+                  onClose={() => closeConversations(true)}
+                />
+                <span id="synthesis-conversations-title" className="sr-only">
+                  Conversations
+                </span>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar">
                   <ConversationsList
@@ -1744,15 +1723,6 @@ export default function Synthesis() {
                   />
                 </div>
 
-                <div className="p-4 border-t border-white/5">
-                  <button
-                    onClick={() => navigate("/dashboard")}
-                    className="flex items-center gap-2 text-[0.65rem] font-bold uppercase tracking-[0.25em] text-white/55 hover:text-gold transition-colors whitespace-nowrap"
-                  >
-                    <ChevronLeft size={13} />
-                    Home
-                  </button>
-                </div>
               </aside>
             )}
 
@@ -1764,11 +1734,11 @@ export default function Synthesis() {
               aria-modal={!isDesktopViewport ? true : undefined}
               aria-labelledby="synthesis-blueprint-title"
               inert={!showBlueprint}
-              className={`z-50 flex flex-col overflow-y-auto overscroll-contain custom-scrollbar transition-[width,transform,opacity,padding] duration-300 max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:w-96 max-lg:max-w-[90vw] max-lg:bg-[#06060c]/95 max-lg:backdrop-blur-2xl max-lg:border-l max-lg:border-white/10 max-lg:p-4 ${
+              className={`z-50 flex flex-col ${SYNTHESIS_PANEL_SURFACE_CLASS} overflow-y-auto overscroll-contain custom-scrollbar transition-[width,transform,opacity,padding] duration-300 max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:w-96 max-lg:max-w-[90vw] max-lg:backdrop-blur-2xl max-lg:border-l max-lg:border-white/10 max-lg:p-4 ${
                 showBlueprint
                   ? "max-lg:translate-x-0"
                   : "max-lg:translate-x-full"
-              } lg:order-3 lg:relative lg:overflow-x-hidden lg:bg-white/2 ${
+              } lg:order-3 lg:relative lg:overflow-x-hidden ${
                 showBlueprint
                   ? "lg:w-[360px] lg:p-5 lg:border-l lg:border-white/5"
                   : "lg:w-0 lg:p-0 lg:opacity-0 lg:pointer-events-none"
@@ -1776,6 +1746,42 @@ export default function Synthesis() {
               aria-hidden={!showBlueprint}
             >
               <header className="mb-5">
+                {user && (
+                  <div className="mb-3">
+                    <BlueprintPanelControls
+                      credits={credits}
+                      isPaying={isPaying}
+                      isOpen={showBlueprint}
+                      onAddCredits={() => handlePurchase(60, 499)}
+                      onToggleBlueprint={toggleBlueprint}
+                      toggleButtonRef={blueprintCloseRef}
+                    />
+                  </div>
+                )}
+                {!user && (
+                  <div className="mb-3 flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => navigate("/dashboard")}
+                      className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-white/45 transition-colors hover:bg-white/5 hover:text-gold"
+                    >
+                      <ChevronLeft size={14} />
+                      Home
+                    </button>
+                    <div className="flex items-center gap-1.5 rounded-full border border-gold/30 bg-gold/5 px-2.5 py-1 font-mono text-[0.65rem] text-gold">
+                      <Clock size={10} />
+                      <span>
+                        {Math.floor(remainingSeconds / 60)}:
+                        {(remainingSeconds % 60).toString().padStart(2, "0")}
+                      </span>
+                    </div>
+                    <BlueprintToggleButton
+                      isOpen={showBlueprint}
+                      onToggle={toggleBlueprint}
+                      buttonRef={blueprintCloseRef}
+                    />
+                  </div>
+                )}
                 <div className="flex items-center justify-between gap-3 mb-2">
                   <p
                     id="synthesis-blueprint-title"
@@ -1794,39 +1800,13 @@ export default function Synthesis() {
                         Reports
                       </button>
                     )}
-                    <button
-                      ref={blueprintCloseRef}
-                      onClick={() => closeBlueprint(true)}
-                      className="p-1.5 rounded-lg text-white/30 hover:text-gold transition-colors"
-                      aria-label="Close blueprint"
-                    >
-                      <X size={14} />
-                    </button>
                   </div>
                 </div>
-                <div className="relative">
-                  <select
-                    aria-label="Select chart type"
-                    value={currentChartType}
-                    onChange={(e) =>
-                      setCurrentChartType(e.target.value as ChartType)
-                    }
-                    className="w-full cursor-pointer appearance-none border-none bg-transparent p-0 pr-6 font-display text-lg italic text-white/85 transition-colors hover:text-gold focus:ring-0"
-                  >
-                    <option value="D1" className="bg-black not-italic">
-                      Natal Chart (D1)
-                    </option>
-                    <option value="D9" className="bg-black not-italic">
-                      Navamsa (D9)
-                    </option>
-                  </select>
-                  <ChevronDown
-                    size={14}
-                    aria-hidden="true"
-                    className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 text-white/40"
-                  />
-                </div>
-                <div className="mt-3 h-px bg-linear-to-r from-gold/25 to-transparent" />
+                <ChartTypeSelector
+                  value={currentChartType}
+                  loading={isLoadingKundali}
+                  onChange={setCurrentChartType}
+                />
               </header>
 
               {isLoadingKundali ? (
@@ -1837,7 +1817,10 @@ export default function Synthesis() {
                   </span>
                 </div>
               ) : kundaliData ? (
-                <div className="animate-in fade-in zoom-in-95 duration-1000">
+                <div
+                  key={currentChartType}
+                  className="animate-in fade-in zoom-in-95 duration-500"
+                >
                   <div
                     id="kundali-chart-container"
                     className="mx-auto max-w-[300px]"
@@ -1845,7 +1828,7 @@ export default function Synthesis() {
                     <button
                       onClick={() => setShowExpandedChart(true)}
                       className="relative block w-full cursor-zoom-in rounded-xl transition-transform duration-500 group hover:scale-[1.01]"
-                      aria-label="Expand natal chart"
+                      aria-label={`Expand ${currentChartType} chart`}
                     >
                       <div className="absolute inset-0 rounded-full bg-gold/5 opacity-0 blur-2xl transition-opacity group-hover:opacity-100" />
                       <Kundali data={kundaliData} className="compact" />
@@ -1863,7 +1846,7 @@ export default function Synthesis() {
                       onClick={() =>
                         downloadChart(
                           "kundali-chart-container",
-                          `kundali-${birthData?.name || "chart"}.png`,
+                          `kundali-${currentChartType.toLowerCase()}-${birthData?.name || "chart"}.png`,
                         )
                       }
                       className="flex items-center justify-center rounded-xl bg-white/5 p-2 transition-all hover:bg-white/10 group"
@@ -1888,6 +1871,7 @@ export default function Synthesis() {
                       onClick={() => setShowOnboardingModal(true)}
                       className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gold/10 p-2 transition-all hover:bg-gold/20 group"
                       title="Update Birth Data"
+                      aria-label="Update birth details"
                     >
                       <Save
                         size={14}
@@ -1945,7 +1929,7 @@ export default function Synthesis() {
         isOpen={showOnboardingModal}
         onClose={() => setShowOnboardingModal(false)}
         onComplete={handleOnboardingComplete}
-        existingProfile={profile}
+        existingProfile={profile ?? birthData}
       />
 
       <AuthModal
@@ -1972,6 +1956,8 @@ export default function Synthesis() {
         isOpen={showShareModal}
         onClose={() => setShowShareModal(false)}
         birthData={birthData}
+        chartElementId="kundali-chart-container"
+        filename={`kundali-${currentChartType.toLowerCase()}-${birthData?.name || "chart"}.png`}
       />
     </>
   );

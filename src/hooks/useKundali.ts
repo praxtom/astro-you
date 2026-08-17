@@ -3,7 +3,7 @@
  * Fetches from API if not cached, otherwise returns cached data
  */
 
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { devLog } from "../lib/devLog";
@@ -11,6 +11,10 @@ import { useAuth } from "../lib/useAuth";
 import type { KundaliData, BirthData, PlanetaryPosition } from "../types";
 import { useRequestBirthData } from "./useRequestBirthData";
 import { postJson } from "../lib/apiFetch";
+import {
+  createLatestRequestGate,
+  isUsableCachedKundali,
+} from "../lib/profile-readiness";
 
 interface UseKundaliResult {
   kundaliData: KundaliData | null;
@@ -30,9 +34,14 @@ export function useKundali(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const requestBirthData = useRequestBirthData(birthData);
+  const requestGateRef = useRef(createLatestRequestGate());
 
   const fetchKundali = useCallback(
     async (signal?: AbortSignal) => {
+      const request = requestGateRef.current.begin();
+      const isCurrentRequest = () =>
+        request.isCurrent() && signal?.aborted !== true;
+
       devLog("[useKundali] fetchKundali called with:", {
         birthData: requestBirthData,
         chartType,
@@ -45,18 +54,21 @@ export function useKundali(
           dob: requestBirthData?.dob,
           tob: requestBirthData?.tob,
         });
-        setLoading(false);
+        if (isCurrentRequest()) setLoading(false);
         return;
       }
 
       try {
+        if (!isCurrentRequest()) return;
         setLoading(true);
         setError(null);
+        setKundaliData(null);
 
         // First, check if we have cached data in Firestore
         if (user) {
           const docRef = doc(db, "users", user.uid);
           const docSnap = await getDoc(docRef);
+          if (!isCurrentRequest()) return;
 
           if (docSnap.exists()) {
             const data = docSnap.data();
@@ -66,18 +78,13 @@ export function useKundali(
                 : data[`kundaliData_${chartType}`];
 
             // Only use cached data if it has actual planetary positions
-            if (
-              cachedData &&
-              cachedData.planetary_positions &&
-              cachedData.planetary_positions.length > 0
-            ) {
+            if (isUsableCachedKundali(cachedData, chartType)) {
               devLog(
                 "[useKundali] Using cached data with",
                 cachedData.planetary_positions.length,
                 "planets",
               );
               setKundaliData(cachedData);
-              setLoading(false);
               return;
             } else {
               devLog(
@@ -105,6 +112,7 @@ export function useKundali(
           { birthData: requestPayload, chartType },
           { signal },
         );
+        if (!isCurrentRequest()) return;
 
         if (!response.ok) {
           throw new Error(
@@ -113,6 +121,7 @@ export function useKundali(
         }
 
         const data = await response.json();
+        if (!isCurrentRequest()) return;
 
         // Transform API response to our format
         const positions = data.planetary_positions || [];
@@ -163,21 +172,25 @@ export function useKundali(
           ascendant: data.ascendant || null,
         };
 
-        setKundaliData(kundali);
+        if (isCurrentRequest()) setKundaliData(kundali);
 
         // Cache in Firestore for logged-in users
         if (user) {
           const docRef = doc(db, "users", user.uid);
           const cacheFieldName =
             chartType === "D1" ? "kundaliData" : `kundaliData_${chartType}`;
-          await setDoc(docRef, { [cacheFieldName]: kundali }, { merge: true });
+          await setDoc(
+            docRef,
+            { [cacheFieldName]: { ...kundali, _chartType: chartType } },
+            { merge: true },
+          );
         }
       } catch (err: any) {
-        if (err.name === "AbortError") return;
+        if (err.name === "AbortError" || !isCurrentRequest()) return;
         console.error(`Error fetching ${chartType} Kundali:`, err);
         setError(err.message);
       } finally {
-        setLoading(false);
+        if (isCurrentRequest()) setLoading(false);
       }
     },
     [chartType, requestBirthData, user],

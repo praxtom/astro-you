@@ -318,6 +318,135 @@ function transformKundaliResponse(apiResponse: any): KundaliData {
   };
 }
 
+const DIVISIONAL_SIGN_CODES: Record<string, string> = {
+  aries: "Ari",
+  taurus: "Tau",
+  gemini: "Gem",
+  cancer: "Can",
+  leo: "Leo",
+  virgo: "Vir",
+  libra: "Lib",
+  scorpio: "Sco",
+  sagittarius: "Sag",
+  capricorn: "Cap",
+  aquarius: "Aqu",
+  pisces: "Pis",
+};
+
+const DIVISIONAL_SIGN_ORDER = [
+  "Ari",
+  "Tau",
+  "Gem",
+  "Can",
+  "Leo",
+  "Vir",
+  "Lib",
+  "Sco",
+  "Sag",
+  "Cap",
+  "Aqu",
+  "Pis",
+];
+
+function normalizeDivisionalSign(sign: unknown): string {
+  if (typeof sign !== "string") return "";
+  const trimmed = sign.trim();
+  return DIVISIONAL_SIGN_CODES[trimmed.toLowerCase()] || trimmed.slice(0, 3);
+}
+
+function normalizeDivisionalPlanetName(name: unknown): string {
+  if (name === "Rahu") return "Mean_Node";
+  if (name === "Ketu") return "Mean_South_Node";
+  return typeof name === "string" ? name : "Unknown";
+}
+
+/** Normalize both documented divisional-chart response variants. */
+export function normalizeDivisionalChartResponse(
+  apiResponse: any,
+  chartType: string,
+): KundaliData {
+  const envelope = apiResponse?.data || apiResponse;
+  const charts = Array.isArray(envelope?.charts)
+    ? envelope.charts
+    : Array.isArray(apiResponse?.charts)
+      ? apiResponse.charts
+      : [];
+  const chart = charts.find(
+    (candidate: any) =>
+      String(candidate?.chart || candidate?.chart_type).toUpperCase() ===
+      chartType.toUpperCase(),
+  );
+
+  // Preserve compatibility with the older keyed response shape.
+  if (!chart) {
+    const keyedChart =
+      envelope?.[chartType] || apiResponse?.[chartType] || apiResponse?.data?.[chartType];
+    const legacy = transformKundaliResponse(keyedChart || {});
+    if (legacy.planetary_positions.length > 0) return legacy;
+    throw new Error(`Divisional chart ${chartType} was missing from the response`);
+  }
+
+  const rawPositions: any[] = Array.isArray(chart.positions)
+    ? chart.positions
+    : Array.isArray(chart.planets)
+      ? chart.planets
+      : [];
+  const ascendantRaw = rawPositions.find(
+    (position: any) =>
+      String(position?.planet || position?.name).toLowerCase() === "ascendant",
+  );
+  const ascendantSign = normalizeDivisionalSign(ascendantRaw?.sign);
+  const ascendantIndex = DIVISIONAL_SIGN_ORDER.indexOf(ascendantSign);
+
+  const planetary_positions: PlanetaryPosition[] = rawPositions
+    .map((position: any): PlanetaryPosition | null => {
+      const sign = normalizeDivisionalSign(position?.sign);
+      const signIndex = DIVISIONAL_SIGN_ORDER.indexOf(sign);
+      if (!sign || signIndex < 0) return null;
+      const longitude = Number(position?.longitude);
+      const degreeValue = Number(position?.degree);
+      const degree = Number.isFinite(degreeValue)
+        ? degreeValue
+        : Number.isFinite(longitude)
+          ? ((longitude % 30) + 30) % 30
+          : 0;
+      const derivedHouse =
+        ascendantIndex >= 0 ? ((signIndex - ascendantIndex + 12) % 12) + 1 : 1;
+
+      return {
+        name: normalizeDivisionalPlanetName(position?.planet || position?.name),
+        sign,
+        signCode: sign,
+        degree,
+        house:
+          position?.house === undefined
+            ? derivedHouse
+            : parseHouseNumber(position.house),
+        is_retrograde:
+          position?.retrograde || position?.is_retrograde || false,
+      };
+    })
+    .filter((position: PlanetaryPosition | null): position is PlanetaryPosition =>
+      Boolean(position),
+    );
+
+  if (planetary_positions.length === 0) {
+    throw new Error(`Divisional chart ${chartType} contained no planet positions`);
+  }
+
+  const ascendantPosition = planetary_positions.find(
+    (position: PlanetaryPosition) => position.name === "Ascendant",
+  );
+
+  return {
+    planetary_positions,
+    house_cusps: [],
+    ascendant: ascendantPosition
+      ? { sign: ascendantPosition.sign, degree: ascendantPosition.degree }
+      : undefined,
+  };
+}
+
 function parseHouseNumber(houseName: string | number | undefined): number {
   if (typeof houseName === "number") return houseName;
   if (!houseName) return 1;
@@ -458,12 +587,10 @@ export async function getNavamsaChart(
       body: JSON.stringify({ subject: buildSubject(birthData), charts }),
     });
     if (!res.ok) throw new Error(`Divisional chart error: ${res.status}`);
-    const data = await res.json();
-    const chartData = data[charts[0]] || data.data?.[charts[0]] || data;
-    return transformKundaliResponse(chartData);
+    return normalizeDivisionalChartResponse(await res.json(), charts[0]);
   } catch (err) {
     console.error("Divisional chart error:", err);
-    return { planetary_positions: [], house_cusps: [] };
+    throw err;
   }
 }
 

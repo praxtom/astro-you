@@ -107,23 +107,31 @@ export async function captureAndUploadChart(
  * Download chart as PNG to user's device
  */
 export function downloadChart(elementId: string, filename: string = 'kundali-chart.png'): void {
+    captureChartImage(elementId).then((dataUrl) => {
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = dataUrl;
+        link.click();
+    }).catch((error) => {
+        console.error('Unable to download chart', error);
+    });
+}
+
+/** Capture the chart already rendered in the browser as a shareable PNG. */
+export async function captureChartImage(elementId: string): Promise<string> {
     const element = document.getElementById(elementId);
     if (!element) {
-        console.error(`Element with id '${elementId}' not found`);
-        return;
+        throw new Error(`Element with id '${elementId}' not found`);
     }
 
-    html2canvas(element, {
+    const canvas = await html2canvas(element, {
         backgroundColor: '#030308',
         scale: 2,
         useCORS: true,
         logging: false,
-    }).then((canvas) => {
-        const link = document.createElement('a');
-        link.download = filename;
-        link.href = canvas.toDataURL('image/png');
-        link.click();
     });
+
+    return canvas.toDataURL('image/png');
 }
 
 /**

@@ -69,3 +69,47 @@ export function parseCompletedBirthProfile(
     return null;
   }
 }
+
+/** Prevents a legacy or mislabeled divisional chart cache from masquerading as D9/D10. */
+export function isUsableCachedKundali(
+  value: unknown,
+  chartType: "D1" | "D9" | "D10",
+): boolean {
+  if (!value || typeof value !== "object") return false;
+  const cached = value as Record<string, unknown>;
+  if (
+    !Array.isArray(cached.planetary_positions) ||
+    cached.planetary_positions.length === 0
+  ) {
+    return false;
+  }
+
+  const cachedChartType = cached._chartType;
+  if (typeof cachedChartType === "string") return cachedChartType === chartType;
+  return chartType === "D1";
+}
+
+export interface LatestRequestToken {
+  isCurrent: () => boolean;
+  cancel: () => void;
+}
+
+/** Coordinates overlapping async work so stale completions cannot update UI state. */
+export function createLatestRequestGate(): {
+  begin: () => LatestRequestToken;
+} {
+  let latestId = 0;
+
+  return {
+    begin() {
+      const requestId = ++latestId;
+      let cancelled = false;
+      return {
+        isCurrent: () => !cancelled && requestId === latestId,
+        cancel: () => {
+          cancelled = true;
+        },
+      };
+    },
+  };
+}
