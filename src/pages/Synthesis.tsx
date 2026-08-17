@@ -1564,7 +1564,7 @@ export default function Synthesis() {
               </div>
 
               {/* ── Input ── */}
-              <div className="border-t border-white/[0.04] bg-bg-app/92 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl md:px-6">
+              <div className="bg-bg-app/92 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl md:px-6">
                 <div className="mx-auto max-w-2xl">
                   <div className="flex items-end gap-2 rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2.5 transition-colors focus-within:border-gold/30 focus-within:bg-white/[0.05]">
                     <SynthesisComposerTextarea
@@ -1722,7 +1722,6 @@ export default function Synthesis() {
                     }}
                   />
                 </div>
-
               </aside>
             )}
 
@@ -1734,13 +1733,13 @@ export default function Synthesis() {
               aria-modal={!isDesktopViewport ? true : undefined}
               aria-labelledby="synthesis-blueprint-title"
               inert={!showBlueprint}
-              className={`z-50 flex flex-col ${SYNTHESIS_PANEL_SURFACE_CLASS} overflow-y-auto overscroll-contain custom-scrollbar transition-[width,transform,opacity,padding] duration-300 max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:w-96 max-lg:max-w-[90vw] max-lg:backdrop-blur-2xl max-lg:border-l max-lg:border-white/10 max-lg:p-4 ${
+              className={`z-50 flex flex-col ${SYNTHESIS_PANEL_SURFACE_CLASS} overflow-y-auto overscroll-contain custom-scrollbar transition-[width,transform,opacity,padding] duration-300 max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:w-96 max-lg:max-w-[90vw] max-lg:backdrop-blur-2xl max-lg:p-4 ${
                 showBlueprint
                   ? "max-lg:translate-x-0"
                   : "max-lg:translate-x-full"
               } lg:order-3 lg:relative lg:overflow-x-hidden ${
                 showBlueprint
-                  ? "lg:w-[360px] lg:p-5 lg:border-l lg:border-white/5"
+                  ? "lg:w-[360px] lg:p-5"
                   : "lg:w-0 lg:p-0 lg:opacity-0 lg:pointer-events-none"
               }`}
               aria-hidden={!showBlueprint}
