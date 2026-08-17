@@ -75,6 +75,11 @@
  */
 import { resolveAstrologyApiKey } from "./env.js";
 import {
+  zodiacApiOptions,
+  DEFAULT_ZODIAC_MODE,
+  type ZodiacMode,
+} from "../../../src/lib/zodiac-mode.js";
+import {
   classifyUpstreamChartError,
   type UpstreamChartErrorKind,
 } from "./astro-error-classify.js";
@@ -236,12 +241,14 @@ function buildSubject(birthData: BirthData): Record<string, any> {
 }
 
 /** Chart-request payload with subject + Vedic options. */
-function parseBirthData(birthData: BirthData) {
+function parseBirthData(
+  birthData: BirthData,
+  mode: ZodiacMode = DEFAULT_ZODIAC_MODE,
+) {
   return {
     subject: buildSubject(birthData),
     options: {
-      house_system: "W",
-      zodiac_type: "Sidereal",
+      ...zodiacApiOptions(mode),
       active_points: [
         "Sun",
         "Moon",
@@ -524,11 +531,12 @@ function unwrap(result: any): any {
 /** POST /charts/natal — Full natal chart. */
 export async function getNatalChart(
   birthData: BirthData,
+  mode: ZodiacMode = DEFAULT_ZODIAC_MODE,
 ): Promise<KundaliData> {
   const res = await apiFetch(`${API_BASE}/charts/natal`, {
     method: "POST",
     headers: getHeaders(),
-    body: JSON.stringify(parseBirthData(birthData)),
+    body: JSON.stringify(parseBirthData(birthData, mode)),
   });
   if (!res.ok) await throwChartError(res, "Natal chart");
   return transformKundaliResponse(await res.json());
@@ -538,13 +546,13 @@ export async function getNatalChart(
 export async function getTransitChart(
   birthData: BirthData,
   transitDate?: string,
+  mode: ZodiacMode = DEFAULT_ZODIAC_MODE,
 ): Promise<any> {
   const payload = {
     subject: buildSubject(birthData),
     transit_time: buildTransitTime(birthData, transitDate),
     options: {
-      house_system: "W",
-      zodiac_type: "Sidereal",
+      ...zodiacApiOptions(mode),
       active_points: [
         "Sun",
         "Moon",
@@ -1172,6 +1180,7 @@ export async function getTransitReport(
 export async function getRenderedTransitChart(
   birthData: BirthData,
   transitDate?: string,
+  mode: ZodiacMode = DEFAULT_ZODIAC_MODE,
 ): Promise<string> {
   const res = await apiFetch(`${API_BASE}/render/transit`, {
     method: "POST",
@@ -1179,7 +1188,7 @@ export async function getRenderedTransitChart(
     body: JSON.stringify({
       subject: buildSubject(birthData),
       transit_time: buildTransitTime(birthData, transitDate),
-      options: { house_system: "W", zodiac_type: "Sidereal", precision: 2 },
+      options: { ...zodiacApiOptions(mode), precision: 2 },
       render_options: { format: "svg", theme: "dark" },
     }),
   });
@@ -1193,13 +1202,16 @@ export async function getRenderedTransitChart(
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /** POST /svg/natal — Get natal chart as SVG. */
-export async function getNatalChartSVG(birthData: BirthData): Promise<string> {
+export async function getNatalChartSVG(
+  birthData: BirthData,
+  mode: ZodiacMode = DEFAULT_ZODIAC_MODE,
+): Promise<string> {
   const res = await apiFetch(`${API_BASE}/svg/natal`, {
     method: "POST",
     headers: getHeaders(),
     body: JSON.stringify({
       subject: buildSubject(birthData),
-      options: { house_system: "W", zodiac_type: "Sidereal", precision: 2 },
+      options: { ...zodiacApiOptions(mode), precision: 2 },
       svg_options: { theme: "dark" },
     }),
   });
@@ -1211,6 +1223,7 @@ export async function getNatalChartSVG(birthData: BirthData): Promise<string> {
 export async function getTransitChartSVG(
   birthData: BirthData,
   transitDate?: string,
+  mode: ZodiacMode = DEFAULT_ZODIAC_MODE,
 ): Promise<string> {
   const res = await apiFetch(`${API_BASE}/svg/transit`, {
     method: "POST",
@@ -1218,7 +1231,7 @@ export async function getTransitChartSVG(
     body: JSON.stringify({
       subject: buildSubject(birthData),
       transit_time: buildTransitTime(birthData, transitDate),
-      options: { house_system: "W", zodiac_type: "Sidereal", precision: 2 },
+      options: { ...zodiacApiOptions(mode), precision: 2 },
       svg_options: { theme: "dark" },
     }),
   });
@@ -1229,13 +1242,14 @@ export async function getTransitChartSVG(
 /** POST /render/natal — Render natal chart as PNG image. Returns image URL or data. */
 export async function getRenderedNatalChart(
   birthData: BirthData,
+  mode: ZodiacMode = DEFAULT_ZODIAC_MODE,
 ): Promise<string> {
   const res = await apiFetch(`${API_BASE}/render/natal`, {
     method: "POST",
     headers: getHeaders(),
     body: JSON.stringify({
       subject: buildSubject(birthData),
-      options: { house_system: "W", zodiac_type: "Sidereal", precision: 2 },
+      options: { ...zodiacApiOptions(mode), precision: 2 },
       render_options: { format: "png", theme: "dark", width: 1080 },
     }),
   });
@@ -1248,6 +1262,7 @@ export async function getRenderedNatalChart(
 export async function getRenderedSynastryChart(
   person1: BirthData,
   person2: BirthData,
+  mode: ZodiacMode = DEFAULT_ZODIAC_MODE,
 ): Promise<string> {
   const res = await apiFetch(`${API_BASE}/render/synastry`, {
     method: "POST",
@@ -1255,7 +1270,7 @@ export async function getRenderedSynastryChart(
     body: JSON.stringify({
       subject1: buildSubject(person1),
       subject2: buildSubject(person2),
-      options: { house_system: "W", zodiac_type: "Sidereal", precision: 2 },
+      options: { ...zodiacApiOptions(mode), precision: 2 },
       render_options: { format: "png", theme: "dark" },
     }),
   });
@@ -1276,6 +1291,7 @@ export async function getRenderedSynastryChart(
 export async function getCompatibilityDetails(
   person1: BirthData,
   person2: BirthData,
+  mode: ZodiacMode = DEFAULT_ZODIAC_MODE,
 ): Promise<any> {
   const s1 = buildSubject(person1);
   const s2 = buildSubject(person2);
@@ -1285,12 +1301,12 @@ export async function getCompatibilityDetails(
       { name: person1.name || "Person 1", birth_data: s1.birth_data },
       { name: person2.name || "Person 2", birth_data: s2.birth_data },
     ],
-    options: { house_system: "W", zodiac_type: "Sidereal", language: "en" },
+    options: { ...zodiacApiOptions(mode), language: "en" },
   };
   const synastryPayload = {
     subject1: s1,
     subject2: s2,
-    options: { house_system: "W", zodiac_type: "Sidereal", language: "en" },
+    options: { ...zodiacApiOptions(mode), language: "en" },
   };
 
   try {
