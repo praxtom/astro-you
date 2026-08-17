@@ -177,6 +177,19 @@ export default function Compatibility() {
 
   const handleMatch = async () => {
     if (!birthData) return;
+
+    // No birth-place fallback. This used to default to "Mumbai, India", which
+    // silently cast the user's own chart in the wrong city — a confidently
+    // wrong reading is worse than refusing to run.
+    if (!birthData.pob) {
+      setError(
+        "Add your birth place in Settings before running a compatibility " +
+          "match. An accurate chart needs the birth location, and guessing " +
+          "it would produce a confidently wrong reading.",
+      );
+      return;
+    }
+
     setIsMatching(true);
     setError(null);
 
@@ -186,7 +199,7 @@ export default function Compatibility() {
           name: birthData.name || "Seeker",
           dob: birthData.dob,
           tob: birthData.tob || "12:00",
-          pob: birthData.pob || "Mumbai, India",
+          pob: birthData.pob,
           lat: seekerCoords?.lat,
           lng: seekerCoords?.lon,
         },
