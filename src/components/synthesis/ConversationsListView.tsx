@@ -100,14 +100,45 @@ export function SynthesisComposerTextarea({
     [composerRef],
   );
 
+  /**
+   * Sync *external* value changes into the DOM — dictation, a tapped
+   * suggested question, clearing after send, restoring a failed draft.
+   *
+   * This effect is deliberately the ONLY writer of the composer's text. The
+   * value used to also be rendered as a JSX child (`{value}`), which meant
+   * React reconciled the same text node the browser was editing: every
+   * keystroke rewrote the node, which collapses the caret to offset 0, so
+   * the next character landed at the start and the input typed backwards
+   * ("Hey1!" became "!1yeH").
+   *
+   * After local typing the DOM already matches `value`, so the guard below
+   * is false and nothing is written — the caret is left alone. It only
+   * writes when the change came from outside, and then restores the caret to
+   * the end, because assigning innerText discards the selection.
+   */
   useEffect(() => {
     const composer = localRef.current;
-    if (composer && composer.innerText !== value) composer.innerText = value;
+    if (!composer || composer.innerText === value) return;
+
+    composer.innerText = value;
+
+    // Only touch the selection if the user is actually in this box —
+    // otherwise a background update would steal the caret.
+    if (document.activeElement !== composer) return;
+    const selection = window.getSelection();
+    if (!selection) return;
+    const range = document.createRange();
+    range.selectNodeContents(composer);
+    range.collapse(false); // false = collapse to the end
+    selection.removeAllRanges();
+    selection.addRange(range);
   }, [value]);
 
   const handleInput: FormEventHandler<HTMLDivElement> = (event) => {
     const nextValue = event.currentTarget.innerText.replace(/\r/g, "");
-    if (!nextValue) event.currentTarget.innerHTML = "";
+    // Clear the leftover <br> the browser leaves behind, so the placeholder
+    // (:empty::before) shows again.
+    if (!nextValue) event.currentTarget.replaceChildren();
     onValueChange(nextValue);
   };
 
@@ -115,7 +146,6 @@ export function SynthesisComposerTextarea({
     <div
       ref={setComposerRef}
       contentEditable="plaintext-only"
-      suppressContentEditableWarning
       role="textbox"
       aria-multiline="true"
       spellCheck={false}
@@ -129,9 +159,10 @@ export function SynthesisComposerTextarea({
       className="max-h-32 min-h-8 min-w-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words border-0 bg-transparent py-1 font-sans text-sm leading-6 text-white/85 outline-none empty:before:pointer-events-none empty:before:text-white/28 empty:before:content-[attr(data-placeholder)] focus:border-0 focus:outline-none focus:ring-0 md:text-[0.95rem]"
       onInput={handleInput}
       onKeyDown={onKeyDown}
-    >
-      {value}
-    </div>
+      // No children: the text is owned by the browser and synced by the
+      // effect above. Rendering {value} here made React reconcile the very
+      // text node being edited, resetting the caret on every keystroke.
+    />
   );
 }
 
@@ -503,7 +534,9 @@ export function ConversationListView({
               ? "bg-white/8 text-white/75"
               : "text-white/35 hover:bg-white/5 hover:text-white/70"
           }`}
-          aria-label={searchOpen ? "Close conversation search" : "Search conversations"}
+          aria-label={
+            searchOpen ? "Close conversation search" : "Search conversations"
+          }
           aria-expanded={searchOpen}
         >
           {searchOpen ? <X size={15} /> : <Search size={15} />}
@@ -529,7 +562,9 @@ export function ConversationListView({
       {!collapsed &&
         (filteredChats.length === 0 ? (
           <p className="px-3 py-3 text-xs text-white/25">
-            {searchQuery ? "No matching conversations." : "No past conversations."}
+            {searchQuery
+              ? "No matching conversations."
+              : "No past conversations."}
           </p>
         ) : (
           <div className="flex flex-col gap-0.5" role="list">

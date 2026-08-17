@@ -79,15 +79,63 @@ test("getDefaultSynthesisRails opens desktop rails according to auth state", () 
 
 test("Synthesis conversations use generous spacing between message turns", () => {
   assert.equal(
-    (synthesisLayout as Record<string, unknown>).SYNTHESIS_MESSAGE_SPACING_CLASS,
+    (synthesisLayout as Record<string, unknown>)
+      .SYNTHESIS_MESSAGE_SPACING_CLASS,
     "space-y-8",
   );
 });
 
-test("Synthesis side panels share the centre surface colour", () => {
+test("Synthesis side panels are seamless with the centre on desktop", () => {
+  const surface = (synthesisLayout as Record<string, unknown>)
+    .SYNTHESIS_PANEL_SURFACE_CLASS;
+
+  // On desktop the rails are flex siblings of the chat column, so a
+  // transparent surface shows the app background — the same colour as the
+  // centre, with no slab edge. This is the seamless result the previous
+  // opaque `bg-bg-app` was reaching for.
   assert.equal(
-    (synthesisLayout as Record<string, unknown>).SYNTHESIS_PANEL_SURFACE_CLASS,
-    "bg-bg-app",
+    typeof surface === "string" && surface.includes("lg:bg-transparent"),
+    true,
+    "desktop rails must be transparent so they blend into the centre column",
+  );
+
+  // Below `lg` the rails overlay the conversation, so they must keep a scrim
+  // — fully transparent would stack panel text on top of message text.
+  assert.equal(
+    typeof surface === "string" && /bg-bg-app\/\d+/.test(surface),
+    true,
+    "mobile overlay rails must keep a translucent scrim for legibility",
+  );
+});
+
+test("composer renders no children, so React cannot reset the caret", () => {
+  const SynthesisComposerTextarea = (
+    conversationModule as unknown as {
+      SynthesisComposerTextarea?: ComponentType<any>;
+    }
+  ).SynthesisComposerTextarea;
+  assert.ok(
+    SynthesisComposerTextarea,
+    "SynthesisComposerTextarea must be exported",
+  );
+
+  const html = renderToStaticMarkup(
+    createElement(SynthesisComposerTextarea, {
+      value: "Hey1!",
+      onValueChange: () => {},
+      onKeyDown: () => {},
+    }),
+  );
+
+  // The composer is a contentEditable div. Rendering `value` as a JSX child
+  // made React reconcile the very text node the browser was editing, which
+  // collapses the caret to offset 0 — so each keystroke landed at the start
+  // and the box typed backwards ("Hey1!" arrived as "!1yeH"). The DOM text is
+  // owned by the browser and synced by an effect; it must never be a child.
+  assert.equal(
+    html.includes("Hey1!"),
+    false,
+    "value must not be rendered as a child of the contentEditable div",
   );
 });
 
@@ -156,7 +204,10 @@ test("chart selector explains the active D1 chart and exposes its state", () => 
 
   assert.match(html, />D1</);
   assert.match(html, />Natal chart</);
-  assert.match(html, /Your overall life, personality, and planetary foundation/);
+  assert.match(
+    html,
+    /Your overall life, personality, and planetary foundation/,
+  );
   assert.match(html, /aria-label="Select chart type"/);
 });
 
@@ -252,7 +303,10 @@ test("conversation panel keeps Home and close at the top before New conversation
       ConversationPanelHeader?: ComponentType<any>;
     }
   ).ConversationPanelHeader;
-  assert.ok(ConversationPanelHeader, "ConversationPanelHeader must be exported");
+  assert.ok(
+    ConversationPanelHeader,
+    "ConversationPanelHeader must be exported",
+  );
 
   const html = renderToStaticMarkup(
     createElement(ConversationPanelHeader, {
@@ -276,7 +330,10 @@ test("closed side panels expose floating icon-only launchers", () => {
       SynthesisPanelLaunchers?: ComponentType<any>;
     }
   ).SynthesisPanelLaunchers;
-  assert.ok(SynthesisPanelLaunchers, "SynthesisPanelLaunchers must be exported");
+  assert.ok(
+    SynthesisPanelLaunchers,
+    "SynthesisPanelLaunchers must be exported",
+  );
 
   const html = renderToStaticMarkup(
     createElement(SynthesisPanelLaunchers, {
@@ -321,16 +378,25 @@ test("composer uses a modern contenteditable textbox instead of a textarea", () 
 test("dictation appends a trimmed transcript for review", () => {
   const appendDictationTranscript = (
     conversationModule as unknown as {
-      appendDictationTranscript?: (current: string, transcript: string) => string;
+      appendDictationTranscript?: (
+        current: string,
+        transcript: string,
+      ) => string;
     }
   ).appendDictationTranscript;
-  assert.ok(appendDictationTranscript, "appendDictationTranscript must be exported");
+  assert.ok(
+    appendDictationTranscript,
+    "appendDictationTranscript must be exported",
+  );
 
   assert.equal(
     appendDictationTranscript("What is next?", "  Please explain.  "),
     "What is next? Please explain.",
   );
-  assert.equal(appendDictationTranscript("", "  New question  "), "New question");
+  assert.equal(
+    appendDictationTranscript("", "  New question  "),
+    "New question",
+  );
 });
 
 test("composer voice control exposes microphone and listening states", () => {
