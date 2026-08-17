@@ -74,6 +74,7 @@ import { getCachedOrFetch } from "./shared/cache";
 import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit";
 import { verifyToken, AuthError } from "./shared/require-auth";
 import { requestedDateKey } from "./shared/request-date.js";
+import { normalizeZodiacMode } from "../../src/lib/zodiac-mode.js";
 
 const json = (body: any, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -194,6 +195,10 @@ export default async (req: Request, _context: Context) => {
       year,
       region,
     } = body;
+
+    // Vedic unless the client asks otherwise, so existing behaviour is
+    // unchanged for everyone who never touches the setting.
+    const zodiacMode = normalizeZodiacMode(body.zodiacMode);
 
     const rateLimit = await checkRateLimit({
       scope: `astro_${String(chartType).toLowerCase()}`,
@@ -323,7 +328,7 @@ export default async (req: Request, _context: Context) => {
         });
       }
       case "SVG_NATAL": {
-        const svg = await getNatalChartSVG(bd);
+        const svg = await getNatalChartSVG(bd, zodiacMode);
         return new Response(svg, {
           status: 200,
           headers: { "Content-Type": "image/svg+xml" },
@@ -404,7 +409,7 @@ export default async (req: Request, _context: Context) => {
         return json({ data: await getVarshaphal(bd, body.year) });
       }
       case "D1": {
-        const data = await getNatalChart(bd);
+        const data = await getNatalChart(bd, zodiacMode);
         return json(data);
       }
       default: {

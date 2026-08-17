@@ -15,6 +15,7 @@ import {
   createLatestRequestGate,
   isUsableCachedKundali,
 } from "../lib/profile-readiness";
+import { normalizeZodiacMode, type ZodiacMode } from "../lib/zodiac-mode";
 
 interface UseKundaliResult {
   kundaliData: KundaliData | null;
@@ -28,7 +29,9 @@ export type ChartType = "D1" | "D9" | "D10";
 export function useKundali(
   birthData: BirthData | null,
   chartType: ChartType = "D1",
+  zodiacMode?: ZodiacMode,
 ): UseKundaliResult {
+  const mode = normalizeZodiacMode(zodiacMode);
   const { user } = useAuth();
   const [kundaliData, setKundaliData] = useState<KundaliData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -78,7 +81,7 @@ export function useKundali(
                 : data[`kundaliData_${chartType}`];
 
             // Only use cached data if it has actual planetary positions
-            if (isUsableCachedKundali(cachedData, chartType)) {
+            if (isUsableCachedKundali(cachedData, chartType, mode)) {
               devLog(
                 "[useKundali] Using cached data with",
                 cachedData.planetary_positions.length,
@@ -109,7 +112,7 @@ export function useKundali(
           : requestBirthData;
         const response = await postJson(
           "/api/kundali",
-          { birthData: requestPayload, chartType },
+          { birthData: requestPayload, chartType, zodiacMode: mode },
           { signal },
         );
         if (!isCurrentRequest()) return;
@@ -181,7 +184,15 @@ export function useKundali(
             chartType === "D1" ? "kundaliData" : `kundaliData_${chartType}`;
           await setDoc(
             docRef,
-            { [cacheFieldName]: { ...kundali, _chartType: chartType } },
+            {
+              [cacheFieldName]: {
+                ...kundali,
+                _chartType: chartType,
+                // Tagged so a mode switch misses this cache instead of
+                // silently serving the other zodiac's signs.
+                _zodiacMode: mode,
+              },
+            },
             { merge: true },
           );
         }
@@ -193,7 +204,7 @@ export function useKundali(
         if (isCurrentRequest()) setLoading(false);
       }
     },
-    [chartType, requestBirthData, user],
+    [chartType, requestBirthData, user, mode],
   );
 
   useEffect(() => {

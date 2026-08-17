@@ -1,3 +1,7 @@
+import {
+  DEFAULT_ZODIAC_MODE,
+  type ZodiacMode,
+} from "./zodiac-mode.js";
 export interface CompletedBirthProfile {
   name: string;
   gender: string;
@@ -70,10 +74,20 @@ export function parseCompletedBirthProfile(
   }
 }
 
-/** Prevents a legacy or mislabeled divisional chart cache from masquerading as D9/D10. */
+/**
+ * Prevents a legacy or mislabeled cached chart from masquerading as the one
+ * being asked for — wrong division (D9/D10) or wrong zodiac.
+ *
+ * The zodiac check matters because sidereal and tropical charts have the same
+ * shape but different signs. Without it, switching to Western keeps serving
+ * the cached sidereal chart, so the signs stay silently wrong and the toggle
+ * looks broken. Charts cached before the mode existed carry no `_zodiacMode`
+ * and were all sidereal, so they stay valid for vedic only.
+ */
 export function isUsableCachedKundali(
   value: unknown,
   chartType: "D1" | "D9" | "D10",
+  zodiacMode?: ZodiacMode,
 ): boolean {
   if (!value || typeof value !== "object") return false;
   const cached = value as Record<string, unknown>;
@@ -82,6 +96,13 @@ export function isUsableCachedKundali(
     cached.planetary_positions.length === 0
   ) {
     return false;
+  }
+
+  if (zodiacMode !== undefined) {
+    const cachedMode = cached._zodiacMode;
+    const effectiveMode =
+      typeof cachedMode === "string" ? cachedMode : DEFAULT_ZODIAC_MODE;
+    if (effectiveMode !== zodiacMode) return false;
   }
 
   const cachedChartType = cached._chartType;
