@@ -14,6 +14,8 @@
   "include": [
     "src/types/user.ts",
     "src/lib/atman-schema.ts",
+    "src/lib/panchang.ts",
+    "src/lib/panchang-normalize.ts",
     "src/lib/personas.ts",
     "src/lib/profile-readiness.ts",
     "src/lib/pwa-install.ts",

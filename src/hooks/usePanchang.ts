@@ -1,19 +1,11 @@
 import { useState, useEffect } from "react";
 import { postJson } from "../lib/apiFetch";
+import { normalizePanchang, type PanchangData } from "../lib/panchang";
 
-export interface PanchangData {
-  tithi: string;
-  tithiEnd?: string;
-  nakshatra: string;
-  nakshatraEnd?: string;
-  yoga: string;
-  karana: string;
-  rahu_kaal: string;
-  sunrise?: string;
-  sunset?: string;
-  moonSign?: string;
-  day?: string;
-}
+// Re-exported so the dashboard components keep importing the type from the
+// hook they already use. The shape and its parsing live in lib/panchang.ts,
+// where they are pinned against a real API response by unit tests.
+export type { PanchangData };
 
 export function usePanchang(city?: string, lat?: number, lng?: number) {
   const [panchang, setPanchang] = useState<PanchangData | null>(null);
@@ -44,40 +36,7 @@ export function usePanchang(city?: string, lat?: number, lng?: number) {
         }
 
         const result = await response.json();
-        const raw = result.data ?? result;
-        const normalize = (val: any): string =>
-          typeof val === "string" ? val : (val?.name ?? val?.title ?? "—");
-        const normalizeWithTime = (
-          val: any,
-        ): { value: string; endTime?: string } => {
-          if (typeof val === "string") return { value: val };
-          return {
-            value: val?.name ?? val?.title ?? "—",
-            endTime: val?.end_time ?? val?.endTime ?? val?.end ?? undefined,
-          };
-        };
-
-        const tithiInfo = normalizeWithTime(raw.tithi);
-        const nakshatraInfo = normalizeWithTime(raw.nakshatra);
-
-        setPanchang({
-          tithi: tithiInfo.value,
-          tithiEnd: tithiInfo.endTime,
-          nakshatra: nakshatraInfo.value,
-          nakshatraEnd: nakshatraInfo.endTime,
-          yoga: normalize(raw.yoga),
-          karana: normalize(raw.karana),
-          rahu_kaal: raw.rahu_kaal || raw.rahuKaal || raw.rahu_kalam || "—",
-          sunrise: raw.sunrise || raw.sun_rise || "—",
-          sunset: raw.sunset || raw.sun_set || "—",
-          moonSign: (() => {
-            // API may return the moon as an object: {rashi, longitude, degree_in_sign}
-            const moon = raw.moon_sign ?? raw.moonSign ?? raw.moon_rasi;
-            if (typeof moon === "string") return moon;
-            return moon?.rashi ?? moon?.sign ?? moon?.name ?? undefined;
-          })(),
-          day: raw.day || raw.vaara || undefined,
-        });
+        setPanchang(normalizePanchang(result.data ?? result));
       } catch (err: any) {
         if (err.name === "AbortError") return;
         console.error("[usePanchang] Error:", err);

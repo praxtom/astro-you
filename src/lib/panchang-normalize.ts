@@ -68,6 +68,8 @@ export function normalizePanchangResponse(input: unknown): PanchangSummary {
   const nakshatra = labelWithTime(raw.nakshatra);
   const auspiciousPeriods = asObject(raw.auspicious_periods);
   const inauspiciousPeriods = asObject(raw.inauspicious_periods);
+  // The day window is nested; falling back to raw keeps a flat response working.
+  const sunTimes = asObject(raw.sunrise_sunset) ?? raw;
   const choghadiya = Array.isArray(raw.choghadiya)
     ? raw.choghadiya
         .map((item) => {
@@ -89,19 +91,16 @@ export function normalizePanchangResponse(input: unknown): PanchangSummary {
     nakshatraEnd: nakshatra.end,
     yoga: text(raw.yoga),
     karana: text(raw.karana),
-    rahuKaal: text(
-      raw.rahu_kaal ??
-        raw.rahuKaal ??
-        raw.rahu_kalam ??
-        inauspiciousPeriods?.rahu_kalam,
-    ),
-    sunrise: text(raw.sunrise ?? raw.sun_rise),
-    sunset: text(raw.sunset ?? raw.sun_set),
-    abhijitMuhurat: text(
-      raw.abhijit_muhurta ??
-        raw.abhijitMuhurat ??
-        auspiciousPeriods?.abhijit_muhurta,
-    ),
+    rahuKaal:
+      timeRange(inauspiciousPeriods?.rahu_kalam) ??
+      timeRange(raw.rahu_kalam) ??
+      text(raw.rahu_kaal ?? raw.rahuKaal),
+    sunrise: text(sunTimes?.sunrise ?? sunTimes?.sun_rise),
+    sunset: text(sunTimes?.sunset ?? sunTimes?.sun_set),
+    abhijitMuhurat:
+      timeRange(auspiciousPeriods?.abhijit_muhurta) ??
+      timeRange(raw.abhijit_muhurta) ??
+      text(raw.abhijitMuhurat),
     auspiciousTimings: [
       ...listText(raw.auspicious_timings),
       ...listText(auspiciousPeriods?.items),
