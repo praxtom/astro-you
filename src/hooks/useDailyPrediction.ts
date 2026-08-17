@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { viewerDateKey } from "../lib/viewer-timezone";
+import { normalizeZodiacMode, type ZodiacMode } from "../lib/zodiac-mode";
 
 interface PredictionSubjectData {
   name?: string;
@@ -7,9 +8,18 @@ interface PredictionSubjectData {
   tob?: string;
   pob?: string;
   sunSign?: string;
+  zodiacMode?: ZodiacMode;
 }
 
-function getZodiacSign(day: number, month: number): string {
+/**
+ * Tropical Sun sign from a birth date.
+ *
+ * This is a *Western* construct: the date ranges only hold for the tropical
+ * zodiac. It must never be used in vedic mode, where the sidereal Sun sits
+ * roughly one sign earlier — that mismatch is what made the dashboard chart
+ * and this forecast disagree about the same person's sign.
+ */
+function getTropicalSunSign(day: number, month: number): string {
   const signs = [
     "Capricorn",
     "Aquarius",
@@ -37,7 +47,8 @@ export function useDailyPrediction(userData: PredictionSubjectData | null) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const { dob, tob, pob, sunSign, name } = userData ?? {};
+  const { dob, sunSign, zodiacMode } = userData ?? {};
+  const mode = normalizeZodiacMode(zodiacMode);
 
   useEffect(() => {
     setPrediction(null);
@@ -51,14 +62,28 @@ export function useDailyPrediction(userData: PredictionSubjectData | null) {
 
     const fetchPrediction = async () => {
       try {
-        const [year, month, day] = dob.split("-").map(Number);
-        const [hour, minute] = (tob || "12:00").split(":").map(Number);
+        const [, month, day] = dob.split("-").map(Number);
 
-        const pobParts = (pob || "Unknown").split(",").map((s) => s.trim());
-        const city = pobParts[0] || "Unknown";
-        const countryCode = pobParts[1]?.substring(0, 2).toUpperCase() || "US";
-        const zodiacSign = sunSign || getZodiacSign(day, month);
+        // In vedic mode the sign MUST come from the sidereal chart. The
+        // tropical date table below disagrees with it by about one sign,
+        // which is exactly what made the dashboard and this forecast
+        // contradict each other about the same person.
+        const zodiacSign =
+          sunSign ||
+          (mode === "western" ? getTropicalSunSign(day, month) : null);
 
+        // No sign yet in vedic mode: wait for the chart rather than guess.
+        if (!zodiacSign) {
+          if (!cancelled) setLoading(false);
+          return;
+        }
+
+        // Only `sign`, `date` and `format` are sent. The endpoint recasts from
+        // its own SIGN_ANCHOR_DOB and ignores any client-supplied subject, so
+        // the old `subject`/`options` payload was dead weight — and its country
+        // code was derived as pobParts[1].slice(0,2), which turned
+        // "New York, New York, United States" into "NE" (Niger) and London
+        // into "GR" (Greece).
         const response = await fetch("/api/daily-prediction", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -68,32 +93,6 @@ export function useDailyPrediction(userData: PredictionSubjectData | null) {
             // The viewer's local day: a UTC key served US evening users
             // tomorrow's horoscope from ~5pm.
             date: viewerDateKey(),
-            subject: {
-              name: name || "Seeker",
-              birth_data: {
-                year,
-                month,
-                day,
-                hour,
-                minute,
-                city,
-                country_code: countryCode === "KA" ? "IN" : countryCode,
-              },
-            },
-            options: {
-              house_system: "P",
-              zodiac_type: "Tropic",
-              active_points: [
-                "Sun",
-                "Moon",
-                "Mercury",
-                "Venus",
-                "Mars",
-                "Jupiter",
-                "Saturn",
-              ],
-              precision: 2,
-            },
           }),
           signal: controller.signal,
         });
@@ -127,7 +126,7 @@ export function useDailyPrediction(userData: PredictionSubjectData | null) {
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [dob, tob, pob, sunSign, name]);
+  }, [dob, sunSign, mode]);
 
   return { prediction, error, loading };
 }

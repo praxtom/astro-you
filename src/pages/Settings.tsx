@@ -6,11 +6,25 @@ import { useUserProfile } from "../hooks";
 import { useSubscription } from "../hooks/useSubscription";
 import { useConsciousness } from "../hooks/useConsciousness";
 import { getTier, type SubscriptionTier } from "../lib/subscriptions";
-import { Crown, User, Download, ArrowLeft, Loader2, AlertCircle, Bell, Brain, Trash2, ShieldCheck, Languages } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  Bell,
+  Brain,
+  Crown,
+  Download,
+  Languages,
+  Loader2,
+  ShieldCheck,
+  Sparkles,
+  Trash2,
+  User,
+} from "lucide-react";
 import Header from "../components/layout/Header";
 import { db } from "../lib/firebase";
 import { ATMAN_SCHEMA_VERSION } from "../types/user";
 import { PLATFORM_LANGUAGES, normalizePlatformLanguage } from "../lib/languages";
+import { ZODIAC_MODES, normalizeZodiacMode } from "../lib/zodiac-mode";
 import {
   canInstallApp,
   isRunningStandalone,
@@ -165,6 +179,23 @@ export default function Settings() {
       });
     } catch (err) {
       console.error("Language preference update failed:", err);
+    } finally {
+      setSavingPrefs(false);
+    }
+  };
+
+  const updateZodiacMode = async (mode: string) => {
+    if (!user) return;
+    setSavingPrefs(true);
+    try {
+      // Cached charts are tagged with the mode they were cast in, so they are
+      // rejected on read rather than deleted here — see isUsableCachedKundali.
+      await updateDoc(doc(db, "users", user.uid), {
+        "profile.zodiacMode": normalizeZodiacMode(mode),
+        updatedAt: new Date(),
+      });
+    } catch (err) {
+      console.error("Zodiac mode update failed:", err);
     } finally {
       setSavingPrefs(false);
     }
@@ -461,6 +492,49 @@ export default function Settings() {
           </label>
           <p className="mt-3 text-xs text-white/35">
             Jyotish, daily guidance, and new consultations will use this language where available.
+          </p>
+        </section>
+
+        {/* Zodiac system */}
+        <section className="glass rounded-[2rem] p-6 mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Sparkles size={18} className="text-gold" />
+            <h2 className="text-gold text-sm font-bold uppercase tracking-widest">
+              Zodiac system
+            </h2>
+          </div>
+          <label className="block">
+            <span className="mb-2 block text-xs text-white/35">
+              How your chart is calculated
+            </span>
+            <select
+              value={normalizeZodiacMode(profile?.zodiacMode)}
+              onChange={(event) => updateZodiacMode(event.target.value)}
+              disabled={savingPrefs}
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white disabled:opacity-50"
+            >
+              {ZODIAC_MODES.map((mode) => (
+                <option
+                  key={mode.mode}
+                  value={mode.mode}
+                  className="bg-[#111118]"
+                >
+                  {mode.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="mt-3 text-xs text-white/55">
+            {
+              ZODIAC_MODES.find(
+                (mode) => mode.mode === normalizeZodiacMode(profile?.zodiacMode),
+              )?.description
+            }
+          </p>
+          <p className="mt-2 text-xs text-white/35">
+            Switching systems changes your Sun sign by about one sign. Both are
+            internally consistent — they measure from different starting points,
+            not different skies.
           </p>
         </section>
 

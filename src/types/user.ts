@@ -1,6 +1,7 @@
 /**
  * User-related type definitions
  */
+import type { ZodiacMode } from "../lib/zodiac-mode.js";
 
 export interface BirthData {
   name: string;
@@ -222,6 +223,12 @@ export interface UserProfile {
 
   // Settings
   language?: "en" | "hi" | "ta" | "te" | "bn" | "mr";
+  /**
+   * Which zodiac to calculate in. Defaults to "vedic" — see
+   * src/lib/zodiac-mode.ts. Switching changes the user's Sun sign by about one
+   * sign, so it also invalidates cached charts.
+   */
+  zodiacMode?: ZodiacMode;
   /**
    * IANA zone of the user's *current* location (e.g. "America/Denver"),
    * captured at onboarding. Drives every "today" boundary: horoscopes,

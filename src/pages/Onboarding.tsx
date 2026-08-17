@@ -22,6 +22,12 @@ import { postJson } from "../lib/apiFetch";
 import LocationInput from "../components/LocationInput";
 import { STORAGE_KEYS } from "../lib/constants";
 import { resolveTimezone } from "../lib/local-date";
+import {
+  DEFAULT_ZODIAC_MODE,
+  ZODIAC_MODES,
+  normalizeZodiacMode,
+  type ZodiacMode,
+} from "../lib/zodiac-mode";
 import { useErrorToast } from "../components/ui/toast-context";
 import { trackAcquisitionEvent } from "../lib/acquisition";
 
@@ -53,6 +59,7 @@ export default function Onboarding() {
     pob: "",
     currentLocation: "",
     birthTimeUnknown: false,
+    zodiacMode: DEFAULT_ZODIAC_MODE as ZodiacMode,
   });
 
   // Geocoded birth-place coordinates, captured when the user picks a
@@ -85,7 +92,7 @@ export default function Onboarding() {
 
     postJson(
       "/api/kundali",
-      { birthData, chartType: "D1" },
+      { birthData, chartType: "D1", zodiacMode: formData.zodiacMode },
       { signal: controller.signal },
     )
       .then((r) => r.json())
@@ -96,7 +103,17 @@ export default function Onboarding() {
       });
 
     return () => controller.abort();
-  }, [step, name, gender, dob, tob, pob, birthTimeUnknown, birthCoordinates]);
+  }, [
+    step,
+    name,
+    gender,
+    dob,
+    tob,
+    pob,
+    birthTimeUnknown,
+    birthCoordinates,
+    formData.zodiacMode,
+  ]);
 
   // Load existing data from localStorage (persists across sessions)
   useEffect(() => {
@@ -117,6 +134,7 @@ export default function Onboarding() {
             ? parsed.currentLocation
             : "",
         birthTimeUnknown: Boolean(parsed.birthTimeUnknown),
+        zodiacMode: normalizeZodiacMode(parsed.zodiacMode),
       });
       setBirthCoordinates(
         parseSuggestionCoordinates(
@@ -935,6 +953,47 @@ export default function Onboarding() {
             )}
 
             <div className="space-y-6">
+              <div>
+                <label
+                  htmlFor="onboarding-zodiac-mode"
+                  className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-xs font-bold"
+                >
+                  Which tradition should we read your chart in?
+                </label>
+                <select
+                  id="onboarding-zodiac-mode"
+                  value={normalizeZodiacMode(formData.zodiacMode)}
+                  onChange={(event) => {
+                    const newData = {
+                      ...formData,
+                      zodiacMode: normalizeZodiacMode(event.target.value),
+                    };
+                    setFormData(newData);
+                    saveStepData(newData);
+                  }}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 outline-none focus:border-gold/50 transition-colors text-lg font-sans font-light"
+                >
+                  {ZODIAC_MODES.map((mode) => (
+                    <option
+                      key={mode.mode}
+                      value={mode.mode}
+                      className="bg-[#111118]"
+                    >
+                      {mode.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-2 text-xs text-white/40">
+                  {
+                    ZODIAC_MODES.find(
+                      (mode) =>
+                        mode.mode === normalizeZodiacMode(formData.zodiacMode),
+                    )?.description
+                  }{" "}
+                  You can change this later in Settings.
+                </p>
+              </div>
+
               <LocationInput
                 label="Current Location"
                 placeholder="Enter city or coordinates"
