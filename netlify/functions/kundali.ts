@@ -73,6 +73,7 @@ import {
 import { getCachedOrFetch } from "./shared/cache";
 import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit";
 import { verifyToken, AuthError } from "./shared/require-auth";
+import { requestedDateKey } from "./shared/request-date.js";
 
 const json = (body: any, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -244,7 +245,7 @@ export default async (req: Request, _context: Context) => {
 
     // Panchang doesn't need birthData
     if (chartType === "PANCHANG") {
-      const cacheKey = date || new Date().toISOString().split("T")[0];
+      const cacheKey = date || requestedDateKey(body.localDate);
       const locationKey = city || `${lat ?? 28.6139}_${lng ?? 77.209}`;
       const docId = `${cacheKey}_${locationKey}`.replace(/[/\s]/g, "_");
 
@@ -269,7 +270,7 @@ export default async (req: Request, _context: Context) => {
     // Daily tarot is the same card for everyone on a given day — cache it so
     // 1,000 dashboard loads don't trigger 1,000 paid API calls.
     if (chartType === "DAILY_TAROT") {
-      const today = new Date().toISOString().split("T")[0];
+      const today = requestedDateKey(body.localDate);
       const data = await getCachedOrFetch("tarot_daily", today, () =>
         getDailyTarotCard(),
       );
@@ -373,7 +374,9 @@ export default async (req: Request, _context: Context) => {
         });
       }
       case "BIORHYTHMS": {
-        return json({ data: await getBiorhythms(bd) });
+        return json({
+          data: await getBiorhythms(bd, requestedDateKey(body.localDate)),
+        });
       }
       case "WELLNESS_SCORE": {
         return json({ data: await getWellnessScore(bd) });

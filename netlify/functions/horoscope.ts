@@ -21,6 +21,7 @@ import {
   type FeatureCharge,
   type MeteredFeature,
 } from "./shared/feature-credits";
+import { requestedDateKey } from "./shared/request-date.js";
 
 // Extended forecasts are premium: charged in credits (daily stays free).
 const PERIOD_FEATURE: Record<string, MeteredFeature> = {
@@ -48,7 +49,13 @@ export default async (req: Request, _context: Context) => {
 
   let charge: FeatureCharge | null = null;
   try {
-    const { birthData, date, period = "daily", idToken } = await req.json();
+    const {
+      birthData,
+      date,
+      period = "daily",
+      idToken,
+      localDate,
+    } = await req.json();
 
     // Auth + rate limit: each request fans out to up to 4 paid API calls.
     let decoded;
@@ -83,7 +90,7 @@ export default async (req: Request, _context: Context) => {
       const resolvedDate =
         typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
           ? date
-          : new Date().toISOString().split("T")[0];
+          : requestedDateKey(localDate);
       const periodKey =
         period === "yearly"
           ? resolvedDate.slice(0, 4)

@@ -26,6 +26,7 @@ import {
   validateRelationshipInput,
   validateRoutineInput,
 } from "./atman-schema";
+import { viewerDateKey } from "./viewer-timezone";
 
 export { normalizeAtmanData } from "./atman-schema";
 
@@ -542,7 +543,7 @@ export const AtmanService = {
   async setDailyIntention(userId: string, intention: string) {
     try {
       const userRef = doc(db, "users", userId);
-      const today = new Date().toISOString().split("T")[0];
+      const today = viewerDateKey();
       const safeIntention = validateAtmanText(intention, "dailyIntention", 240);
 
       await updateDoc(userRef, {
@@ -561,7 +562,7 @@ export const AtmanService = {
   async setDailyGratitude(userId: string, gratitude: string) {
     try {
       const userRef = doc(db, "users", userId);
-      const today = new Date().toISOString().split("T")[0];
+      const today = viewerDateKey();
       const safeGratitude = validateAtmanText(gratitude, "dailyGratitude", 240);
 
       await updateDoc(userRef, {

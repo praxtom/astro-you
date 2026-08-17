@@ -23,6 +23,7 @@ import { useAuth } from "../lib/useAuth";
 import { FullPageSkeleton } from "../components/ui/Skeleton";
 import type { ForecastData } from "../types";
 import { postJson } from "../lib/apiFetch";
+import { viewerDateKey } from "../lib/viewer-timezone";
 
 const getAreaIcon = (area: string) => {
   switch (area.toLowerCase()) {
@@ -95,7 +96,8 @@ const DailyForecast: React.FC = () => {
         setLoading(true);
         const response = await postJson("/api/horoscope", {
           birthData,
-          date: new Date().toISOString().split("T")[0],
+          date: viewerDateKey(),
+          localDate: viewerDateKey(),
           period,
         });
 
@@ -164,7 +166,7 @@ const DailyForecast: React.FC = () => {
     setFeedbackStatus("");
     try {
       const idToken = await user.getIdToken();
-      const forecastDate = new Date().toISOString().split("T")[0];
+      const forecastDate = viewerDateKey();
       const response = await fetch("/api/trust/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -795,7 +797,7 @@ function buildFallbackForecast(
   return {
     narrative: themeByPeriod[period],
     horoscope: {
-      date: now.toISOString().split("T")[0],
+      date: viewerDateKey(now),
       overall_theme: themeByPeriod[period],
       overall_rating: 3,
       planetary_influences: [],

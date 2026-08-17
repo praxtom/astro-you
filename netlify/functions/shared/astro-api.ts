@@ -65,6 +65,14 @@
  *   POST /pdf/horoscope/weekly                  → getWeeklyHoroscopePDF()
  */
 
+/**
+ * Date convention: any function taking a date expects the *caller's local*
+ * calendar day (YYYY-MM-DD), which the endpoints derive via
+ * shared/request-date.ts from a `localDate` the client sends. The
+ * `new Date().toISOString()` fallbacks below are UTC last-resorts for
+ * server-initiated calls with no user context — never the normal path, because
+ * the UTC day rolls over mid-evening for every timezone west of Greenwich.
+ */
 import { resolveAstrologyApiKey } from "./env.js";
 import {
   classifyUpstreamChartError,
@@ -566,8 +574,11 @@ export async function getTransitChart(
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /** GET /data/now — Current planetary positions (no birth data needed). */
-export async function getCurrentTransits(): Promise<TransitData> {
-  const today = new Date().toISOString().split("T")[0];
+export async function getCurrentTransits(
+  localDate?: string,
+): Promise<TransitData> {
+  // The Moon moves ~13 degrees a day, so the caller's local day matters here.
+  const today = localDate || new Date().toISOString().split("T")[0];
   try {
     const res = await apiFetch(`${API_BASE}/data/now`, {
       method: "GET",
@@ -640,6 +651,7 @@ export async function getDashaPeriods(
     body: JSON.stringify({
       subject: buildSubject(birthData),
       dasha_level: "antardasha",
+      // Dasha periods span months to years, so a one-day skew is immaterial.
       target_date: new Date().toISOString().split("T")[0],
     }),
   });
@@ -1603,13 +1615,18 @@ export async function getLocationAnalysis(
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /** POST /insights/wellness/biorhythms — Calculate biorhythm cycles. */
-export async function getBiorhythms(birthData: BirthData): Promise<any> {
+export async function getBiorhythms(
+  birthData: BirthData,
+  targetDate?: string,
+): Promise<any> {
   const res = await apiFetch(`${API_BASE}/insights/wellness/biorhythms`, {
     method: "POST",
     headers: getHeaders(),
     body: JSON.stringify({
       subject: buildSubject(birthData),
-      target_date: new Date().toISOString().split("T")[0],
+      // Biorhythms are per-day, so the caller's local day matters. See the
+      // date convention note at the top of this file.
+      target_date: targetDate || new Date().toISOString().split("T")[0],
     }),
   });
   if (!res.ok) throw new Error(`Biorhythms error: ${res.status}`);

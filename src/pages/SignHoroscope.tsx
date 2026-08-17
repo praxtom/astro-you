@@ -8,6 +8,7 @@ import {
   ZODIAC_SIGNS,
   getSignHoroscopeContent,
 } from "../lib/sign-horoscope-content";
+import { viewerDateKey } from "../lib/viewer-timezone";
 
 export default function SignHoroscope() {
   const { sign = "aries", period = "daily" } = useParams();
@@ -32,7 +33,11 @@ export default function SignHoroscope() {
     fetch("/api/sign-horoscope", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sign: signName, period: normalizedPeriod }),
+      body: JSON.stringify({
+        sign: signName,
+        period: normalizedPeriod,
+        localDate: viewerDateKey(),
+      }),
       signal: controller.signal,
     })
       .then((r) => r.json())

@@ -15,6 +15,7 @@ import {
   type ClientReportProduct,
   type ClientReportType,
 } from "../lib/report-products";
+import { viewerDateKey } from "../lib/viewer-timezone";
 
 interface ReportRecord {
   id: string;
@@ -153,7 +154,8 @@ export default function Reports() {
           idToken,
           birthData: reportBirthData,
           reportType: product.type,
-          date: new Date().toISOString().split("T")[0],
+          date: viewerDateKey(),
+          localDate: viewerDateKey(),
         }),
       });
       const errorPayload = response.ok

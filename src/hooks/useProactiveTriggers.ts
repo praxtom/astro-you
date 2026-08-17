@@ -5,6 +5,7 @@ import { useConsciousness } from './useConsciousness';
 import { useDashaMonitor } from './useDashaMonitor';
 import { AtmanService } from '../lib/atman';
 import { useToast } from '../components/ui/toast-context';
+import { viewerDateKey } from "../lib/viewer-timezone";
 
 /**
  * Hook to trigger proactive "Guru Nudges" based on Atman state and time
@@ -51,7 +52,7 @@ export function useProactiveTriggers(panchangData?: { tithi?: string; nakshatra?
         const handleDashaShift = (event: CustomEvent) => {
             const { planet, type, daysRemaining } = event.detail;
             const now = new Date();
-            const today = now.toISOString().split('T')[0];
+            const today = viewerDateKey(now);
             const triggerKey = `dasha_${type}_${planet}_${daysRemaining}_${today}`;
 
             if (lastTriggerRef.current[triggerKey]) return;
@@ -95,7 +96,7 @@ export function useProactiveTriggers(panchangData?: { tithi?: string; nakshatra?
         const checkTriggers = async () => {
             const now = new Date();
             const hour = now.getHours();
-            const today = now.toISOString().split('T')[0];
+            const today = viewerDateKey(now);
 
             // Clean up stale keys from previous days
             const keys = Object.keys(lastTriggerRef.current);
@@ -116,7 +117,7 @@ export function useProactiveTriggers(panchangData?: { tithi?: string; nakshatra?
                 if (!lastTriggerRef.current[triggerKey]) {
                     const incompleteMorning = atmanState.routines?.filter(r =>
                         r.type === 'morning' && r.status === 'active' &&
-                        (!r.lastCompletedAt || new Date(r.lastCompletedAt).toISOString().split('T')[0] !== today)
+                        (!r.lastCompletedAt || viewerDateKey(new Date(r.lastCompletedAt)) !== today)
                     );
 
                     if (incompleteMorning && incompleteMorning.length > 0) {

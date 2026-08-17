@@ -5,6 +5,7 @@ import { AtmanData } from '../../types/user';
 import { AtmanService } from '../../lib/atman';
 import { DharmaList } from '../dharma/DharmaList';
 import { KarmicJournal } from './KarmicJournal';
+import { viewerDateKey } from "../../lib/viewer-timezone";
 
 interface DailyAltarProps {
     isOpen: boolean;
@@ -29,7 +30,7 @@ export const DailyAltar: React.FC<DailyAltarProps> = ({
     // Reset state when opened or data changes
     useEffect(() => {
         if (atmanState) {
-            const today = new Date().toISOString().split('T')[0];
+            const today = viewerDateKey();
             
             // Sync Intention
             if (atmanState.dailyIntentionDate === today && atmanState.dailyIntention) {

@@ -4,6 +4,7 @@ import { NatalTransitData } from "../types/kundali";
 import { STORAGE_KEYS } from "../lib/constants";
 import { parseStoredJSON } from "../lib/safeStorage";
 import { postJson } from "../lib/apiFetch";
+import { viewerDateKey } from "../lib/viewer-timezone";
 
 interface TransitState {
   data: NatalTransitData | null;
@@ -47,7 +48,8 @@ export function useTransit(transitDate?: string) {
           "/api/transit",
           {
             birthData,
-            transitDate: transitDate || new Date().toISOString().split("T")[0],
+            transitDate: transitDate || viewerDateKey(),
+            localDate: viewerDateKey(),
           },
           { signal: controller.signal },
         );

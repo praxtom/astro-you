@@ -180,6 +180,7 @@ export default function Dashboard() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
+      // UTC is fine here: this is only a download filename.
       a.download = `astroyou-natal-report-${new Date().toISOString().split("T")[0]}.pdf`;
       a.click();
       URL.revokeObjectURL(url);

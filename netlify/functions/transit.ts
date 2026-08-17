@@ -16,6 +16,7 @@ import {
   CreditError,
   type FeatureCharge,
 } from "./shared/feature-credits";
+import { requestedDateKey } from "./shared/request-date.js";
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
@@ -24,7 +25,7 @@ export default async (req: Request, _context: Context) => {
 
   let charge: FeatureCharge | null = null;
   try {
-    const { birthData, transitDate, idToken } = await req.json();
+    const { birthData, transitDate, idToken, localDate } = await req.json();
 
     // Auth + rate limit: transit calls the paid astrology API + Gemini.
     let decoded;
@@ -61,7 +62,7 @@ export default async (req: Request, _context: Context) => {
           birthData.dob,
           birthData.tob,
           birthData.pob,
-          transitDate || new Date().toISOString().split("T")[0],
+          transitDate || requestedDateKey(localDate),
         ),
       );
     } catch (err) {
@@ -72,7 +73,7 @@ export default async (req: Request, _context: Context) => {
     // Fetch both transit positions and the interpretive report.
     // Cache key covers dob + tob + pob so users sharing a birthdate don't
     // collide — hashed so raw birth data never appears in a doc ID.
-    const today = new Date().toISOString().split("T")[0];
+    const today = requestedDateKey(localDate);
     const reportKey = createHash("sha256")
       .update(
         `${birthData.dob}_${birthData.tob}_${birthData.pob || ""}_${transitDate || today}`,
@@ -129,7 +130,7 @@ export default async (req: Request, _context: Context) => {
           positions: chartData,
           predictions: reportData,
           aiSummary,
-          date: transitDate || new Date().toISOString().split("T")[0],
+          date: transitDate || requestedDateKey(localDate),
         },
       }),
       { status: 200, headers: { "Content-Type": "application/json" } },

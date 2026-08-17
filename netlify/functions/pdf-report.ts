@@ -26,6 +26,7 @@ import {
   downloadReportPdf,
   saveReportPdf,
 } from "./shared/report-storage";
+import { requestedDateKey } from "./shared/request-date.js";
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
@@ -85,7 +86,7 @@ export default async (req: Request, _context: Context) => {
       reportType) as PaidReportType;
     const product = getReportProduct(effectiveReportType);
     const dateKey =
-      existingReport?.dateKey || date || new Date().toISOString().split("T")[0];
+      existingReport?.dateKey || date || requestedDateKey(localDate);
     const filename =
       existingReport?.filename || createReportFilename(product.type, dateKey);
     const isRedownload = Boolean(existingReport);

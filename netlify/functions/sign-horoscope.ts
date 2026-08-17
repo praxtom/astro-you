@@ -8,6 +8,7 @@ import {
 } from "./shared/astro-api.js";
 import { getCachedOrFetch } from "./shared/cache.js";
 import { enforceIpRateLimit, AuthError } from "./shared/require-auth.js";
+import { requestedDateKey } from "./shared/request-date.js";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -129,7 +130,7 @@ export default async (req: Request, _context: Context) => {
     }
     const date = body.date as string | undefined;
 
-    const cacheKey = `${sign}_${period}_${date || new Date().toISOString().split("T")[0]}`;
+    const cacheKey = `${sign}_${period}_${date || requestedDateKey(body.localDate)}`;
 
     const data = await getCachedOrFetch(
       `horoscope_signs`,

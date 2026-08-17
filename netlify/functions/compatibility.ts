@@ -14,6 +14,7 @@ import {
   CreditError,
   type FeatureCharge,
 } from "./shared/feature-credits";
+import { requestedDateKey } from "./shared/request-date.js";
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
@@ -22,7 +23,7 @@ export default async (req: Request, _context: Context) => {
 
   let charge: FeatureCharge | null = null;
   try {
-    const { maleData, femaleData, useVedicMatching, idToken } =
+    const { maleData, femaleData, useVedicMatching, idToken, localDate } =
       await req.json();
 
     // Auth + rate limit: matching calls the paid astrology API + Gemini.
@@ -57,7 +58,8 @@ export default async (req: Request, _context: Context) => {
         decoded.uid,
         "compatibility",
         stableChargeKey(
-          new Date().toISOString().split("T")[0],
+          // The caller's local day, so "once per day" means their day.
+          requestedDateKey(localDate),
           maleData.dob,
           maleData.tob,
           maleData.pob,

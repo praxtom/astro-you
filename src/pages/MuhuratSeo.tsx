@@ -10,8 +10,9 @@ import {
   normalizePanchangResponse,
   type PanchangSummary,
 } from "../lib/panchang-normalize";
+import { viewerDateKey } from "../lib/viewer-timezone";
 
-const todayIso = () => new Date().toISOString().split("T")[0];
+const todayIso = () => viewerDateKey();
 
 const PURPOSE_GUIDANCE: Record<string, string> = {
   business: "Prioritize clear agreements, clean documentation, and a steady first step.",

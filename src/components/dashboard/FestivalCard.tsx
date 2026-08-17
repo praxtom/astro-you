@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { postJson } from "../../lib/apiFetch";
 import { motion } from 'framer-motion';
 import { Calendar, Loader2 } from 'lucide-react';
+import { viewerDateKey } from "../../lib/viewer-timezone";
 
 interface Festival {
     name: string;
@@ -30,7 +31,7 @@ export const FestivalCard: React.FC = () => {
                     significance: f.significance || f.description || f.details || undefined,
                 }));
 
-                const today = new Date().toISOString().split('T')[0];
+                const today = viewerDateKey();
                 const upcoming = list
                     .filter((f) => f.date >= today)
                     .sort((a, b) => a.date.localeCompare(b.date))

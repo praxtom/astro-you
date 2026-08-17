@@ -20,6 +20,7 @@ import { AskJyotishBridge } from "../components/layout/AskJyotishBridge";
 import { useUserProfile } from "../hooks";
 import { useAuth } from "../lib/useAuth";
 import LocationInput from "../components/LocationInput";
+import { viewerDateKey } from "../lib/viewer-timezone";
 
 interface LoveInfluence {
   sign: string;
@@ -195,6 +196,7 @@ export default function Compatibility() {
 
     try {
       const response = await postJson("/api/compatibility", {
+        localDate: viewerDateKey(),
         maleData: {
           name: birthData.name || "Seeker",
           dob: birthData.dob,
@@ -250,6 +252,7 @@ export default function Compatibility() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
+      // UTC is fine here: this is only a download filename.
       anchor.download = `astroyou-compatibility-report-${new Date().toISOString().split("T")[0]}.pdf`;
       anchor.click();
       URL.revokeObjectURL(url);

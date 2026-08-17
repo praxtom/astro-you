@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { viewerDateKey } from "../lib/viewer-timezone";
 
 interface PredictionSubjectData {
   name?: string;
@@ -64,6 +65,9 @@ export function useDailyPrediction(userData: PredictionSubjectData | null) {
           body: JSON.stringify({
             sign: zodiacSign,
             format: "short",
+            // The viewer's local day: a UTC key served US evening users
+            // tomorrow's horoscope from ~5pm.
+            date: viewerDateKey(),
             subject: {
               name: name || "Seeker",
               birth_data: {

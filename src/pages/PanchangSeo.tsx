@@ -10,8 +10,9 @@ import {
   normalizePanchangResponse,
   type PanchangSummary,
 } from "../lib/panchang-normalize";
+import { viewerDateKey } from "../lib/viewer-timezone";
 
-const todayIso = () => new Date().toISOString().split("T")[0];
+const todayIso = () => viewerDateKey();
 
 export default function PanchangSeo() {
   const [date, setDate] = useState(todayIso());
