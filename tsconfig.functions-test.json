@@ -19,6 +19,7 @@
     "src/lib/zodiac-mode.ts",
     "src/lib/currency.ts",
     "src/lib/glossary.ts",
+    "src/lib/festival-regions.ts",
     "src/lib/panchang.ts",
     "src/lib/panchang-normalize.ts",
     "src/lib/personas.ts",

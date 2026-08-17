@@ -3,6 +3,7 @@
  */
 import type { ZodiacMode } from "../lib/zodiac-mode.js";
 import type { Currency } from "../lib/currency.js";
+import type { FestivalRegion } from "../lib/festival-regions.js";
 
 export interface BirthData {
   name: string;
@@ -232,6 +233,11 @@ export interface UserProfile {
   zodiacMode?: ZodiacMode;
   /** Display and checkout currency. Defaults to a detected value. */
   currency?: Currency;
+  /**
+   * Which regional festival calendar to show, or "off" to hide the card.
+   * Defaults to "north", preserving existing behaviour.
+   */
+  festivalRegion?: FestivalRegion;
   /**
    * IANA zone of the user's *current* location (e.g. "America/Denver"),
    * captured at onboarding. Drives every "today" boundary: horoscopes,

@@ -317,7 +317,7 @@ export default function Dashboard() {
 
               <DashaCard />
               <RemediesCard birthData={userData} />
-              <FestivalCard />
+              <FestivalCard region={profile?.festivalRegion} />
 
               <UtilityDock
                 profile={profile}

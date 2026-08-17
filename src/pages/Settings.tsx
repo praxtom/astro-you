@@ -11,6 +11,7 @@ import {
   ArrowLeft,
   Bell,
   Brain,
+  Calendar,
   Crown,
   Download,
   Languages,
@@ -25,6 +26,10 @@ import { db } from "../lib/firebase";
 import { ATMAN_SCHEMA_VERSION } from "../types/user";
 import { PLATFORM_LANGUAGES, normalizePlatformLanguage } from "../lib/languages";
 import { ZODIAC_MODES, normalizeZodiacMode } from "../lib/zodiac-mode";
+import {
+  FESTIVAL_REGIONS,
+  normalizeFestivalRegion,
+} from "../lib/festival-regions";
 import {
   canInstallApp,
   isRunningStandalone,
@@ -200,6 +205,21 @@ export default function Settings() {
       });
     } catch (err) {
       console.error("Zodiac mode update failed:", err);
+    } finally {
+      setSavingPrefs(false);
+    }
+  };
+
+  const updateFestivalRegion = async (region: string) => {
+    if (!user) return;
+    setSavingPrefs(true);
+    try {
+      await updateDoc(doc(db, "users", user.uid), {
+        "profile.festivalRegion": normalizeFestivalRegion(region),
+        updatedAt: new Date(),
+      });
+    } catch (err) {
+      console.error("Festival region update failed:", err);
     } finally {
       setSavingPrefs(false);
     }
@@ -539,6 +559,40 @@ export default function Settings() {
             Switching systems changes your Sun sign by about one sign. Both are
             internally consistent — they measure from different starting points,
             not different skies.
+          </p>
+        </section>
+
+        {/* Festival calendar */}
+        <section className="glass rounded-[2rem] p-6 mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Calendar size={18} className="text-gold" />
+            <h2 className="text-gold text-sm font-bold uppercase tracking-widest">
+              Festival calendar
+            </h2>
+          </div>
+          <label className="block">
+            <span className="mb-2 block text-xs text-white/35">
+              Which regional calendar to show
+            </span>
+            <select
+              value={normalizeFestivalRegion(profile?.festivalRegion)}
+              onChange={(event) => updateFestivalRegion(event.target.value)}
+              disabled={savingPrefs}
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white disabled:opacity-50"
+            >
+              {FESTIVAL_REGIONS.map((region) => (
+                <option
+                  key={region.value}
+                  value={region.value}
+                  className="bg-[#111118]"
+                >
+                  {region.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="mt-3 text-xs text-white/35">
+            Choose &ldquo;Off&rdquo; to hide the festival card entirely.
           </p>
         </section>
 

@@ -3,6 +3,7 @@ import { postJson } from "../../lib/apiFetch";
 import { motion } from 'framer-motion';
 import { Calendar, Loader2 } from 'lucide-react';
 import { viewerDateKey } from "../../lib/viewer-timezone";
+import { normalizeFestivalRegion, type FestivalRegion } from "../../lib/festival-regions";
 
 interface Festival {
     name: string;
@@ -10,18 +11,27 @@ interface Festival {
     significance?: string;
 }
 
-export const FestivalCard: React.FC = () => {
+interface FestivalCardProps {
+    region?: FestivalRegion;
+}
+
+export const FestivalCard: React.FC<FestivalCardProps> = ({ region }) => {
+    const festivalRegion = normalizeFestivalRegion(region);
     const [festivals, setFestivals] = useState<Festival[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
 
     useEffect(() => {
+        if (festivalRegion === "off") {
+            setLoading(false);
+            return;
+        }
         const controller = new AbortController();
 
         const fetchFestivals = async () => {
             try {
                 setLoading(true);
-                const res = await postJson("/api/kundali", { chartType: 'FESTIVALS' }, { signal: controller.signal });
+                const res = await postJson("/api/kundali", { chartType: 'FESTIVALS', region: festivalRegion }, { signal: controller.signal });
                 if (!res.ok) throw new Error('Failed');
                 const result = await res.json();
                 const raw = result.data ?? result;
@@ -49,7 +59,10 @@ export const FestivalCard: React.FC = () => {
 
         fetchFestivals();
         return () => controller.abort();
-    }, []);
+    }, [festivalRegion]);
+
+    // Hidden entirely when off — an empty festival card is worse than none.
+    if (festivalRegion === "off") return null;
 
     if (loading) {
         return (

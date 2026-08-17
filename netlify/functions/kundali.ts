@@ -75,6 +75,7 @@ import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit";
 import { verifyToken, AuthError } from "./shared/require-auth";
 import { requestedDateKey } from "./shared/request-date.js";
 import { normalizeZodiacMode } from "../../src/lib/zodiac-mode.js";
+import { normalizeFestivalRegion } from "../../src/lib/festival-regions.js";
 
 const json = (body: any, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -262,7 +263,11 @@ export default async (req: Request, _context: Context) => {
 
     // Festival calendar doesn't need birthData
     if (chartType === "FESTIVALS") {
-      const data = await getFestivalCalendar(year, region);
+      const festivalRegion = normalizeFestivalRegion(region);
+      // "off" means the user has hidden the card — never spend a paid API call
+      // fetching content that will not be rendered.
+      if (festivalRegion === "off") return json({ data: [] });
+      const data = await getFestivalCalendar(year, festivalRegion);
       return json({ data });
     }
 
