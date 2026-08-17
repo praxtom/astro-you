@@ -772,7 +772,10 @@ export default function Admin() {
                       <FunnelMetric label="Report fails" value={funnelSummary.reportGenerationFailures} />
                       <FunnelMetric label="Trust stories" value={funnelSummary.testimonialsSubmitted} />
                       <FunnelMetric label="Paid conv." value={`${funnelSummary.paidConversionRate.toFixed(1)}%`} />
-                      <FunnelMetric label="Revenue" value={`₹${funnelSummary.estimatedRevenue.toLocaleString()}`} />
+                      <FunnelMetric
+                        label="Revenue (INR)"
+                        value={`₹${funnelSummary.estimatedRevenue.toLocaleString("en-IN")}`}
+                      />
                     </div>
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1">
                       <RankList

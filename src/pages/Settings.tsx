@@ -35,6 +35,9 @@ import {
   disableBrainPushNotifications,
   requestBrainPushToken,
 } from "../lib/push-notifications";
+import { useCurrency } from "../hooks/useCurrency";
+import { formatMoney } from "../lib/currency";
+import { TIERS } from "../lib/subscriptions";
 
 type MemoryBucket = "patterns" | "events" | "relationships" | "routines" | "advice";
 
@@ -45,6 +48,7 @@ export default function Settings() {
   const { atmanState } = useConsciousness();
   const { tier, credits } = useSubscription();
   const currentTier = getTier(tier);
+  const { currency } = useCurrency();
 
   const [cancelling, setCancelling] = useState(false);
   const [cancelSuccess, setCancelSuccess] = useState(false);
@@ -338,7 +342,7 @@ export default function Settings() {
               <span className="text-xl font-display">{currentTier.name}</span>
               {currentTier.price > 0 && (
                 <span className="text-white/40 ml-2">
-                  ₹{currentTier.price}/mo
+                  {formatMoney(currentTier.prices[currency], currency)}/mo
                 </span>
               )}
             </div>
@@ -380,14 +384,14 @@ export default function Settings() {
                 disabled={checkoutLoading !== null}
                 className="flex-1 py-3 rounded-xl bg-gold text-black font-bold text-sm text-center"
               >
-                {checkoutLoading === "premium" ? "Starting..." : "Upgrade to Premium — ₹499/mo"}
+                {checkoutLoading === "premium" ? "Starting..." : `Upgrade to Premium — ${formatMoney(TIERS.premium.prices[currency], currency)}/mo`}
               </button>
               <button
                 onClick={() => handleSubscribe("pro")}
                 disabled={checkoutLoading !== null}
                 className="flex-1 py-3 rounded-xl border border-gold/30 text-gold font-bold text-sm text-center"
               >
-                {checkoutLoading === "pro" ? "Starting..." : "Go Pro — ₹999/mo"}
+                {checkoutLoading === "pro" ? "Starting..." : `Go Pro — ${formatMoney(TIERS.pro.prices[currency], currency)}/mo`}
               </button>
             </div>
           ) : (
@@ -398,7 +402,7 @@ export default function Settings() {
                   disabled={checkoutLoading !== null}
                   className="flex-1 py-3 rounded-xl bg-gold text-black font-bold text-sm text-center"
                 >
-                  {checkoutLoading === "pro" ? "Starting..." : "Upgrade to Pro — ₹999/mo"}
+                  {checkoutLoading === "pro" ? "Starting..." : `Upgrade to Pro — ${formatMoney(TIERS.pro.prices[currency], currency)}/mo`}
                 </button>
               )}
               <button

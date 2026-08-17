@@ -12,11 +12,19 @@ import { trackAcquisitionEvent } from "../lib/acquisition";
 import { TIERS, type TierConfig } from "../lib/subscriptions";
 import { useCreditTopup } from "../hooks/useCreditTopup";
 import { TrustProofStrip } from "../components/trust/TrustProofStrip";
+import { useCurrency } from "../hooks/useCurrency";
+import {
+  formatMoney,
+  SUPPORTED_CURRENCIES,
+  type Currency,
+} from "../lib/currency";
+import { getPackAmount } from "../lib/credit-packs";
 
 export default function Pricing() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { buyCredits, isPaying, error: topupError } = useCreditTopup();
+  const { currency, setCurrency } = useCurrency();
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedPackMinutes, setSelectedPackMinutes] = useState(
@@ -75,6 +83,33 @@ export default function Pricing() {
     <div className="min-h-screen bg-[#030308] text-white">
       <Header />
       <main className="platform-main">
+        {/* Currency — the choice persists on the profile, so signed-in only. */}
+        {user && SUPPORTED_CURRENCIES.length > 1 && (
+          <div className="mb-4 flex items-center justify-end gap-2">
+            <span className="type-meta text-white/35">Currency</span>
+            <div
+              className="flex overflow-hidden rounded-xl border border-white/10"
+              role="group"
+              aria-label="Display currency"
+            >
+              {SUPPORTED_CURRENCIES.map((code) => (
+                <button
+                  key={code}
+                  type="button"
+                  onClick={() => void setCurrency(code)}
+                  aria-pressed={currency === code}
+                  className={`px-3 py-1.5 text-xs font-bold transition-colors ${
+                    currency === code
+                      ? "bg-gold/15 text-gold"
+                      : "text-white/40 hover:text-white/70"
+                  }`}
+                >
+                  {code}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <section className="grid grid-cols-1 lg:grid-cols-[1fr_19rem] gap-4 items-start mb-4">
           <div>
             <p className="platform-eyebrow mb-2">Plans and Credits</p>
@@ -101,11 +136,11 @@ export default function Pricing() {
                   {selectedPack.label}
                 </p>
                 <p className="type-meta text-white/35 mt-1">
-                  {formatCreditRate(selectedPack)}
+                  {formatCreditRate(selectedPack, currency)}
                 </p>
               </div>
               <p className="type-price text-gold">
-                ₹{selectedPack.amountInRupees}
+                {formatMoney(getPackAmount(selectedPack, currency), currency)}
               </p>
             </div>
             <button
@@ -139,6 +174,7 @@ export default function Pricing() {
               isLoading={loadingTier === tier.id}
               isDisabled={loadingTier !== null}
               onSelect={() => handleSelect(tier)}
+              currency={currency}
             />
           ))}
         </section>
@@ -185,10 +221,10 @@ export default function Pricing() {
                     </div>
                     <div className="text-right">
                       <p className="type-price text-gold">
-                        ₹{pack.amountInRupees}
+                        {formatMoney(getPackAmount(pack, currency), currency)}
                       </p>
                       <p className="type-meta text-white/35 mt-1">
-                        {formatCreditRate(pack)}
+                        {formatCreditRate(pack, currency)}
                       </p>
                     </div>
                   </div>
@@ -240,11 +276,13 @@ function PlanCard({
   isLoading,
   isDisabled,
   onSelect,
+  currency,
 }: {
   tier: TierConfig;
   isLoading: boolean;
   isDisabled: boolean;
   onSelect: () => void;
+  currency: Currency;
 }) {
   return (
     <article
@@ -269,11 +307,13 @@ function PlanCard({
           </p>
         </div>
         <div className="text-right">
-          {tier.price === 0 ? (
+          {tier.prices[currency] === 0 ? (
             <p className="type-price">Free</p>
           ) : (
             <>
-              <p className="type-price">₹{tier.price}</p>
+              <p className="type-price">
+                {formatMoney(tier.prices[currency], currency)}
+              </p>
               <p className="type-meta text-white/35">per month</p>
             </>
           )}
@@ -311,7 +351,7 @@ function PlanCard({
       >
         {isLoading
           ? "Starting..."
-          : tier.price === 0
+          : tier.prices[currency] === 0
             ? "Get started"
             : "Subscribe"}
         {!isLoading && <ArrowRight size={15} />}

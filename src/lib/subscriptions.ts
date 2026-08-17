@@ -1,3 +1,4 @@
+import type { Currency } from "./currency";
 import {
   canUseFeature,
   ENTITLEMENTS,
@@ -10,7 +11,9 @@ export type { SubscriptionTier } from "./entitlements";
 export interface TierConfig {
   id: SubscriptionTier;
   name: string;
-  price: number; // INR per month, 0 for free
+  /** @deprecated INR price. Read prices[currency] instead. */
+  price: number;
+  prices: Record<Currency, number>; // INR per month, 0 for free
   razorpayPlanId?: string; // Set in env or hardcode after creating plans
   features: string[];
   limits: {
@@ -31,6 +34,7 @@ export const TIERS: Record<SubscriptionTier, TierConfig> = {
     id: "free",
     name: ENTITLEMENTS.free.displayName,
     price: ENTITLEMENTS.free.monthlyPriceInr,
+    prices: ENTITLEMENTS.free.monthlyPrices,
     badge: "✦",
     features: [
       "15 starter credits",
@@ -53,6 +57,7 @@ export const TIERS: Record<SubscriptionTier, TierConfig> = {
     id: "premium",
     name: ENTITLEMENTS.premium.displayName,
     price: ENTITLEMENTS.premium.monthlyPriceInr,
+    prices: ENTITLEMENTS.premium.monthlyPrices,
     badge: "⭐",
     popular: true,
     features: [
@@ -78,6 +83,7 @@ export const TIERS: Record<SubscriptionTier, TierConfig> = {
     id: "pro",
     name: ENTITLEMENTS.pro.displayName,
     price: ENTITLEMENTS.pro.monthlyPriceInr,
+    prices: ENTITLEMENTS.pro.monthlyPrices,
     badge: "👑",
     features: [
       "Everything in Premium",

@@ -116,9 +116,8 @@ export default function Consult() {
   const [history, setHistory] = useState<any[]>([]);
   const [openSitting, setOpenSitting] = useState<any | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [pendingPersona, setPendingPersona] = useState<AstrologerPersona | null>(
-    null,
-  );
+  const [pendingPersona, setPendingPersona] =
+    useState<AstrologerPersona | null>(null);
 
   const languages = useMemo(
     () => [
@@ -282,8 +281,9 @@ export default function Consult() {
           <div className="lg:pb-2">
             <p className="text-sm text-white/45 leading-relaxed max-w-md">
               Every guide in the Circle already knows your birth chart, your
-              dasha timing, and what you've shared before — no queues, no meters
-              running at ₹50 a minute. Choose the voice that fits the question.
+              dasha timing, and what you've shared before — no queues, and no
+              premium per-minute meter running while you think. Choose the voice
+              that fits the question.
             </p>
             {user && (
               <button

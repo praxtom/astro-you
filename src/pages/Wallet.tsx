@@ -24,6 +24,9 @@ import { db } from "../lib/firebase";
 import { useSubscription } from "../hooks";
 import { useCreditTopup } from "../hooks/useCreditTopup";
 import { CREDIT_PACKS, formatCreditRate } from "../lib/credit-packs";
+import { useCurrency } from "../hooks/useCurrency";
+import { formatMoney } from "../lib/currency";
+import { getPackAmount } from "../lib/credit-packs";
 
 interface LedgerEntry {
   id: string;
@@ -101,6 +104,7 @@ export default function Wallet() {
   const { user, loading: authLoading } = useAuth();
   const { credits, tier } = useSubscription();
   const { buyCredits, isPaying, error: paymentError } = useCreditTopup();
+  const { currency } = useCurrency();
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [consultations, setConsultations] = useState<ConsultationRecord[]>([]);
   const [reports, setReports] = useState<ReportRecord[]>([]);
@@ -301,7 +305,7 @@ export default function Wallet() {
                     <div className="mt-4 flex items-end justify-between gap-3">
                       <div>
                         <p className="type-card-title text-gold">
-                          ₹{pack.amountInRupees}
+                          {formatMoney(getPackAmount(pack, currency), currency)}
                         </p>
                         <p className="type-meta text-white/35">
                           {formatCreditRate(pack)}

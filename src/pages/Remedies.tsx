@@ -23,6 +23,8 @@ import {
   type RemedyProduct,
   type RemedyProductCategory,
 } from "../lib/remedy-products";
+import { formatMoney, type Currency } from "../lib/currency";
+import { useCurrency } from "../hooks/useCurrency";
 
 const categoryIcon: Record<RemedyProductCategory, typeof Sparkles> = {
   practice: Sparkles,
@@ -44,8 +46,8 @@ interface RemedyRequestRecord {
   createdAt?: string | null;
 }
 
-function formatPrice(price: number) {
-  return price === 0 ? "Free" : `₹${price}`;
+function formatPrice(price: number, currency: Currency) {
+  return price === 0 ? "Free" : formatMoney(price, currency);
 }
 
 function fulfillmentLabel(product: RemedyProduct) {
@@ -60,6 +62,7 @@ export default function Remedies() {
   const { birthData, loading: profileLoading } = useUserProfile();
   const { remedies, loading: remediesLoading } = useRemedies(birthData);
   const { addToast } = useToast();
+  const { currency } = useCurrency();
   const [activeCategory, setActiveCategory] = useState<
     "all" | RemedyProductCategory
   >("all");
@@ -257,6 +260,7 @@ export default function Remedies() {
                     key={product.id}
                     product={product}
                     onSelect={() => setSelectedProduct(product)}
+                    currency={currency}
                   />
                 ))}
               </div>
@@ -324,7 +328,7 @@ export default function Remedies() {
                         </p>
                       </div>
                       <p className="type-meta shrink-0 text-gold">
-                        {formatPrice(request.product?.priceInRupees ?? 0)}
+                        {formatPrice(request.product?.priceInRupees ?? 0, currency)}
                       </p>
                     </div>
                   ))}
@@ -362,7 +366,7 @@ export default function Remedies() {
                   </p>
                 </div>
                 <p className="type-price text-gold">
-                  {formatPrice(selectedProduct.priceInRupees)}
+                  {formatPrice(selectedProduct.priceInRupees, currency)}
                 </p>
               </div>
 
@@ -426,9 +430,11 @@ export default function Remedies() {
 function RemedyProductCard({
   product,
   onSelect,
+  currency,
 }: {
   product: RemedyProduct;
   onSelect: () => void;
+  currency: Currency;
 }) {
   const Icon = categoryIcon[product.category];
 
@@ -447,7 +453,7 @@ function RemedyProductCard({
           </div>
         </div>
         <p className="type-price shrink-0 text-gold">
-          {formatPrice(product.priceInRupees)}
+          {formatPrice(product.prices[currency], currency)}
         </p>
       </div>
 
