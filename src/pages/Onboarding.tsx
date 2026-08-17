@@ -21,6 +21,7 @@ import { OnboardingSEO } from "../components/SEO";
 import { postJson } from "../lib/apiFetch";
 import LocationInput from "../components/LocationInput";
 import { STORAGE_KEYS } from "../lib/constants";
+import { resolveTimezone } from "../lib/local-date";
 import { useErrorToast } from "../components/ui/toast-context";
 import { trackAcquisitionEvent } from "../lib/acquisition";
 
@@ -203,11 +204,21 @@ export default function Onboarding() {
 
   const finalizeJourney = async () => {
     const mode = sessionStorage.getItem(STORAGE_KEYS.MODE);
-    const storedProfile = JSON.stringify(
-      birthCoordinates
-        ? { ...formData, coordinates: birthCoordinates }
-        : formData,
+    // The browser's zone is the user's *current* zone, which is what "today"
+    // means for horoscopes, panchang, streaks and the journal. The birth
+    // chart's timezone is a separate concern, resolved upstream from the
+    // birth coordinates. Recomputed on every save so a user who moves gets
+    // their new zone rather than a stale one.
+    const timezone = resolveTimezone(
+      typeof Intl !== "undefined"
+        ? Intl.DateTimeFormat().resolvedOptions().timeZone
+        : undefined,
     );
+    const storedProfile = JSON.stringify({
+      ...formData,
+      timezone,
+      ...(birthCoordinates ? { coordinates: birthCoordinates } : {}),
+    });
 
     if (user || mode === "logged_in") {
       // Logged-in user: Save to Firestore (authoritative), then localStorage (backup)
@@ -229,6 +240,7 @@ export default function Onboarding() {
 
           const profilePayload: Record<string, any> = {
             ...formData,
+            timezone,
             parsedChart: parsedChart,
           };
           if (birthCoordinates) {
