@@ -1285,7 +1285,7 @@ export default function Synthesis() {
               <button
                 onClick={() => navigate("/dashboard")}
                 className="p-2 rounded-xl text-white/35 hover:text-gold transition-colors"
-                title="Back to the Ephemeris"
+                title="Back to Home"
                 aria-label="Back to dashboard"
               >
                 <ChevronLeft size={16} />
@@ -1747,10 +1747,10 @@ export default function Synthesis() {
                 <div className="p-4 border-t border-white/5">
                   <button
                     onClick={() => navigate("/dashboard")}
-                    className="flex items-center gap-2 text-[0.65rem] font-bold uppercase tracking-[0.25em] text-white/35 hover:text-gold transition-colors whitespace-nowrap"
+                    className="flex items-center gap-2 text-[0.65rem] font-bold uppercase tracking-[0.25em] text-white/55 hover:text-gold transition-colors whitespace-nowrap"
                   >
                     <ChevronLeft size={13} />
-                    The Ephemeris
+                    Home
                   </button>
                 </div>
               </aside>

@@ -215,13 +215,10 @@ export const HeroAlmanac: React.FC<HeroAlmanacProps> = ({
 
   return (
     <section className="relative">
-      {/* Eyebrow */}
+      {/* Date rule — the greeting below carries the heading weight. */}
       <div className="flex items-baseline gap-4 animate-reveal-progressive">
-        <p className="text-gold/80 text-[0.65rem] font-bold uppercase tracking-[0.4em]">
-          The Ephemeris
-        </p>
         <span className="hidden sm:block flex-1 h-px bg-linear-to-r from-gold/25 to-transparent" />
-        <p className="text-white/35 text-[0.65rem] uppercase tracking-[0.25em]">
+        <p className="ml-auto text-white/55 text-[0.65rem] uppercase tracking-[0.25em]">
           {today.dateLine}
         </p>
       </div>
