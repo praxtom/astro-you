@@ -3,6 +3,9 @@ import { useAuth } from "../lib/useAuth";
 import { loadRazorpayCheckout } from "../lib/razorpay-loader";
 import { getCreditPack } from "../lib/credit-packs";
 import { trackAcquisitionEvent } from "../lib/acquisition";
+import { useCurrency } from "./useCurrency";
+import { getPackAmount } from "../lib/credit-packs";
+import { toMinorUnits } from "../lib/currency";
 
 type RazorpayCheckoutResponse = {
   razorpay_order_id: string;
@@ -31,6 +34,7 @@ interface RazorpayOrderResponse {
 
 export function useCreditTopup() {
   const { user } = useAuth();
+  const { currency } = useCurrency();
   const [isPaying, setIsPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,7 +71,9 @@ export function useCreditTopup() {
           body: JSON.stringify({
             idToken,
             minutes: pack.minutes,
-            amount: pack.amountInRupees,
+            currency,
+            // Confirmed in the same currency the server will charge in.
+            amount: getPackAmount(pack, currency),
           }),
         });
         const order = (await orderResponse
@@ -83,8 +89,9 @@ export function useCreditTopup() {
         return await new Promise<boolean>((resolve) => {
           const checkout = new Razorpay({
             key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-            amount: order.amount || pack.amountInRupees * 100,
-            currency: order.currency || "INR",
+            // Minor units, straight from the Razorpay order.
+            amount: order.amount || toMinorUnits(getPackAmount(pack, currency), currency),
+            currency: order.currency || currency,
             name: "AstroYou",
             description: `${pack.label} for AstroYou`,
             order_id: orderId,

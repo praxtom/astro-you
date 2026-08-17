@@ -2,6 +2,7 @@
  * User-related type definitions
  */
 import type { ZodiacMode } from "../lib/zodiac-mode.js";
+import type { Currency } from "../lib/currency.js";
 
 export interface BirthData {
   name: string;
@@ -229,6 +230,8 @@ export interface UserProfile {
    * sign, so it also invalidates cached charts.
    */
   zodiacMode?: ZodiacMode;
+  /** Display and checkout currency. Defaults to a detected value. */
+  currency?: Currency;
   /**
    * IANA zone of the user's *current* location (e.g. "America/Denver"),
    * captured at onboarding. Drives every "today" boundary: horoscopes,

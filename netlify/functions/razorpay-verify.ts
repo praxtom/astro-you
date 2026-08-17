@@ -116,6 +116,10 @@ export default async (req: Request, _context: Context) => {
           razorpay_payment_id,
           paymentOrderId: orderRef.id,
           amountInRupees: orderData.amountInRupees,
+          // What was actually charged, so a USD receipt is not recorded as
+          // rupees. Older records predate these fields.
+          amount: orderData.amount ?? orderData.amountInRupees,
+          currency: orderData.currency ?? "INR",
         },
       },
     );

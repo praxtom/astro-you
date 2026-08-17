@@ -115,3 +115,69 @@ test("verifyWebhookSignature validates Razorpay webhook signatures", () => {
     false,
   );
 });
+
+// ── Multi-currency orders ───────────────────────────────────────────────────
+
+import { isCurrencyEnabled } from "../shared/razorpay-payments.js";
+
+test("a USD order is denominated in cents with currency USD", () => {
+  const order = buildTopupOrderOptions({
+    uid: "user_123",
+    minutes: 120,
+    currency: "USD",
+    now: 1_800_000,
+  });
+  assert.equal(order.currency, "USD");
+  assert.equal(order.amount, 599); // $5.99 -> cents
+});
+
+test("an order with no currency stays INR in paise, exactly as before", () => {
+  const order = buildTopupOrderOptions({
+    uid: "user_123",
+    minutes: 120,
+    now: 1_800_000,
+  });
+  assert.equal(order.currency, "INR");
+  assert.equal(order.amount, 9900);
+});
+
+test("an amount confirmation is validated in the order's own currency", () => {
+  // Passing the rupee figure for a USD order must not be accepted, or a user
+  // could be charged $99 for a ₹99 pack.
+  assert.throws(
+    () =>
+      buildTopupOrderOptions({
+        uid: "u1",
+        minutes: 120,
+        currency: "USD",
+        expectedAmount: 99,
+      }),
+    /does not match/,
+  );
+  // The correct USD figure passes.
+  assert.equal(
+    buildTopupOrderOptions({
+      uid: "u1",
+      minutes: 120,
+      currency: "USD",
+      expectedAmount: 5.99,
+      now: 1,
+    }).amount,
+    599,
+  );
+});
+
+test("USD is refused until Razorpay international is activated", () => {
+  // Razorpay needs international payments enabled on the account; failing here
+  // with a clear error beats an opaque gateway rejection at checkout.
+  assert.equal(isCurrencyEnabled("INR", {}), true);
+  assert.equal(isCurrencyEnabled("USD", {}), false);
+  assert.equal(
+    isCurrencyEnabled("USD", { RAZORPAY_INTERNATIONAL_ENABLED: "true" }),
+    true,
+  );
+  assert.equal(
+    isCurrencyEnabled("USD", { RAZORPAY_INTERNATIONAL_ENABLED: "yes" }),
+    false,
+  );
+});
