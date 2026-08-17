@@ -293,7 +293,7 @@ export const HeroAlmanac: React.FC<HeroAlmanacProps> = ({
                 }`}
               >
                 {cell.value ?? (
-                  <span className="text-white/25">
+                  <span className="text-white/40">
                     {panchangLoading ? "…" : "—"}
                   </span>
                 )}

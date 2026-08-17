@@ -96,7 +96,7 @@ export const UtilityDock: React.FC<UtilityDockProps> = ({
 
   return (
     <section className="animate-reveal-progressive">
-      <p className="text-[0.6rem] font-bold uppercase tracking-[0.35em] text-white/25 mb-4">
+      <p className="text-[0.65rem] font-bold uppercase tracking-[0.3em] text-white/50 mb-4">
         Keep & Share
       </p>
 

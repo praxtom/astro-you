@@ -38,7 +38,7 @@ export const ExploreIndex: React.FC = () => {
           className="group relative text-left px-5 py-4 border-b border-r border-white/8 hover:bg-white/3.5 transition-colors duration-300"
         >
           <div className="flex items-start justify-between gap-3">
-            <span className="font-display italic text-white/25 text-sm group-hover:text-gold/70 transition-colors">
+            <span className="font-display italic text-white/40 text-sm group-hover:text-gold/70 transition-colors">
               {String(i + 1).padStart(2, "0")}
             </span>
             <ArrowUpRight
@@ -50,10 +50,10 @@ export const ExploreIndex: React.FC = () => {
             <span className="text-gold/70">{SPACE_ICONS[space.id]}</span>
             <span className="text-sm font-medium">{space.label}</span>
           </div>
-          <p className="mt-1 text-xs text-white/30 italic font-display">
+          <p className="mt-1 text-[0.8125rem] leading-snug text-white/55 italic font-display">
             {space.question}
           </p>
-          <p className="mt-1.5 text-[0.6rem] uppercase tracking-[0.15em] text-white/20 truncate">
+          <p className="mt-2 text-[0.6875rem] uppercase tracking-[0.14em] text-white/50 truncate">
             {space.pages.map((p) => p.label).join(" · ")}
           </p>
         </button>
@@ -65,7 +65,7 @@ export const ExploreIndex: React.FC = () => {
         className="group relative text-left px-5 py-4 border-b border-r border-white/8 hover:bg-white/3.5 transition-colors duration-300"
       >
         <div className="flex items-start justify-between gap-3">
-          <span className="font-display italic text-white/25 text-sm group-hover:text-gold/70 transition-colors">
+          <span className="font-display italic text-white/40 text-sm group-hover:text-gold/70 transition-colors">
             06
           </span>
           <ArrowUpRight
@@ -79,10 +79,10 @@ export const ExploreIndex: React.FC = () => {
           </span>
           <span className="text-sm font-medium">Astro Map</span>
         </div>
-        <p className="mt-1 text-xs text-white/30 italic font-display">
+        <p className="mt-1 text-[0.8125rem] leading-snug text-white/55 italic font-display">
           Where in the world favours you?
         </p>
-        <p className="mt-1.5 text-[0.6rem] uppercase tracking-[0.15em] text-white/20">
+        <p className="mt-2 text-[0.6875rem] uppercase tracking-[0.14em] text-white/50">
           Relocation lines
         </p>
       </button>

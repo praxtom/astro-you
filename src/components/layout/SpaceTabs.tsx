@@ -21,7 +21,7 @@ export const SpaceTabs: React.FC = () => {
           {space.label}
         </p>
         <span className="hidden sm:block flex-1 h-px bg-linear-to-r from-gold/25 to-transparent" />
-        <p className="hidden md:block text-white/30 text-[0.65rem] italic font-display text-base">
+        <p className="hidden md:block text-[0.8125rem] text-white/55 italic font-display">
           {space.question}
         </p>
       </div>
@@ -38,8 +38,8 @@ export const SpaceTabs: React.FC = () => {
               <button
                 key={page.path}
                 onClick={() => navigate(page.path)}
-                className={`relative px-4 py-2.5 text-[0.65rem] font-bold uppercase tracking-[0.2em] whitespace-nowrap transition-colors ${
-                  active ? "text-gold" : "text-white/35 hover:text-white"
+                className={`relative inline-flex min-h-11 items-center px-4 text-[0.65rem] font-bold uppercase tracking-[0.2em] whitespace-nowrap transition-colors ${
+                  active ? "text-gold" : "text-white/55 hover:text-white"
                 }`}
               >
                 {page.label}

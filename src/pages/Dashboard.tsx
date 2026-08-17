@@ -328,7 +328,7 @@ export default function Dashboard() {
       </main>
 
       <footer className="container mx-auto max-w-6xl px-6 py-8 border-t border-white/5 relative z-10">
-        <p className="text-[0.6rem] uppercase tracking-[0.35em] text-white/20">
+        <p className="text-[0.65rem] uppercase tracking-[0.3em] text-white/50">
           {userData?.pob
             ? `Cast for ${userData.pob}`
             : "Cast under the open sky"}
