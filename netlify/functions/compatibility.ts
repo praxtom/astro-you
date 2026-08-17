@@ -1,5 +1,6 @@
 import { Config, Context } from "@netlify/functions";
 import { getCompatibilityDetails, getKundliMatching } from "./shared/astro-api";
+import { normalizeMatchPayload } from "./shared/compatibility-payload.js";
 import { generateCompatibilityNarrative } from "./shared/gemini";
 import { buildUserContext } from "./shared/user-context";
 import {
@@ -23,8 +24,22 @@ export default async (req: Request, _context: Context) => {
 
   let charge: FeatureCharge | null = null;
   try {
-    const { maleData, femaleData, useVedicMatching, idToken, localDate } =
-      await req.json();
+    const payload = await req.json();
+    const { useVedicMatching, idToken, localDate } = payload;
+
+    // personA/personB, with the gendered keys still accepted for older clients.
+    let personA;
+    let personB;
+    try {
+      ({ personA, personB } = normalizeMatchPayload(payload));
+    } catch {
+      return new Response(
+        JSON.stringify({
+          error: "Two birth charts are required for a compatibility match",
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } },
+      );
+    }
 
     // Auth + rate limit: matching calls the paid astrology API + Gemini.
     let decoded;
@@ -42,13 +57,6 @@ export default async (req: Request, _context: Context) => {
       );
     }
 
-    if (!maleData || !femaleData) {
-      return new Response(
-        JSON.stringify({ error: "Male and female birth data are required" }),
-        { status: 400, headers: { "Content-Type": "application/json" } },
-      );
-    }
-
     // Synastry is a premium surface — reserve credits before the paid API
     // calls. Refunded below if matching yields no data or an error is thrown.
     // Keyed per pair per day so re-running the same match (retry, back-nav)
@@ -60,12 +68,12 @@ export default async (req: Request, _context: Context) => {
         stableChargeKey(
           // The caller's local day, so "once per day" means their day.
           requestedDateKey(localDate),
-          maleData.dob,
-          maleData.tob,
-          maleData.pob,
-          femaleData.dob,
-          femaleData.tob,
-          femaleData.pob,
+          personA.dob,
+          personA.tob,
+          personA.pob,
+          personB.dob,
+          personB.tob,
+          personB.pob,
         ),
       );
     } catch (err) {
@@ -76,13 +84,13 @@ export default async (req: Request, _context: Context) => {
     // Determine whether to include Vedic Kundli matching
     const shouldUseVedic =
       useVedicMatching === true ||
-      (maleData.dob && maleData.tob && femaleData.dob && femaleData.tob);
+      (personA.dob && personA.tob && personB.dob && personB.tob);
 
     // Build parallel promises
     const promises: [Promise<any>, Promise<any>] = [
-      getCompatibilityDetails(maleData, femaleData),
+      getCompatibilityDetails(personA, personB),
       shouldUseVedic
-        ? getKundliMatching(maleData, femaleData).catch((err) => {
+        ? getKundliMatching(personA, personB).catch((err) => {
             console.warn(
               "[Compatibility] Vedic matching failed (non-critical):",
               err,
@@ -107,12 +115,12 @@ export default async (req: Request, _context: Context) => {
     try {
       const { userContext } = await buildUserContext({
         uid: decoded.uid,
-        birthData: maleData,
+        birthData: personA,
       });
       aiNarrative = await generateCompatibilityNarrative(
         matchData,
-        maleData.name || "Person 1",
-        femaleData.name || "Person 2",
+        personA.name || "Person 1",
+        personB.name || "Person 2",
         userContext,
       );
       console.log("[Compatibility] AI narrative generated");

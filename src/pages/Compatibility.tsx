@@ -21,6 +21,7 @@ import { useUserProfile } from "../hooks";
 import { useAuth } from "../lib/useAuth";
 import LocationInput from "../components/LocationInput";
 import { viewerDateKey } from "../lib/viewer-timezone";
+import { GlossaryTerm } from "../components/ui/GlossaryTerm";
 
 interface LoveInfluence {
   sign: string;
@@ -122,8 +123,8 @@ interface MatchResult {
     groom_manglik?: boolean | { is_manglik: boolean; description?: string };
     bride_manglik?: boolean | { is_manglik: boolean; description?: string };
   };
-  maleData?: { name?: string };
-  femaleData?: { name?: string };
+  personA?: { name?: string };
+  personB?: { name?: string };
 }
 
 // Max points lookup for the compatibility breakdown (Sums to 100)
@@ -197,7 +198,7 @@ export default function Compatibility() {
     try {
       const response = await postJson("/api/compatibility", {
         localDate: viewerDateKey(),
-        maleData: {
+        personA: {
           name: birthData.name || "Seeker",
           dob: birthData.dob,
           tob: birthData.tob || "12:00",
@@ -205,7 +206,7 @@ export default function Compatibility() {
           lat: seekerCoords?.lat,
           lng: seekerCoords?.lon,
         },
-        femaleData: {
+        personB: {
           ...partnerData,
           lat: partnerCoords?.lat,
           lng: partnerCoords?.lon,
@@ -482,12 +483,12 @@ export default function Compatibility() {
                     className={`text-sm font-medium mt-2 text-center ${color}`}
                   >
                     {score >= 32
-                      ? "Highly recommended for marriage"
+                      ? "Strong long-term compatibility"
                       : score >= 24
-                        ? "Good compatibility — recommended"
+                        ? "Good compatibility overall"
                         : score >= 18
-                          ? "Acceptable — proceed with guidance"
-                          : "Challenging — consult an astrologer for remedies"}
+                          ? "Workable, with some friction to navigate"
+                          : "Challenging — worth talking through with a guide"}
                   </p>
                 );
               })()}
@@ -556,8 +557,8 @@ export default function Compatibility() {
             {matchResult.vedicMatching && (
               <VedicGunaMilan
                 vedicMatching={matchResult.vedicMatching}
-                maleData={matchResult.maleData}
-                femaleData={matchResult.femaleData}
+                personA={matchResult.personA}
+                personB={matchResult.personB}
               />
             )}
 
@@ -968,12 +969,12 @@ function getGunaQuality(score: number): { label: string; color: string } {
 
 function VedicGunaMilan({
   vedicMatching,
-  maleData,
-  femaleData,
+  personA,
+  personB,
 }: {
   vedicMatching: NonNullable<MatchResult["vedicMatching"]>;
-  maleData?: { name?: string };
-  femaleData?: { name?: string };
+  personA?: { name?: string };
+  personB?: { name?: string };
 }) {
   const totalScore = vedicMatching.total_score ?? vedicMatching.score ?? 0;
   const gunaItems = vedicMatching.gunas ?? vedicMatching.aspects ?? [];
@@ -993,13 +994,20 @@ function VedicGunaMilan({
           </div>
           <div>
             <h3 className="text-xl font-display font-bold text-gold">
-              Vedic Guna Milan
+              Vedic compatibility (
+              <GlossaryTerm k="guna-milan">Guna Milan</GlossaryTerm>)
             </h3>
             <p className="text-xs text-white/40 font-light">
-              Traditional 36-point Kundli matching
+              Traditional 36-point score
             </p>
           </div>
         </div>
+
+        <p className="mb-5 text-xs leading-relaxed text-white/45">
+          A traditional 36-point Vedic score. It was designed for marriage
+          matching and assigns the two charts traditional roles, so read it as
+          one lens among several rather than a verdict.
+        </p>
 
         {/* Total Score */}
         <div className="flex items-baseline gap-4 mb-6">
@@ -1106,13 +1114,15 @@ function VedicGunaMilan({
 
         {/* Manglik Status */}
         {(() => {
+          // The *_male / groom_* field names are the upstream API's shape, not
+          // ours — the gendered vocabulary stops at that boundary.
           const manglikEntries = [
             {
-              label: maleData?.name || "Person 1",
+              label: personA?.name || "Person 1",
               data: vedicMatching.manglik_male ?? vedicMatching.groom_manglik,
             },
             {
-              label: femaleData?.name || "Person 2",
+              label: personB?.name || "Person 2",
               data: vedicMatching.manglik_female ?? vedicMatching.bride_manglik,
             },
           ].filter(({ data }) => data !== undefined && data !== null);
@@ -1151,7 +1161,11 @@ function VedicGunaMilan({
                       <p
                         className={`text-sm font-medium ${isManglik ? "text-red-400" : "text-emerald-400"}`}
                       >
-                        {isManglik ? "Manglik" : "Non-Manglik"}
+                        {isManglik ? (
+                          <GlossaryTerm k="manglik">Manglik</GlossaryTerm>
+                        ) : (
+                          "Non-Manglik"
+                        )}
                       </p>
                       {description && (
                         <p className="text-xs text-white/40 mt-1">
