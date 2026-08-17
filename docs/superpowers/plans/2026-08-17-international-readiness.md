@@ -721,8 +721,20 @@ Expected: PASS.
 
 - [ ] **Step 8: Commit**
 
+**Never `git add -A` in this repo.** Stage only the files this task touched, by
+explicit path — an unrelated concurrent change in the working tree would
+otherwise be swallowed into this commit.
+
 ```bash
-git add -A
+git add src/lib/local-date.ts netlify/functions/shared/request-date.ts \
+  src/hooks/ src/components/sadhana/DailyAltar.tsx \
+  src/components/dashboard/FestivalCard.tsx src/lib/atman.ts \
+  src/pages/Reports.tsx src/pages/DailyForecast.tsx \
+  src/pages/PanchangSeo.tsx src/pages/MuhuratSeo.tsx \
+  netlify/functions/kundali.ts netlify/functions/sign-horoscope.ts \
+  netlify/functions/daily-prediction.ts netlify/functions/horoscope.ts \
+  netlify/functions/transit.ts netlify/functions/compatibility.ts \
+  netlify/functions/pdf-report.ts tsconfig.functions-test.json
 git commit -m "fix(i18n): compute 'today' in the user's timezone, not UTC"
 ```
 
