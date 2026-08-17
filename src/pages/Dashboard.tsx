@@ -112,6 +112,7 @@ export default function Dashboard() {
     profile?.pob,
     profile?.coordinates?.lat,
     profile?.coordinates?.lng,
+    profile?.timezone,
   );
   const { lunar } = useLunarPhase(userData);
   const lastChat = useLastChat();
@@ -248,7 +249,11 @@ export default function Dashboard() {
                 )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-reveal-progressive">
-                <PanchangCard />
+                <PanchangCard
+                  panchang={panchang}
+                  loading={panchangLoading}
+                  error={panchangError}
+                />
                 <YogaCard birthData={userData} />
               </div>
 
