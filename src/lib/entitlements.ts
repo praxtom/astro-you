@@ -1,3 +1,4 @@
+import type { Currency } from "./currency.js";
 // KEEP IN SYNC with netlify/functions/shared/entitlements.ts (server copy) — parity is enforced by netlify/functions/__tests__/billing-entitlements-parity.test.ts.
 export type SubscriptionTier = "free" | "premium" | "pro";
 
@@ -33,7 +34,10 @@ export type UsageLimitKey =
 export interface TierEntitlements {
   tier: SubscriptionTier;
   displayName: string;
+  /** @deprecated Read monthlyPrices.INR. Kept for existing callers. */
   monthlyPriceInr: number;
+  /** Per-currency monthly price. USD set for the US market, not FX-converted. */
+  monthlyPrices: Record<Currency, number>;
   monthlyCredits: number;
   features: Record<FeatureKey, boolean>;
   limits: Record<UsageLimitKey, number>;
@@ -63,6 +67,7 @@ export const ENTITLEMENTS: Record<SubscriptionTier, TierEntitlements> = {
     tier: "free",
     displayName: "Free",
     monthlyPriceInr: 0,
+    monthlyPrices: { INR: 0, USD: 0 },
     monthlyCredits: 15,
     features: {
       ...BASE_FEATURES,
@@ -81,6 +86,7 @@ export const ENTITLEMENTS: Record<SubscriptionTier, TierEntitlements> = {
     tier: "premium",
     displayName: "Premium",
     monthlyPriceInr: 499,
+    monthlyPrices: { INR: 499, USD: 9.99 },
     monthlyCredits: 700,
     features: {
       ...BASE_FEATURES,
@@ -106,6 +112,7 @@ export const ENTITLEMENTS: Record<SubscriptionTier, TierEntitlements> = {
     tier: "pro",
     displayName: "Pro",
     monthlyPriceInr: 999,
+    monthlyPrices: { INR: 999, USD: 19.99 },
     monthlyCredits: 1600,
     features: {
       ...BASE_FEATURES,

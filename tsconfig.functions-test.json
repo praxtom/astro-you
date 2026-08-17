@@ -17,6 +17,7 @@
     "src/lib/atman-schema.ts",
     "src/lib/local-date.ts",
     "src/lib/zodiac-mode.ts",
+    "src/lib/currency.ts",
     "src/lib/panchang.ts",
     "src/lib/panchang-normalize.ts",
     "src/lib/personas.ts",

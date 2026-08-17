@@ -1,3 +1,4 @@
+import type { Currency } from "../../../src/lib/currency.js";
 export type RemedyProductCategory =
   | "practice"
   | "gemstone"
@@ -13,7 +14,10 @@ export interface RemedyProduct {
   title: string;
   category: RemedyProductCategory;
   fulfillment: RemedyFulfillment;
+  /** @deprecated Read prices.INR. Kept for existing callers. */
   priceInRupees: number;
+  /** Per-currency price. USD set for the US market, not FX-converted. */
+  prices: Record<Currency, number>;
   description: string;
   bestFor: string[];
   requiresBirthProfile: boolean;
@@ -34,6 +38,7 @@ export const remedyProducts: RemedyProduct[] = [
     category: "practice",
     fulfillment: "digital",
     priceInRupees: 0,
+    prices: { INR: 0, USD: 0 },
     description: "A simple daily mantra and discipline plan based on your chart context.",
     bestFor: ["Daily steadiness", "Low-risk remedies", "Habit building"],
     requiresBirthProfile: true,
@@ -45,6 +50,7 @@ export const remedyProducts: RemedyProduct[] = [
     category: "gemstone",
     fulfillment: "review",
     priceInRupees: 199,
+    prices: { INR: 199, USD: 14 },
     description: "A suitability check before considering any gemstone recommendation.",
     bestFor: ["Gemstone decisions", "Planet strength review", "Avoiding fear purchases"],
     requiresBirthProfile: true,
@@ -56,6 +62,7 @@ export const remedyProducts: RemedyProduct[] = [
     category: "rudraksha",
     fulfillment: "review",
     priceInRupees: 299,
+    prices: { INR: 299, USD: 19 },
     description: "Guidance on whether a rudraksha practice is suitable for your current phase.",
     bestFor: ["Devotional practice", "Saturn discipline", "Spiritual routine"],
     requiresBirthProfile: true,
@@ -67,6 +74,7 @@ export const remedyProducts: RemedyProduct[] = [
     category: "yantra",
     fulfillment: "review",
     priceInRupees: 399,
+    prices: { INR: 399, USD: 25 },
     description: "A chart-led review of which yantra practice, if any, fits your intention.",
     bestFor: ["Home altar", "Focused intention", "Devotional rhythm"],
     requiresBirthProfile: true,
@@ -78,6 +86,7 @@ export const remedyProducts: RemedyProduct[] = [
     category: "puja",
     fulfillment: "partner",
     priceInRupees: 499,
+    prices: { INR: 499, USD: 29 },
     description: "Request guidance for a suitable puja type and timing before booking.",
     bestFor: ["Family events", "Major transitions", "Auspicious timing"],
     requiresBirthProfile: true,
@@ -89,6 +98,7 @@ export const remedyProducts: RemedyProduct[] = [
     category: "kit",
     fulfillment: "partner",
     priceInRupees: 799,
+    prices: { INR: 799, USD: 45 },
     description: "A personalized request for a practical remedy kit based on chart priorities.",
     bestFor: ["Planetary balance", "Monthly practice", "Structured remedy routine"],
     requiresBirthProfile: true,
