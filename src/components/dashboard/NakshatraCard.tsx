@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Star, Loader2 } from 'lucide-react';
 import { useNakshatra } from '../../hooks/useNakshatra';
+import { GlossaryTerm } from "../ui/GlossaryTerm";
 
 interface NakshatraCardProps {
     birthData: any;
@@ -33,7 +34,7 @@ export const NakshatraCard: React.FC<NakshatraCardProps> = ({ birthData }) => {
                     <div className="p-2 rounded-xl bg-gold/10">
                         <Star size={18} className="text-gold" />
                     </div>
-                    <h3 className="text-sm font-semibold text-gold tracking-wide">Birth Nakshatra</h3>
+                    <h3 className="text-sm font-semibold text-gold tracking-wide">Birth <GlossaryTerm k="nakshatra">Nakshatra</GlossaryTerm></h3>
                 </div>
 
                 <p className="text-sm text-white/70 leading-relaxed">
@@ -59,7 +60,7 @@ export const NakshatraCard: React.FC<NakshatraCardProps> = ({ birthData }) => {
                 <div className="p-2 rounded-xl bg-gold/10">
                     <Star size={18} className="text-gold" />
                 </div>
-                <h3 className="text-sm font-semibold text-gold tracking-wide">Birth Nakshatra</h3>
+                <h3 className="text-sm font-semibold text-gold tracking-wide">Birth <GlossaryTerm k="nakshatra">Nakshatra</GlossaryTerm></h3>
             </div>
 
             <p className="text-lg text-white/90 font-display">{nakshatra?.name}</p>

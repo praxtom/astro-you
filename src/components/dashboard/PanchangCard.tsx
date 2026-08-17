@@ -2,9 +2,11 @@ import React from "react";
 import { motion } from "framer-motion";
 import { Sun, Sunrise, Loader2 } from "lucide-react";
 import type { PanchangData } from "../../hooks/usePanchang";
+import { GlossaryTerm } from "../ui/GlossaryTerm";
 
 interface PanchangItemProps {
-  label: string;
+  /** Node rather than string so the label can carry a glossary definition. */
+  label: React.ReactNode;
   value?: string;
   subtext?: string;
 }
@@ -71,10 +73,22 @@ export const PanchangCard: React.FC<PanchangCardProps> = ({
         </div>
 
         <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-          <PanchangItem label="Tithi" value="Daily rhythm" />
-          <PanchangItem label="Nakshatra" value="Mindful action" />
-          <PanchangItem label="Yoga" value="Steady focus" />
-          <PanchangItem label="Rahu Kaal" value="Check before major starts" />
+          <PanchangItem
+            label={<GlossaryTerm k="tithi">Tithi</GlossaryTerm>}
+            value="Daily rhythm"
+          />
+          <PanchangItem
+            label={<GlossaryTerm k="nakshatra">Nakshatra</GlossaryTerm>}
+            value="Mindful action"
+          />
+          <PanchangItem
+            label={<GlossaryTerm k="yoga">Yoga</GlossaryTerm>}
+            value="Steady focus"
+          />
+          <PanchangItem
+            label={<GlossaryTerm k="rahu-kaal">Rahu Kaal</GlossaryTerm>}
+            value="Check before major starts"
+          />
         </div>
       </motion.div>
     );
@@ -97,14 +111,14 @@ export const PanchangCard: React.FC<PanchangCardProps> = ({
 
       <div className="grid grid-cols-2 gap-x-6 gap-y-3">
         <PanchangItem
-          label="Tithi"
+          label={<GlossaryTerm k="tithi">Tithi</GlossaryTerm>}
           value={panchang?.tithi}
           subtext={
             panchang?.tithiEnd ? `until ${panchang.tithiEnd}` : undefined
           }
         />
         <PanchangItem
-          label="Nakshatra"
+          label={<GlossaryTerm k="nakshatra">Nakshatra</GlossaryTerm>}
           value={panchang?.nakshatra}
           subtext={
             panchang?.nakshatraEnd
@@ -112,9 +126,18 @@ export const PanchangCard: React.FC<PanchangCardProps> = ({
               : undefined
           }
         />
-        <PanchangItem label="Yoga" value={panchang?.yoga} />
-        <PanchangItem label="Karana" value={panchang?.karana} />
-        <PanchangItem label="Rahu Kaal" value={panchang?.rahu_kaal} />
+        <PanchangItem
+          label={<GlossaryTerm k="yoga">Yoga</GlossaryTerm>}
+          value={panchang?.yoga}
+        />
+        <PanchangItem
+          label={<GlossaryTerm k="karana">Karana</GlossaryTerm>}
+          value={panchang?.karana}
+        />
+        <PanchangItem
+          label={<GlossaryTerm k="rahu-kaal">Rahu Kaal</GlossaryTerm>}
+          value={panchang?.rahu_kaal}
+        />
       </div>
 
       {panchang?.sunrise &&

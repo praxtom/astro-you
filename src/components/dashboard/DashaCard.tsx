@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { postJson } from "../../lib/apiFetch";
 import { Clock } from 'lucide-react';
 import { useUserProfile } from '../../hooks';
+import { GlossaryTerm } from "../ui/GlossaryTerm";
 
 interface DashaPeriod {
   planet: string;
@@ -68,7 +69,9 @@ export function DashaCard() {
       </div>
       <div className="space-y-3">
         <div>
-          <p className="text-white/90 text-sm font-medium">Mahadasha: {maha.planet}</p>
+          <p className="text-white/90 text-sm font-medium">
+            <GlossaryTerm k="mahadasha">Mahadasha</GlossaryTerm>: {maha.planet}
+          </p>
           <div className="flex items-center gap-2 mt-0.5">
             <span className="text-white/40 text-xs">ends {new Date(maha.endDate).toLocaleDateString()}</span>
             <span className="text-amber-400 text-xs">{timeLeft(maha.endDate)}</span>
@@ -76,7 +79,9 @@ export function DashaCard() {
         </div>
         {antar && (
           <div>
-            <p className="text-white/90 text-sm font-medium">Antardasha: {antar.planet}</p>
+            <p className="text-white/90 text-sm font-medium">
+              <GlossaryTerm k="antardasha">Antardasha</GlossaryTerm>: {antar.planet}
+            </p>
             <div className="flex items-center gap-2 mt-0.5">
               <span className="text-white/40 text-xs">ends {new Date(antar.endDate).toLocaleDateString()}</span>
               <span className="text-amber-400 text-xs">{timeLeft(antar.endDate)}</span>

@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, Shield, Loader2 } from 'lucide-react';
 import { useSadeSati } from '../../hooks/useSadeSati';
+import { GlossaryTerm } from "../ui/GlossaryTerm";
 
 interface SadeSatiCardProps {
     birthData: any;
@@ -57,7 +58,7 @@ export const SadeSatiCard: React.FC<SadeSatiCardProps> = ({ birthData }) => {
                         : <Shield size={18} className="text-emerald-400" />
                     }
                 </div>
-                <h3 className="text-sm font-semibold text-white/90 tracking-wide">Sade Sati</h3>
+                <h3 className="text-sm font-semibold text-white/90 tracking-wide"><GlossaryTerm k="sade-sati">Sade Sati</GlossaryTerm></h3>
             </div>
 
             {isActive ? (
