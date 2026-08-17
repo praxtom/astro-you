@@ -1,0 +1,87 @@
+# AstroYou
+
+> Vedic astrology platform. Computes a sidereal Janam Kundali from date, exact
+> time, and place of birth using the Lahiri (Chitrapaksha) ayanamsa, then
+> interprets it with an AI Jyotish that retains chart, dasha timeline, and
+> conversation history between sessions.
+
+Last updated: 2026-08-17
+
+## What it is
+
+AstroYou generates the D-1 rashi chart, ascendant, all nine grahas, house cusps,
+the Moon's Nakshatra and pada, the D-9 Navamsa, and the full 120-year Vimshottari
+dasha sequence. Kundali generation, Kundali matching with the 36-point Ashtakoot
+breakdown, Manglik checking, and daily Panchang are free.
+
+## AI disclosure
+
+Every AI astrologer on AstroYou is labelled as AI on its consultation profile.
+The policy is documented at https://astroyou.app/trust.
+
+## Limits stated by the product
+
+AstroYou does not predict death, guarantee outcomes, or sell fear-based remedies.
+Medical, legal, and psychological questions are referred out. Remedy guidance
+follows the classical order: behaviour and service before anything costly.
+
+## Pricing
+
+- Free tier: 15 credits, no card required
+- Premium: ₹499/month, 700 credits
+- Pro: ₹999/month, 1600 credits
+- Astrologer sittings: from 5 credits per minute
+- Machine-readable: https://astroyou.app/pricing.md
+
+## Key pages
+
+- [Pricing](https://astroyou.app/pricing): plans, credit packs, and consultation rates
+- [Free Kundali](https://astroyou.app/free-kundali): birth chart generation
+- [Kundali Matching](https://astroyou.app/free-kundali-matching): Ashtakoot Guna Milan
+- [Panchang](https://astroyou.app/panchang): daily almanac
+- [Trust](https://astroyou.app/trust): AI disclosure and review policy
+
+## Reference guides
+
+- [Kundali Guide](https://astroyou.app/kundali): Learn what a Janam Kundali is, how Vedic birth charts use houses and planets, and generate a free Kundali online with AstroYou.
+- [Kundali Matching](https://astroyou.app/kundali-matching): Understand Kundali matching, Ashtakoot Guna Milan, Mangal Dosha, and relationship compatibility before generating a free match report.
+- [Daily Horoscope](https://astroyou.app/daily-horoscope): Read free daily, weekly, monthly, and yearly horoscope pages for all zodiac signs, then get personalized Vedic guidance from your own chart.
+- [Sade Sati](https://astroyou.app/sade-sati): Learn what Sade Sati means in Vedic astrology, how Saturn phases work, and how to approach remedies without fear.
+- [Manglik Dosha](https://astroyou.app/manglik): Understand Manglik Dosha, how Mars affects marriage matching, and why the full chart matters more than fear-based labels.
+- [Nakshatra Guide](https://astroyou.app/nakshatra): Learn how Nakshatras shape personality, emotional rhythm, compatibility, dashas, and daily timing in Vedic astrology.
+- [Planets in Vedic Astrology](https://astroyou.app/planet): Explore the nine Vedic astrology planets, their meanings, house results, sign behavior, dashas, and practical remedy approach.
+- [Planets in Houses](https://astroyou.app/planet-in-house): Explore planet-in-house meanings for Sun, Moon, Mars, Mercury, Jupiter, Venus, Saturn, Rahu, and Ketu across all twelve Vedic houses.
+- [Houses in Vedic Astrology](https://astroyou.app/house): Explore the twelve Vedic astrology houses, their meanings, house lords, planets placed in houses, and dasha results.
+- [Dasha Timing](https://astroyou.app/dasha): Understand Mahadasha, Antardasha, and how Vedic astrology uses planetary periods to time career, relationships, and inner growth.
+- [Moon Sign Calculator](https://astroyou.app/moon-sign-calculator): Use AstroYou's free Moon sign calculator guide to understand your Vedic Rashi, emotional rhythm, Nakshatra link, and why Moon sign matters more than sun sign in Jyotish.
+- [Nakshatra Finder](https://astroyou.app/nakshatra-finder): Find your Vedic birth Nakshatra and learn how your lunar mansion shapes personality, dasha timing, compatibility, naming syllables, and daily Panchang guidance.
+- [Sade Sati Calculator](https://astroyou.app/sade-sati-calculator): Check whether Sade Sati is active by calculating your Moon sign and Saturn transit phase, then understand the period with practical, fear-free Vedic guidance.
+- [Manglik Dosha Checker](https://astroyou.app/manglik-dosha-checker): Check Manglik Dosha with birth details and learn why Mars placement, seventh house strength, Navamsa, Venus, Jupiter, and dasha context matter before marriage decisions.
+- [Dasha Calculator](https://astroyou.app/dasha-calculator): Calculate your current Mahadasha and Antardasha from your birth chart and learn how Vedic planetary periods shape career, relationships, health, and spiritual timing.
+- [Panchang Today](https://astroyou.app/panchang-today): Check Panchang today for Tithi, Nakshatra, Yoga, Karana, Rahu Kaal, and auspicious timing, then use it with your personal Kundali for better daily decisions.
+- [Kaal Sarp Dosha](https://astroyou.app/kaal-sarp-dosha): Understand Kaal Sarp Dosha, how Rahu and Ketu shape chart interpretation, and why full-chart context matters before remedies.
+- [Love Compatibility](https://astroyou.app/love-compatibility): Learn how Vedic astrology reads love compatibility through Moon sign, Venus, seventh house, dashas, and Guna Milan.
+- [Vedic Astrology](https://astroyou.app/vedic-astrology): A practical guide to Vedic astrology concepts including Kundali, dashas, panchang, yogas, transits, doshas, and remedies.
+- [Gemstone Remedies](https://astroyou.app/gemstone-remedies): Understand Vedic remedies, gemstones, mantras, donation, fasting, and when to avoid fear-based or expensive prescriptions.
+- [Business Muhurat](https://astroyou.app/business-muhurat): Learn how Vedic astrology checks business Muhurat using Panchang, Rahu Kaal, weekday, tithi, nakshatra, and personal chart timing.
+- [Property Muhurat](https://astroyou.app/property-muhurat): Understand property Muhurat for buying a home, land, vehicle, or signing documents using Panchang and personal chart context.
+- [Marriage Muhurat](https://astroyou.app/marriage-muhurat): Learn how marriage Muhurat uses Panchang, Nakshatra, Tithi, family context, and both partners' Kundalis before choosing a wedding date.
+- [Baby Name Astrology](https://astroyou.app/baby-name-astrology): Understand how baby names are chosen from Nakshatra, Moon sign, syllables, family tradition, and practical modern naming needs.
+- [Lucky Mobile Number](https://astroyou.app/lucky-mobile-number): Learn how mobile number numerology is interpreted, what it can and cannot tell you, and when to use birth chart context.
+- [AI Astrologer vs Human Astrologer](https://astroyou.app/ai-astrologer-vs-human-astrologer): An honest comparison of AI and human astrologers across accuracy, cost, availability, memory, and emotional judgement — including where a human is clearly the better choice.
+- [AstroTalk Alternatives](https://astroyou.app/astrotalk-alternatives): A practical comparison of AstroTalk alternatives for Indian astrology consultation — marketplace model versus AI companion versus free calculators — and which fits which need.
+- [AstroSage Alternatives](https://astroyou.app/astrosage-alternatives): Comparing AstroSage alternatives for free Kundali, matching, and Panchang — which tools calculate well, which interpret, and where each approach stops being useful.
+- [Best AI Astrology App](https://astroyou.app/best-ai-astrology-app): How to evaluate AI astrology apps — calculation transparency, AI disclosure, memory, pricing clarity, and the warning signs that separate a real tool from a horoscope generator.
+- [Free Kundali Apps Compared](https://astroyou.app/free-kundali-apps-compared): A comparison of free Kundali generators on what matters — required birth inputs, ayanamsa, divisional charts, dasha depth, matching, and where the paywall actually falls.
+
+## Comparisons
+
+- [AI vs human astrologer](https://astroyou.app/ai-astrologer-vs-human-astrologer)
+- [AstroTalk alternatives](https://astroyou.app/astrotalk-alternatives)
+- [AstroSage alternatives](https://astroyou.app/astrosage-alternatives)
+- [Best AI astrology app](https://astroyou.app/best-ai-astrology-app)
+- [Free Kundali apps compared](https://astroyou.app/free-kundali-apps-compared)
+
+## Sitemap
+
+https://astroyou.app/sitemap.xml (441 URLs)

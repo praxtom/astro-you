@@ -3,13 +3,19 @@ import { ArrowRight, BookOpen, MessageCircle } from "lucide-react";
 import Header from "../components/layout/Header";
 import SEO from "../components/SEO";
 import Footer from "../components/layout/Footer";
-import { captureAcquisitionSource, trackAcquisitionEvent } from "../lib/acquisition";
+import {
+  captureAcquisitionSource,
+  trackAcquisitionEvent,
+} from "../lib/acquisition";
 import {
   getRelatedSeoContentPages,
   getSeoClusterPages,
   getSeoClusterTitle,
   getSeoContentPage,
   getSeoContentFaqs,
+  SEO_AUTHOR,
+  SEO_CONTENT_REVIEWED,
+  SEO_PUBLISHER,
 } from "../lib/seo-content";
 
 interface SeoContentPageProps {
@@ -28,17 +34,31 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
   const faqs = getSeoContentFaqs(page);
 
   const pageUrl = `https://astroyou.app${page.path}`;
+  const reviewed = page.updated ?? SEO_CONTENT_REVIEWED;
   const structuredData = [
     {
       "@context": "https://schema.org",
-      "@type": "Article",
+      "@type": page.schemaType ?? "Article",
       headline: page.title,
       description: page.description,
       mainEntityOfPage: pageUrl,
+      url: pageUrl,
+      inLanguage: "en",
+      datePublished: reviewed,
+      dateModified: reviewed,
+      isAccessibleForFree: true,
+      author: {
+        "@type": "Organization",
+        name: SEO_AUTHOR.name,
+        description: SEO_AUTHOR.role,
+        url: SEO_PUBLISHER.url,
+      },
       publisher: {
         "@type": "Organization",
-        name: "AstroYou",
-        url: "https://astroyou.app",
+        name: SEO_PUBLISHER.name,
+        url: SEO_PUBLISHER.url,
+        logo: { "@type": "ImageObject", url: SEO_PUBLISHER.logo },
+        sameAs: SEO_PUBLISHER.sameAs,
       },
       keywords: page.keywords.join(", "),
     },
@@ -133,6 +153,9 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
           <p className="mt-4 max-w-2xl text-lg leading-relaxed text-white/60">
             {page.intro}
           </p>
+          <p className="mt-4 text-xs text-white/35">
+            Reviewed {reviewed} by {SEO_AUTHOR.name} — {SEO_AUTHOR.role}
+          </p>
         </div>
 
         <div className="grid gap-4">
@@ -141,11 +164,88 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
               key={section.title}
               className="rounded-2xl border border-white/10 bg-white/[0.03] p-6"
             >
-              <h2 className="font-display text-2xl text-white/90">{section.title}</h2>
-              <p className="mt-3 leading-relaxed text-white/60">{section.body}</p>
+              <h2 className="font-display text-2xl text-white/90">
+                {section.title}
+              </h2>
+              <p className="mt-3 leading-relaxed text-white/60">
+                {section.body}
+              </p>
             </section>
           ))}
         </div>
+
+        {page.facts && page.facts.length > 0 && (
+          <section className="mt-10 border-t border-white/10 pt-8">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-white/35">
+              Key facts
+            </h2>
+            <dl className="mt-4 divide-y divide-white/[0.07]">
+              {page.facts.map((fact) => (
+                <div
+                  key={fact.label}
+                  className="flex items-baseline justify-between gap-6 py-3"
+                >
+                  <dt className="text-sm text-white/45">{fact.label}</dt>
+                  <dd className="text-right">
+                    <span className="text-sm font-semibold text-white/85">
+                      {fact.value}
+                    </span>
+                    {fact.source && (
+                      <span className="mt-0.5 block text-xs text-white/35">
+                        {fact.source}
+                      </span>
+                    )}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        )}
+
+        {page.comparison && (
+          <section className="mt-10 border-t border-white/10 pt-8">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-white/35">
+              {page.comparison.caption}
+            </h2>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr>
+                    <th className="border border-white/10 p-3" />
+                    {page.comparison.columns.map((column) => (
+                      <th
+                        key={column}
+                        className="border border-white/10 p-3 text-left font-semibold text-white/80"
+                      >
+                        {column}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {page.comparison.rows.map((row) => (
+                    <tr key={row.criterion}>
+                      <th
+                        scope="row"
+                        className="border border-white/10 p-3 text-left font-medium text-white/60"
+                      >
+                        {row.criterion}
+                      </th>
+                      {row.values.map((value, index) => (
+                        <td
+                          key={`${row.criterion}-${index}`}
+                          className="border border-white/10 p-3 align-top text-white/70"
+                        >
+                          {value}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
 
         <section className="mt-10 border-t border-white/10 pt-8">
           <h2 className="text-xs font-bold uppercase tracking-widest text-white/35">
@@ -234,6 +334,14 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
               </Link>
             ))}
           </div>
+        </section>
+
+        <section className="mt-12 border-t border-white/10 pt-8 text-xs leading-relaxed text-white/35">
+          <p>{SEO_AUTHOR.statement}</p>
+          <p className="mt-2">
+            Astrological guidance is offered for reflection and self-awareness.
+            It is not medical, legal, financial, or psychological advice.
+          </p>
         </section>
       </main>
       <Footer />

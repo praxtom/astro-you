@@ -1,9 +1,7 @@
 # https://www.robotstxt.org/robotstxt.html
+
 User-agent: *
 Allow: /
-
-# Sitemap
-Sitemap: https://astroyou.app/sitemap.xml
 
 # Disallow private / authenticated routes (no indexable content)
 Disallow: /api/
@@ -16,3 +14,38 @@ Disallow: /wallet
 Disallow: /reports
 Disallow: /remedies
 Disallow: /settings
+
+# ── AI answer-engine crawlers ────────────────────────────────────────────────
+# Named explicitly rather than left to the wildcard above. These are the bots
+# that feed ChatGPT, Perplexity, Claude, Gemini, and Copilot; being citable in
+# those answers requires them to be able to read the prerendered pages. The
+# same private-route exclusions apply.
+
+User-agent: GPTBot
+User-agent: ChatGPT-User
+User-agent: OAI-SearchBot
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+User-agent: ClaudeBot
+User-agent: Claude-User
+User-agent: Claude-SearchBot
+User-agent: anthropic-ai
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+User-agent: Bingbot
+User-agent: cohere-ai
+User-agent: Meta-ExternalAgent
+Allow: /
+Disallow: /api/
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /onboarding
+Disallow: /synthesis
+Disallow: /consult
+Disallow: /wallet
+Disallow: /reports
+Disallow: /remedies
+Disallow: /settings
+
+# Sitemap
+Sitemap: https://astroyou.app/sitemap.xml

@@ -14,7 +14,9 @@ const defaultMeta = {
   title: "AstroYou | Insights from the Stars",
   description:
     "Discover your birth chart with Vedic astrology for the modern world. Get personalized Kundali readings, daily guidance, and clarity from the celestial movements.",
-  image: "/og-image.svg",
+  // PNG, not the SVG source: most social and preview scrapers do not render
+  // SVG, so an SVG og:image silently produces no preview card at all.
+  image: "https://astroyou.app/og-image.png",
   url: "https://astroyou.app",
   type: "website" as const,
 };
@@ -76,7 +78,9 @@ export function SEO({
     updateMeta("theme-color", "#030308");
     updateMeta("author", "AstroYou");
 
-    let canonicalLink = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    let canonicalLink = document.querySelector<HTMLLinkElement>(
+      'link[rel="canonical"]',
+    );
     if (!canonicalLink) {
       canonicalLink = document.createElement("link");
       canonicalLink.rel = "canonical";
@@ -93,7 +97,15 @@ export function SEO({
       script.textContent = JSON.stringify(structuredData);
       document.head.appendChild(script);
     }
-  }, [canonical, meta.title, meta.description, meta.image, meta.url, meta.type, structuredData]);
+  }, [
+    canonical,
+    meta.title,
+    meta.description,
+    meta.image,
+    meta.url,
+    meta.type,
+    structuredData,
+  ]);
 
   return null;
 }

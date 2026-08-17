@@ -76,25 +76,82 @@
       rel="stylesheet"
     />
 
-    <!-- Structured Data (JSON-LD) -->
+    <!-- Machine-readable context for AI agents -->
+    <link
+      rel="alternate"
+      type="text/markdown"
+      href="/pricing.md"
+      title="Pricing"
+    />
+
+    <!--
+      Structured Data (JSON-LD).
+
+      Note: the prerenderer overwrites this block per route with page-specific
+      Article/FAQPage/BreadcrumbList schema. What is here is what ships on any
+      route that is NOT prerendered — i.e. the authenticated app shell.
+    -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "WebApplication",
-        "name": "AstroYou",
-        "description": "Vedic astrology platform for personalized Kundali readings and celestial guidance.",
-        "url": "https://astroyou.app",
-        "applicationCategory": "Lifestyle",
-        "operatingSystem": "Web",
-        "offers": {
-          "@type": "Offer",
-          "price": "0",
-          "priceCurrency": "INR"
-        },
-        "creator": {
-          "@type": "Organization",
-          "name": "AstroYou"
-        }
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://astroyou.app/#organization",
+            "name": "AstroYou",
+            "url": "https://astroyou.app",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://astroyou.app/icon-512.png",
+              "width": 512,
+              "height": 512
+            },
+            "sameAs": [
+              "https://astroyou.app/trust",
+              "https://astroyou.app/help"
+            ],
+            "knowsAbout": [
+              "Vedic astrology",
+              "Jyotish",
+              "Janam Kundali",
+              "Nakshatra",
+              "Vimshottari dasha",
+              "Panchang",
+              "Ashtakoot Guna Milan"
+            ]
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://astroyou.app/#website",
+            "name": "AstroYou",
+            "url": "https://astroyou.app",
+            "publisher": { "@id": "https://astroyou.app/#organization" },
+            "inLanguage": "en"
+          },
+          {
+            "@type": "WebApplication",
+            "name": "AstroYou",
+            "description": "Vedic astrology platform that computes a sidereal Janam Kundali using the Lahiri ayanamsa and interprets it with an AI Jyotish that retains chart, dasha, and conversation history.",
+            "url": "https://astroyou.app",
+            "applicationCategory": "LifestyleApplication",
+            "operatingSystem": "Web",
+            "publisher": { "@id": "https://astroyou.app/#organization" },
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "INR",
+              "description": "Free tier includes Kundali generation, Kundali matching, Panchang, and 15 credits.",
+              "url": "https://astroyou.app/pricing"
+            },
+            "featureList": [
+              "Free Janam Kundali generation",
+              "Kundali matching with 36-point Ashtakoot scoring",
+              "Daily Panchang",
+              "Vimshottari dasha timeline",
+              "AI Jyotish consultation"
+            ]
+          }
+        ]
       }
     </script>
   </head>
