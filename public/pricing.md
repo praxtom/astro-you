@@ -1,6 +1,6 @@
 # Pricing — AstroYou
 
-Last updated: 2026-08-17
+Last updated: 2026-08-19
 Currency: INR. All prices include applicable taxes unless stated otherwise.
 
 ## Subscription plans

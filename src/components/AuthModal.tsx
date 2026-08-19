@@ -22,6 +22,31 @@ const googleProvider = new GoogleAuthProvider();
 
 type AuthStep = "email" | "otp";
 
+const OTP_LENGTH = 6;
+const EMPTY_OTP = Array<string>(OTP_LENGTH).fill("");
+
+/**
+ * Firebase surfaces internal plumbing failures verbatim ("Database is
+ * closing/hidden" from the IndexedDB store, raw HTTP text from the token
+ * endpoint). None of that tells a signed-out user what to do next, so every
+ * popup failure is mapped to plain language plus a recovery.
+ */
+function describeGoogleError(err: { code?: string; message?: string }): string {
+  switch (err.code) {
+    case "auth/popup-closed-by-user":
+    case "auth/cancelled-popup-request":
+      return "Sign-in was cancelled. Try again when you're ready.";
+    case "auth/network-request-failed":
+      return "Couldn't reach Google. Check your connection and try again.";
+    case "auth/account-exists-with-different-credential":
+      return "That email is already registered with a different sign-in method. Use the email code below instead.";
+    case "auth/unauthorized-domain":
+      return "Google sign-in isn't allowed on this domain yet. Use the email code below, or add this hostname to Firebase Auth's authorized domains.";
+    default:
+      return "Google sign-in didn't complete. Try again, or use the email code below.";
+  }
+}
+
 export default function AuthModal({
   isOpen,
   onClose,
@@ -31,11 +56,12 @@ export default function AuthModal({
 }: AuthModalProps) {
   const [step, setStep] = useState<AuthStep>("email");
   const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [otp, setOtp] = useState<string[]>(EMPTY_OTP);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  const [resent, setResent] = useState(false);
 
   const otpRefs = [
     useRef<HTMLInputElement>(null),
@@ -46,6 +72,8 @@ export default function AuthModal({
     useRef<HTMLInputElement>(null),
   ];
   const modalRef = useRef<HTMLDivElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
 
   // Focus trap for accessibility
   const handleKeyDown = useCallback(
@@ -56,9 +84,11 @@ export default function AuthModal({
       }
       if (e.key !== "Tab" || !modalRef.current) return;
 
-      const focusable = modalRef.current.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-      );
+      const focusable = Array.from(
+        modalRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => !el.hasAttribute("disabled"));
       if (focusable.length === 0) return;
 
       const first = focusable[0];
@@ -75,20 +105,36 @@ export default function AuthModal({
     [onClose],
   );
 
-  // Manage focus trap lifecycle
+  // Manage focus trap lifecycle. Focus lands on the email field rather than the
+  // close button — opening a dialog focused on its dismiss control both reads
+  // as "leave" to a screen reader and paints a focus ring over the header.
   useEffect(() => {
-    if (isOpen) {
-      document.addEventListener("keydown", handleKeyDown);
-      // Focus first interactive element on open
-      setTimeout(() => {
-        const first = modalRef.current?.querySelector<HTMLElement>(
-          "button, [href], input, select, textarea",
-        );
-        first?.focus();
-      }, 100);
-    }
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    if (!isOpen) return;
+    returnFocusRef.current = document.activeElement as HTMLElement | null;
+    document.addEventListener("keydown", handleKeyDown);
+    const timer = setTimeout(() => {
+      const target =
+        emailRef.current ??
+        modalRef.current?.querySelector<HTMLElement>("input, button");
+      target?.focus();
+    }, 100);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [isOpen, handleKeyDown]);
+
+  // Lock the page behind the dialog so the backdrop can't be scrolled away, and
+  // hand focus back to whatever opened it.
+  useEffect(() => {
+    if (!isOpen) return;
+    const { overflow } = document.body.style;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = overflow;
+      returnFocusRef.current?.focus?.();
+    };
+  }, [isOpen]);
 
   // Countdown timer for resend
   useEffect(() => {
@@ -103,20 +149,25 @@ export default function AuthModal({
     if (!isOpen) {
       setStep("email");
       setEmail("");
-      setOtp(["", "", "", "", "", ""]);
+      setOtp(EMPTY_OTP);
       setError("");
       setCountdown(0);
+      setResent(false);
+      setIsGoogleLoading(false);
     }
   }, [isOpen]);
 
   const handleSendOTP = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!email || !email.includes("@")) {
-      setError("Please enter a valid email address");
+      setError("Enter a valid email address, like name@example.com.");
+      emailRef.current?.focus();
       return;
     }
 
+    const isResend = step === "otp";
     setError("");
+    setResent(false);
     setIsLoading(true);
 
     try {
@@ -133,14 +184,20 @@ export default function AuthModal({
       }
 
       setStep("otp");
+      setOtp(EMPTY_OTP);
+      setResent(isResend);
       setCountdown(60); // 60 second cooldown for resend
       setTimeout(() => otpRefs[0].current?.focus(), 100);
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "Failed to send code. Please try again.");
+      setError(err.message || "Couldn't send the code. Try again.");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const submitIfComplete = (digits: string[]) => {
+    if (digits.every((d) => d !== "")) handleVerifyOTP(digits.join(""));
   };
 
   const handleOtpChange = (index: number, value: string) => {
@@ -152,39 +209,47 @@ export default function AuthModal({
     setOtp(newOtp);
 
     // Auto-focus next input
-    if (value && index < 5) {
+    if (value && index < OTP_LENGTH - 1) {
       otpRefs[index + 1].current?.focus();
     }
 
-    // Auto-submit when all digits are entered
-    if (value && index === 5 && newOtp.every((d) => d !== "")) {
-      handleVerifyOTP(newOtp.join(""));
-    }
+    // Submit as soon as all six digits are present — including when the user
+    // goes back and corrects a middle digit, not only when the last one lands.
+    if (value) submitIfComplete(newOtp);
   };
 
   const handleOtpPaste = (e: React.ClipboardEvent) => {
     const digits = e.clipboardData
       .getData("text")
       .replace(/\D/g, "")
-      .slice(0, 6);
+      .slice(0, OTP_LENGTH);
     if (!digits) return;
     e.preventDefault();
-    const newOtp = ["", "", "", "", "", ""];
+    const newOtp = [...EMPTY_OTP];
     for (let i = 0; i < digits.length; i++) newOtp[i] = digits[i];
     setOtp(newOtp);
-    const nextIndex = Math.min(digits.length, 5);
+    const nextIndex = Math.min(digits.length, OTP_LENGTH - 1);
     otpRefs[nextIndex].current?.focus();
-    if (digits.length === 6) handleVerifyOTP(digits);
+    submitIfComplete(newOtp);
   };
 
   const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
     if (e.key === "Backspace" && !otp[index] && index > 0) {
       otpRefs[index - 1].current?.focus();
     }
+    if (e.key === "ArrowLeft" && index > 0) {
+      e.preventDefault();
+      otpRefs[index - 1].current?.focus();
+    }
+    if (e.key === "ArrowRight" && index < OTP_LENGTH - 1) {
+      e.preventDefault();
+      otpRefs[index + 1].current?.focus();
+    }
   };
 
   const handleVerifyOTP = async (code: string) => {
     setError("");
+    setResent(false);
     setIsLoading(true);
 
     try {
@@ -206,8 +271,8 @@ export default function AuthModal({
       if (onSuccess) onSuccess();
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "Invalid code. Please try again.");
-      setOtp(["", "", "", "", "", ""]);
+      setError(err.message || "That code didn't work. Enter it again.");
+      setOtp(EMPTY_OTP);
       otpRefs[0].current?.focus();
     } finally {
       setIsLoading(false);
@@ -224,46 +289,48 @@ export default function AuthModal({
       if (onSuccess) onSuccess();
     } catch (err: any) {
       console.error("Google sign-in error:", err);
-      if (err.code === "auth/popup-blocked") {
+
+      // A blocked popup is never the user's decision, and neither is a browser
+      // that tore down auth storage mid-flow. Both retry as a full-page
+      // redirect, which needs no popup and no cross-window handshake.
+      const shouldRetryAsRedirect =
+        err.code === "auth/popup-blocked" ||
+        err.code === "auth/operation-not-supported-in-this-environment" ||
+        err.code === "auth/internal-error" ||
+        /database is closing/i.test(err.message ?? "");
+
+      if (shouldRetryAsRedirect) {
         try {
           sessionStorage.setItem(STORAGE_KEYS.LOGIN_REDIRECT, "true");
           await signInWithRedirect(auth, googleProvider);
-          return;
+          return; // page navigates away; keep the spinner up
         } catch (redirectErr: any) {
           console.error("Google redirect sign-in error:", redirectErr);
-          setError(redirectErr.message || "Google sign-in failed.");
+          setError(describeGoogleError(redirectErr));
         }
-      } else if (err.code === "auth/popup-closed-by-user") {
-        setError("Sign-in was cancelled.");
-      } else if (err.code === "auth/unauthorized-domain") {
-        setError(
-          "This domain is not allowed in Firebase Auth. Add this hostname in Firebase Auth authorized domains.",
-        );
-      } else if (
-        err.code === "auth/internal-error" &&
-        window.location.hostname === "localhost"
-      ) {
-        setError(
-          "Local Google sign-in is blocked by Firebase or Google Cloud settings. Add localhost to Firebase Auth authorized domains and API key website restrictions.",
-        );
       } else {
-        setError(err.message || "Google sign-in failed.");
+        setError(describeGoogleError(err));
       }
       setIsGoogleLoading(false);
     }
   };
 
+  const busy = isLoading || isGoogleLoading;
+
   return (
-    <AnimatePresence mode="wait">
+    <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-6">
+        <div
+          key="auth-modal"
+          className="fixed inset-0 z-[2000] flex items-center justify-center p-4 sm:p-6"
+        >
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/85 backdrop-blur-md"
             onClick={onClose}
           ></motion.div>
 
@@ -273,229 +340,296 @@ export default function AuthModal({
             role="dialog"
             aria-modal="true"
             aria-labelledby="auth-modal-title"
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.97, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            exit={{ opacity: 0, scale: 0.97, y: 16 }}
             transition={{
               type: "spring",
               duration: 0.5,
-              bounce: 0.3,
+              bounce: 0.2,
             }}
-            className="w-full max-w-md glass p-10 md:p-12 relative z-10 border border-white/10 rounded-3xl"
+            className="relative z-10 flex max-h-[min(92dvh,46rem)] w-full max-w-md flex-col overflow-hidden rounded-[2rem] border border-white/10 bg-[#0a0a0f] shadow-[0_30px_80px_-20px_rgba(0,0,0,0.95)]"
           >
+            {/* A single shaft of gold at the head of the panel — the product's
+                accent doing the lighting, so the dialog reads as part of
+                AstroYou rather than a default browser sheet. */}
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 -top-40 h-96 bg-[radial-gradient(ellipse_50%_45%_at_50%_50%,var(--color-gold-glow),transparent_70%)] opacity-80"
+            ></div>
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-12 top-0 h-px bg-gradient-to-r from-transparent via-gold/40 to-transparent"
+            ></div>
+
             <button
               onClick={onClose}
-              className="absolute top-6 right-6 p-2 text-white/30 hover:text-white transition-colors"
+              className="absolute top-3 right-3 z-20 flex h-11 w-11 items-center justify-center rounded-full text-white/50 transition-colors hover:bg-white/5 hover:text-white"
               aria-label="Close dialog"
             >
-              <X size={24} />
+              <X size={20} />
             </button>
 
-            {step === "email" ? (
-              <motion.div
-                key="email-step"
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 10 }}
-                transition={{ duration: 0.3 }}
-              >
-                <div className="text-center mb-10">
-                  <span className="section-label mb-4 opacity-60">
-                    Secure Login
-                  </span>
-                  <h2
-                    id="auth-modal-title"
-                    className="text-title text-3xl mb-4"
+            <div className="relative overflow-y-auto px-6 pt-11 pb-8 sm:px-10 sm:pb-10">
+              <AnimatePresence mode="wait" initial={false}>
+                {step === "email" ? (
+                  <motion.div
+                    key="email-step"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                   >
-                    {title}
-                  </h2>
-                  <p className="text-body text-sm opacity-70 px-4">{message}</p>
-                </div>
-
-                {/* Google Sign-In Button */}
-                <button
-                  type="button"
-                  onClick={handleGoogleSignIn}
-                  disabled={isGoogleLoading}
-                  className="w-full flex items-center justify-center gap-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-xl px-5 py-3.5 mb-6 transition-all group"
-                >
-                  {isGoogleLoading ? (
-                    <Loader2 className="animate-spin" size={20} />
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" viewBox="0 0 24 24">
-                        <path
-                          fill="#4285F4"
-                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                        />
-                        <path
-                          fill="#34A853"
-                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                        />
-                        <path
-                          fill="#FBBC05"
-                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                        />
-                        <path
-                          fill="#EA4335"
-                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                        />
-                      </svg>
-                      <span className="font-sans text-sm text-white/80 group-hover:text-white transition-colors">
-                        Continue with Google
-                      </span>
-                    </>
-                  )}
-                </button>
-
-                {/* Divider */}
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="flex-1 h-px bg-white/10"></div>
-                  <span className="text-xs text-white/30 uppercase tracking-widest font-sans">
-                    or
-                  </span>
-                  <div className="flex-1 h-px bg-white/10"></div>
-                </div>
-
-                <form onSubmit={handleSendOTP} className="space-y-6">
-                  {error && (
-                    <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-4 rounded-xl">
-                      {error}
+                    <div className="mb-8 text-center">
+                      {/* The house mark from the header, so the dialog is
+                          recognisably ours at a glance. */}
+                      <div
+                        aria-hidden="true"
+                        className="relative mx-auto mb-5 flex h-10 w-10 items-center justify-center"
+                      >
+                        <div className="absolute inset-0 rounded-full border border-gold/40"></div>
+                        <div className="h-1.5 w-1.5 rounded-full bg-gold shadow-[0_0_12px_var(--color-gold)]"></div>
+                      </div>
+                      <h2
+                        id="auth-modal-title"
+                        className="font-display text-[1.75rem] leading-[1.15] text-balance text-white"
+                      >
+                        {title}
+                      </h2>
+                      <p className="mx-auto mt-3 max-w-[30ch] text-pretty text-sm leading-relaxed text-white/60">
+                        {message}
+                      </p>
                     </div>
-                  )}
 
-                  <div>
-                    <label className="block text-caption mb-2 opacity-50 uppercase tracking-widest text-xs font-bold">
-                      Email Address
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      placeholder="name@example.com"
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 outline-none focus:border-gold/50 transition-all font-sans"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="btn btn-primary w-full py-4 mt-4 font-bold tracking-widest uppercase flex items-center justify-center gap-2"
-                  >
-                    {isLoading ? (
-                      <Loader2 className="animate-spin" size={20} />
-                    ) : (
-                      <>
-                        <Mail size={18} />
-                        Send Login Code
-                      </>
+                    {error && (
+                      <div
+                        role="alert"
+                        className="mb-6 rounded-xl border border-red-500/25 bg-red-500/10 p-3.5 text-sm leading-relaxed text-red-300"
+                      >
+                        {error}
+                      </div>
                     )}
-                  </button>
 
-                  <p className="text-white/40 text-[11px] leading-relaxed text-center mt-4">
-                    By continuing you agree to our{" "}
-                    <a
-                      href="/terms"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-white/60 underline hover:text-white/80"
-                    >
-                      Terms of Service
-                    </a>{" "}
-                    and{" "}
-                    <a
-                      href="/privacy"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-white/60 underline hover:text-white/80"
-                    >
-                      Privacy Policy
-                    </a>
-                    , and consent to analytics cookies.
-                  </p>
-                </form>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="otp-step"
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                transition={{ duration: 0.3 }}
-              >
-                {/* OTP Step */}
-                <button
-                  onClick={() => setStep("email")}
-                  className="flex items-center gap-2 text-white/40 hover:text-white/80 transition-colors mb-8"
-                >
-                  <ArrowLeft size={16} />
-                  <span className="text-xs uppercase tracking-widest font-sans">
-                    Back
-                  </span>
-                </button>
-
-                <div className="text-center mb-10">
-                  <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center">
-                    <Mail className="text-gold" size={28} />
-                  </div>
-                  <h2 className="text-title text-2xl mb-3">Check Your Email</h2>
-                  <p className="text-body text-sm opacity-70 px-4">
-                    We sent a 6-digit code to
-                    <br />
-                    <span className="text-gold">{email}</span>
-                  </p>
-                </div>
-
-                {error && (
-                  <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-4 rounded-xl mb-6 text-center">
-                    {error}
-                  </div>
-                )}
-
-                {/* OTP Input */}
-                <div className="flex justify-center gap-2 mb-8">
-                  {otp.map((digit, index) => (
-                    <input
-                      key={index}
-                      ref={otpRefs[index]}
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={1}
-                      value={digit}
-                      onChange={(e) => handleOtpChange(index, e.target.value)}
-                      onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                      onPaste={handleOtpPaste}
-                      className="w-11 h-14 text-center text-xl font-bold bg-white/5 border border-white/20 rounded-xl outline-none focus:border-gold/50 focus:bg-gold/5 transition-all font-sans"
-                      disabled={isLoading}
-                    />
-                  ))}
-                </div>
-
-                {isLoading && (
-                  <div className="flex justify-center mb-6">
-                    <Loader2 className="animate-spin text-gold" size={24} />
-                  </div>
-                )}
-
-                {/* Resend */}
-                <div className="text-center">
-                  {countdown > 0 ? (
-                    <p className="text-xs text-white/40 font-sans">
-                      Resend code in{" "}
-                      <span className="text-gold">{countdown}s</span>
-                    </p>
-                  ) : (
+                    {/* Google Sign-In Button */}
                     <button
-                      onClick={() => handleSendOTP()}
-                      className="text-xs text-gold/60 hover:text-gold transition-colors underline underline-offset-4 font-sans"
+                      type="button"
+                      onClick={handleGoogleSignIn}
+                      disabled={busy}
+                      aria-busy={isGoogleLoading}
+                      className="group flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-white/12 bg-white/[0.06] transition-colors hover:border-white/20 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white/[0.06]"
                     >
-                      Didn't receive the code? Resend
+                      {isGoogleLoading ? (
+                        <>
+                          <Loader2 className="animate-spin" size={18} />
+                          <span className="text-sm text-white/80">
+                            Opening Google…
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="h-5 w-5" viewBox="0 0 24 24">
+                            <path
+                              fill="#4285F4"
+                              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                            />
+                            <path
+                              fill="#34A853"
+                              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                            />
+                            <path
+                              fill="#FBBC05"
+                              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                            />
+                            <path
+                              fill="#EA4335"
+                              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                            />
+                          </svg>
+                          <span className="font-sans text-sm text-white/80 transition-colors group-hover:text-white">
+                            Continue with Google
+                          </span>
+                        </>
+                      )}
                     </button>
-                  )}
-                </div>
-              </motion.div>
-            )}
+
+                    {/* Divider */}
+                    <div className="my-6 flex items-center gap-4">
+                      <div className="h-px flex-1 bg-white/10"></div>
+                      <span className="font-sans text-[0.65rem] font-bold uppercase tracking-[0.25em] text-white/55">
+                        or
+                      </span>
+                      <div className="h-px flex-1 bg-white/10"></div>
+                    </div>
+
+                    <form onSubmit={handleSendOTP} className="space-y-5">
+                      <div>
+                        <label
+                          htmlFor="auth-email"
+                          className="mb-2 block font-sans text-[0.7rem] font-bold uppercase tracking-[0.15em] text-white/55"
+                        >
+                          Email address
+                        </label>
+                        <input
+                          id="auth-email"
+                          ref={emailRef}
+                          type="email"
+                          required
+                          autoComplete="email"
+                          inputMode="email"
+                          placeholder="name@example.com"
+                          className="h-12 w-full rounded-xl border border-white/10 bg-white/5 px-4 font-sans text-white outline-none transition-colors placeholder:text-white/50 hover:border-white/20 focus:border-gold/60"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          disabled={busy}
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={busy}
+                        aria-busy={isLoading}
+                        className="btn btn-primary flex w-full items-center justify-center gap-2 rounded-xl py-4 font-bold uppercase tracking-widest transition-[background-color,color,transform,box-shadow,opacity] duration-300 disabled:pointer-events-none disabled:opacity-40"
+                      >
+                        {isLoading ? (
+                          <>
+                            <Loader2 className="animate-spin" size={18} />
+                            Sending code…
+                          </>
+                        ) : (
+                          <>
+                            <Mail size={18} />
+                            Send login code
+                          </>
+                        )}
+                      </button>
+                    </form>
+
+                    <p className="mt-6 text-center text-xs leading-relaxed text-white/55">
+                      By continuing you agree to our{" "}
+                      <a
+                        href="/terms"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-white/75 underline underline-offset-2 transition-colors hover:text-gold"
+                      >
+                        Terms of Service
+                      </a>{" "}
+                      and{" "}
+                      <a
+                        href="/privacy"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-white/75 underline underline-offset-2 transition-colors hover:text-gold"
+                      >
+                        Privacy Policy
+                      </a>
+                      , and consent to analytics cookies.
+                    </p>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="otp-step"
+                    initial={{ opacity: 0, x: 10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                  >
+                    {/* OTP Step */}
+                    <button
+                      onClick={() => setStep("email")}
+                      className="-ml-2 mb-6 flex h-11 items-center gap-2 rounded-full px-2 text-white/55 transition-colors hover:text-white"
+                    >
+                      <ArrowLeft size={16} />
+                      <span className="font-sans text-xs font-bold uppercase tracking-[0.15em]">
+                        Back
+                      </span>
+                    </button>
+
+                    <div className="mb-8 text-center">
+                      <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full border border-gold/30 bg-gold/10">
+                        <Mail className="text-gold" size={24} />
+                      </div>
+                      <h2
+                        id="auth-modal-title"
+                        className="font-display text-[1.6rem] leading-[1.15] text-white"
+                      >
+                        Check your email
+                      </h2>
+                      <p className="mt-3 text-sm leading-relaxed text-white/60">
+                        We sent a 6-digit code to
+                        <br />
+                        <span className="break-all text-gold">{email}</span>
+                      </p>
+                    </div>
+
+                    {error && (
+                      <div
+                        role="alert"
+                        className="mb-6 rounded-xl border border-red-500/25 bg-red-500/10 p-3.5 text-center text-sm leading-relaxed text-red-300"
+                      >
+                        {error}
+                      </div>
+                    )}
+
+                    {/* OTP Input */}
+                    <div className="mb-7 flex justify-center gap-1.5 sm:gap-2">
+                      {otp.map((digit, index) => (
+                        <input
+                          key={index}
+                          ref={otpRefs[index]}
+                          type="text"
+                          inputMode="numeric"
+                          autoFocus={index === 0}
+                          autoComplete={index === 0 ? "one-time-code" : "off"}
+                          aria-label={`Digit ${index + 1} of ${OTP_LENGTH}`}
+                          maxLength={1}
+                          value={digit}
+                          onChange={(e) => handleOtpChange(index, e.target.value)}
+                          onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                          onPaste={handleOtpPaste}
+                          className="h-14 min-w-0 flex-1 rounded-xl border border-white/20 bg-white/5 text-center font-sans text-xl font-bold text-white outline-none transition-colors focus:border-gold/60 focus:bg-gold/5 disabled:opacity-50 sm:max-w-[3.25rem]"
+                          disabled={isLoading}
+                        />
+                      ))}
+                    </div>
+
+                    <div
+                      className="flex h-6 items-center justify-center"
+                      aria-live="polite"
+                    >
+                      {isLoading ? (
+                        <span className="flex items-center gap-2 font-sans text-xs text-white/60">
+                          <Loader2 className="animate-spin text-gold" size={16} />
+                          Verifying your code…
+                        </span>
+                      ) : resent ? (
+                        <span className="font-sans text-xs text-gold">
+                          A new code is on its way.
+                        </span>
+                      ) : null}
+                    </div>
+
+                    {/* Resend */}
+                    <div className="mt-4 text-center">
+                      {countdown > 0 ? (
+                        <p className="font-sans text-xs text-white/55">
+                          Resend code in{" "}
+                          <span className="text-gold">{countdown}s</span>
+                        </p>
+                      ) : (
+                        <button
+                          onClick={() => handleSendOTP()}
+                          disabled={isLoading}
+                          className="font-sans text-xs text-gold/80 underline underline-offset-4 transition-colors hover:text-gold disabled:opacity-40"
+                        >
+                          Didn't get the code? Send another
+                        </button>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </motion.div>
         </div>
       )}

@@ -5,7 +5,7 @@
 > interprets it with an AI Jyotish that retains chart, dasha timeline, and
 > conversation history between sessions.
 
-Last updated: 2026-08-17
+Last updated: 2026-08-19
 
 ## What it is
 

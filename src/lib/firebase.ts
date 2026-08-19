@@ -1,5 +1,11 @@
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import {
+  browserLocalPersistence,
+  browserPopupRedirectResolver,
+  inMemoryPersistence,
+  indexedDBLocalPersistence,
+  initializeAuth,
+} from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getAnalytics, logEvent, type Analytics } from "firebase/analytics";
@@ -14,7 +20,23 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+
+// Auth persistence is ordered deliberately. Firebase's IndexedDB store closes
+// its database the moment the tab reports `hidden`, which Chrome does while the
+// Google sign-in popup covers the window — the write that lands when the popup
+// returns then throws "Database is closing/hidden" and the sign-in is lost.
+// localStorage has no such lifecycle, so it leads; IndexedDB and memory stay on
+// as fallbacks for browsers that block it. The resolver must be passed
+// explicitly here: initializeAuth (unlike getAuth) does not bundle one, and
+// both signInWithPopup and getRedirectResult need it.
+export const auth = initializeAuth(app, {
+  persistence: [
+    browserLocalPersistence,
+    indexedDBLocalPersistence,
+    inMemoryPersistence,
+  ],
+  popupRedirectResolver: browserPopupRedirectResolver,
+});
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 

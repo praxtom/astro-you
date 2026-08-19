@@ -16,6 +16,7 @@
     "src/types/user.ts",
     "src/lib/atman-schema.ts",
     "src/lib/local-date.ts",
+    "src/lib/landing-planet-story.ts",
     "src/lib/zodiac-mode.ts",
     "src/lib/currency.ts",
     "src/lib/glossary.ts",
