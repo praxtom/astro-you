@@ -4,7 +4,7 @@
 
 **Artifact type:** Competitive shortcomings report and master technical design
 
-**Status:** Proposed for product-owner review
+**Status:** Single-source build specification proposed for product-owner review
 
 **Primary benchmark:** Moonly
 
@@ -31,6 +31,20 @@ The product promise is:
 Vedic astrology supplies the context. Atman supplies continuity. Prana and Dharma supply action. The daily outcome loop supplies proof that the relationship is improving.
 
 AstroYou is not therapy, must not claim to provide therapy, and must not infer diagnoses. It is a spiritual reflection and wellbeing product with explicit safety boundaries.
+
+## Single-source execution rule
+
+This file is the one product and technical source for the competitive-leadership program. Do not create separate feature wish lists or competitor backlogs that can drift away from it.
+
+- The **competitive gap map** states what users receive elsewhere that AstroYou does not yet deliver.
+- The **critical shortcomings** identify the current implementation or product problem.
+- The **target product experience** defines the user behaviour AstroYou must create.
+- **Programs 1-12** specify the files, interfaces, schemas, APIs, migrations, security controls and tests required to close the gaps.
+- The **build order** prevents teams from starting attractive but dependent work too early.
+- The **definition of beating the category** determines completion. A feature is not complete merely because code exists.
+- The **required follow-on implementation plans** are execution plans derived from this file; they may not change its product promise or acceptance gates without product-owner approval.
+
+`docs/ROADMAP.md` should link to this specification after approval. Its competing global-product claims and priorities must then be replaced by the decisions in this file.
 
 ## Evidence boundary
 
@@ -73,6 +87,36 @@ Authenticated live AstroYou flows and competitor paid experiences were not exerc
 - Finch: <https://help.finchcare.com/hc/en-us/articles/37935669335309-Our-Approach-to-Self-Care>
 - Stoic: <https://www.getstoic.com/features>
 - Wysa: <https://www.wysa.com/faq>
+
+## Plain-language competitive gap map
+
+The central problem is not that AstroYou lacks astrology calculations. The problem is that competitors turn fewer capabilities into clearer habits, stronger trust and more polished mobile experiences. AstroYou has powerful ingredients, but users still have to assemble the value themselves.
+
+| Benchmark | What users receive today | Where AstroYou currently lacks | Build program that closes it | Proof required |
+|---|---|---|---|---|
+| Moonly | One coherent spiritual lifestyle product combining daily guidance, lunar rhythm, meditation, rituals, Tarot, numerology and dreams | AstroYou exposes many separate tools without one dominant daily journey; its practice/audio catalog and native-mobile presentation are weaker | Programs 2, 5, 8 and 9 | Users complete the daily loop without entering Explore; at least 70% prefer AstroYou to Moonly for “What should I know and do today?” |
+| CHANI | Recognizable human editorial voice, dependable weekly ritual, professional meditation and journal content | AstroYou relies heavily on AI/API output and lacks a visible named editorial method, reviewed flagship content and weekly human cadence | Programs 5 and 7 | Every flagship weekly reading and practice has a named author/reviewer; users can distinguish human editorial content from AI personalization |
+| The Pattern | Emotionally legible relationship narratives, relationship-specific conversation and timing | AstroYou stores basic relationship facts but lacks event history, recurring dynamics, advice outcomes and consent-controlled shared context | Program 6 | A relationship timeline connects events, guidance and results; blind preference beats The Pattern for a recurring relationship question |
+| Co-Star | Memorable daily habit, distinctive tone, useful friend comparison, push and shareability | AstroYou lacks an iconic daily object, native widget, mature share loop and consistently recognizable notification language | Programs 2, 6, 8 and 9 | Daily widget/push opens the correct guide; share cards generate safe deep links; return and sharing cohorts improve |
+| Hint | Fast personalized onboarding, report packaging and conversion | AstroYou spends its first moments on jargon and optional chart upload; value arrives too late and paid packaging is complex | Programs 1, 9 and 10 | Median first personalized value is below 90 seconds; every paywall states exact renewal and limits |
+| Nebula | Mainstream mobile polish, broad localization, daily/relationship breadth and advisor availability | AstroYou is web-first, English-heavy and lacks a mature human-escalation path | Programs 8, 10 and 12 | Native release passes store-quality gates; Hindi core flow ships; human and AI identities are unmistakable |
+| Sanctuary | Readable interactive astrology plus access to real experts | AstroYou has AI personas but no credentialed human expert lifecycle or consent-limited context sharing | Programs 7 and 12 | Credential, scheduling, payment, cancellation, session and review states are server-authoritative and tested |
+| Rosebud | Voice journaling, long-term memory, patterns, goals and weekly growth reports | AstroYou’s journal analysis is keyword-based; Atman records advice but does not learn whether it helped | Programs 3 and 4 | Voice/text journal proposes evidence-backed memories; outcomes change later recommendations; rejected memories stay rejected |
+| Finch | Tiny actions, rewarding completion, gentle companion attachment and visible progress | AstroYou has routines and streaks but no clear daily completion state or emotionally satisfying return loop | Programs 2 and 9 | The user can finish today in one flow; tomorrow visibly references completion without coercive disclosure scoring |
+| Stoic | Fast morning/evening reflection, guided journals and searchable wellbeing content | AstroYou’s altar and journal are buried and lack a deep reviewed content library | Programs 4 and 5 | Morning/evening entry is reachable from Today; reviewed practices cover short and deep sessions |
+| Wysa | Structured emotional tools, clear intended-use boundaries, clinical-team review and crisis handling | AstroYou largely relies on prompt instructions and mixes self-reported emotion with AI inference | Programs 3 and 7 | Self-report and inference are separate; safety classifier/output scan/red-team suite pass; no diagnosis or treatment claim appears |
+
+### The five competitive deficiencies that matter most
+
+1. **No indispensable daily ritual.** Moonly, CHANI, Co-Star, Finch and Stoic give users an obvious reason to open the app and a clear point at which they are finished. AstroYou presents multiple valid actions at once.
+2. **Atman remembers more than it learns.** Rosebud currently communicates memory, voice journaling and growth review more clearly. AstroYou does not yet connect advice, completion and outcome strongly enough to improve the next recommendation.
+3. **No professional editorial and practice library.** Generated sound and AI prose are not substitutes for reviewed meditation audio, transcripts, weekly programming and named authorship.
+4. **No category-leading native mobile experience.** PWA installation and browser push do not provide the full widgets, offline journal, biometrics, background audio, native sharing and app-store discovery expected in this category.
+5. **Trust is not yet a product feature.** AstroYou has good policy intentions, but it needs visible provenance, individual memory controls, transparent pricing, safe emotional vocabulary and automated safety evaluation.
+
+### What is not a meaningful competitive deficiency
+
+Do not respond to the market by adding more isolated divination systems or astrology endpoints. AstroYou already has sufficient breadth to compete. Additional breadth does not solve daily retention, trust, mobile polish, editorial quality, memory accuracy or action outcomes.
 
 ## What AstroYou already has
 
