@@ -90,6 +90,9 @@ export default async (req: Request, _context: Context) => {
       "analyticsEvents",
       "trustModerationQueue",
       "expertApplications",
+      "supportTickets",
+      "remedyRequests",
+      "predictionFeedbackAggregateQueue",
     ]) {
       await db
         .collection(coll)

@@ -56,13 +56,13 @@ export default async (req: Request, _context: Context) => {
     });
     return json({ success: true, eventId: ref.id });
   } catch (error: any) {
-    console.error("[AnalyticsEvent] Error:", error);
+    console.error("[AnalyticsEvent] Error:", error?.name);
     const status = error instanceof FunnelAnalyticsError ? error.status : 500;
     return json(
       {
         error:
           error instanceof FunnelAnalyticsError
-            ? error.message
+            ? "Invalid analytics event"
             : "Could not record analytics event",
       },
       status,
@@ -74,8 +74,18 @@ export const config: Config = { path: "/api/analytics/event" };
 
 async function resolveOptionalUid(idToken: unknown) {
   if (typeof idToken !== "string" || !idToken) return null;
-  const decoded = await auth.verifyIdToken(idToken);
-  return decoded.uid;
+  try {
+    const decoded = await auth.verifyIdToken(idToken);
+    return decoded.uid;
+  } catch (err: any) {
+    // An invalid/expired token on an analytics beacon should degrade to an
+    // anonymous event, not fail the whole request.
+    console.error(
+      "[AnalyticsEvent] Optional uid resolution failed:",
+      err?.name,
+    );
+    return null;
+  }
 }
 
 function json(payload: Record<string, unknown>, status = 200) {

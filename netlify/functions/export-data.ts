@@ -2,6 +2,7 @@ import { Config, Context } from "@netlify/functions";
 import type {
   DocumentReference,
   QueryDocumentSnapshot,
+  QuerySnapshot,
 } from "firebase-admin/firestore";
 import { db, auth } from "./shared/firebase-admin";
 import { enforceIpRateLimit, AuthError } from "./shared/require-auth";
@@ -11,15 +12,23 @@ export default async (req: Request, _context: Context) => {
   if (req.method !== "POST")
     return new Response("Method Not Allowed", { status: 405 });
 
-  const { idToken } = await req.json();
-  if (!idToken)
-    return new Response(JSON.stringify({ error: "Missing auth token" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json" },
-    });
-
   try {
-    const decoded = await auth.verifyIdToken(idToken);
+    let idToken: unknown;
+    try {
+      ({ idToken } = await req.json());
+    } catch {
+      return new Response(JSON.stringify({ error: "Invalid JSON" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (!idToken)
+      return new Response(JSON.stringify({ error: "Missing auth token" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+
+    const decoded = await auth.verifyIdToken(idToken as string);
     const uid = decoded.uid;
 
     // This export pulls the user's full sensitive profile across many
@@ -85,15 +94,25 @@ export default async (req: Request, _context: Context) => {
       readSubcollection(userRef, "testimonialSubmissions"),
     ]);
 
-    // The user's own analytics events live in a top-level collection outside
-    // their subtree — include them so the export is a complete record of the
-    // personal data held about them.
-    const analyticsEvents = await db
-      .collection("analyticsEvents")
-      .where("uid", "==", uid)
-      .get()
-      .then((snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-      .catch(() => [] as Array<Record<string, unknown>>);
+    // The user's own records in top-level collections that live OUTSIDE their
+    // subtree — include them so the export is a complete record of the
+    // personal data held about them. Each is capped so a heavy account can't
+    // blow up memory or the function timeout.
+    const [
+      analyticsEvents,
+      expertApplications,
+      trustModerationQueue,
+      supportTicketsGlobal,
+      remedyRequestsGlobal,
+      paymentOrders,
+    ] = await Promise.all([
+      readTopLevelCollectionByUid("analyticsEvents", uid),
+      readTopLevelCollectionByUid("expertApplications", uid),
+      readTopLevelCollectionByUid("trustModerationQueue", uid),
+      readTopLevelCollectionByUid("supportTickets", uid),
+      readTopLevelCollectionByUid("remedyRequests", uid),
+      readTopLevelCollectionByUid("paymentOrders", uid),
+    ]);
 
     const userData = userDoc.data() || {};
     const exportData = {
@@ -127,6 +146,11 @@ export default async (req: Request, _context: Context) => {
       predictionFeedback,
       testimonialSubmissions,
       analyticsEvents,
+      expertApplications,
+      trustModerationQueue,
+      supportTicketsGlobal,
+      remedyRequestsGlobal,
+      paymentOrders,
     };
 
     return new Response(JSON.stringify(exportData, null, 2), {
@@ -156,6 +180,29 @@ export const config: Config = { path: "/api/export-data" };
 async function readSubcollection(userRef: DocumentReference, name: string) {
   const snapshot = await userRef.collection(name).get();
   return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+}
+
+const TOP_LEVEL_EXPORT_CAP = 500;
+
+/**
+ * Read a top-level (non-subtree) collection filtered to this user's uid,
+ * capped so a heavy account can't blow up memory or the function timeout.
+ * Best-effort: a read failure yields an empty array rather than failing the
+ * whole export.
+ */
+async function readTopLevelCollectionByUid(
+  collectionName: string,
+  uid: string,
+) {
+  return db
+    .collection(collectionName)
+    .where("uid", "==", uid)
+    .limit(TOP_LEVEL_EXPORT_CAP)
+    .get()
+    .then((snap: QuerySnapshot) =>
+      snap.docs.map((d: QueryDocumentSnapshot) => ({ id: d.id, ...d.data() })),
+    )
+    .catch(() => [] as Array<Record<string, unknown>>);
 }
 
 /**

@@ -38,9 +38,9 @@ export default async (req: Request, _context: Context) => {
       headers: { "Content-Type": "application/json" },
     });
   } catch (error: any) {
-    console.error("[DailyDigest] Error:", error);
+    console.error("[DailyDigest] Error:", error?.name);
     return new Response(
-      JSON.stringify({ error: error.message || "Digest failed" }),
+      JSON.stringify({ error: "Could not generate daily digest" }),
       {
         status: 500,
         headers: { "Content-Type": "application/json" },

@@ -24,10 +24,10 @@ export default async (req: Request, _context: Context) => {
 
     return json({ success: true, ...result }, 200);
   } catch (error: any) {
-    console.error("[Credits Initialize] Error:", error);
+    console.error("[Credits Initialize] Error:", error?.name);
     return json(
-      { error: error.message || "Could not initialize credits" },
-      error.status || 500,
+      { error: "Could not initialize credits" },
+      error?.status || 500,
     );
   }
 };
