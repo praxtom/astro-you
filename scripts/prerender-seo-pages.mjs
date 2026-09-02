@@ -19,7 +19,11 @@ import path from "node:path";
 const execFileAsync = promisify(execFile);
 
 const distDir = path.resolve("dist");
-const baseUrl = "https://astroyou.app";
+const baseUrl = (
+  process.env.APP_BASE_URL ||
+  process.env.URL ||
+  "https://astroyou.app"
+).replace(/\/+$/, "");
 const today = new Date().toISOString().slice(0, 10);
 
 // ── Load the shared content model ────────────────────────────────────────────
@@ -1067,7 +1071,18 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const PANCHANG_BUDGET_MS = Number(process.env.PANCHANG_BUDGET_MS ?? 90_000);
 let panchangDeadline = Infinity;
 
-async function fetchPanchang(date, attempt = 0) {
+/**
+ * Set once a 429 response body identifies itself as a hard quota rejection
+ * (as opposed to an ordinary rate-limit that is worth backing off and
+ * retrying). Once true, every subsequent call short-circuits without
+ * touching the network — a cold build with 180 dates to fetch must not keep
+ * spending the remaining monthly quota against a provider that has already
+ * said no.
+ */
+let quotaExhausted = false;
+
+async function fetchPanchang(date, attempt = 0, cachedValue) {
+  if (quotaExhausted) return cachedValue ?? null;
   if (Date.now() > panchangDeadline) throw new Error("budget-exhausted");
 
   const [year, month, day] = date.split("-").map(Number);
@@ -1094,16 +1109,31 @@ async function fetchPanchang(date, attempt = 0) {
     signal: AbortSignal.timeout(15000),
   });
 
-  if (res.status === 429 && attempt < 3) {
-    const retryAfter = Number(res.headers.get("retry-after"));
-    const waitMs =
-      Number.isFinite(retryAfter) && retryAfter > 0
-        ? retryAfter * 1000
-        : 2000 * 2 ** attempt;
-    // Do not sleep past the deadline; fail this date and let the phase end.
-    if (Date.now() + waitMs > panchangDeadline) throw new Error("429");
-    await sleep(waitMs);
-    return fetchPanchang(date, attempt + 1);
+  if (res.status === 429) {
+    const bodyText = await res.text().catch(() => "");
+    if (/RATE_LIMIT_EXCEEDED|Quota exceeded/i.test(bodyText)) {
+      if (!quotaExhausted) {
+        quotaExhausted = true;
+        console.warn(
+          "prerender: Panchang API quota exhausted — remaining dates fall back to cache/descriptive copy for this build.",
+        );
+      }
+      return cachedValue ?? null;
+    }
+
+    if (attempt < 3) {
+      const retryAfter = Number(res.headers.get("retry-after"));
+      const waitMs =
+        Number.isFinite(retryAfter) && retryAfter > 0
+          ? retryAfter * 1000
+          : 2000 * 2 ** attempt;
+      // Do not sleep past the deadline; fail this date and let the phase end.
+      if (Date.now() + waitMs > panchangDeadline) throw new Error("429");
+      await sleep(waitMs);
+      return fetchPanchang(date, attempt + 1, cachedValue);
+    }
+
+    throw new Error("429");
   }
 
   if (!res.ok) throw new Error(`${res.status}`);
@@ -1160,7 +1190,7 @@ async function loadPanchangData() {
   const started = Date.now();
   panchangDeadline = started + PANCHANG_BUDGET_MS;
   const values = await mapWithConcurrency(missing, 6, (date) =>
-    fetchPanchang(date),
+    fetchPanchang(date, 0, cached.get(date)),
   );
   values.forEach((value, index) => {
     if (value) cached.set(missing[index], value);

@@ -39,6 +39,8 @@ After configuring Firebase, run `pnpm run check:services` and verify that server
 
 Do not rely on `ASTROYOU_API_KEY` as a shared fallback for launch.
 
+The astrology API plan must have quota headroom before a build: `scripts/prerender-seo-pages.mjs` prerenders up to 180 Panchang date pages, and a cold build (empty `node_modules/.cache`) can consume up to 180 calls against that plan's monthly quota.
+
 ### Payments
 
 - `RAZORPAY_KEY_ID`
@@ -54,6 +56,7 @@ The server and browser Razorpay key IDs must match. Subscription plan IDs must m
 
 - `ASTROYOU_ADMIN_EMAILS`: comma-separated admin emails for dashboard, moderation, and operational queues.
 - `APP_BASE_URL`: production URL, for example `https://astroyou.app`.
+- `EMAIL_UNSUB_SECRET`: secret used to HMAC one-click email unsubscribe (List-Unsubscribe) tokens. Must be a different long random value from `OTP_HASH_SECRET` (>= 32 characters). Digest emails are not sent until this is configured (compliance fail-closed).
 
 There are no hardcoded fallback admin emails. If `ASTROYOU_ADMIN_EMAILS` is missing, email-based admin access is disabled.
 
@@ -72,7 +75,7 @@ The latest local readiness check is blocked until these are configured:
 - `RAZORPAY_PREMIUM_PLAN_ID`
 - `RAZORPAY_PRO_PLAN_ID`
 - `ASTROYOU_ADMIN_EMAILS`
-- `APP_BASE_URL`
+- `EMAIL_UNSUB_SECRET`
 
 It also warns that `ASTROLOGY_API_KEY` should be configured separately instead of relying on `ASTROYOU_API_KEY`.
 
@@ -85,12 +88,13 @@ The checker now blocks `replace_me`, `plan_replace_me`, `rzp_live_replace_me`, `
 3. Run `pnpm run check:services`.
 4. Run `pnpm test`.
 5. Run `pnpm run lint`.
-6. Run payment smoke checks:
+6. Deploy Firestore rules and indexes: `pnpm run deploy:firebase`.
+7. Run payment smoke checks:
    - missing auth returns `401`;
    - bad webhook signature returns `400`;
    - valid Razorpay checkout creates wallet ledger activity;
    - subscription webhook maps plan IDs to the correct tier.
-7. Run product smoke checks:
+8. Run product smoke checks:
    - `/dashboard`;
    - `/consult`;
    - `/reports`;
@@ -98,6 +102,6 @@ The checker now blocks `replace_me`, `plan_replace_me`, `rzp_live_replace_me`, `
    - `/trust`;
    - `/panchang`;
    - `/horoscope/aries/daily`.
-8. Verify generated report storage and redownload.
-9. Verify trust submissions enter moderation and are not public until approved.
-10. Verify admin access works only for emails in `ASTROYOU_ADMIN_EMAILS`.
+9. Verify generated report storage and redownload.
+10. Verify trust submissions enter moderation and are not public until approved.
+11. Verify admin access works only for emails in `ASTROYOU_ADMIN_EMAILS`.

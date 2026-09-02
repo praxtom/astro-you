@@ -5,15 +5,17 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "test": "pnpm run test:types && pnpm run test:functions",
+    "test": "pnpm run test:types && pnpm run test:functions:types && pnpm run test:functions",
     "test:types": "tsc -p tsconfig.app.json --noEmit",
     "test:functions": "rm -rf node_modules/.tmp/functions-tests && tsc -p tsconfig.functions-test.json && node scripts/run-function-tests.mjs",
+    "test:functions:types": "tsc -p tsconfig.functions.json --noEmit",
     "build": "tsc -b && vite build && node scripts/prerender-seo-pages.mjs",
     "lint": "eslint .",
     "check:launch": "node scripts/check-launch-readiness.mjs",
     "check:market": "node scripts/check-market-readiness.mjs",
     "check:market:live": "node scripts/check-market-readiness.mjs --live",
     "check:services": "node scripts/verify-live-services.mjs",
+    "deploy:firebase": "firebase deploy --only firestore:rules,firestore:indexes,storage --project astro-you",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -22,6 +24,7 @@
     "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "^9.7.0",
     "@react-three/postprocessing": "^3.0.5",
+    "@sentry/react": "^10.73.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/three": "^0.185.4",
     "firebase": "^12.17.1",

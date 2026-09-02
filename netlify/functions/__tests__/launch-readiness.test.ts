@@ -5,7 +5,8 @@ import { buildLaunchReadinessReport } from "../shared/launch-readiness.js";
 const VALID_FIREBASE_SERVICE_ACCOUNT = JSON.stringify({
   project_id: "astroyou",
   client_email: "firebase-adminsdk@astroyou.iam.gserviceaccount.com",
-  private_key: "-----BEGIN PRIVATE KEY-----\\nkey\\n-----END PRIVATE KEY-----\\n",
+  private_key:
+    "-----BEGIN PRIVATE KEY-----\\nkey\\n-----END PRIVATE KEY-----\\n",
 });
 
 test("buildLaunchReadinessReport blocks launch when critical env is missing", () => {
@@ -19,7 +20,10 @@ test("buildLaunchReadinessReport blocks launch when critical env is missing", ()
   assert.ok(
     report.groups
       .flatMap((group) => group.items)
-      .some((item) => item.key === "RAZORPAY_KEY_SECRET" && item.status === "missing"),
+      .some(
+        (item) =>
+          item.key === "RAZORPAY_KEY_SECRET" && item.status === "missing",
+      ),
   );
 });
 
@@ -37,6 +41,7 @@ test("buildLaunchReadinessReport reports ready without exposing secret values", 
     ASTROYOU_ADMIN_EMAILS: "admin@astroyou.app",
     APP_BASE_URL: "https://astroyou.app",
     OTP_HASH_SECRET: "otp-secret-at-least-32-characters-long",
+    EMAIL_UNSUB_SECRET: "email-unsub-secret-at-least-32-characters-long",
     VITE_FIREBASE_API_KEY: "firebase-client-key",
     VITE_FIREBASE_AUTH_DOMAIN: "astroyou.firebaseapp.com",
     VITE_FIREBASE_PROJECT_ID: "astroyou",
@@ -67,6 +72,7 @@ test("buildLaunchReadinessReport warns when ASTROYOU_API_KEY fallback is overloa
     ASTROYOU_ADMIN_EMAILS: "admin@astroyou.app",
     APP_BASE_URL: "https://astroyou.app",
     OTP_HASH_SECRET: "otp-secret-at-least-32-characters-long",
+    EMAIL_UNSUB_SECRET: "email-unsub-secret-at-least-32-characters-long",
     VITE_FIREBASE_API_KEY: "client",
     VITE_FIREBASE_AUTH_DOMAIN: "domain",
     VITE_FIREBASE_PROJECT_ID: "project",
@@ -77,7 +83,9 @@ test("buildLaunchReadinessReport warns when ASTROYOU_API_KEY fallback is overloa
   });
 
   assert.equal(report.overallStatus, "warning");
-  assert.ok(report.warnings.some((warning) => /shared fallback/i.test(warning)));
+  assert.ok(
+    report.warnings.some((warning) => /shared fallback/i.test(warning)),
+  );
   assert.equal(report.summary.warnings, report.warnings.length);
 });
 
@@ -118,7 +126,9 @@ test("buildLaunchReadinessReport blocks invalid Firebase service account JSON", 
   });
 
   assert.equal(report.overallStatus, "blocked");
-  assert.ok(report.warnings.some((warning) => /service account/i.test(warning)));
+  assert.ok(
+    report.warnings.some((warning) => /service account/i.test(warning)),
+  );
 });
 
 test("buildLaunchReadinessReport warns when client and server projects do not match", () => {
@@ -135,6 +145,7 @@ test("buildLaunchReadinessReport warns when client and server projects do not ma
     ASTROYOU_ADMIN_EMAILS: "admin@astroyou.app",
     APP_BASE_URL: "https://astroyou.app",
     OTP_HASH_SECRET: "otp-secret-at-least-32-characters-long",
+    EMAIL_UNSUB_SECRET: "email-unsub-secret-at-least-32-characters-long",
     VITE_FIREBASE_API_KEY: "firebase-client-key",
     VITE_FIREBASE_AUTH_DOMAIN: "other.firebaseapp.com",
     VITE_FIREBASE_PROJECT_ID: "other",
@@ -153,7 +164,8 @@ test("buildLaunchReadinessReport blocks placeholder production values", () => {
     FIREBASE_SERVICE_ACCOUNT: JSON.stringify({
       project_id: "astroyou",
       client_email: "firebase-adminsdk@example.iam.gserviceaccount.com",
-      private_key: "-----BEGIN PRIVATE KEY-----\\nREPLACE_ME\\n-----END PRIVATE KEY-----\\n",
+      private_key:
+        "-----BEGIN PRIVATE KEY-----\\nREPLACE_ME\\n-----END PRIVATE KEY-----\\n",
     }),
     FIREBASE_STORAGE_BUCKET: "astroyou.appspot.com",
     GEMINI_API_KEY: "replace_me",
@@ -235,5 +247,60 @@ test("buildLaunchReadinessReport blocks missing or weak OTP hash secret", () => 
     .find((item) => item.key === "OTP_HASH_SECRET");
 
   assert.equal(otpItem?.status, "missing");
-  assert.ok(report.warnings.some((warning) => /OTP hash secret/i.test(warning)));
+  assert.ok(
+    report.warnings.some((warning) => /OTP hash secret/i.test(warning)),
+  );
+});
+
+test("buildLaunchReadinessReport blocks missing or weak EMAIL_UNSUB_SECRET", () => {
+  const baseEnv = {
+    FIREBASE_SERVICE_ACCOUNT: VALID_FIREBASE_SERVICE_ACCOUNT,
+    FIREBASE_STORAGE_BUCKET: "astroyou.appspot.com",
+    GEMINI_API_KEY: "gemini-secret",
+    ASTROLOGY_API_KEY: "astro-secret",
+    RAZORPAY_KEY_ID: "rzp_live_123",
+    RAZORPAY_KEY_SECRET: "razorpay-secret",
+    RAZORPAY_WEBHOOK_SECRET: "webhook-secret",
+    RAZORPAY_PREMIUM_PLAN_ID: "plan_premium",
+    RAZORPAY_PRO_PLAN_ID: "plan_pro",
+    ASTROYOU_ADMIN_EMAILS: "admin@astroyou.app",
+    APP_BASE_URL: "https://astroyou.app",
+    OTP_HASH_SECRET: "otp-secret-at-least-32-characters-long",
+    VITE_FIREBASE_API_KEY: "firebase-client-key",
+    VITE_FIREBASE_AUTH_DOMAIN: "astroyou.firebaseapp.com",
+    VITE_FIREBASE_PROJECT_ID: "astroyou",
+    VITE_FIREBASE_STORAGE_BUCKET: "astroyou.appspot.com",
+    VITE_FIREBASE_MESSAGING_SENDER_ID: "123",
+    VITE_FIREBASE_APP_ID: "1:123:web:abc",
+    VITE_RAZORPAY_KEY_ID: "rzp_live_123",
+  };
+
+  const missingReport = buildLaunchReadinessReport({ ...baseEnv });
+  assert.equal(missingReport.overallStatus, "blocked");
+  const missingItem = missingReport.groups
+    .flatMap((group) => group.items)
+    .find((item) => item.key === "EMAIL_UNSUB_SECRET");
+  assert.equal(missingItem?.status, "missing");
+  assert.equal(missingItem?.required, true);
+
+  const shortReport = buildLaunchReadinessReport({
+    ...baseEnv,
+    EMAIL_UNSUB_SECRET: "too-short",
+  });
+  assert.equal(shortReport.overallStatus, "blocked");
+  const shortItem = shortReport.groups
+    .flatMap((group) => group.items)
+    .find((item) => item.key === "EMAIL_UNSUB_SECRET");
+  assert.equal(shortItem?.status, "missing");
+  assert.ok(
+    shortReport.warnings.some((warning) =>
+      /Email unsubscribe secret/i.test(warning),
+    ),
+  );
+
+  const readyReport = buildLaunchReadinessReport({
+    ...baseEnv,
+    EMAIL_UNSUB_SECRET: "email-unsub-secret-at-least-32-characters-long",
+  });
+  assert.equal(readyReport.overallStatus, "ready");
 });

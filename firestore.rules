@@ -30,7 +30,8 @@ service cloud.firestore {
                     && request.resource.data.subscription == resource.data.subscription
                     && request.resource.data.get('referral', null) == resource.data.get('referral', null)
                     && request.resource.data.get('referredBy', null) == resource.data.get('referredBy', null)
-                    && request.resource.data.get('referralClaimedAt', null) == resource.data.get('referralClaimedAt', null);
+                    && request.resource.data.get('referralClaimedAt', null) == resource.data.get('referralClaimedAt', null)
+                    && request.resource.data.get('activeConsultSessionId', null) == resource.data.get('activeConsultSessionId', null);
 
       // Chats subcollection
       match /chats/{chatId} {
