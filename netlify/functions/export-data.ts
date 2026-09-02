@@ -30,6 +30,7 @@ export default async (req: Request, _context: Context) => {
 
     const decoded = await auth.verifyIdToken(idToken as string);
     const uid = decoded.uid;
+    const email = (decoded.email || "").toLowerCase().trim();
 
     // This export pulls the user's full sensitive profile across many
     // subcollections — rate-limit it and record an audit trail.
@@ -107,7 +108,15 @@ export default async (req: Request, _context: Context) => {
       paymentOrders,
     ] = await Promise.all([
       readTopLevelCollectionByUid("analyticsEvents", uid),
-      readTopLevelCollectionByUid("expertApplications", uid),
+      // expertApplications is written by the anonymous public application
+      // endpoint (shared/expert-applications.ts) and never carries a `uid` —
+      // only the applicant's email. Match on the verified token's email
+      // instead; an account with no email on the token can't be matched to
+      // an application, so it yields an empty array rather than a uid query
+      // that would always return nothing.
+      email
+        ? readTopLevelCollectionByField("expertApplications", "email", email)
+        : Promise.resolve([] as Array<Record<string, unknown>>),
       readTopLevelCollectionByUid("trustModerationQueue", uid),
       readTopLevelCollectionByUid("supportTickets", uid),
       readTopLevelCollectionByUid("remedyRequests", uid),
@@ -194,9 +203,24 @@ async function readTopLevelCollectionByUid(
   collectionName: string,
   uid: string,
 ) {
+  return readTopLevelCollectionByField(collectionName, "uid", uid);
+}
+
+/**
+ * Read a top-level (non-subtree) collection filtered by an arbitrary field —
+ * for collections whose docs don't carry a `uid` (e.g. `expertApplications`,
+ * written by an anonymous endpoint and keyed by email instead). Capped so a
+ * heavy account can't blow up memory or the function timeout. Best-effort: a
+ * read failure yields an empty array rather than failing the whole export.
+ */
+async function readTopLevelCollectionByField(
+  collectionName: string,
+  field: string,
+  value: string,
+) {
   return db
     .collection(collectionName)
-    .where("uid", "==", uid)
+    .where(field, "==", value)
     .limit(TOP_LEVEL_EXPORT_CAP)
     .get()
     .then((snap: QuerySnapshot) =>

@@ -89,7 +89,6 @@ export default async (req: Request, _context: Context) => {
     for (const coll of [
       "analyticsEvents",
       "trustModerationQueue",
-      "expertApplications",
       "supportTickets",
       "remedyRequests",
       "predictionFeedbackAggregateQueue",
@@ -101,6 +100,24 @@ export default async (req: Request, _context: Context) => {
         .then((snap) => Promise.all(snap.docs.map((d) => d.ref.delete())))
         .catch((cleanupErr) => {
           console.error(`[Delete Account] ${coll} cleanup failed:`, cleanupErr);
+        });
+    }
+
+    // expertApplications is written by the anonymous public application
+    // endpoint (shared/expert-applications.ts) and never carries a `uid` —
+    // only the applicant's email. A uid-filtered query would always return
+    // nothing, so match on email instead (same key the OTP doc below uses).
+    if (email) {
+      await db
+        .collection("expertApplications")
+        .where("email", "==", email)
+        .get()
+        .then((snap) => Promise.all(snap.docs.map((d) => d.ref.delete())))
+        .catch((cleanupErr) => {
+          console.error(
+            "[Delete Account] expertApplications cleanup failed:",
+            cleanupErr,
+          );
         });
     }
 
