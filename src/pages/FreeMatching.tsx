@@ -5,7 +5,11 @@ import { motion } from "framer-motion";
 import { Sparkles, Heart, ArrowRight, Loader2, Lock } from "lucide-react";
 import LocationInput from "../components/LocationInput";
 import SEO from "../components/SEO";
-import { captureAcquisitionSource, trackAcquisitionEvent } from "../lib/acquisition";
+import {
+  captureAcquisitionSource,
+  trackAcquisitionEvent,
+} from "../lib/acquisition";
+import { siteUrl } from "../lib/site-url";
 
 interface PersonForm {
   name: string;
@@ -27,7 +31,12 @@ interface MatchResult {
   gunas: GunaResult[];
 }
 
-const emptyPerson = (): PersonForm => ({ name: "", dob: "", tob: "12:00", pob: "" });
+const emptyPerson = (): PersonForm => ({
+  name: "",
+  dob: "",
+  tob: "12:00",
+  pob: "",
+});
 
 const PersonFormBlock = ({
   label,
@@ -39,9 +48,13 @@ const PersonFormBlock = ({
   onChange: (p: PersonForm) => void;
 }) => (
   <div className="space-y-4">
-    <h3 className="text-sm font-bold uppercase tracking-widest text-white/50">{label}</h3>
+    <h3 className="text-sm font-bold uppercase tracking-widest text-white/50">
+      {label}
+    </h3>
     <div>
-      <label className="block text-sm text-white/60 mb-1.5">Name (optional)</label>
+      <label className="block text-sm text-white/60 mb-1.5">
+        Name (optional)
+      </label>
       <input
         type="text"
         value={person.name}
@@ -62,7 +75,9 @@ const PersonFormBlock = ({
       />
     </div>
     <div>
-      <label className="block text-sm text-white/60 mb-1.5">Time of Birth</label>
+      <label className="block text-sm text-white/60 mb-1.5">
+        Time of Birth
+      </label>
       <input
         type="time"
         value={person.tob}
@@ -93,25 +108,33 @@ export default function FreeMatching() {
 
   const handleCheck = async () => {
     if (!person1.dob || !person1.pob || !person2.dob || !person2.pob) {
-      setError("Please enter date of birth and place of birth for both persons.");
+      setError(
+        "Please enter date of birth and place of birth for both persons.",
+      );
       return;
     }
     setError("");
     setLoading(true);
 
     try {
-      const compatRes = await postJson("/api/compatibility", { maleData: person1, femaleData: person2 });
+      const compatRes = await postJson("/api/compatibility", {
+        maleData: person1,
+        femaleData: person2,
+      });
 
       if (!compatRes.ok) throw new Error("Compatibility API failed");
 
       const compatData = await compatRes.json();
 
       // Normalize the response into our MatchResult shape
-      const gunas: GunaResult[] = compatData.gunas || compatData.ashtakoot || [];
+      const gunas: GunaResult[] =
+        compatData.gunas || compatData.ashtakoot || [];
       const overallScore =
         compatData.overallScore ??
         compatData.totalScore ??
-        (gunas.length > 0 ? gunas.reduce((s: number, g: GunaResult) => s + (g.score || 0), 0) : 0);
+        (gunas.length > 0
+          ? gunas.reduce((s: number, g: GunaResult) => s + (g.score || 0), 0)
+          : 0);
       const maxScore = compatData.maxScore ?? 36;
 
       setResult({ overallScore, maxScore, gunas });
@@ -142,18 +165,17 @@ export default function FreeMatching() {
     "@type": "WebApplication",
     name: "Free Kundali Matching",
     applicationCategory: "LifestyleApplication",
-    url: "https://astroyou.app/free-kundali-matching",
+    url: siteUrl("/free-kundali-matching"),
     offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
   };
-
 
   return (
     <div className="min-h-screen bg-[#030308] text-white">
       <SEO
         title="Free Kundali Matching Online | Guna Milan Calculator"
         description="Check Kundali matching and Guna Milan score for free. See compatibility score and Ashtakoot analysis with no signup required."
-        url="https://astroyou.app/free-kundali-matching"
-        canonical="https://astroyou.app/free-kundali-matching"
+        url={siteUrl("/free-kundali-matching")}
+        canonical={siteUrl("/free-kundali-matching")}
         structuredData={structuredData}
       />
       {/* Cosmic background */}
@@ -178,7 +200,8 @@ export default function FreeMatching() {
             Free Kundali Matching
           </h1>
           <p className="text-white/50 text-lg max-w-xl mx-auto">
-            Check Ashtakoot Guna Milan compatibility score between two birth charts instantly.
+            Check Ashtakoot Guna Milan compatibility score between two birth
+            charts instantly.
           </p>
         </motion.div>
 
@@ -191,11 +214,21 @@ export default function FreeMatching() {
           >
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-6 sm:p-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <PersonFormBlock label="Person 1" person={person1} onChange={setPerson1} />
-                <PersonFormBlock label="Person 2" person={person2} onChange={setPerson2} />
+                <PersonFormBlock
+                  label="Person 1"
+                  person={person1}
+                  onChange={setPerson1}
+                />
+                <PersonFormBlock
+                  label="Person 2"
+                  person={person2}
+                  onChange={setPerson2}
+                />
               </div>
 
-              {error && <p className="text-red-400 text-sm text-center mt-5">{error}</p>}
+              {error && (
+                <p className="text-red-400 text-sm text-center mt-5">{error}</p>
+              )}
 
               <button
                 onClick={handleCheck}
@@ -218,9 +251,14 @@ export default function FreeMatching() {
 
             {/* SEO content */}
             <div className="mt-12 text-center space-y-4">
-              <h2 className="text-xl font-display text-white/70">What is Kundali Matching?</h2>
+              <h2 className="text-xl font-display text-white/70">
+                What is Kundali Matching?
+              </h2>
               <p className="text-white/40 text-sm max-w-md mx-auto leading-relaxed">
-                Kundali Matching (Guna Milan) is a Vedic compatibility analysis that compares two birth charts across 8 categories (Ashtakoot) totaling 36 points. A score of 18+ is considered favorable for marriage.
+                Kundali Matching (Guna Milan) is a Vedic compatibility analysis
+                that compares two birth charts across 8 categories (Ashtakoot)
+                totaling 36 points. A score of 18+ is considered favorable for
+                marriage.
               </p>
             </div>
           </motion.div>
@@ -239,7 +277,9 @@ export default function FreeMatching() {
 
             {/* Overall Score */}
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center mb-8">
-              <p className="text-white/40 text-xs uppercase tracking-wider mb-2">Overall Compatibility</p>
+              <p className="text-white/40 text-xs uppercase tracking-wider mb-2">
+                Overall Compatibility
+              </p>
               <div className="text-6xl font-display font-bold bg-gradient-to-b from-amber-400 to-pink-400 bg-clip-text text-transparent">
                 {result.overallScore}/{result.maxScore}
               </div>
@@ -247,17 +287,19 @@ export default function FreeMatching() {
                 {result.overallScore >= 25
                   ? "Excellent match!"
                   : result.overallScore >= 18
-                  ? "Good compatibility"
-                  : result.overallScore >= 12
-                  ? "Average compatibility"
-                  : "Needs careful consideration"}
+                    ? "Good compatibility"
+                    : result.overallScore >= 12
+                      ? "Average compatibility"
+                      : "Needs careful consideration"}
               </p>
             </div>
 
             {/* Guna breakdown: show 3, blur the rest */}
             {result.gunas.length > 0 && (
               <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 mb-8">
-                <h3 className="text-lg font-display text-white/80 mb-4">Ashtakoot Analysis</h3>
+                <h3 className="text-lg font-display text-white/80 mb-4">
+                  Ashtakoot Analysis
+                </h3>
                 <div className="space-y-3">
                   {result.gunas.map((guna, i) => {
                     const isLocked = i >= 3;
@@ -268,12 +310,16 @@ export default function FreeMatching() {
                           isLocked ? "blur-[4px] select-none" : ""
                         }`}
                       >
-                        <span className="text-sm text-white/70">{guna.name || `Guna ${i + 1}`}</span>
+                        <span className="text-sm text-white/70">
+                          {guna.name || `Guna ${i + 1}`}
+                        </span>
                         <div className="flex items-center gap-3">
                           <div className="w-24 h-1.5 bg-white/10 rounded-full overflow-hidden">
                             <div
                               className="h-full bg-amber-400 rounded-full"
-                              style={{ width: `${((guna.score || 0) / (guna.maxScore || 1)) * 100}%` }}
+                              style={{
+                                width: `${((guna.score || 0) / (guna.maxScore || 1)) * 100}%`,
+                              }}
                             />
                           </div>
                           <span className="text-sm text-white/50 w-10 text-right">
@@ -297,10 +343,13 @@ export default function FreeMatching() {
             <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-6 mb-8 text-center">
               <Sparkles className="w-6 h-6 text-amber-400 mx-auto mb-3" />
               <p className="text-white/70 mb-1">
-                See all <span className="text-amber-400 font-medium">36 points</span> + the full compatibility analysis
+                See all{" "}
+                <span className="text-amber-400 font-medium">36 points</span> +
+                the full compatibility analysis
               </p>
               <p className="text-white/40 text-sm">
-                Get detailed insights on each guna, Mangal Dosha check, and personalized relationship guidance.
+                Get detailed insights on each guna, Mangal Dosha check, and
+                personalized relationship guidance.
               </p>
             </div>
 

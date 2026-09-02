@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { getSiteOrigin, siteUrl } from "../lib/site-url";
 
 interface SEOProps {
   title?: string;
@@ -16,8 +17,8 @@ const defaultMeta = {
     "Discover your birth chart with Vedic astrology for the modern world. Get personalized Kundali readings, daily guidance, and clarity from the celestial movements.",
   // PNG, not the SVG source: most social and preview scrapers do not render
   // SVG, so an SVG og:image silently produces no preview card at all.
-  image: "https://astroyou.app/og-image.png",
-  url: "https://astroyou.app",
+  image: siteUrl("/og-image.png"),
+  url: getSiteOrigin(),
   type: "website" as const,
 };
 

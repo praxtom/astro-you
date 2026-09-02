@@ -14,6 +14,7 @@ import {
   TRUST_SIGNALS,
 } from "../lib/trust-policy";
 import { trackAcquisitionEvent } from "../lib/acquisition";
+import { siteUrl } from "../lib/site-url";
 
 interface TrustSummary {
   totals: {
@@ -101,13 +102,16 @@ export default function Trust() {
         }),
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "Could not submit story.");
+      if (!response.ok)
+        throw new Error(data.error || "Could not submit story.");
       setStory("");
       setPublicName("");
       trackAcquisitionEvent("trust_testimonial_submitted", {
         allowPublicUse,
       });
-      setStatus("Story submitted for review. It will not be public automatically.");
+      setStatus(
+        "Story submitted for review. It will not be public automatically.",
+      );
     } catch (err: any) {
       setStatus(err.message || "Could not submit story.");
     } finally {
@@ -150,7 +154,7 @@ export default function Trust() {
       "@context": "https://schema.org",
       "@type": "AboutPage",
       name: "AstroYou Trust and Transparency",
-      url: "https://astroyou.app/trust",
+      url: siteUrl("/trust"),
       description:
         "How AstroYou handles AI astrologers, real reviews, testimonials, prediction feedback, and transparency.",
     },
@@ -191,8 +195,8 @@ export default function Trust() {
       <SEO
         title="Trust and Transparency"
         description="How AstroYou handles AI astrologers, real reviews, testimonials, prediction feedback, and transparency."
-        url="https://astroyou.app/trust"
-        canonical="https://astroyou.app/trust"
+        url={siteUrl("/trust")}
+        canonical={siteUrl("/trust")}
         structuredData={structuredData}
       />
       <Header />
@@ -212,12 +216,13 @@ export default function Trust() {
           </div>
 
           <div className="platform-panel p-4">
-            <p className="platform-eyebrow text-white/35">
-              Operating rules
-            </p>
+            <p className="platform-eyebrow text-white/35">Operating rules</p>
             <div className="mt-3 grid gap-2">
               {TRUST_PRINCIPLES.map((item) => (
-                <div key={item} className="flex items-start gap-2.5 type-body-sm text-white/65">
+                <div
+                  key={item}
+                  className="flex items-start gap-2.5 type-body-sm text-white/65"
+                >
                   <CheckCircle2 className="mt-0.5 text-gold" size={15} />
                   <span>{item}</span>
                 </div>
@@ -230,15 +235,12 @@ export default function Trust() {
           {TRUST_SIGNALS.map((item) => {
             const Icon = item.icon;
             return (
-              <article
-                key={item.title}
-                className="platform-panel p-4"
-              >
+              <article key={item.title} className="platform-panel p-4">
                 <Icon className="text-gold" size={19} />
-                <h2 className="mt-3 type-card-title text-white">{item.title}</h2>
-                <p className="mt-2 type-body-sm text-white/45">
-                  {item.body}
-                </p>
+                <h2 className="mt-3 type-card-title text-white">
+                  {item.title}
+                </h2>
+                <p className="mt-2 type-body-sm text-white/45">{item.body}</p>
               </article>
             );
           })}
@@ -246,16 +248,16 @@ export default function Trust() {
 
         <section className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
           <article className="platform-panel p-4">
-            <p className="platform-eyebrow">
-              How proof becomes public
-            </p>
+            <p className="platform-eyebrow">How proof becomes public</p>
             <div className="mt-3 overflow-hidden rounded-lg border border-white/10">
               {TRUST_PROCESS_ROWS.map((row) => (
                 <div
                   key={row.signal}
                   className="grid gap-2 border-b border-white/10 bg-black/20 p-3 last:border-b-0 md:grid-cols-[8rem_1fr_1.2fr]"
                 >
-                  <p className="type-body-sm font-semibold text-white">{row.signal}</p>
+                  <p className="type-body-sm font-semibold text-white">
+                    {row.signal}
+                  </p>
                   <p className="type-body-sm text-white/45">{row.source}</p>
                   <p className="type-body-sm text-white/55">{row.publicRule}</p>
                 </div>
@@ -264,9 +266,7 @@ export default function Trust() {
           </article>
 
           <article className="platform-panel p-4">
-            <p className="platform-eyebrow">
-              Not claimed yet
-            </p>
+            <p className="platform-eyebrow">Not claimed yet</p>
             <div className="mt-3 grid gap-2">
               {TRUST_NOT_CLAIMED_YET.map((item) => (
                 <p
@@ -282,14 +282,14 @@ export default function Trust() {
 
         <section className="mt-4 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
           <div className="platform-panel p-4">
-            <p className="platform-eyebrow">
-              Transparency report
-            </p>
+            <p className="platform-eyebrow">Transparency report</p>
             <h2 className="mt-1 type-section-title">Current public status</h2>
             <div className="mt-4 grid grid-cols-2 gap-2">
               <TrustMetric
                 label="Approved stories"
-                value={summary ? String(summary.totals.approvedTestimonials) : "-"}
+                value={
+                  summary ? String(summary.totals.approvedTestimonials) : "-"
+                }
               />
               <TrustMetric
                 label="Approved reviews"
@@ -297,7 +297,11 @@ export default function Trust() {
               />
               <TrustMetric
                 label="Pending review"
-                value={summary ? String(summary.totals.pendingPublicSubmissions) : "-"}
+                value={
+                  summary
+                    ? String(summary.totals.pendingPublicSubmissions)
+                    : "-"
+                }
               />
               <TrustMetric
                 label="Helpful feedback"
@@ -313,11 +317,13 @@ export default function Trust() {
               <p>Public testimonial display: approved submissions only.</p>
               <p>Review source: completed consultation rating prompt.</p>
               <p>
-                Prediction feedback: {summary?.predictionFeedback.total ?? 0} aggregate signals
-                captured.
+                Prediction feedback: {summary?.predictionFeedback.total ?? 0}{" "}
+                aggregate signals captured.
               </p>
               <p>Human expert claims: not shown until verification exists.</p>
-              {summaryStatus && <p className="text-amber-300/80">{summaryStatus}</p>}
+              {summaryStatus && (
+                <p className="text-amber-300/80">{summaryStatus}</p>
+              )}
             </div>
             <div className="mt-4 grid gap-2">
               {transparencyChecks.map((item) => (
@@ -326,7 +332,11 @@ export default function Trust() {
                   className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2 type-body-sm"
                 >
                   <span className="text-white/55">{item.label}</span>
-                  <span className={item.passed ? "text-emerald-300" : "text-amber-300"}>
+                  <span
+                    className={
+                      item.passed ? "text-emerald-300" : "text-amber-300"
+                    }
+                  >
                     {item.passed ? "Active" : "Needs review"}
                   </span>
                 </div>
@@ -342,9 +352,7 @@ export default function Trust() {
           </div>
 
           <div className="platform-panel p-4">
-            <p className="platform-eyebrow">
-              Submit real story
-            </p>
+            <p className="platform-eyebrow">Submit real story</p>
             <h2 className="mt-1 type-section-title">Share your experience</h2>
             <p className="mt-2 type-body-sm text-white/45">
               This goes into a review queue. It is not published automatically.
@@ -384,9 +392,7 @@ export default function Trust() {
         </section>
 
         <section className="mt-4 platform-panel p-4">
-          <p className="platform-eyebrow">
-            Public proof
-          </p>
+          <p className="platform-eyebrow">Public proof</p>
           <h2 className="mt-1 type-section-title">Approved user signals</h2>
           <div className="mt-4 grid gap-3 lg:grid-cols-2">
             <div className="rounded-lg border border-white/10 bg-black/20 p-3">
@@ -396,45 +402,56 @@ export default function Trust() {
               <div className="mt-3 grid gap-3">
                 {summary?.testimonials.length ? (
                   summary.testimonials.slice(0, 3).map((item) => (
-                    <blockquote key={`${item.publicName}-${item.story}`} className="type-body-sm text-white/60">
+                    <blockquote
+                      key={`${item.publicName}-${item.story}`}
+                      className="type-body-sm text-white/60"
+                    >
                       “{item.story}”
                       <span className="mt-2 block text-xs text-gold">
                         {item.publicName}
-                        {formatTrustDate(item.createdAt) ? ` · ${formatTrustDate(item.createdAt)}` : ""}
+                        {formatTrustDate(item.createdAt)
+                          ? ` · ${formatTrustDate(item.createdAt)}`
+                          : ""}
                       </span>
                     </blockquote>
                   ))
                 ) : (
                   <p className="type-body-sm text-white/35">
-                    No approved public testimonials yet. Submitted stories stay private until review.
+                    No approved public testimonials yet. Submitted stories stay
+                    private until review.
                   </p>
                 )}
               </div>
             </div>
             <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-              <h3 className="type-meta uppercase text-white/45">
-                Reviews
-              </h3>
+              <h3 className="type-meta uppercase text-white/45">Reviews</h3>
               <div className="mt-3 grid gap-3">
                 {summary?.reviews.length ? (
                   summary.reviews.slice(0, 3).map((item) => {
-                    const guideName = getPersonaById(item.personaId)?.name ?? "AstroYou guide";
+                    const guideName =
+                      getPersonaById(item.personaId)?.name ?? "AstroYou guide";
                     return (
-                      <blockquote key={`${item.personaId}-${item.reviewText}`} className="type-body-sm text-white/60">
+                      <blockquote
+                        key={`${item.personaId}-${item.reviewText}`}
+                        className="type-body-sm text-white/60"
+                      >
                         <span className="mb-1 block text-gold">
                           {"★".repeat(item.rating)}
                         </span>
                         “{item.reviewText}”
                         <span className="mt-2 block text-xs text-gold">
                           {guideName}
-                          {formatTrustDate(item.createdAt) ? ` · ${formatTrustDate(item.createdAt)}` : ""}
+                          {formatTrustDate(item.createdAt)
+                            ? ` · ${formatTrustDate(item.createdAt)}`
+                            : ""}
                         </span>
                       </blockquote>
                     );
                   })
                 ) : (
                   <p className="type-body-sm text-white/35">
-                    No approved public reviews yet. Private ratings are not displayed as social proof.
+                    No approved public reviews yet. Private ratings are not
+                    displayed as social proof.
                   </p>
                 )}
               </div>

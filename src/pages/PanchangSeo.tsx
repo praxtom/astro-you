@@ -1,16 +1,27 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { postJson } from "../lib/apiFetch";
 import { Link } from "react-router-dom";
-import { ArrowRight, Calendar, Clock, Loader2, MapPin, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  Calendar,
+  Clock,
+  Loader2,
+  MapPin,
+  Sparkles,
+} from "lucide-react";
 import Header from "../components/layout/Header";
 import SEO from "../components/SEO";
-import { captureAcquisitionSource, trackAcquisitionEvent } from "../lib/acquisition";
+import {
+  captureAcquisitionSource,
+  trackAcquisitionEvent,
+} from "../lib/acquisition";
 import {
   buildFallbackPanchangSummary,
   normalizePanchangResponse,
   type PanchangSummary,
 } from "../lib/panchang-normalize";
 import { viewerDateKey } from "../lib/viewer-timezone";
+import { siteUrl } from "../lib/site-url";
 
 const todayIso = () => viewerDateKey();
 
@@ -27,7 +38,11 @@ export default function PanchangSeo() {
     setLoading(true);
     setError(null);
     try {
-      const res = await postJson("/api/kundali", { chartType: "PANCHANG", date, city });
+      const res = await postJson("/api/kundali", {
+        chartType: "PANCHANG",
+        date,
+        city,
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Could not load Panchang");
       setPanchang(normalizePanchangResponse(data.data ?? data));
@@ -67,7 +82,7 @@ export default function PanchangSeo() {
     "@type": "WebApplication",
     name: "Today Panchang",
     applicationCategory: "LifestyleApplication",
-    url: "https://astroyou.app/panchang",
+    url: siteUrl("/panchang"),
     offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
   };
 
@@ -76,8 +91,8 @@ export default function PanchangSeo() {
       <SEO
         title="Today Panchang: Tithi, Nakshatra, Rahu Kaal, and Muhurat"
         description="Check today's Panchang online for free. See tithi, nakshatra, yoga, karana, sunrise, sunset, Rahu Kaal, and auspicious timings."
-        url="https://astroyou.app/panchang"
-        canonical="https://astroyou.app/panchang"
+        url={siteUrl("/panchang")}
+        canonical={siteUrl("/panchang")}
         structuredData={structuredData}
       />
       <Header />
@@ -123,13 +138,18 @@ export default function PanchangSeo() {
               disabled={loading}
               className="self-end rounded-xl bg-gold px-6 py-3 font-bold uppercase tracking-widest text-black disabled:opacity-50"
             >
-              {loading ? <Loader2 className="animate-spin" size={20} /> : "Check"}
+              {loading ? (
+                <Loader2 className="animate-spin" size={20} />
+              ) : (
+                "Check"
+              )}
             </button>
           </div>
           {error && <p className="mt-4 text-sm text-red-400">{error}</p>}
           {usingFallback && (
             <p className="mt-4 text-sm text-amber-200/70">
-              Live Panchang timing is refreshing. This baseline is safe for planning; check again before final Muhurat decisions.
+              Live Panchang timing is refreshing. This baseline is safe for
+              planning; check again before final Muhurat decisions.
             </p>
           )}
         </section>
@@ -146,10 +166,17 @@ export default function PanchangSeo() {
               ["Rahu Kaal", panchang.rahuKaal],
               ["Abhijit Muhurat", panchang.abhijitMuhurat],
             ].map(([label, value, subtext]) => (
-              <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-                <p className="text-xs font-bold uppercase tracking-widest text-white/35">{label}</p>
+              <div
+                key={label}
+                className="rounded-2xl border border-white/10 bg-white/[0.03] p-5"
+              >
+                <p className="text-xs font-bold uppercase tracking-widest text-white/35">
+                  {label}
+                </p>
                 <p className="mt-2 text-xl text-white/85">{value || "-"}</p>
-                {subtext && <p className="mt-1 text-sm text-white/35">until {subtext}</p>}
+                {subtext && (
+                  <p className="mt-1 text-sm text-white/35">until {subtext}</p>
+                )}
               </div>
             ))}
           </section>
@@ -169,7 +196,8 @@ export default function PanchangSeo() {
                 <p className="mt-2 text-white/70">
                   {panchang.abhijitMuhurat !== "-"
                     ? `Use Abhijit Muhurat: ${panchang.abhijitMuhurat}`
-                    : panchang.auspiciousTimings[0] || "Choose a calm daytime window after sunrise."}
+                    : panchang.auspiciousTimings[0] ||
+                      "Choose a calm daytime window after sunrise."}
                 </p>
               </div>
               <div>
@@ -179,7 +207,8 @@ export default function PanchangSeo() {
                 <p className="mt-2 text-white/70">
                   {panchang.rahuKaal !== "-"
                     ? `Avoid Rahu Kaal: ${panchang.rahuKaal}`
-                    : panchang.inauspiciousTimings[0] || "Avoid rushing important starts."}
+                    : panchang.inauspiciousTimings[0] ||
+                      "Avoid rushing important starts."}
                 </p>
               </div>
             </div>

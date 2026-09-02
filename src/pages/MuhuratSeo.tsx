@@ -4,19 +4,25 @@ import { Link } from "react-router-dom";
 import { ArrowRight, Calendar, Loader2, MapPin, Sparkles } from "lucide-react";
 import Header from "../components/layout/Header";
 import SEO from "../components/SEO";
-import { captureAcquisitionSource, trackAcquisitionEvent } from "../lib/acquisition";
+import {
+  captureAcquisitionSource,
+  trackAcquisitionEvent,
+} from "../lib/acquisition";
 import {
   buildFallbackPanchangSummary,
   normalizePanchangResponse,
   type PanchangSummary,
 } from "../lib/panchang-normalize";
 import { viewerDateKey } from "../lib/viewer-timezone";
+import { siteUrl } from "../lib/site-url";
 
 const todayIso = () => viewerDateKey();
 
 const PURPOSE_GUIDANCE: Record<string, string> = {
-  business: "Prioritize clear agreements, clean documentation, and a steady first step.",
-  marriage: "Use this as a first filter. Personal charts and family context still matter.",
+  business:
+    "Prioritize clear agreements, clean documentation, and a steady first step.",
+  marriage:
+    "Use this as a first filter. Personal charts and family context still matter.",
   travel: "Avoid rushed departures and keep the first hour calm.",
   home: "Favor a clean, prayerful start and avoid Rahu Kaal for the first action.",
 };
@@ -35,7 +41,11 @@ export default function MuhuratSeo() {
     setLoading(true);
     setError(null);
     try {
-      const res = await postJson("/api/kundali", { chartType: "PANCHANG", date, city });
+      const res = await postJson("/api/kundali", {
+        chartType: "PANCHANG",
+        date,
+        city,
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Could not load Muhurat");
       setPanchang(normalizePanchangResponse(data.data ?? data));
@@ -92,7 +102,7 @@ export default function MuhuratSeo() {
     "@type": "WebApplication",
     name: "Free Muhurat Finder",
     applicationCategory: "LifestyleApplication",
-    url: "https://astroyou.app/muhurat",
+    url: siteUrl("/muhurat"),
     offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
   };
 
@@ -101,8 +111,8 @@ export default function MuhuratSeo() {
       <SEO
         title="Free Muhurat Finder: Auspicious Timing from Panchang"
         description="Find a free Muhurat guide for business, marriage, travel, and home activities using Panchang, Rahu Kaal, and Abhijit Muhurat."
-        url="https://astroyou.app/muhurat"
-        canonical="https://astroyou.app/muhurat"
+        url={siteUrl("/muhurat")}
+        canonical={siteUrl("/muhurat")}
         structuredData={structuredData}
       />
       <Header />
@@ -112,7 +122,9 @@ export default function MuhuratSeo() {
             <Sparkles size={14} />
             Free Muhurat
           </div>
-          <h1 className="font-display text-4xl md:text-5xl">Free Muhurat Finder</h1>
+          <h1 className="font-display text-4xl md:text-5xl">
+            Free Muhurat Finder
+          </h1>
           <p className="mx-auto mt-4 max-w-2xl text-white/55">
             Pick a date, place, and purpose. AstroYou checks Panchang timing and
             gives a clear first-pass Muhurat guide.
@@ -163,20 +175,27 @@ export default function MuhuratSeo() {
               disabled={loading}
               className="self-end rounded-xl bg-gold px-6 py-3 font-bold uppercase tracking-widest text-black disabled:opacity-50"
             >
-              {loading ? <Loader2 className="animate-spin" size={20} /> : "Find"}
+              {loading ? (
+                <Loader2 className="animate-spin" size={20} />
+              ) : (
+                "Find"
+              )}
             </button>
           </div>
           {error && <p className="mt-4 text-sm text-red-400">{error}</p>}
           {usingFallback && (
             <p className="mt-4 text-sm text-amber-200/70">
-              Live Muhurat timing is refreshing. Use this as a first-pass guide and recheck before important commitments.
+              Live Muhurat timing is refreshing. Use this as a first-pass guide
+              and recheck before important commitments.
             </p>
           )}
         </section>
 
         {recommendation && panchang && (
           <section className="mt-6 rounded-2xl border border-gold/20 bg-gold/5 p-6">
-            <h2 className="font-display text-2xl text-white/90">Recommended Window</h2>
+            <h2 className="font-display text-2xl text-white/90">
+              Recommended Window
+            </h2>
             <div className="mt-5 grid gap-4 md:grid-cols-3">
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-white/35">
@@ -188,7 +207,9 @@ export default function MuhuratSeo() {
                 <p className="text-xs font-bold uppercase tracking-widest text-white/35">
                   Avoid
                 </p>
-                <p className="mt-2 text-lg text-white/80">{recommendation.avoid}</p>
+                <p className="mt-2 text-lg text-white/80">
+                  {recommendation.avoid}
+                </p>
               </div>
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-white/35">
@@ -202,7 +223,8 @@ export default function MuhuratSeo() {
                 Tithi: <span className="text-white">{panchang.tithi}</span>
               </p>
               <p className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-white/60">
-                Nakshatra: <span className="text-white">{panchang.nakshatra}</span>
+                Nakshatra:{" "}
+                <span className="text-white">{panchang.nakshatra}</span>
               </p>
               <p className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-white/60">
                 Yoga: <span className="text-white">{panchang.yoga}</span>

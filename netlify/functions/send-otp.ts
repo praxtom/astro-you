@@ -124,7 +124,8 @@ export default async (req: Request, _context: Context) => {
         Authorization: `Bearer ${resendApiKey}`,
       },
       body: JSON.stringify({
-        from: "AstroYou <noreply@astroyou.app>",
+        from:
+          process.env.DIGEST_FROM_EMAIL || "AstroYou <noreply@astroyou.app>",
         to: normalizedEmail,
         subject: "Your Celestial Access Code",
         html: `

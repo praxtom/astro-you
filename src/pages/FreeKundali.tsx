@@ -9,6 +9,7 @@ import {
   trackAcquisitionEvent,
 } from "../lib/acquisition";
 import { postJson } from "../lib/apiFetch";
+import { siteUrl } from "../lib/site-url";
 
 interface KundaliResult {
   ascendant?: string;
@@ -84,7 +85,7 @@ export default function FreeKundali() {
     name: "Free Kundali Online",
     applicationCategory: "LifestyleApplication",
     operatingSystem: "Web",
-    url: "https://astroyou.app/free-kundali",
+    url: siteUrl("/free-kundali"),
     offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
   };
   const faqStructuredData = {
@@ -115,8 +116,8 @@ export default function FreeKundali() {
       <SEO
         title="Free Kundali Online | Vedic Birth Chart Generator"
         description="Generate your free Vedic Kundali birth chart instantly. Get Moon sign, Sun sign, Ascendant, and planetary positions with no signup required."
-        url="https://astroyou.app/free-kundali"
-        canonical="https://astroyou.app/free-kundali"
+        url={siteUrl("/free-kundali")}
+        canonical={siteUrl("/free-kundali")}
         structuredData={[structuredData, faqStructuredData]}
       />
       {/* Subtle cosmic background glow */}

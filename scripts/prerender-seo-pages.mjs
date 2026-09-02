@@ -19,11 +19,17 @@ import path from "node:path";
 const execFileAsync = promisify(execFile);
 
 const distDir = path.resolve("dist");
-const baseUrl = (
+const rawBaseUrl = (
   process.env.APP_BASE_URL ||
   process.env.URL ||
   "https://astroyou.app"
 ).replace(/\/+$/, "");
+// Tolerate a value handed over without a scheme (e.g. "astroyou.netlify.app"
+// pasted straight from the Netlify UI) rather than emitting a broken
+// "astroyou.netlify.app/sitemap.xml"-as-a-relative-path URL.
+const baseUrl = /^https?:\/\//i.test(rawBaseUrl)
+  ? rawBaseUrl
+  : `https://${rawBaseUrl}`;
 const today = new Date().toISOString().slice(0, 10);
 
 // ── Load the shared content model ────────────────────────────────────────────
@@ -33,6 +39,7 @@ const today = new Date().toISOString().slice(0, 10);
 const LIB_OUT = path.resolve("node_modules/.tmp/prerender-lib");
 const LIB_SOURCES = [
   "src/lib/seo-content.ts",
+  "src/lib/site-url.ts",
   "src/lib/panchang.ts",
   "src/lib/credit-packs.ts",
   "src/lib/entitlements.ts",
@@ -1761,6 +1768,7 @@ const injectPage = (template, page) => {
   html = setMeta(html, 'property="og:title"', fullTitle);
   html = setMeta(html, 'property="og:description"', page.description);
   html = setMeta(html, 'property="og:url"', canonical);
+  html = setMeta(html, 'property="og:image"', `${baseUrl}/og-image.png`);
   html = setMeta(
     html,
     'property="og:type"',
@@ -1769,6 +1777,7 @@ const injectPage = (template, page) => {
   html = setMeta(html, 'name="twitter:title"', fullTitle);
   html = setMeta(html, 'name="twitter:description"', page.description);
   html = setMeta(html, 'name="twitter:url"', canonical);
+  html = setMeta(html, 'name="twitter:image"', `${baseUrl}/og-image.png`);
 
   // The template ships a site-wide JSON-LD graph for the app shell. Prerendered
   // routes get page-specific schema instead; leaving both would put two
@@ -1953,6 +1962,26 @@ ${routes
   return routes.length;
 };
 
+/**
+ * Rewrite only the `Sitemap:` line of robots.txt to point at the deploy's
+ * own baseUrl, leaving every other line (crawler allow/disallow rules)
+ * untouched. Vite already copied public/robots.txt into dist/ during the
+ * build, using whatever was committed there — so dist's copy is stale
+ * against a non-default APP_BASE_URL until this overwrites it too.
+ */
+const writeRobots = async () => {
+  const robotsPath = path.resolve("public/robots.txt");
+  const raw = await readFile(robotsPath, "utf8");
+  const updated = raw.replace(
+    /^Sitemap:.*$/m,
+    `Sitemap: ${baseUrl}/sitemap.xml`,
+  );
+  await Promise.all([
+    writeFile(robotsPath, updated, "utf8"),
+    writeFile(path.join(distDir, "robots.txt"), updated, "utf8"),
+  ]);
+};
+
 // ── Run ──────────────────────────────────────────────────────────────────────
 
 const template = await readFile(path.join(distDir, "index.html"), "utf8");
@@ -1984,6 +2013,7 @@ await Promise.all(
 );
 
 const routeCount = await writeSitemap();
+await writeRobots();
 
 await Promise.all([
   writeFile(path.join(distDir, "pricing.md"), buildPricingMarkdown(), "utf8"),

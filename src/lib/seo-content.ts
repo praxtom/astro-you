@@ -1,3 +1,10 @@
+// Explicit ".js" extension: the prerender script compiles this file with a
+// standalone `tsc` invocation and then runs the output under plain Node ESM,
+// which (unlike Vite) requires an explicit extension on relative imports.
+// TypeScript's "bundler" moduleResolution accepts ".js" here and resolves it
+// to site-url.ts for type-checking; Vite resolves it to the same file too.
+import { getSiteOrigin, siteUrl } from "./site-url.js";
+
 export interface SeoContentPage {
   slug: string;
   path: string;
@@ -67,9 +74,9 @@ export const SEO_AUTHOR = {
 
 export const SEO_PUBLISHER = {
   name: "AstroYou",
-  url: "https://astroyou.app",
-  logo: "https://astroyou.app/icon-512.png",
-  sameAs: ["https://astroyou.app/trust", "https://astroyou.app/help"],
+  url: getSiteOrigin(),
+  logo: siteUrl("/icon-512.png"),
+  sameAs: [siteUrl("/trust"), siteUrl("/help")],
 };
 
 /** Vimshottari mahadasha lengths in years. Total = 120. */

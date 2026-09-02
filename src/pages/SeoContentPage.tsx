@@ -17,6 +17,7 @@ import {
   SEO_CONTENT_REVIEWED,
   SEO_PUBLISHER,
 } from "../lib/seo-content";
+import { siteUrl } from "../lib/site-url";
 
 interface SeoContentPageProps {
   slug: string;
@@ -33,7 +34,7 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
   const clusterTitle = getSeoClusterTitle(slug);
   const faqs = getSeoContentFaqs(page);
 
-  const pageUrl = `https://astroyou.app${page.path}`;
+  const pageUrl = siteUrl(page.path);
   const reviewed = page.updated ?? SEO_CONTENT_REVIEWED;
   const structuredData = [
     {
@@ -82,7 +83,7 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
           "@type": "ListItem",
           position: 1,
           name: "Home",
-          item: "https://astroyou.app/",
+          item: siteUrl("/"),
         },
         {
           "@type": "ListItem",
@@ -100,7 +101,7 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
         "@type": "ListItem",
         position: index + 1,
         name: related.heading,
-        url: `https://astroyou.app${related.path}`,
+        url: siteUrl(related.path),
       })),
     },
     ...(clusterPages.length
@@ -113,7 +114,7 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
               "@type": "ListItem",
               position: index + 1,
               name: clusterPage.heading,
-              url: `https://astroyou.app${clusterPage.path}`,
+              url: siteUrl(clusterPage.path),
             })),
           },
         ]

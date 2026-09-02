@@ -2,13 +2,17 @@ import { useState, useEffect, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Loader2, ArrowLeft } from "lucide-react";
 import SEO from "../components/SEO";
-import { captureAcquisitionSource, trackAcquisitionEvent } from "../lib/acquisition";
+import {
+  captureAcquisitionSource,
+  trackAcquisitionEvent,
+} from "../lib/acquisition";
 import {
   HOROSCOPE_PERIODS,
   ZODIAC_SIGNS,
   getSignHoroscopeContent,
 } from "../lib/sign-horoscope-content";
 import { viewerDateKey } from "../lib/viewer-timezone";
+import { getSiteOrigin, siteUrl } from "../lib/site-url";
 
 export default function SignHoroscope() {
   const { sign = "aries", period = "daily" } = useParams();
@@ -20,10 +24,7 @@ export default function SignHoroscope() {
   const [horoscope, setHoroscope] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
-  const fallbackForecast = useMemo(
-    () => content.forecast,
-    [content.forecast],
-  );
+  const fallbackForecast = useMemo(() => content.forecast, [content.forecast]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -92,16 +93,31 @@ export default function SignHoroscope() {
       "@type": "Article",
       headline: `${signName} ${periodName} Horoscope`,
       description: content.description,
-      mainEntityOfPage: `https://astroyou.app${canonicalPath}`,
+      mainEntityOfPage: siteUrl(canonicalPath),
       publisher: { "@type": "Organization", name: "AstroYou" },
     },
     {
       "@context": "https://schema.org",
       "@type": "BreadcrumbList",
       itemListElement: [
-        { "@type": "ListItem", position: 1, name: "Home", item: "https://astroyou.app" },
-        { "@type": "ListItem", position: 2, name: "Horoscope", item: "https://astroyou.app/daily-horoscope" },
-        { "@type": "ListItem", position: 3, name: `${signName} ${periodName}`, item: `https://astroyou.app${canonicalPath}` },
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Home",
+          item: getSiteOrigin(),
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "Horoscope",
+          item: siteUrl("/daily-horoscope"),
+        },
+        {
+          "@type": "ListItem",
+          position: 3,
+          name: `${signName} ${periodName}`,
+          item: siteUrl(canonicalPath),
+        },
       ],
     },
     {
@@ -112,7 +128,7 @@ export default function SignHoroscope() {
         "@type": "ListItem",
         position: index + 1,
         name: `${signName} ${item.name} horoscope`,
-        url: `https://astroyou.app/horoscope/${normalizedSign}/${item.slug}`,
+        url: siteUrl(`/horoscope/${normalizedSign}/${item.slug}`),
       })),
     },
   ];
@@ -122,8 +138,8 @@ export default function SignHoroscope() {
       <SEO
         title={`${signName} ${periodName} Horoscope`}
         description={content.description}
-        url={`https://astroyou.app${canonicalPath}`}
-        canonical={`https://astroyou.app${canonicalPath}`}
+        url={siteUrl(canonicalPath)}
+        canonical={siteUrl(canonicalPath)}
         type="article"
         structuredData={structuredData}
       />
@@ -170,7 +186,9 @@ export default function SignHoroscope() {
         <div className="glass rounded-[2rem] p-8">
           <div className="mb-4 flex items-center gap-2 text-xs uppercase tracking-widest text-white/35">
             {loading && <Loader2 size={14} className="animate-spin" />}
-            <span>{loading ? "Refreshing live reading" : "Current guidance"}</span>
+            <span>
+              {loading ? "Refreshing live reading" : "Current guidance"}
+            </span>
           </div>
           <p className="text-lg text-white/80 leading-relaxed font-light">
             {forecastText}
@@ -179,9 +197,16 @@ export default function SignHoroscope() {
 
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           {content.focusAreas.map((item) => (
-            <section key={item.title} className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-              <h2 className="text-sm font-semibold text-white/85">{item.title}</h2>
-              <p className="mt-2 text-sm leading-relaxed text-white/50">{item.body}</p>
+            <section
+              key={item.title}
+              className="rounded-xl border border-white/10 bg-white/[0.03] p-4"
+            >
+              <h2 className="text-sm font-semibold text-white/85">
+                {item.title}
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-white/50">
+                {item.body}
+              </p>
             </section>
           ))}
         </div>
@@ -204,7 +229,10 @@ export default function SignHoroscope() {
           </div>
         </div>
 
-        <nav aria-label="Related astrology tools" className="mt-10 flex flex-wrap justify-center gap-2">
+        <nav
+          aria-label="Related astrology tools"
+          className="mt-10 flex flex-wrap justify-center gap-2"
+        >
           {relatedLinks.map((item) => (
             <Link
               key={item.href}
@@ -238,7 +266,12 @@ export default function SignHoroscope() {
 function normalizeHoroscopeText(value: unknown): string {
   if (typeof value === "string") return value.trim();
   if (!value || typeof value !== "object") return "";
-  const data = value as { text?: unknown; horoscope?: unknown; prediction?: unknown; summary?: unknown };
+  const data = value as {
+    text?: unknown;
+    horoscope?: unknown;
+    prediction?: unknown;
+    summary?: unknown;
+  };
   const text = data.text || data.horoscope || data.prediction || data.summary;
   return typeof text === "string" ? text.trim() : "";
 }
