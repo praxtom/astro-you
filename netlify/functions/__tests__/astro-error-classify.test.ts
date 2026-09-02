@@ -141,6 +141,7 @@ const {
   getNatalReportPDF,
   getCurrentTransits,
   getCompatibilityDetails,
+  getDailyHoroscope,
 } = await import("../shared/astro-api.js");
 
 const BIRTH = { dob: "1990-05-15", tob: "10:30", pob: "New Delhi" };
@@ -204,6 +205,30 @@ for (const [label, call] of [...THROWING_WRAPPERS, ...DEGRADING_WRAPPERS]) {
     }
   });
 }
+
+test("a throttling 429 (no quota marker) still degrades instead of throwing", async () => {
+  // Only quota exhaustion is permanent. A bare "slow down" 429 must keep the
+  // graceful-degradation fallbacks the wrappers were written with, otherwise a
+  // transient rate limit takes down a whole page.
+  const original = globalThis.fetch;
+  // Bare 429 everywhere except the sign-based text endpoint, which answers
+  // normally — so a fall-through is observable, not just a swallowed throw.
+  globalThis.fetch = (async (input: any) =>
+    String(input).includes("/horoscope/sign/daily/text")
+      ? new Response(JSON.stringify({ data: { horoscope: "fallback text" } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      : new Response("slow down", { status: 429 })) as typeof fetch;
+  try {
+    assert.deepEqual(await getDashaPeriods(BIRTH), []);
+    assert.deepEqual(await getDailyHoroscope(BIRTH), {
+      horoscope: "fallback text",
+    });
+  } finally {
+    globalThis.fetch = original;
+  }
+});
 
 test("a non-quota failure still degrades instead of throwing", async () => {
   const original = globalThis.fetch;

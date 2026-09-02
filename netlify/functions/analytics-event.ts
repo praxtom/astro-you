@@ -45,8 +45,9 @@ export default async (req: Request, _context: Context) => {
     );
 
     // expiresAt lets a Firestore TTL policy on `analyticsEvents` auto-reap old
-    // events (the collection is otherwise unbounded — one doc per event). NOTE:
-    // the TTL policy must be enabled in the Firebase console targeting this field.
+    // events (the collection is otherwise unbounded — one doc per event). The
+    // policy is declared in firestore.indexes.json (analyticsEvents.expiresAt,
+    // "ttl": true) and ships with `pnpm run deploy:firebase`.
     const EVENT_RETENTION_DAYS = 180;
     const ref = await db.collection("analyticsEvents").add({
       ...record,

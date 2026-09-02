@@ -453,8 +453,10 @@ export default async (req: Request, _context: Context) => {
     // operator problem, not a bad request: a 500 "please try again" hides it
     // and invites a retry storm against an endpoint that cannot succeed. Say
     // "temporarily unavailable" and return a retryable 503 instead.
-    // Only the natal path throws the structured AstroChartError; every other
-    // wrapper throws a plain Error, so fall back to parsing the message.
+    // Every astro-api wrapper throws the structured AstroChartError, so read
+    // `kind` off it directly. The message-parsing fallback stays for
+    // cross-bundle class-identity safety (a duplicated class, or an error that
+    // crossed a serialization boundary, loses `instanceof`/`name`).
     const quotaKind =
       error?.name === "AstroChartError"
         ? error.kind

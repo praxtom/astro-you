@@ -12,10 +12,7 @@
  * both return 422 with error_code CHART_CALCULATION_ERROR.
  */
 export type UpstreamChartErrorKind =
-  | "dst_ambiguous"
-  | "location_unresolved"
-  | "quota_exhausted"
-  | "unknown";
+  "dst_ambiguous" | "location_unresolved" | "quota_exhausted" | "unknown";
 
 /**
  * Upstream quota exhaustion, as returned when the astrology-API allowance for
@@ -68,11 +65,14 @@ export function classifyUpstreamChartError(
 /**
  * Classify from a thrown Error's message.
  *
- * Only the natal-chart path throws the structured `AstroChartError`; every
- * other astro-api wrapper throws a plain Error whose message is formatted as
- * `<Label> error: <status> - <body>` (see shared/astro-api.ts). Callers that
- * need to tell an upstream quota outage apart from a generic failure —
- * kundali.ts, for instance — can recover the status and body from that string.
+ * Every astro-api wrapper now throws the structured `AstroChartError`, so
+ * callers should read `kind` off the error first. This message-parsing
+ * fallback is kept for class-identity safety: `instanceof`/`name` checks can
+ * fail when the class is duplicated across bundles (a function bundling its
+ * own copy of shared/astro-api.ts), and errors that cross a serialization
+ * boundary arrive as plain Errors. The message stays formatted as
+ * `<Label> error: <status> - <body>` (see shared/astro-api.ts), so the status
+ * and body can always be recovered from that string.
  */
 export function classifyUpstreamErrorMessage(
   message: unknown,

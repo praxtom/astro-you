@@ -68,12 +68,20 @@
     {
       "collectionGroup": "referrals",
       "fieldPath": "refereeUid",
-      "indexes": [{ "queryScope": "COLLECTION_GROUP", "order": "ASCENDING" }]
+      "indexes": [
+        { "queryScope": "COLLECTION", "order": "ASCENDING" },
+        { "queryScope": "COLLECTION", "order": "DESCENDING" },
+        { "queryScope": "COLLECTION_GROUP", "order": "ASCENDING" }
+      ]
     },
     {
       "collectionGroup": "consultations",
       "fieldPath": "status",
-      "indexes": [{ "queryScope": "COLLECTION_GROUP", "order": "ASCENDING" }]
+      "indexes": [
+        { "queryScope": "COLLECTION", "order": "ASCENDING" },
+        { "queryScope": "COLLECTION", "order": "DESCENDING" },
+        { "queryScope": "COLLECTION_GROUP", "order": "ASCENDING" }
+      ]
     },
     {
       "collectionGroup": "analyticsEvents",

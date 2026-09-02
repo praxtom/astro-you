@@ -22,8 +22,7 @@ import {
  * Gemini model id. Overridable via the GEMINI_MODEL env var so it can be
  * swapped without a code deploy. Verified live against the Gemini API.
  */
-const GEMINI_MODEL =
-  process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
 
 // Types
 interface PredictionFeedbackStats {
@@ -293,8 +292,9 @@ function formatCompactAtmanContext(
     .map((event: any) => `${event.title} (${event.status})`);
   const relationships = (atman.keyRelationships || [])
     .slice(0, 3)
-    .map((relationship: any) =>
-      `${relationship.name} (${relationship.relation}, ${relationship.dynamic})`,
+    .map(
+      (relationship: any) =>
+        `${relationship.name} (${relationship.relation}, ${relationship.dynamic})`,
     );
 
   if (
@@ -1093,7 +1093,8 @@ export async function generateProactiveNudge(
     | "anniversary_reflection"
     | "transit_alert"
     | "emotional_stabilization"
-    | "relational_management",
+    | "relational_management"
+    | "synastry_alert",
 ): Promise<{ title: string; message: string }> {
   const ai = getClient();
 

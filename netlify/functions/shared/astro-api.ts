@@ -197,22 +197,38 @@ async function throwChartError(res: Response, label: string): Promise<never> {
 }
 
 /**
- * Escalate an upstream 429 on a path that otherwise degrades quietly.
+ * Escalate an upstream *quota exhaustion* on a path that otherwise degrades
+ * quietly.
  *
  * Several wrappers deliberately warn-and-return a fallback (null PDF, empty
  * dasha list, no horoscope) so one flaky upstream call can't take a whole page
- * down. That is right for a transient 5xx, but wrong for quota exhaustion:
- * every subsequent call fails the same way, the user sees a silently empty
- * dashboard (or gets charged for a report that returns `null`), and nothing
- * pages an operator. A 429 therefore throws, so kundali.ts can surface the
- * 503 `upstream_quota` instead. Every other status keeps its fallback.
+ * down. That is right for a transient failure — including a plain
+ * "slow down" 429 — but wrong for quota exhaustion: every subsequent call
+ * fails the same way, the user sees a silently empty dashboard (or gets
+ * charged for a report that returns `null`), and nothing pages an operator.
  *
- * Safe to call before the fallback returns: it only reads the body on a 429,
- * and those paths never read the body themselves.
+ * So only a 429 that classifies as `quota_exhausted` throws, letting
+ * kundali.ts surface the 503 `upstream_quota`. A throttling 429 with no quota
+ * marker returns normally and keeps the caller's existing fallback (e.g.
+ * getDailyHoroscope still reaches getDailyHoroscopeText, getDashaPeriods still
+ * returns `[]`), exactly like every other non-2xx status.
+ *
+ * INVARIANT: on a 429 the response body is consumed here — including on the
+ * non-throwing path — so a caller must NEVER read `res` (`.json()`, `.text()`,
+ * `.arrayBuffer()`) after this returns without throwing. Every call site only
+ * reads the body on the `res.ok` branch; keep it that way.
  */
 async function throwIfRateLimited(res: Response, label: string): Promise<void> {
   if (res.status !== 429) return;
-  await throwChartError(res, label);
+  // Reads the body exactly once: throwChartError cannot be reused here because
+  // it would re-read an already-consumed stream.
+  const body = await res.text();
+  if (classifyUpstreamChartError(429, body) !== "quota_exhausted") return;
+  throw new AstroChartError(
+    `${label} error: 429 - ${body}`,
+    "quota_exhausted",
+    429,
+  );
 }
 
 /** Standard DateTimeLocation object used by most endpoints. */
@@ -740,8 +756,7 @@ export async function getPanchang(
       ),
     }),
   });
-  if (!res.ok)
-    await throwChartError(res, "Panchang");
+  if (!res.ok) await throwChartError(res, "Panchang");
   return unwrap(await res.json());
 }
 
@@ -758,7 +773,13 @@ export async function getFestivalCalendar(
       region: region || "north",
     }),
   });
-  if (!res.ok) return [];
+  if (!res.ok) {
+    // An empty festival list is a fine degradation for a transient blip, but
+    // it hides a quota outage behind a permanently empty calendar; escalate so
+    // kundali's FESTIVALS path can answer 503 upstream_quota.
+    await throwIfRateLimited(res, "Festival calendar");
+    return [];
+  }
   return unwrap(await res.json());
 }
 
@@ -769,8 +790,7 @@ export async function getYogaAnalysis(birthData: BirthData): Promise<any> {
     headers: getHeaders(),
     body: JSON.stringify({ subject: buildSubject(birthData) }),
   });
-  if (!res.ok)
-    await throwChartError(res, "Yoga analysis");
+  if (!res.ok) await throwChartError(res, "Yoga analysis");
   return unwrap(await res.json());
 }
 
@@ -788,8 +808,7 @@ export async function getKundliMatching(
       include_manglik: true,
     }),
   });
-  if (!res.ok)
-    await throwChartError(res, "Kundli matching");
+  if (!res.ok) await throwChartError(res, "Kundli matching");
   return unwrap(await res.json());
 }
 
@@ -800,8 +819,7 @@ export async function getManglikDosha(birthData: BirthData): Promise<any> {
     headers: getHeaders(),
     body: JSON.stringify({ subject: buildSubject(birthData) }),
   });
-  if (!res.ok)
-    await throwChartError(res, "Manglik dosha");
+  if (!res.ok) await throwChartError(res, "Manglik dosha");
   return unwrap(await res.json());
 }
 
@@ -818,8 +836,7 @@ export async function getRemedies(
       remedy_type: remedyType || null,
     }),
   });
-  if (!res.ok)
-    await throwChartError(res, "Remedies");
+  if (!res.ok) await throwChartError(res, "Remedies");
   return unwrap(await res.json());
 }
 
@@ -922,8 +939,7 @@ export async function getLunarPhases(birthData: BirthData): Promise<any> {
       ),
     }),
   });
-  if (!res.ok)
-    await throwChartError(res, "Lunar phases");
+  if (!res.ok) await throwChartError(res, "Lunar phases");
   return unwrap(await res.json());
 }
 
@@ -943,8 +959,7 @@ export async function getVoidOfCourse(birthData: BirthData): Promise<any> {
       ),
     }),
   });
-  if (!res.ok)
-    await throwChartError(res, "Void of course");
+  if (!res.ok) await throwChartError(res, "Void of course");
   return unwrap(await res.json());
 }
 

@@ -109,6 +109,9 @@ export default function LocationInput({
   const fetchSuggestions = async (searchQuery: string) => {
     if (searchQuery.length < 3) {
       setSuggestions([]);
+      // Clearing back below the threshold must also clear a stale failure —
+      // otherwise the geocoder error stays on screen for a query we never ran.
+      setLookupError(null);
       return;
     }
 
@@ -119,7 +122,8 @@ export default function LocationInput({
           searchQuery,
         )}&addressdetails=1&limit=5&featuretype=city`,
       );
-      if (!response.ok) throw new Error(`Geocoder responded ${response.status}`);
+      if (!response.ok)
+        throw new Error(`Geocoder responded ${response.status}`);
       const data = await response.json();
 
       const filtered = data.map((item: any) => ({

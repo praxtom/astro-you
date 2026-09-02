@@ -16,15 +16,21 @@ import {
  * (src/hooks/useProactiveTriggers.ts: transit_alert, relational_management,
  * synastry_alert) and the cases the prompt in shared/gemini.ts declares
  * behaviour for.
+ *
+ * Typed as the generator's own parameter union so a name that drifts out of
+ * shared/gemini.ts fails to compile here, and a matched value flows straight
+ * into the call without a cast.
  */
-const ALLOWED_TRIGGER_TYPES = new Set([
+type NudgeTriggerType = Parameters<typeof generateProactiveNudge>[1];
+
+const ALLOWED_TRIGGER_TYPES: readonly NudgeTriggerType[] = [
   "morning_routine",
   "anniversary_reflection",
   "transit_alert",
   "emotional_stabilization",
   "relational_management",
   "synastry_alert",
-]);
+];
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
@@ -53,10 +59,8 @@ export default async (req: Request, _context: Context) => {
       );
     }
 
-    if (
-      typeof triggerType !== "string" ||
-      !ALLOWED_TRIGGER_TYPES.has(triggerType)
-    ) {
+    const trigger = ALLOWED_TRIGGER_TYPES.find((t) => t === triggerType);
+    if (!trigger) {
       return new Response(JSON.stringify({ error: "Unknown trigger type" }), {
         status: 400,
         headers: { "Content-Type": "application/json" },
@@ -64,10 +68,7 @@ export default async (req: Request, _context: Context) => {
     }
 
     const { userContext } = await buildUserContext({ uid: decoded.uid });
-    const nudge = await generateProactiveNudge(
-      userContext,
-      triggerType as Parameters<typeof generateProactiveNudge>[1],
-    );
+    const nudge = await generateProactiveNudge(userContext, trigger);
 
     return new Response(JSON.stringify(nudge), {
       status: 200,
