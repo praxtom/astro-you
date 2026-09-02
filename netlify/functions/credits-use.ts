@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Config, Context } from "@netlify/functions";
 import { auth, db, FieldValue } from "./shared/firebase-admin";
 import { applyCreditChange } from "./shared/credits";
+import { checkRateLimit } from "./shared/rate-limit";
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
@@ -24,6 +25,26 @@ export default async (req: Request, _context: Context) => {
     const source = ALLOWED_SOURCES.has(rawSource) ? rawSource : "feature_use";
 
     const decoded = await auth.verifyIdToken(idToken);
+
+    // Per-uid limit (registered fail-closed in rate-limit.ts): this endpoint
+    // mutates the wallet, so a runaway client — or a stolen token — must not be
+    // able to drain a balance, or flood the immutable ledger, without bound.
+    const rateLimit = await checkRateLimit({
+      scope: "credits_use",
+      key: decoded.uid,
+      limit: 120,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!rateLimit.allowed) {
+      return json(
+        {
+          error: "Too many credit requests. Please try again later.",
+          resetAt: rateLimit.resetAt.toISOString(),
+        },
+        429,
+      );
+    }
+
     const result = await applyCreditChange(
       { db, FieldValue },
       {

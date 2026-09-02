@@ -15,8 +15,29 @@ import {
 import { normalizePlatformLanguage } from "./languages.js";
 import { selectBrainContext } from "./atman-brain.js";
 import { resolveAtmanContextSource } from "./user-context-source.js";
-import { sanitizeAtmanContext } from "./sanitize.js";
+import { sanitizeAtmanContext, sanitizePromptText } from "./sanitize.js";
 import type { AtmanData } from "../../../src/types/user.js";
+
+/** Prompt-input caps for the free-text fields we interpolate verbatim. */
+const MAX_NAME_CHARS = 80;
+const MAX_SUMMARY_TITLE_CHARS = 120;
+const MAX_SUMMARY_CHARS = 600;
+
+/**
+ * Chat titles and summaries are model output over user text — they are replayed
+ * into the next prompt as "what we talked about before", so a crafted message
+ * could otherwise smuggle instructions across conversations. Sanitize and cap
+ * them; `date` is derived server-side and passes through.
+ */
+export function sanitizeRecentSummaries<
+  T extends { title?: unknown; summary?: unknown },
+>(summaries: T[]): T[] {
+  return summaries.map((entry) => ({
+    ...entry,
+    title: sanitizePromptText(entry.title, MAX_SUMMARY_TITLE_CHARS),
+    summary: sanitizePromptText(entry.summary, MAX_SUMMARY_CHARS),
+  }));
+}
 
 interface BuildUserContextOptions {
   uid?: string;
@@ -113,7 +134,14 @@ export async function buildUserContext(
   }
 
   const userContext: UserContext = {
-    name: birthData?.name || profile.name || userData.name || "Jataka",
+    // The display name is interpolated into every prompt. It is user-supplied
+    // (and on the guest path comes straight off the request body), so it is
+    // sanitized like any other untrusted prompt input.
+    name:
+      sanitizePromptText(
+        birthData?.name || profile.name || userData.name,
+        MAX_NAME_CHARS,
+      ) || "Jataka",
     language: normalizePlatformLanguage(profile.language || userData.language),
     birthData: birthData
       ? { dob: birthData.dob, tob: birthData.tob, pob: birthData.pob }
@@ -302,14 +330,16 @@ async function loadRecentSummaries(
 
     const docs = snapshot.docs as Array<{ data(): any }>;
 
-    return docs
-      .filter((doc) => doc.data().summary)
-      .map((doc) => ({
-        title: doc.data().title || "Untitled",
-        summary: doc.data().summary,
-        date:
-          doc.data().lastUpdatedAt?.toDate?.()?.toLocaleDateString?.() || "",
-      }));
+    return sanitizeRecentSummaries(
+      docs
+        .filter((doc) => doc.data().summary)
+        .map((doc) => ({
+          title: doc.data().title || "Untitled",
+          summary: doc.data().summary,
+          date:
+            doc.data().lastUpdatedAt?.toDate?.()?.toLocaleDateString?.() || "",
+        })),
+    );
   } catch (error) {
     console.warn("[UserContext] Recent summaries unavailable:", error);
     return undefined;

@@ -12,7 +12,11 @@ import {
 } from "./shared/consult-session";
 import { buildUserContext } from "./shared/user-context";
 import { checkRateLimit } from "./shared/rate-limit";
-import { persistAtmanInsights } from "./shared/atman-brain";
+import {
+  persistAtmanInsights,
+  type PersistAtmanInsightsResult,
+} from "./shared/atman-brain";
+import { isWithinSynthesisInputLimits } from "./shared/synthesis-limits";
 
 interface ConsultMessagePayload {
   idToken?: string;
@@ -38,6 +42,14 @@ export default async (req: Request, _context: Context) => {
 
   if (!body.idToken || !body.sessionId || !Array.isArray(body.messages)) {
     return json({ error: "Missing session data" }, 400);
+  }
+
+  // Bound the prompt payload BEFORE any (paid) Gemini call — the same limits
+  // the Synthesis chat applies. An unbounded transcript, or one huge message,
+  // is otherwise a cheap way to run up our model bill inside a single
+  // per-minute consultation, and can blow the model's context window.
+  if (!isWithinSynthesisInputLimits(body.messages)) {
+    return json({ error: "Message too long" }, 400);
   }
 
   try {
@@ -198,7 +210,7 @@ export default async (req: Request, _context: Context) => {
             ),
             safe(extractActionableAdvice(fullContent, lastUserMessage)),
           ]);
-          const brainResult = await safe(
+          const brainResult: PersistAtmanInsightsResult | null = await safe(
             persistAtmanInsights(
               { db },
               {
@@ -223,11 +235,14 @@ export default async (req: Request, _context: Context) => {
           });
           controller.close();
         } catch (error: any) {
-          console.error("[Consult Message] Streaming error:", error);
-          send({
-            type: "error",
-            error: error.message || "Consultation failed",
-          });
+          // Log the error type only — AI SDK messages can echo prompt or
+          // response fragments containing the user's chat content.
+          console.error(
+            "[Consult Message] Streaming error:",
+            error?.name || "error",
+            error?.status ?? "",
+          );
+          send({ type: "error", error: "Consultation failed" });
           controller.close();
         }
       },
@@ -242,11 +257,14 @@ export default async (req: Request, _context: Context) => {
       },
     });
   } catch (error: any) {
-    console.error("[Consult Message] Error:", error);
-    return json(
-      { error: error.message || "Could not send consultation message" },
-      500,
+    // Never echo an upstream/SDK message to the client: it can carry prompt
+    // fragments, Firestore internals, or credential hints.
+    console.error(
+      "[Consult Message] Error:",
+      error?.name || "error",
+      error?.status ?? "",
     );
+    return json({ error: "Could not send consultation message" }, 500);
   }
 };
 

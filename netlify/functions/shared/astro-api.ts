@@ -1296,10 +1296,14 @@ export async function getCompatibilityDetails(
   const s1 = buildSubject(person1);
   const s2 = buildSubject(person2);
 
+  // Names are labels here, not calculation inputs — the upstream compatibility
+  // insight is computed entirely from birth_data. Sending placeholders keeps
+  // two real people's names off a third-party service for no loss of accuracy.
+  // (Numerology endpoints are the exception: there the name IS the input.)
   const insightsPayload = {
     subjects: [
-      { name: person1.name || "Person 1", birth_data: s1.birth_data },
-      { name: person2.name || "Person 2", birth_data: s2.birth_data },
+      { name: "Partner 1", birth_data: s1.birth_data },
+      { name: "Partner 2", birth_data: s2.birth_data },
     ],
     options: { ...zodiacApiOptions(mode), language: "en" },
   };
@@ -1311,12 +1315,12 @@ export async function getCompatibilityDetails(
 
   try {
     const [rIns, rSyn] = await Promise.all([
-      fetch(`${API_BASE}/insights/relationship/compatibility`, {
+      apiFetch(`${API_BASE}/insights/relationship/compatibility`, {
         method: "POST",
         headers: getHeaders(),
         body: JSON.stringify(insightsPayload),
       }),
-      fetch(`${API_BASE}/charts/synastry`, {
+      apiFetch(`${API_BASE}/charts/synastry`, {
         method: "POST",
         headers: getHeaders(),
         body: JSON.stringify(synastryPayload),

@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { classifyUpstreamChartError } from "../shared/astro-error-classify.js";
+import {
+  classifyUpstreamChartError,
+  classifyUpstreamErrorMessage,
+} from "../shared/astro-error-classify.js";
 
 // Real 422 body shape observed from astrology-api.io for a birth time that
 // falls in the DST spring-forward gap (Denver, 2020-03-08 02:30) or the
@@ -61,4 +64,60 @@ test("tolerates a null or shapeless detail", () => {
     "unknown",
   );
   assert.equal(classifyUpstreamChartError(422, "null"), "unknown");
+});
+
+// Upstream quota exhaustion. Observed shape when the astrology-API billing
+// period allowance runs out: HTTP 429 with a RATE_LIMIT_EXCEEDED error code.
+const QUOTA_429 = JSON.stringify({
+  success: false,
+  error: {
+    error_code: "RATE_LIMIT_EXCEEDED",
+    message: "Quota exceeded for this billing period",
+    field: null,
+  },
+});
+
+test("classifies a 429 quota body as quota_exhausted", () => {
+  assert.equal(classifyUpstreamChartError(429, QUOTA_429), "quota_exhausted");
+});
+
+test("classifies a 429 whose body only says the quota is exceeded", () => {
+  assert.equal(
+    classifyUpstreamChartError(429, "Quota exceeded for this billing period"),
+    "quota_exhausted",
+  );
+});
+
+test("a 429 without a quota marker stays unknown", () => {
+  assert.equal(classifyUpstreamChartError(429, "slow down"), "unknown");
+  assert.equal(classifyUpstreamChartError(429, ""), "unknown");
+});
+
+test("a quota marker on a non-429 status is not quota_exhausted", () => {
+  assert.equal(classifyUpstreamChartError(500, QUOTA_429), "unknown");
+  assert.equal(classifyUpstreamChartError(422, QUOTA_429), "unknown");
+});
+
+test("classifies from a thrown Error message produced by astro-api", () => {
+  // astro-api.ts formats upstream failures as `<Label> error: <status> - <body>`.
+  assert.equal(
+    classifyUpstreamErrorMessage(`Panchang error: 429 - ${QUOTA_429}`),
+    "quota_exhausted",
+  );
+  assert.equal(
+    classifyUpstreamErrorMessage(
+      "Yoga analysis error: 429 - Quota exceeded for this billing period",
+    ),
+    "quota_exhausted",
+  );
+});
+
+test("message classification ignores unrelated failures", () => {
+  assert.equal(
+    classifyUpstreamErrorMessage("Panchang error: 500 - upstream boom"),
+    "unknown",
+  );
+  assert.equal(classifyUpstreamErrorMessage("fetch failed"), "unknown");
+  assert.equal(classifyUpstreamErrorMessage(undefined), "unknown");
+  assert.equal(classifyUpstreamErrorMessage(12345), "unknown");
 });

@@ -31,6 +31,8 @@
     "src/components/synthesis/MessageBubble.tsx",
     "netlify/functions/shared/ai-guidance-policy.ts",
     "netlify/functions/shared/astro-error-classify.ts",
+    "netlify/functions/shared/synthesis-limits.ts",
+    "netlify/functions/shared/sanitize.ts",
     "netlify/functions/shared/astro-api.ts",
     "netlify/functions/shared/compatibility-payload.ts",
     "netlify/functions/shared/request-date.ts",

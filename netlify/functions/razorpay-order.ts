@@ -102,12 +102,23 @@ export default async (req: Request, _context: Context) => {
       },
     );
   } catch (error: unknown) {
-    const status = isPaymentValidationError(error) ? 400 : 500;
+    const isValidation = isPaymentValidationError(error);
+    const status = isValidation ? 400 : 500;
+    // Only the server-authored PaymentValidationError text is safe to show —
+    // it is written by us and describes what the caller got wrong. Anything
+    // else (Razorpay SDK, Firebase, network) could leak internals, so it gets
+    // a generic message and only its type is logged.
     const message =
-      error instanceof Error ? error.message : "Unable to create order";
+      isValidation && error instanceof Error
+        ? error.message
+        : "Unable to create order";
 
     if (status === 500) {
-      console.error(error);
+      console.error(
+        "[Razorpay Order] Error:",
+        (error as { name?: string })?.name || "error",
+        (error as { statusCode?: number })?.statusCode ?? "",
+      );
     }
 
     return new Response(JSON.stringify({ error: message }), {

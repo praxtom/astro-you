@@ -130,11 +130,20 @@ export default async (req: Request, _context: Context) => {
       },
     );
   } catch (err: any) {
-    console.error("[Subscription Create] Error:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    // Never echo an upstream/SDK message to the client — Razorpay and Firebase
+    // errors can carry account, plan, or credential detail. Log the type only.
+    console.error(
+      "[Subscription Create] Error:",
+      err?.name || "error",
+      err?.statusCode ?? "",
+    );
+    return new Response(
+      JSON.stringify({ error: "Could not create subscription" }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
   }
 };
 

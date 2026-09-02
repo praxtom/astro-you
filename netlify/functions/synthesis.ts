@@ -10,7 +10,11 @@ import {
 import { auth, db, FieldValue } from "./shared/firebase-admin";
 import { buildUserContext } from "./shared/user-context";
 import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit";
-import { persistAtmanInsights } from "./shared/atman-brain";
+import {
+  persistAtmanInsights,
+  type PersistAtmanInsightsResult,
+} from "./shared/atman-brain";
+import { isWithinSynthesisInputLimits } from "./shared/synthesis-limits";
 import { applyCreditChange, CreditError } from "./shared/credits";
 import { getConsultPersona } from "./shared/consult-session";
 import { isPaidSubscriptionActive } from "./shared/subscription-plans";
@@ -326,7 +330,7 @@ export default async (req: Request, _context: Context) => {
           ),
           safe(extractActionableAdvice(fullContent, lastUserMessage)),
         ]);
-        const brainResult = uid
+        const brainResult: PersistAtmanInsightsResult | null = uid
           ? await safe(
               persistAtmanInsights(
                 { db },
@@ -418,7 +422,13 @@ export default async (req: Request, _context: Context) => {
 
         controller.close();
       } catch (error: any) {
-        console.error("Synthesis streaming error:", error);
+        // Log the error type only — AI SDK messages can echo prompt or
+        // response fragments containing the user's personal data.
+        console.error(
+          "[Synthesis] Streaming error:",
+          error?.name || "error",
+          error?.status ?? "",
+        );
         // Generation failed — refund the reserved credit.
         await refundCredit();
         send({
@@ -443,21 +453,6 @@ export default async (req: Request, _context: Context) => {
     },
   });
 };
-
-/** Per-message character cap for anything we forward to the model. */
-const MAX_SYNTHESIS_MESSAGE_CHARS = 8000;
-/** Maximum number of messages accepted in a single synthesis payload. */
-const MAX_SYNTHESIS_MESSAGES = 60;
-
-function isWithinSynthesisInputLimits(value: unknown): boolean {
-  if (!Array.isArray(value)) return true;
-  if (value.length > MAX_SYNTHESIS_MESSAGES) return false;
-  return value.every(
-    (message) =>
-      typeof message?.content !== "string" ||
-      message.content.length <= MAX_SYNTHESIS_MESSAGE_CHARS,
-  );
-}
 
 export const config: Config = {
   path: "/api/synthesis",

@@ -7,6 +7,25 @@ import {
   AuthError,
 } from "./shared/require-auth";
 
+/**
+ * Trigger names this endpoint will generate for. `triggerType` is interpolated
+ * straight into the Gemini prompt, so an arbitrary client string is a prompt
+ * injection vector (and a way to spend our model budget on off-product text).
+ *
+ * The list is the union of what the client actually sends
+ * (src/hooks/useProactiveTriggers.ts: transit_alert, relational_management,
+ * synastry_alert) and the cases the prompt in shared/gemini.ts declares
+ * behaviour for.
+ */
+const ALLOWED_TRIGGER_TYPES = new Set([
+  "morning_routine",
+  "anniversary_reflection",
+  "transit_alert",
+  "emotional_stabilization",
+  "relational_management",
+  "synastry_alert",
+]);
+
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
     return new Response("Method Not Allowed", { status: 405 });
@@ -34,8 +53,21 @@ export default async (req: Request, _context: Context) => {
       );
     }
 
+    if (
+      typeof triggerType !== "string" ||
+      !ALLOWED_TRIGGER_TYPES.has(triggerType)
+    ) {
+      return new Response(JSON.stringify({ error: "Unknown trigger type" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     const { userContext } = await buildUserContext({ uid: decoded.uid });
-    const nudge = await generateProactiveNudge(userContext, triggerType);
+    const nudge = await generateProactiveNudge(
+      userContext,
+      triggerType as Parameters<typeof generateProactiveNudge>[1],
+    );
 
     return new Response(JSON.stringify(nudge), {
       status: 200,

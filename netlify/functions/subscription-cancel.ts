@@ -64,11 +64,20 @@ export default async (req: Request, _context: Context) => {
       },
     );
   } catch (err: any) {
-    console.error("[Subscription Cancel] Error:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    // Never echo an upstream/SDK message to the client — Razorpay and Firebase
+    // errors can carry account, plan, or credential detail. Log the type only.
+    console.error(
+      "[Subscription Cancel] Error:",
+      err?.name || "error",
+      err?.statusCode ?? "",
+    );
+    return new Response(
+      JSON.stringify({ error: "Could not cancel subscription" }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
   }
 };
 

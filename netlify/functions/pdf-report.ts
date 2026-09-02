@@ -43,6 +43,7 @@ export default async (req: Request, _context: Context) => {
       compatibilityData,
       person1Name,
       person2Name,
+      localDate,
     } = await req.json();
 
     if (!idToken) {

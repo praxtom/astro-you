@@ -74,6 +74,7 @@ import { getCachedOrFetch } from "./shared/cache";
 import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit";
 import { verifyToken, AuthError } from "./shared/require-auth";
 import { requestedDateKey } from "./shared/request-date.js";
+import { classifyUpstreamErrorMessage } from "./shared/astro-error-classify";
 import { normalizeZodiacMode } from "../../src/lib/zodiac-mode.js";
 import { normalizeFestivalRegion } from "../../src/lib/festival-regions.js";
 
@@ -445,6 +446,27 @@ export default async (req: Request, _context: Context) => {
           code: "dst_ambiguous",
         },
         422,
+      );
+    }
+
+    // Our upstream allowance for the billing period is spent. That is an
+    // operator problem, not a bad request: a 500 "please try again" hides it
+    // and invites a retry storm against an endpoint that cannot succeed. Say
+    // "temporarily unavailable" and return a retryable 503 instead.
+    // Only the natal path throws the structured AstroChartError; every other
+    // wrapper throws a plain Error, so fall back to parsing the message.
+    const quotaKind =
+      error?.name === "AstroChartError"
+        ? error.kind
+        : classifyUpstreamErrorMessage(error?.message);
+    if (quotaKind === "quota_exhausted") {
+      return json(
+        {
+          error:
+            "Astrology service is temporarily unavailable. Please try again later.",
+          code: "upstream_quota",
+        },
+        503,
       );
     }
 
