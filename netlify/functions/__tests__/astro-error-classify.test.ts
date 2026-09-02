@@ -121,3 +121,101 @@ test("message classification ignores unrelated failures", () => {
   assert.equal(classifyUpstreamErrorMessage(undefined), "unknown");
   assert.equal(classifyUpstreamErrorMessage(12345), "unknown");
 });
+
+// ─── End-to-end: every wrapper surfaces a classifiable quota failure ────────
+//
+// Regression guard for the gap found in review: only ~8 of the ~40 astro-api
+// wrappers put the response body into the thrown message; the rest threw a
+// body-less `<Label> error: <status>`, which classifyUpstreamErrorMessage
+// cannot classify — so a quota outage on (for example) every D9 request still
+// produced a generic 500. All wrappers now route through throwChartError.
+
+const {
+  getNavamsaChart,
+  getSadeSati,
+  getAshtakvarga,
+  getTransitChart,
+  getNatalChartSVG,
+  getBiorhythms,
+  getDashaPeriods,
+  getNatalReportPDF,
+  getCurrentTransits,
+  getCompatibilityDetails,
+} = await import("../shared/astro-api.js");
+
+const BIRTH = { dob: "1990-05-15", tob: "10:30", pob: "New Delhi" };
+
+function stubQuotaFetch() {
+  const original = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    new Response(QUOTA_429, {
+      status: 429,
+      headers: { "Content-Type": "application/json" },
+    })) as typeof fetch;
+  return () => {
+    globalThis.fetch = original;
+  };
+}
+
+// Wrappers that already threw on !res.ok — previously with no body attached.
+const THROWING_WRAPPERS: Array<[string, () => Promise<unknown>]> = [
+  ["getNavamsaChart (every D9/D10 request)", () => getNavamsaChart(BIRTH)],
+  ["getSadeSati", () => getSadeSati(BIRTH)],
+  ["getAshtakvarga", () => getAshtakvarga(BIRTH)],
+  ["getTransitChart", () => getTransitChart(BIRTH)],
+  ["getNatalChartSVG", () => getNatalChartSVG(BIRTH)],
+  ["getBiorhythms", () => getBiorhythms(BIRTH)],
+];
+
+// Wrappers that deliberately degrade (warn-and-return a fallback) on failure,
+// which silently hid quota exhaustion. They must now escalate a 429.
+const DEGRADING_WRAPPERS: Array<[string, () => Promise<unknown>]> = [
+  ["getDashaPeriods", () => getDashaPeriods(BIRTH)],
+  ["getNatalReportPDF", () => getNatalReportPDF(BIRTH)],
+  ["getCurrentTransits", () => getCurrentTransits()],
+  ["getCompatibilityDetails", () => getCompatibilityDetails(BIRTH, BIRTH)],
+];
+
+for (const [label, call] of [...THROWING_WRAPPERS, ...DEGRADING_WRAPPERS]) {
+  test(`${label} surfaces upstream quota exhaustion`, async () => {
+    const restore = stubQuotaFetch();
+    try {
+      let thrown: any;
+      await call().then(
+        () => {},
+        (err) => {
+          thrown = err;
+        },
+      );
+
+      assert.ok(thrown, `${label} swallowed the 429 instead of throwing`);
+      // kundali.ts reads `kind` off an AstroChartError...
+      assert.equal(thrown.name, "AstroChartError");
+      assert.equal(thrown.kind, "quota_exhausted");
+      assert.equal(thrown.status, 429);
+      // ...and falls back to parsing the message for anything else, so the
+      // message must stay in the `<Label> error: <status> - <body>` format.
+      assert.equal(
+        classifyUpstreamErrorMessage(thrown.message),
+        "quota_exhausted",
+      );
+    } finally {
+      restore();
+    }
+  });
+}
+
+test("a non-quota failure still degrades instead of throwing", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    new Response("upstream boom", { status: 500 })) as typeof fetch;
+  try {
+    // The graceful-degradation contract is unchanged for every other status.
+    assert.deepEqual(await getDashaPeriods(BIRTH), []);
+    assert.equal(await getNatalReportPDF(BIRTH), null);
+    const transits = await getCurrentTransits("2026-09-02");
+    assert.deepEqual(transits.positions, []);
+  } finally {
+    globalThis.fetch = original;
+  }
+});

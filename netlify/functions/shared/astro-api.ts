@@ -196,6 +196,25 @@ async function throwChartError(res: Response, label: string): Promise<never> {
   );
 }
 
+/**
+ * Escalate an upstream 429 on a path that otherwise degrades quietly.
+ *
+ * Several wrappers deliberately warn-and-return a fallback (null PDF, empty
+ * dasha list, no horoscope) so one flaky upstream call can't take a whole page
+ * down. That is right for a transient 5xx, but wrong for quota exhaustion:
+ * every subsequent call fails the same way, the user sees a silently empty
+ * dashboard (or gets charged for a report that returns `null`), and nothing
+ * pages an operator. A 429 therefore throws, so kundali.ts can surface the
+ * 503 `upstream_quota` instead. Every other status keeps its fallback.
+ *
+ * Safe to call before the fallback returns: it only reads the body on a 429,
+ * and those paths never read the body themselves.
+ */
+async function throwIfRateLimited(res: Response, label: string): Promise<void> {
+  if (res.status !== 429) return;
+  await throwChartError(res, label);
+}
+
 /** Standard DateTimeLocation object used by most endpoints. */
 function buildDateTimeLocation(
   dateStr: string,
@@ -344,7 +363,7 @@ function transformKundaliResponse(apiResponse: any): KundaliData {
     }
   }
 
-  let ascendant = null;
+  let ascendant: KundaliData["ascendant"] | null = null;
   if (data.ascendant) {
     ascendant = {
       sign: data.ascendant.sign || data.ascendant,
@@ -573,7 +592,7 @@ export async function getTransitChart(
     headers: getHeaders(),
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error(`Transit chart error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Transit chart");
   return res.json();
 }
 
@@ -593,6 +612,7 @@ export async function getCurrentTransits(
       headers: getHeaders(),
     });
     if (!res.ok) {
+      await throwIfRateLimited(res, "Current transits");
       console.warn("/data/now error:", res.status);
       return { date: today, positions: [], significantEvents: [] };
     }
@@ -621,6 +641,10 @@ export async function getCurrentTransits(
     }
     return { date: today, positions, significantEvents: raw.events || [] };
   } catch (err) {
+    // A quota outage must not be flattened into "no transits today" — it is
+    // the one failure here the caller has to see. Everything else still
+    // degrades to an empty snapshot.
+    if (err instanceof AstroChartError) throw err;
     console.error("getCurrentTransits error:", err);
     return { date: today, positions: [], significantEvents: [] };
   }
@@ -641,7 +665,7 @@ export async function getNavamsaChart(
       headers: getHeaders(),
       body: JSON.stringify({ subject: buildSubject(birthData), charts }),
     });
-    if (!res.ok) throw new Error(`Divisional chart error: ${res.status}`);
+    if (!res.ok) await throwChartError(res, "Divisional chart");
     return normalizeDivisionalChartResponse(await res.json(), charts[0]);
   } catch (err) {
     console.error("Divisional chart error:", err);
@@ -664,6 +688,7 @@ export async function getDashaPeriods(
     }),
   });
   if (!res.ok) {
+    await throwIfRateLimited(res, "Dasha");
     console.warn("Dasha error:", res.status);
     return [];
   }
@@ -716,7 +741,7 @@ export async function getPanchang(
     }),
   });
   if (!res.ok)
-    throw new Error(`Panchang error: ${res.status} - ${await res.text()}`);
+    await throwChartError(res, "Panchang");
   return unwrap(await res.json());
 }
 
@@ -745,7 +770,7 @@ export async function getYogaAnalysis(birthData: BirthData): Promise<any> {
     body: JSON.stringify({ subject: buildSubject(birthData) }),
   });
   if (!res.ok)
-    throw new Error(`Yoga analysis error: ${res.status} - ${await res.text()}`);
+    await throwChartError(res, "Yoga analysis");
   return unwrap(await res.json());
 }
 
@@ -764,9 +789,7 @@ export async function getKundliMatching(
     }),
   });
   if (!res.ok)
-    throw new Error(
-      `Kundli matching error: ${res.status} - ${await res.text()}`,
-    );
+    await throwChartError(res, "Kundli matching");
   return unwrap(await res.json());
 }
 
@@ -778,7 +801,7 @@ export async function getManglikDosha(birthData: BirthData): Promise<any> {
     body: JSON.stringify({ subject: buildSubject(birthData) }),
   });
   if (!res.ok)
-    throw new Error(`Manglik dosha error: ${res.status} - ${await res.text()}`);
+    await throwChartError(res, "Manglik dosha");
   return unwrap(await res.json());
 }
 
@@ -796,7 +819,7 @@ export async function getRemedies(
     }),
   });
   if (!res.ok)
-    throw new Error(`Remedies error: ${res.status} - ${await res.text()}`);
+    await throwChartError(res, "Remedies");
   return unwrap(await res.json());
 }
 
@@ -810,7 +833,7 @@ export async function getSadeSati(birthData: BirthData): Promise<any> {
       include_remedies: true,
     }),
   });
-  if (!res.ok) throw new Error(`Sade Sati error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Sade Sati");
   return unwrap(await res.json());
 }
 
@@ -824,7 +847,7 @@ export async function getKaalSarpaDosha(birthData: BirthData): Promise<any> {
       include_remedies: true,
     }),
   });
-  if (!res.ok) throw new Error(`Kaal Sarpa error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Kaal Sarpa");
   return unwrap(await res.json());
 }
 
@@ -837,7 +860,7 @@ export async function getNakshatraPredictions(
     headers: getHeaders(),
     body: JSON.stringify({ subject: buildSubject(birthData) }),
   });
-  if (!res.ok) throw new Error(`Nakshatra predictions error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Nakshatra predictions");
   return unwrap(await res.json());
 }
 
@@ -851,7 +874,7 @@ export async function getAshtakvarga(birthData: BirthData): Promise<any> {
       include_sarva: true,
     }),
   });
-  if (!res.ok) throw new Error(`Ashtakvarga error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Ashtakvarga");
   return unwrap(await res.json());
 }
 
@@ -865,7 +888,7 @@ export async function getUpcomingEclipses(): Promise<any> {
     method: "GET",
     headers: getHeaders(),
   });
-  if (!res.ok) throw new Error(`Eclipses error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Eclipses");
   return unwrap(await res.json());
 }
 
@@ -878,7 +901,7 @@ export async function getEclipseNatalImpact(
     headers: getHeaders(),
     body: JSON.stringify({ subject: buildSubject(birthData) }),
   });
-  if (!res.ok) throw new Error(`Eclipse natal check error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Eclipse natal check");
   return unwrap(await res.json());
 }
 
@@ -900,7 +923,7 @@ export async function getLunarPhases(birthData: BirthData): Promise<any> {
     }),
   });
   if (!res.ok)
-    throw new Error(`Lunar phases error: ${res.status} - ${await res.text()}`);
+    await throwChartError(res, "Lunar phases");
   return unwrap(await res.json());
 }
 
@@ -921,9 +944,7 @@ export async function getVoidOfCourse(birthData: BirthData): Promise<any> {
     }),
   });
   if (!res.ok)
-    throw new Error(
-      `Void of course error: ${res.status} - ${await res.text()}`,
-    );
+    await throwChartError(res, "Void of course");
   return unwrap(await res.json());
 }
 
@@ -951,6 +972,7 @@ export async function getDailyHoroscope(
     }),
   });
   if (!res.ok) {
+    await throwIfRateLimited(res, "Daily horoscope");
     console.warn("Daily horoscope error:", res.status);
     try {
       return await getDailyHoroscopeText(birthData, date);
@@ -981,6 +1003,7 @@ export async function getWeeklyHoroscope(
     }),
   });
   if (!res.ok) {
+    await throwIfRateLimited(res, "Weekly horoscope");
     console.warn("Weekly horoscope error:", res.status);
     return null;
   }
@@ -1007,6 +1030,7 @@ export async function getMonthlyHoroscope(
     }),
   });
   if (!res.ok) {
+    await throwIfRateLimited(res, "Monthly horoscope");
     console.warn("Monthly horoscope error:", res.status);
     return null;
   }
@@ -1035,6 +1059,7 @@ export async function getYearlyHoroscope(
     }),
   });
   if (!res.ok) {
+    await throwIfRateLimited(res, "Yearly horoscope");
     console.warn("Yearly horoscope error:", res.status);
     return null;
   }
@@ -1158,7 +1183,7 @@ export async function getTransitReport(
   if (!res.ok) {
     // Throw rather than return [] — an empty array would be cached for the full
     // TTL, breaking a chart's transits for hours after one upstream blip.
-    throw new Error(`Transit report error: ${res.status}`);
+    await throwChartError(res, "Transit report");
   }
 
   const result = await res.json();
@@ -1192,7 +1217,7 @@ export async function getRenderedTransitChart(
       render_options: { format: "svg", theme: "dark" },
     }),
   });
-  if (!res.ok) throw new Error(`Transit render error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Transit render");
   const result = await res.json();
   return result.url || result.data || "";
 }
@@ -1215,7 +1240,7 @@ export async function getNatalChartSVG(
       svg_options: { theme: "dark" },
     }),
   });
-  if (!res.ok) throw new Error(`SVG natal error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "SVG natal");
   return res.text();
 }
 
@@ -1235,7 +1260,7 @@ export async function getTransitChartSVG(
       svg_options: { theme: "dark" },
     }),
   });
-  if (!res.ok) throw new Error(`SVG transit error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "SVG transit");
   return res.text();
 }
 
@@ -1253,7 +1278,7 @@ export async function getRenderedNatalChart(
       render_options: { format: "png", theme: "dark", width: 1080 },
     }),
   });
-  if (!res.ok) throw new Error(`Render natal error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Render natal");
   const result = await res.json();
   return result.url || result.data || "";
 }
@@ -1274,7 +1299,7 @@ export async function getRenderedSynastryChart(
       render_options: { format: "png", theme: "dark" },
     }),
   });
-  if (!res.ok) throw new Error(`Synastry render error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Synastry render");
   const result = await res.json();
   return result.url || result.data || "";
 }
@@ -1327,6 +1352,11 @@ export async function getCompatibilityDetails(
       }),
     ]);
 
+    // Compatibility is a paid feature: returning a half-empty match because our
+    // upstream allowance ran out is worse than failing loudly.
+    if (!rIns.ok) await throwIfRateLimited(rIns, "Compatibility insights");
+    if (!rSyn.ok) await throwIfRateLimited(rSyn, "Synastry");
+
     const ins: any = rIns.ok ? unwrap(await rIns.json()) : {};
     const syn: any = rSyn.ok ? unwrap(await rSyn.json()) : {};
     if (!rIns.ok) console.error("[Compatibility] Insights error:", rIns.status);
@@ -1357,6 +1387,7 @@ export async function getCompatibilityDetails(
         0,
     };
   } catch (error) {
+    if (error instanceof AstroChartError) throw error;
     console.error("[Compatibility] Error:", error);
     return null;
   }
@@ -1380,6 +1411,7 @@ export async function getNatalReportPDF(
     }),
   });
   if (!res.ok) {
+    await throwIfRateLimited(res, "Natal report PDF");
     console.warn("Natal report PDF error:", res.status);
     return null;
   }
@@ -1420,6 +1452,7 @@ export async function getDailyHoroscopePDF(
     }),
   });
   if (!res.ok) {
+    await throwIfRateLimited(res, "Daily horoscope PDF");
     console.warn("Daily horoscope PDF error:", res.status);
     return null;
   }
@@ -1460,6 +1493,7 @@ export async function getWeeklyHoroscopePDF(
     }),
   });
   if (!res.ok) {
+    await throwIfRateLimited(res, "Weekly horoscope PDF");
     console.warn("Weekly horoscope PDF error:", res.status);
     return null;
   }
@@ -1481,7 +1515,7 @@ export async function getNumerologyReading(birthData: BirthData): Promise<any> {
       birth_date: { year, month, day },
     }),
   });
-  if (!res.ok) throw new Error(`Numerology error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Numerology");
   return unwrap(await res.json());
 }
 
@@ -1496,7 +1530,7 @@ export async function getCoreNumbers(birthData: BirthData): Promise<any> {
       birth_date: { year, month, day },
     }),
   });
-  if (!res.ok) throw new Error(`Core numbers error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Core numbers");
   return unwrap(await res.json());
 }
 
@@ -1510,7 +1544,7 @@ export async function getDailyTarotCard(): Promise<any> {
     method: "GET",
     headers: getHeaders(),
   });
-  if (!res.ok) throw new Error(`Daily tarot error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Daily tarot");
   return unwrap(await res.json());
 }
 
@@ -1523,7 +1557,7 @@ export async function getThreeCardReading(question?: string): Promise<any> {
       question: question || "What does the universe want me to know today?",
     }),
   });
-  if (!res.ok) throw new Error(`Three card reading error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Three card reading");
   return unwrap(await res.json());
 }
 
@@ -1534,7 +1568,7 @@ export async function drawTarotCards(count: number = 3): Promise<any> {
     headers: getHeaders(),
     body: JSON.stringify({ count }),
   });
-  if (!res.ok) throw new Error(`Draw tarot error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Draw tarot");
   return unwrap(await res.json());
 }
 
@@ -1563,7 +1597,7 @@ export async function getNumerologyCompatibility(
       },
     }),
   });
-  if (!res.ok) throw new Error(`Numerology compatibility error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Numerology compatibility");
   return unwrap(await res.json());
 }
 
@@ -1580,7 +1614,7 @@ export async function getEclipseInterpretation(
     headers: getHeaders(),
     body: JSON.stringify({ date: eclipseDate }),
   });
-  if (!res.ok) throw new Error(`Eclipse interpretation error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Eclipse interpretation");
   return unwrap(await res.json());
 }
 
@@ -1597,7 +1631,7 @@ export async function getAstrocartographyLines(
     headers: getHeaders(),
     body: JSON.stringify({ subject: buildSubject(birthData) }),
   });
-  if (!res.ok) throw new Error(`Astrocartography lines error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Astrocartography lines");
   return unwrap(await res.json());
 }
 
@@ -1608,7 +1642,7 @@ export async function getPowerZones(birthData: BirthData): Promise<any> {
     headers: getHeaders(),
     body: JSON.stringify({ subject: buildSubject(birthData) }),
   });
-  if (!res.ok) throw new Error(`Power zones error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Power zones");
   return unwrap(await res.json());
 }
 
@@ -1626,7 +1660,7 @@ export async function getLocationAnalysis(
       location: { latitude: lat, longitude: lng },
     }),
   });
-  if (!res.ok) throw new Error(`Location analysis error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Location analysis");
   return unwrap(await res.json());
 }
 
@@ -1649,7 +1683,7 @@ export async function getBiorhythms(
       target_date: targetDate || new Date().toISOString().split("T")[0],
     }),
   });
-  if (!res.ok) throw new Error(`Biorhythms error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Biorhythms");
   return unwrap(await res.json());
 }
 
@@ -1660,7 +1694,7 @@ export async function getWellnessScore(birthData: BirthData): Promise<any> {
     headers: getHeaders(),
     body: JSON.stringify({ subject: buildSubject(birthData) }),
   });
-  if (!res.ok) throw new Error(`Wellness score error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Wellness score");
   return unwrap(await res.json());
 }
 
@@ -1671,7 +1705,7 @@ export async function getEnergyPatterns(birthData: BirthData): Promise<any> {
     headers: getHeaders(),
     body: JSON.stringify({ subject: buildSubject(birthData) }),
   });
-  if (!res.ok) throw new Error(`Energy patterns error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Energy patterns");
   return unwrap(await res.json());
 }
 
@@ -1686,7 +1720,7 @@ export async function getHumanDesignType(birthData: BirthData): Promise<any> {
     headers: getHeaders(),
     body: JSON.stringify({ subject: buildSubject(birthData) }),
   });
-  if (!res.ok) throw new Error(`HD type error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "HD type");
   return unwrap(await res.json());
 }
 
@@ -1697,7 +1731,7 @@ export async function getBodygraph(birthData: BirthData): Promise<any> {
     headers: getHeaders(),
     body: JSON.stringify({ subject: buildSubject(birthData) }),
   });
-  if (!res.ok) throw new Error(`Bodygraph error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Bodygraph");
   return unwrap(await res.json());
 }
 
@@ -1708,7 +1742,7 @@ export async function getBodygraphSVG(birthData: BirthData): Promise<string> {
     headers: getHeaders(),
     body: JSON.stringify({ subject: buildSubject(birthData) }),
   });
-  if (!res.ok) throw new Error(`Bodygraph SVG error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Bodygraph SVG");
   return res.text();
 }
 
@@ -1723,7 +1757,7 @@ export async function getShadbala(birthData: BirthData): Promise<any> {
     headers: getHeaders(),
     body: JSON.stringify({ subject: buildSubject(birthData) }),
   });
-  if (!res.ok) throw new Error(`Shadbala error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Shadbala");
   return unwrap(await res.json());
 }
 
@@ -1740,6 +1774,6 @@ export async function getVarshaphal(
       year: year || new Date().getFullYear(),
     }),
   });
-  if (!res.ok) throw new Error(`Varshaphal error: ${res.status}`);
+  if (!res.ok) await throwChartError(res, "Varshaphal");
   return unwrap(await res.json());
 }

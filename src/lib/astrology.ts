@@ -53,7 +53,7 @@ export function getSignNumberByCode(code: string) {
  * Calculate sign numbers for all 12 houses based on Ascendant sign number
  */
 export function calculateHouseSigns(ascendantSignNumber: number): number[] {
-    const signs = [];
+    const signs: number[] = [];
     for (let i = 0; i < 12; i++) {
         let sign = (ascendantSignNumber + i) % 12;
         if (sign === 0) sign = 12;

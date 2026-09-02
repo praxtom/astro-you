@@ -41,6 +41,10 @@ test("the display name is capped at 80 characters", async () => {
   });
   // sanitizePromptText appends a one-character ellipsis when it truncates.
   assert.ok(userContext.name.length <= 81);
+  // ...and the name must actually survive, not collapse to "" (which would
+  // silently fall through to "Jataka" and pass a length-only assertion).
+  assert.ok(userContext.name.startsWith("NNNNNNNNNN"));
+  assert.equal(userContext.name.replace(/…$/, ""), "N".repeat(80));
 });
 
 test("a missing name still falls back to the default", async () => {
@@ -65,6 +69,15 @@ test("recent chat summaries are sanitized and capped", () => {
   assert.equal(summaries.length, 2);
   assert.ok(summaries[0].title.length <= 121);
   assert.ok(summaries[0].summary.length <= 601);
+  // Content must be preserved up to the cap, not blanked.
+  assert.equal(summaries[0].title.replace(/…$/, ""), "T".repeat(120));
+  assert.equal(summaries[0].summary.replace(/…$/, ""), "S".repeat(600));
+  // A clean short title passes through verbatim.
+  const [clean] = sanitizeRecentSummaries([
+    { title: "Career and Saturn", summary: "We discussed Shani.", date: "" },
+  ]);
+  assert.equal(clean.title, "Career and Saturn");
+  assert.equal(clean.summary, "We discussed Shani.");
   assert.ok(!/\n/.test(summaries[1].title));
   assert.ok(!/ignore previous instructions/i.test(summaries[1].title));
   assert.ok(!/assistant\s*:/i.test(summaries[1].title));
