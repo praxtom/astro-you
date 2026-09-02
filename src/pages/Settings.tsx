@@ -480,12 +480,6 @@ export default function Settings() {
                 {profile?.name || "Not set"}
               </span>
             </div>
-            {profile?.username && (
-              <div className="flex justify-between">
-                <span className="text-white/40">Username</span>
-                <span className="text-white/80">@{profile.username}</span>
-              </div>
-            )}
           </div>
         </section>
 

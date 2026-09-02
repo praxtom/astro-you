@@ -1,11 +1,14 @@
 /**
  * Client-side error reporting shim.
  *
- * Sentry-ready but with NO hard dependency: if a Sentry SDK has been installed
- * and initialized (exposing `window.Sentry`) it forwards there; otherwise it
- * logs a structured error to the console. To enable real reporting, install
- * `@sentry/react`, call `Sentry.init({ dsn: import.meta.env.VITE_SENTRY_DSN })`
- * in main.tsx, and this function will start forwarding automatically.
+ * No hard dependency on any SDK: if one has been initialized and published on
+ * `window.Sentry` it forwards there; otherwise it logs a structured error to
+ * the console.
+ *
+ * `src/main.tsx` does the wiring — when `VITE_SENTRY_DSN` is set it lazily
+ * imports `@sentry/react`, calls `Sentry.init(...)` and assigns the module to
+ * `window.Sentry`, at which point this function starts forwarding on its own.
+ * With no DSN configured nothing is imported and this stays console-only.
  */
 type SentryLike = {
   captureException: (error: unknown, context?: Record<string, unknown>) => void;

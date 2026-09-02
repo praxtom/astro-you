@@ -59,7 +59,6 @@ export const SPACES: Space[] = [
     question: "What about us?",
     pages: [
       { label: "Compatibility", path: "/compatibility", primary: true },
-      { label: "Friends", path: "/friends" },
     ],
   },
   {

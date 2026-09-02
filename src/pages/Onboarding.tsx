@@ -496,11 +496,11 @@ export default function Onboarding() {
           )}
         </div>
 
-        {/* Step 0: Kundali Upload (Optional) */}
+        {/* Step 01: Kundali Upload (Optional) */}
         {step === "upload" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
             <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
-              Optional
+              Step 01 / 05 · Optional
             </span>
             <h2 className="text-title text-3xl mb-3 font-display tracking-tight">
               Upload Kundali
@@ -710,7 +710,7 @@ export default function Onboarding() {
           </div>
         )}
 
-        {/* Step 1: Identity */}
+        {/* Step 02: Identity */}
         {step === "identity" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
             <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
@@ -781,11 +781,11 @@ export default function Onboarding() {
           </div>
         )}
 
-        {/* Step 2: Temporal */}
+        {/* Step 03: Temporal */}
         {step === "temporal" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
             <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
-              Step 02 / 04
+              Step 03 / 05
             </span>
             <h2 className="text-title text-3xl mb-3 font-display tracking-tight">
               The Moment
@@ -873,11 +873,11 @@ export default function Onboarding() {
           </div>
         )}
 
-        {/* Step 3: Spatial */}
+        {/* Step 04: Spatial */}
         {step === "spatial" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
             <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
-              Step 03 / 04
+              Step 04 / 05
             </span>
             <h2 className="text-title text-3xl mb-3 font-display tracking-tight">
               Birth Location
@@ -914,11 +914,11 @@ export default function Onboarding() {
           </div>
         )}
 
-        {/* Step 4: Present */}
+        {/* Step 05: Present */}
         {step === "present" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
             <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
-              Step 04 / 04
+              Step 05 / 05
             </span>
             <h2 className="text-title text-3xl mb-3 font-display tracking-tight">
               The Presence

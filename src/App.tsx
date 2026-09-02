@@ -28,7 +28,6 @@ const Tarot = lazy(() => import("./pages/Tarot"));
 const Eclipses = lazy(() => import("./pages/Eclipses"));
 const AstroMap = lazy(() => import("./pages/AstroMap"));
 const Wellness = lazy(() => import("./pages/Wellness"));
-const PublicProfile = lazy(() => import("./pages/PublicProfile"));
 const Pricing = lazy(() => import("./pages/Pricing"));
 const Wallet = lazy(() => import("./pages/Wallet"));
 const Reports = lazy(() => import("./pages/Reports"));
@@ -38,7 +37,6 @@ const Trust = lazy(() => import("./pages/Trust"));
 const ExpertApply = lazy(() => import("./pages/ExpertApply"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Admin = lazy(() => import("./pages/Admin"));
-const Friends = lazy(() => import("./pages/Friends"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const Terms = lazy(() => import("./pages/Terms"));
 const RefundPolicy = lazy(() => import("./pages/RefundPolicy"));
@@ -348,26 +346,6 @@ function App() {
                 <PageTransition>
                   <Suspense fallback={null}>
                     <AdvancedVedic />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/friends"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <Friends />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/u/:username"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <PublicProfile />
                   </Suspense>
                 </PageTransition>
               }

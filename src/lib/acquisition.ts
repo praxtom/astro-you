@@ -1,8 +1,5 @@
-import { auth, trackEvent } from "./firebase";
-import {
-  isAnalyticsEventName,
-  type FunnelEventName,
-} from "./analytics-events";
+import { auth, hasAnalyticsConsent, trackEvent } from "./firebase";
+import { isAnalyticsEventName, type FunnelEventName } from "./analytics-events";
 import {
   extractReferralCodeFromSearch,
   normalizeClientReferralCode,
@@ -16,12 +13,7 @@ const ANALYTICS_SESSION_KEY = "astroyou:analytics_session_id";
 export interface AcquisitionSource {
   source: string;
   medium:
-    | "seo_tool"
-    | "seo_content"
-    | "consult"
-    | "pricing"
-    | "referral"
-    | "unknown";
+    "seo_tool" | "seo_content" | "consult" | "pricing" | "referral" | "unknown";
   campaign?: string;
   capturedAt: number;
 }
@@ -76,7 +68,9 @@ export function captureReferralFromUrl(): string | null {
 export function getPendingReferralCode(): string | null {
   if (typeof window === "undefined") return null;
   try {
-    return normalizeClientReferralCode(localStorage.getItem(REFERRAL_STORAGE_KEY));
+    return normalizeClientReferralCode(
+      localStorage.getItem(REFERRAL_STORAGE_KEY),
+    );
   } catch (err) {
     console.warn("[acquisition] Could not read referral", err);
     return null;
@@ -113,6 +107,9 @@ async function sendServerAnalyticsEvent(
   params: Record<string, unknown> = {},
 ) {
   if (typeof window === "undefined") return;
+  // Server-side analytics is still analytics: no consent, no event. This
+  // mirrors the gate `trackEvent` applies to GA4 in lib/firebase.ts.
+  if (!hasAnalyticsConsent()) return;
   if (!shouldSendServerAnalytics()) return;
 
   try {
@@ -149,7 +146,10 @@ async function sendServerAnalyticsEvent(
 
 function shouldSendServerAnalytics() {
   if (import.meta.env.VITE_ENABLE_SERVER_ANALYTICS === "true") return true;
-  return window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1";
+  return (
+    window.location.hostname !== "localhost" &&
+    window.location.hostname !== "127.0.0.1"
+  );
 }
 
 function getOrCreateStoredId(key: string, prefix: string, sessionOnly = false) {

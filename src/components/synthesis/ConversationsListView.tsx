@@ -75,6 +75,22 @@ export function ComposerVoiceButton({
   );
 }
 
+/**
+ * Writes `node` into every ref given. Deliberately declared at module scope:
+ * `react-hooks/immutability` forbids a hook body from assigning to a prop or
+ * to a ref it captured, so the assignment lives in a plain function that the
+ * ref callback delegates to. Behaviour is identical to assigning inline.
+ */
+function assignRefs<T>(
+  node: T | null,
+  ...refs: (Ref<T> | null | undefined)[]
+): void {
+  for (const ref of refs) {
+    if (typeof ref === "function") ref(node);
+    else if (ref) (ref as MutableRefObject<T | null>).current = node;
+  }
+}
+
 interface SynthesisComposerTextareaProps {
   value: string;
   onValueChange: (value: string) => void;
@@ -90,13 +106,7 @@ export function SynthesisComposerTextarea({
 }: SynthesisComposerTextareaProps) {
   const localRef = useRef<HTMLDivElement>(null);
   const setComposerRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      localRef.current = node;
-      if (typeof composerRef === "function") composerRef(node);
-      else if (composerRef) {
-        (composerRef as MutableRefObject<HTMLDivElement | null>).current = node;
-      }
-    },
+    (node: HTMLDivElement | null) => assignRefs(node, localRef, composerRef),
     [composerRef],
   );
 

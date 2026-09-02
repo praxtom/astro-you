@@ -1,20 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Download,
-  Gift,
-  Settings,
-  Share2,
-  Sparkles,
-  User,
-  Users,
-} from "lucide-react";
-import { db } from "../../lib/firebase";
+import { Download, Gift, Settings, Share2, Sparkles } from "lucide-react";
 import { useAuth } from "../../lib/useAuth";
 import { useReferralInfo } from "../../hooks/useReferralInfo";
 
 interface UtilityDockProps {
-  profile: any;
+  /** Still accepted by callers; the dock itself no longer reads it. */
+  profile?: any;
   hasBirthData: boolean;
   downloadingNatal: boolean;
   onDownloadNatalReport: () => void;
@@ -24,11 +16,10 @@ interface UtilityDockProps {
 }
 
 /**
- * Quiet end-of-rail utilities: public profile, friends, birth data, altar,
- * reports, chart sharing, referral invite, and data export.
+ * Quiet end-of-rail utilities: birth data, altar, reports, chart sharing,
+ * referral invite, and data export.
  */
 export const UtilityDock: React.FC<UtilityDockProps> = ({
-  profile,
   hasBirthData,
   downloadingNatal,
   onDownloadNatalReport,
@@ -40,37 +31,7 @@ export const UtilityDock: React.FC<UtilityDockProps> = ({
   const navigate = useNavigate();
   const referral = useReferralInfo();
 
-  const [showUsernameForm, setShowUsernameForm] = useState(false);
-  const [username, setUsername] = useState("");
-  const [bio, setBio] = useState("");
-  const [isPublic, setIsPublic] = useState(false);
   const [referralCopied, setReferralCopied] = useState(false);
-
-  useEffect(() => {
-    if (profile) {
-      setUsername(profile.username || "");
-      setBio(profile.bio || "");
-      setIsPublic(profile.isPublic || false);
-    }
-  }, [profile]);
-
-  const saveProfile = async () => {
-    if (!user || !username.trim()) return;
-    const { doc, setDoc } = await import("firebase/firestore");
-    await setDoc(
-      doc(db, "users", user.uid),
-      {
-        profile: {
-          ...profile,
-          username: username.trim().toLowerCase(),
-          bio,
-          isPublic,
-        },
-      },
-      { merge: true },
-    );
-    setShowUsernameForm(false);
-  };
 
   const exportData = async () => {
     if (!user) return;
@@ -101,56 +62,6 @@ export const UtilityDock: React.FC<UtilityDockProps> = ({
       </p>
 
       <div className="flex flex-col gap-2.5 px-1">
-        {user && (
-          <>
-            <button onClick={() => navigate("/friends")} className={linkClass}>
-              <Users size={14} />
-              Friends
-            </button>
-            <button
-              onClick={() => setShowUsernameForm(!showUsernameForm)}
-              className={linkClass}
-            >
-              <User size={14} />
-              {profile?.username ? `@${profile.username}` : "Set Username"}
-            </button>
-            {showUsernameForm && (
-              <div className="mt-1 p-4 rounded-xl bg-white/4 border border-white/10 space-y-3">
-                <input
-                  value={username}
-                  onChange={(e) =>
-                    setUsername(e.target.value.replace(/[^a-z0-9_]/g, ""))
-                  }
-                  placeholder="username"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-gold/50"
-                />
-                <textarea
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value)}
-                  maxLength={160}
-                  placeholder="Short bio (optional)"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-gold/50 h-16 resize-none"
-                />
-                <label className="flex items-center gap-2 text-xs text-white/40">
-                  <input
-                    type="checkbox"
-                    checked={isPublic}
-                    onChange={(e) => setIsPublic(e.target.checked)}
-                    className="rounded"
-                  />
-                  Make profile public
-                </label>
-                <button
-                  onClick={saveProfile}
-                  className="px-4 py-2 rounded-lg bg-gold text-black text-xs font-bold uppercase tracking-[0.15em]"
-                >
-                  Save
-                </button>
-              </div>
-            )}
-          </>
-        )}
-
         <button onClick={onUpdateBirthData} className={linkClass}>
           <Settings size={14} />
           Update Birth Data

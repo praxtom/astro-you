@@ -19,6 +19,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import LocationInput from "./LocationInput";
+import { useErrorToast } from "./ui/toast-context";
 
 type Step = "upload" | "identity" | "temporal" | "spatial" | "present";
 
@@ -59,6 +60,7 @@ export default function OnboardingModal({
   existingProfile,
 }: OnboardingModalProps) {
   const { user } = useAuth();
+  const showError = useErrorToast();
   const [step, setStep] = useState<Step>("upload");
   const [isSaving, setIsSaving] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
@@ -442,6 +444,16 @@ export default function OnboardingModal({
       setStep("spatial");
     } else if (step === "spatial") {
       if (!formData.pob) return;
+      // Require a geocoded selection — a free-typed place that doesn't resolve
+      // would let onboarding finish, then fail every chart call with a generic
+      // 500. birthCoordinates is only set when a dropdown suggestion is picked.
+      // Mirrors the same guard in pages/Onboarding.tsx.
+      if (!birthCoordinates) {
+        showError(
+          "Please pick your birth place from the suggestions so we can locate it accurately.",
+        );
+        return;
+      }
       setStep("present");
     } else {
       finalizeJourney();

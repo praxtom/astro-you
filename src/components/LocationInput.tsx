@@ -1,6 +1,10 @@
 import { useState, useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { MapPin, Loader2, X } from "lucide-react";
+import { FieldError } from "../lib/FieldError";
+
+const LOOKUP_ERROR =
+  "Couldn't look up places right now. Check your connection and try again.";
 
 interface LocationInputProps {
   value: string;
@@ -46,6 +50,7 @@ export default function LocationInput({
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
+  const [lookupError, setLookupError] = useState<string | null>(null);
   const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -114,6 +119,7 @@ export default function LocationInput({
           searchQuery,
         )}&addressdetails=1&limit=5&featuretype=city`,
       );
+      if (!response.ok) throw new Error(`Geocoder responded ${response.status}`);
       const data = await response.json();
 
       const filtered = data.map((item: any) => ({
@@ -122,12 +128,20 @@ export default function LocationInput({
         lon: item.lon,
       }));
 
+      // A search that got through clears any earlier failure.
+      setLookupError(null);
       setSuggestions(filtered);
       setIsOpen(filtered.length > 0);
       setActiveSuggestion(filtered.length > 0 ? 0 : -1);
       if (filtered.length > 0) updatePosition();
     } catch (error) {
+      // Silent failure here used to look identical to "no such city", which
+      // strands the user on a step that requires a picked suggestion.
       console.error("Location search error:", error);
+      setSuggestions([]);
+      setIsOpen(false);
+      setActiveSuggestion(-1);
+      setLookupError(LOOKUP_ERROR);
     } finally {
       setIsLoading(false);
     }
@@ -198,6 +212,9 @@ export default function LocationInput({
           aria-autocomplete="list"
           aria-expanded={isOpen && suggestions.length > 0}
           aria-controls={listboxId}
+          aria-describedby={
+            lookupError ? `${resolvedInputId}-error` : undefined
+          }
           aria-activedescendant={
             isOpen && activeSuggestion >= 0
               ? `${listboxId}-${activeSuggestion}`
@@ -228,6 +245,7 @@ export default function LocationInput({
                 setSuggestions([]);
                 setIsOpen(false);
                 setActiveSuggestion(-1);
+                setLookupError(null);
               }}
               className="text-white/20 hover:text-white/60 transition-colors"
               aria-label="Clear location"
@@ -239,6 +257,8 @@ export default function LocationInput({
           )}
         </div>
       </div>
+
+      <FieldError error={lookupError} fieldName={resolvedInputId} />
 
       {/* Suggestions Dropdown via Portal */}
       {isOpen &&
