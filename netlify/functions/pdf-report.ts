@@ -28,6 +28,11 @@ import {
 } from "./shared/report-storage";
 import { requestedDateKey } from "./shared/request-date.js";
 import { isEmptyForecast } from "./shared/forecast-delivery.js";
+import {
+  decideReportIdRequest,
+  REPORT_ID_PATTERN,
+} from "./shared/report-access.js";
+import { describeError } from "./shared/error-summary.js";
 import { normalizeZodiacMode } from "../../src/lib/zodiac-mode.js";
 
 export default async (req: Request, _context: Context) => {
@@ -73,16 +78,41 @@ export default async (req: Request, _context: Context) => {
     const userSnap = await userRef.get();
     const userData = userSnap.data() || {};
 
+    // A supplied reportId is ONLY a free re-download of a completed report the
+    // caller owns. Failed / "generating" docs are rejected (never free, and
+    // never re-charged under their old, possibly refunded, ledger id) — the
+    // client must make a fresh request for a new report.
+    if (reportId !== undefined && reportId !== null) {
+      if (typeof reportId !== "string" || !REPORT_ID_PATTERN.test(reportId)) {
+        return new Response(JSON.stringify({ error: "Invalid reportId" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
     const reportRef = reportId
       ? userRef.collection("reports").doc(reportId)
       : userRef.collection("reports").doc();
     const existingReportSnap = reportId ? await reportRef.get() : null;
     const existingReport = existingReportSnap?.data();
-    if (reportId && !existingReport) {
+    const decision = reportId
+      ? decideReportIdRequest(uid, existingReport)
+      : null;
+    if (decision?.kind === "not_found") {
       return new Response(JSON.stringify({ error: "Report not found" }), {
         status: 404,
         headers: { "Content-Type": "application/json" },
       });
+    }
+    if (decision?.kind === "not_available") {
+      return new Response(
+        JSON.stringify({
+          error:
+            "This report isn't available to download. Please request a new report.",
+          code: "report_not_available",
+        }),
+        { status: 409, headers: { "Content-Type": "application/json" } },
+      );
     }
 
     const effectiveReportType = (existingReport?.reportType ||
@@ -92,7 +122,7 @@ export default async (req: Request, _context: Context) => {
       existingReport?.dateKey || date || requestedDateKey(localDate);
     const filename =
       existingReport?.filename || createReportFilename(product.type, dateKey);
-    const isRedownload = Boolean(existingReport);
+    const isRedownload = decision?.kind === "redownload";
     const savedProfile = userData.profile || userData;
     const effectiveBirthData = withProfileSigns(
       birthData || toBirthData(savedProfile),
@@ -103,10 +133,10 @@ export default async (req: Request, _context: Context) => {
       mode: normalizeZodiacMode(savedProfile?.zodiacMode ?? userData.zodiacMode),
     };
 
-    if (isRedownload && existingReport?.storagePath) {
+    if (decision?.kind === "redownload") {
       const storedPdf = await downloadReportPdf({
         bucket: storageBucket,
-        path: existingReport.storagePath,
+        path: decision.storagePath,
       });
 
       await reportRef.set(
@@ -125,10 +155,10 @@ export default async (req: Request, _context: Context) => {
           reportType: product.type,
           chargedCredits: 0,
           filename,
-          storagePath: existingReport.storagePath,
+          storagePath: decision.storagePath,
         },
       }).catch((auditError) => {
-        console.error("[PDF Report] Audit log failed:", auditError);
+        console.error("[PDF Report] Audit log failed:", describeError(auditError));
       });
 
       const storedArrayBuffer = new ArrayBuffer(storedPdf.byteLength);
@@ -210,7 +240,9 @@ export default async (req: Request, _context: Context) => {
           ledgerId: `report_refund_${reportRef.id}`,
           metadata: { reportType: product.type, reason },
         },
-      ).catch((e) => console.error("[PDF Report] Refund failed:", e));
+      ).catch((e) =>
+        console.error("[PDF Report] Refund failed:", describeError(e)),
+      );
     };
 
     console.log(`[PDF Report] Generating ${product.type} report for ${uid}...`);
@@ -376,7 +408,7 @@ export default async (req: Request, _context: Context) => {
         storagePath,
       },
     }).catch((auditError) => {
-      console.error("[PDF Report] Audit log failed:", auditError);
+      console.error("[PDF Report] Audit log failed:", describeError(auditError));
     });
 
     return new Response(pdfBuffer, {
@@ -388,7 +420,7 @@ export default async (req: Request, _context: Context) => {
       },
     });
   } catch (error: any) {
-    console.error("[PDF Report] Error:", error);
+    console.error("[PDF Report] Error:", describeError(error));
     return new Response(
       JSON.stringify({ error: "Report generation failed. Please try again." }),
       {

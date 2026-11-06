@@ -130,6 +130,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
       "Account, profile, birth data, and saved guidance: kept while your account is active, and deleted or anonymized within 30 days of an account-deletion request, except records we must retain longer.",
       "Payment, invoice, and credit-ledger records: retained for up to 8 years to meet tax, accounting, and fraud-prevention obligations.",
       "One-time login codes: deleted or expired within minutes. Rate-limit and short-lived cache records expire automatically, typically within a day.",
+      "Computed chart results (for example your birth chart, dasha periods, and yogas): cached for up to 180 days so we don't recalculate them on every visit, then deleted automatically. The cache stores only the calculated results — not your name or birth details — under a one-way keyed hash of the calculation inputs, and is not linked to your account. Daily readings (such as wellness, energy, and lunar-phase readings) and the daily Panchang are cached for about a day.",
       "Analytics and email-engagement events: retained in aggregated or limited form for product measurement and then rotated.",
     ],
   },

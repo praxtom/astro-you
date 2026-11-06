@@ -20,6 +20,7 @@
 import {
   applyCreditChange,
   applyCreditChangeInTransaction,
+  CreditError,
   type CreditDeps,
 } from "./credits.js";
 
@@ -51,11 +52,25 @@ export function refundLedgerId(
     : `feature_${feature}_refund_${txnId}_r${attempt}`;
 }
 
+/**
+ * Thrown when a window has burned through every refund→retry attempt. It is a
+ * CreditError (so existing `instanceof CreditError` handlers still refuse to
+ * serve content) with status 429: the caller must NOT deliver content, since
+ * nothing is charged for it.
+ */
+export class ChargeAttemptsExhaustedError extends CreditError {
+  constructor() {
+    super("Too many failed attempts for this request. Please try again later.", 429);
+    this.name = "ChargeAttemptsExhaustedError";
+  }
+}
+
 const NOOP: FeatureCharge = { charged: false, refund: async () => {} };
 
 /**
  * Reserve `cost` credits for `feature`. Throws CreditError (402) when the
- * balance is insufficient. Returns a no-op charge when this window is already
+ * balance is insufficient, and ChargeAttemptsExhaustedError (429) when the
+ * window's refund→retry attempts are used up. Returns a no-op charge when this window is already
  * paid for (a live, unrefunded attempt exists).
  */
 export async function reserveFeatureCharge(
@@ -105,9 +120,12 @@ export async function reserveFeatureCharge(
       // Charged and still standing → genuine duplicate: already paid.
       if (!refunded) return null;
     }
-    // Pathological refund loop: stop serving this window for free.
-    return null;
+    // Pathological refund loop: refuse outright. Returning "already paid"
+    // here would serve the content for free.
+    return "exhausted" as const;
   });
+
+  if (attempt === "exhausted") throw new ChargeAttemptsExhaustedError();
 
   if (attempt === null) return NOOP;
 

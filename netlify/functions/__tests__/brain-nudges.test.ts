@@ -115,8 +115,10 @@ test("runProactiveBrainForUser persists a nudge and updates Atman history", asyn
                 return {
                   exists: true,
                   data: () => ({
-                    email: "kavan@example.com",
+                    // Owner-writable — must never be used as a recipient.
+                    email: "victim@example.com",
                     profile: {
+                      email: "victim2@example.com",
                       name: "Kavan",
                       timezone: "Asia/Kolkata",
                       notificationPrefs: { enabled: true, emailDigest: true },
@@ -134,6 +136,10 @@ test("runProactiveBrainForUser persists a nudge and updates Atman history", asyn
       },
     },
     now: () => NOW,
+    async lookupVerifiedEmail(uid) {
+      assert.equal(uid, "user_123");
+      return "kavan@example.com";
+    },
     async sendEmail(email) {
       emails.push({ to: email.to, subject: email.subject });
     },
@@ -253,12 +259,15 @@ test("runProactiveBrainForUser only sends WhatsApp after explicit opt-in and pho
                     profile: {
                       name: "Kavan",
                       timezone: "Asia/Kolkata",
-                      whatsappNumber: "+919999999999",
                       notificationPrefs: {
                         enabled: true,
                         emailDigest: false,
                         whatsappDigest: true,
                       },
+                    },
+                    verifiedContacts: {
+                      whatsappE164: "+919999999999",
+                      whatsappVerifiedAt: NOW,
                     },
                     atman,
                   }),
@@ -286,4 +295,104 @@ test("runProactiveBrainForUser only sends WhatsApp after explicit opt-in and pho
   assert.equal(result.whatsappSent, true);
   assert.equal(whatsapp[0].to, "+919999999999");
   assert.match(whatsapp[0].body, /grounding breath/i);
+});
+
+function singleUserDb(data: Record<string, unknown>): ProactiveBrainDeps["db"] {
+  return {
+    collection() {
+      return {
+        doc() {
+          return {
+            collection() {
+              return {
+                doc() {
+                  return { async set() {} };
+                },
+              };
+            },
+            async get() {
+              return { exists: true, data: () => data };
+            },
+            async set() {},
+          };
+        },
+      };
+    },
+  } as unknown as ProactiveBrainDeps["db"];
+}
+
+test("runProactiveBrainForUser never emails or WhatsApps contact points from the owner-writable doc", async () => {
+  const atman = baseAtman();
+  atman.emotionalState = "chaotic";
+  const emails: string[] = [];
+  const whatsapp: string[] = [];
+  const result = await runProactiveBrainForUser(
+    {
+      db: singleUserDb({
+        email: "victim@example.com",
+        phoneE164: "+15550000001",
+        whatsappNumber: "+15550000002",
+        profile: {
+          name: "Mallory",
+          email: "victim2@example.com",
+          phone: "+15550000003",
+          phoneE164: "+15550000004",
+          whatsappNumber: "+15550000005",
+          timezone: "Asia/Kolkata",
+          notificationPrefs: {
+            enabled: true,
+            emailDigest: true,
+            whatsappDigest: true,
+          },
+        },
+        // Unverified (no marker) — still ignored.
+        verifiedContacts: { whatsappE164: "+15550000006" },
+        atman,
+      }),
+      now: () => NOW,
+      // Auth record has no verified email.
+      async lookupVerifiedEmail() {
+        return null;
+      },
+      async sendEmail(email) {
+        emails.push(email.to);
+      },
+      async sendWhatsApp(message) {
+        whatsapp.push(message.to);
+      },
+    },
+    { uid: "user_123", sendEmail: true },
+  );
+
+  assert.equal(result.sent, true);
+  assert.equal(result.emailSent, false);
+  assert.equal(result.whatsappSent, false);
+  assert.deepEqual(emails, []);
+  assert.deepEqual(whatsapp, []);
+});
+
+test("runProactiveBrainForUser sends no email when no verified-email lookup is wired", async () => {
+  const atman = baseAtman();
+  atman.emotionalState = "chaotic";
+  const emails: string[] = [];
+  const result = await runProactiveBrainForUser(
+    {
+      db: singleUserDb({
+        email: "victim@example.com",
+        profile: {
+          name: "Mallory",
+          timezone: "Asia/Kolkata",
+          notificationPrefs: { enabled: true, emailDigest: true },
+        },
+        atman,
+      }),
+      now: () => NOW,
+      async sendEmail(email) {
+        emails.push(email.to);
+      },
+    },
+    { uid: "user_123", sendEmail: true },
+  );
+  assert.equal(result.emailSent, false);
+  assert.deepEqual(emails, []);
 });

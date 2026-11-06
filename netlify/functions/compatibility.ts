@@ -20,6 +20,12 @@ import {
   type FeatureCharge,
 } from "./shared/feature-credits";
 import { requestedDateKey } from "./shared/request-date.js";
+import {
+  badInputResponse,
+  birthInputError,
+  chargeKeyCoord,
+} from "./shared/charge-input.js";
+import { describeError } from "./shared/error-summary.js";
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
@@ -61,6 +67,12 @@ export default async (req: Request, _context: Context) => {
       );
     }
 
+    // Validate BEFORE charging: input certain to fail upstream must be a
+    // free 400, not a charge → error → refund cycle.
+    const inputError =
+      birthInputError(personA, "Person A") ?? birthInputError(personB, "Person B");
+    if (inputError) return badInputResponse(inputError);
+
     // Synastry is a premium surface — reserve credits before the paid API
     // calls. Refunded below if matching yields no data or an error is thrown.
     // Keyed per pair per day so re-running the same match (retry, back-nav)
@@ -75,13 +87,19 @@ export default async (req: Request, _context: Context) => {
           personA.dob,
           personA.tob,
           personA.pob,
+          chargeKeyCoord(personA.lat),
+          chargeKeyCoord(personA.lng),
+          String((personA as { gender?: unknown }).gender ?? ""),
           personB.dob,
           personB.tob,
           personB.pob,
+          chargeKeyCoord(personB.lat),
+          chargeKeyCoord(personB.lng),
+          String((personB as { gender?: unknown }).gender ?? ""),
         ),
       );
     } catch (err) {
-      if (err instanceof CreditError) return insufficientCreditsResponse();
+      if (err instanceof CreditError) return insufficientCreditsResponse(err);
       throw err;
     }
 
@@ -101,7 +119,7 @@ export default async (req: Request, _context: Context) => {
         ? getKundliMatching(vedicPair.groom, vedicPair.bride).catch((err) => {
             console.warn(
               "[Compatibility] Vedic matching failed (non-critical):",
-              err,
+              describeError(err),
             );
             return null;
           })
@@ -133,7 +151,10 @@ export default async (req: Request, _context: Context) => {
       );
       console.log("[Compatibility] AI narrative generated");
     } catch (err) {
-      console.warn("[Compatibility] AI narrative failed (non-critical):", err);
+      console.warn(
+        "[Compatibility] AI narrative failed (non-critical):",
+        describeError(err),
+      );
     }
 
     return new Response(
@@ -158,7 +179,7 @@ export default async (req: Request, _context: Context) => {
       },
     );
   } catch (error: any) {
-    console.error("[Compatibility] Error:", error);
+    console.error("[Compatibility] Error:", describeError(error));
     if (charge) await charge.refund();
     return new Response(
       JSON.stringify({

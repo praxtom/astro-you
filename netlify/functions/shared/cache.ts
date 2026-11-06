@@ -3,6 +3,7 @@
  * Prevents redundant API calls for data that's the same for all users on a given day.
  */
 import { db } from "./firebase-admin.js";
+import { cacheExpiresAt } from "./chart-cache.js";
 
 export interface CacheOptions {
   serialize?: boolean;
@@ -47,7 +48,7 @@ export async function getCachedOrFetch<T>(
       if (ageHours < ttlHours) {
         if (typeof data._json === "string") return JSON.parse(data._json) as T;
         if ("_payload" in data) return data._payload as T;
-        const { _cachedAt, ...rest } = data;
+        const { _cachedAt, expiresAt: _expiresAt, ...rest } = data;
         return rest as T;
       }
     }
@@ -70,14 +71,19 @@ export async function getCachedOrFetch<T>(
     (typeof fresh === "object" && Object.keys(fresh as object).length === 0);
 
   if (!isEmpty) {
+    const cachedAt = new Date();
+    // Firestore TTL policy field (firestore.indexes.json fieldOverrides):
+    // expired cache docs are deleted automatically instead of lingering.
+    const expiresAt = cacheExpiresAt(cachedAt, ttlHours);
     let envelope: Record<string, unknown> = {
       _payload: fresh,
-      _cachedAt: new Date(),
+      _cachedAt: cachedAt,
+      expiresAt,
     };
     if (options.serialize) {
       const json = JSON.stringify(fresh);
       if (json.length > MAX_SERIALIZED_CHARS) return fresh;
-      envelope = { _json: json, _cachedAt: new Date() };
+      envelope = { _json: json, _cachedAt: cachedAt, expiresAt };
     }
     // Fire-and-forget, don't block response.
     docRef.set(envelope).catch((err) => {

@@ -15,6 +15,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { devLog } from "./devLog";
+import { postJson } from "./apiFetch";
 import {
   ATMAN_SCHEMA_VERSION,
   UserLifeEvent,
@@ -905,7 +906,9 @@ export const AtmanMemoryControls = {
   /**
    * Forget everything learned from conversations. Keeps things the user
    * set themselves (meditation streak, practice preference, today's
-   * intention/gratitude).
+   * intention/gratitude). Also asks the server to purge the stored Gemini
+   * interactions behind those conversations; that step runs after the local
+   * memory is cleared and its failure is surfaced (thrown) to the caller.
    */
   async forgetEverything(userId: string) {
     await editAtman(userId, (atman) => {
@@ -927,5 +930,9 @@ export const AtmanMemoryControls = {
       return next;
     });
     await AtmanMemoryControls.clearAllChatSummaries(userId);
+    const res = await postJson("/api/memory/forget-all");
+    if (!res.ok) {
+      throw new Error(`Stored conversation data purge failed (${res.status})`);
+    }
   },
 };

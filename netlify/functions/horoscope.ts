@@ -22,6 +22,13 @@ import {
   type MeteredFeature,
 } from "./shared/feature-credits";
 import { requestedDateKey } from "./shared/request-date.js";
+import {
+  badInputResponse,
+  birthInputError,
+  chargeKeyCoord,
+  isValidDateString,
+} from "./shared/charge-input.js";
+import { describeError } from "./shared/error-summary.js";
 import { db } from "./shared/firebase-admin";
 import { normalizeZodiacMode } from "../../src/lib/zodiac-mode.js";
 
@@ -58,7 +65,7 @@ async function loadSignContext(
       mode,
     };
   } catch (err) {
-    console.warn("[Horoscope] Profile sign lookup failed:", err);
+    console.warn("[Horoscope] Profile sign lookup failed:", describeError(err));
     return { birth: birthData, mode: normalizeZodiacMode(birthData.zodiacMode) };
   }
 }
@@ -124,6 +131,14 @@ export default async (req: Request, _context: Context) => {
       });
     }
 
+    // Validate BEFORE charging: input that is certain to fail upstream must
+    // be a free 400, not a charge → error → refund cycle.
+    const inputError = birthInputError(birthData);
+    if (inputError) return badInputResponse(inputError);
+    if (date !== undefined && date !== null && date !== "" && !isValidDateString(date)) {
+      return badInputResponse("date must be YYYY-MM-DD");
+    }
+
     // Reserve credits for premium (non-daily) forecasts before the paid API
     // calls. Refunded by the outer catch if delivery fails. The charge key is
     // deterministic per chart + period window, so re-opening the same forecast
@@ -131,8 +146,7 @@ export default async (req: Request, _context: Context) => {
     // again — one charge per week/month/year per chart.
     const feature = PERIOD_FEATURE[period];
     if (feature) {
-      const resolvedDate =
-        typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
+      const resolvedDate = isValidDateString(date)
           ? date
           : requestedDateKey(localDate);
       const periodKey =
@@ -149,11 +163,13 @@ export default async (req: Request, _context: Context) => {
             birthData.dob,
             birthData.tob,
             birthData.pob,
+            chargeKeyCoord(birthData.lat),
+            chargeKeyCoord(birthData.lng),
             periodKey,
           ),
         );
       } catch (err) {
-        if (err instanceof CreditError) return insufficientCreditsResponse();
+        if (err instanceof CreditError) return insufficientCreditsResponse(err);
         throw err;
       }
     }
@@ -288,7 +304,7 @@ export default async (req: Request, _context: Context) => {
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   } catch (error: any) {
-    console.error("[Horoscope] Function error:", error);
+    console.error("[Horoscope] Function error:", describeError(error));
     if (charge) await charge.refund();
     return new Response(
       JSON.stringify({ error: "Horoscope request failed. Please try again." }),

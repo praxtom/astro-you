@@ -1,6 +1,11 @@
 import { db } from "./firebase-admin.js";
 import { getCachedOrFetch } from "./cache.js";
-import { requestedDateKey } from "./request-date.js";
+import {
+  clampedTodayKey,
+  panchangCacheDocId as placePanchangCacheDocId,
+  resolvePanchangPlace,
+} from "./chart-cache.js";
+import { canonicalNakshatraName, canonicalSignName } from "./vedic-names.js";
 import {
   getDashaPeriods,
   getPanchang,
@@ -82,7 +87,10 @@ const withTimeout = <T>(
 
 const weeklyAstrologyContextStore: WeeklyAstrologyContextStore = {
   async get(docId) {
-    const snapshot = await db.collection("weeklyAstrologyContext").doc(docId).get();
+    const snapshot = await db
+      .collection("weeklyAstrologyContext")
+      .doc(docId)
+      .get();
     if (!snapshot.exists) return null;
     return snapshot.data() as WeeklyAstrologyCacheRecord;
   },
@@ -172,7 +180,10 @@ export async function buildUserContext(
         ? Promise.resolve(options.recentSummaries)
         : options.uid
           ? deps.loadRecentSummaries(options.uid).catch((error) => {
-              console.warn("[UserContext] Recent summaries unavailable:", error);
+              console.warn(
+                "[UserContext] Recent summaries unavailable:",
+                error,
+              );
               return undefined;
             })
           : Promise.resolve(undefined),
@@ -192,7 +203,7 @@ export async function buildUserContext(
         ? Promise.resolve(undefined)
         : deps
             .loadDailyPanchang({
-              dateKey: requestedDateKey(options.localDate),
+              dateKey: clampedTodayKey(options.localDate),
               location: resolvePanchangLocation(profile, birthData),
             })
             .catch((error) => {
@@ -220,9 +231,11 @@ export async function buildUserContext(
       ? { dob: birthData.dob, tob: birthData.tob, pob: birthData.pob }
       : undefined,
     kundaliSummary,
-    moonSign: toOptionalString(profile.moonSign || userData.moonSign),
-    sunSign: toOptionalString(profile.sunSign || userData.sunSign),
-    moonNakshatra: toOptionalString(profile.moonNakshatra),
+    // Owner-writable profile fields interpolated into the system prompt:
+    // only a recognized sign/nakshatra name gets through, never free text.
+    moonSign: canonicalSignName(profile.moonSign || userData.moonSign),
+    sunSign: canonicalSignName(profile.sunSign || userData.sunSign),
+    moonNakshatra: canonicalNakshatraName(profile.moonNakshatra),
     // A noon-cast Lagna is a guess — never hand it to the model.
     ascendant: birthTimeUnknown
       ? undefined
@@ -238,10 +251,7 @@ export async function buildUserContext(
       atmanContext?.adviceHistory?.slice(-5) ||
       atmanContext?.savedAdvice?.slice(-5) ||
       undefined,
-    yogaData:
-      options.yogaData ||
-      weeklyAstrologyContext.yogaData ||
-      undefined,
+    yogaData: options.yogaData || weeklyAstrologyContext.yogaData || undefined,
     panchangData:
       options.panchangData ||
       dailyPanchang ||
@@ -309,16 +319,15 @@ function readCoords(value: any): { lat: number; lng: number } | undefined {
 }
 
 /**
- * Shared panchang cache doc id — the same key kundali.ts PANCHANG uses, so the
- * dashboard card and chat context share one cached API call per day/place.
+ * Shared panchang cache doc id — the same key kundali.ts PANCHANG uses
+ * (shared/chart-cache.ts: date + city label + coordinates), so the dashboard
+ * card and chat context share one cached API call per day/place.
  */
 export function panchangCacheDocId(
   dateKey: string,
   location?: PanchangLocation,
 ): string {
-  const locationKey =
-    location?.city || `${location?.lat ?? 28.6139}_${location?.lng ?? 77.209}`;
-  return `${dateKey}_${locationKey}`.replace(/[/\s]/g, "_");
+  return placePanchangCacheDocId(dateKey, resolvePanchangPlace(location ?? {}));
 }
 
 async function loadDailyPanchang(input: {
@@ -326,9 +335,10 @@ async function loadDailyPanchang(input: {
   location?: PanchangLocation;
 }): Promise<UserContext["panchangData"]> {
   const { dateKey, location } = input;
+  const place = resolvePanchangPlace(location ?? {});
   const raw = await withTimeout(
-    getCachedOrFetch("panchang", panchangCacheDocId(dateKey, location), () =>
-      getPanchang(dateKey, location?.city, location?.lat, location?.lng),
+    getCachedOrFetch("panchang", placePanchangCacheDocId(dateKey, place), () =>
+      getPanchang(dateKey, place.city, place.lat, place.lng),
     ),
     5000,
     null,
@@ -405,9 +415,7 @@ export function buildKundaliSummary(kundaliData: any) {
         (planet: any) =>
           `${planet.name} in ${planet.sign}${
             houseLabel(planet.house) ? ` (${houseLabel(planet.house)})` : ""
-          }${
-            planet.is_retrograde ? " [Retrograde]" : ""
-          }`,
+          }${planet.is_retrograde ? " [Retrograde]" : ""}`,
       )
       .join(", ") || "Planetary data currently veiled."
   );
@@ -439,9 +447,9 @@ export function formatHouse(value: unknown): string {
 }
 
 function normalizeAscendant(value: unknown) {
-  if (typeof value === "string") return value;
+  if (typeof value === "string") return canonicalSignName(value);
   if (value && typeof value === "object" && "sign" in value) {
-    return String((value as { sign?: unknown }).sign || "");
+    return canonicalSignName((value as { sign?: unknown }).sign);
   }
   return undefined;
 }
@@ -492,7 +500,9 @@ function normalizeYogas(value: any): UserContext["yogaData"] | undefined {
   }));
 }
 
-function normalizePanchang(value: any): UserContext["panchangData"] | undefined {
+function normalizePanchang(
+  value: any,
+): UserContext["panchangData"] | undefined {
   if (!value || typeof value !== "object") return undefined;
 
   return {
@@ -509,10 +519,10 @@ function normalizePanchang(value: any): UserContext["panchangData"] | undefined 
 function hasAstrologyContextData(context: WeeklyAstrologyContextData) {
   return Boolean(
     context.dashaInfo ||
-      context.transitContext ||
-      context.yogaData?.length ||
-      (context.panchangData &&
-        Object.values(context.panchangData).some((value) => Boolean(value))),
+    context.transitContext ||
+    context.yogaData?.length ||
+    (context.panchangData &&
+      Object.values(context.panchangData).some((value) => Boolean(value))),
   );
 }
 

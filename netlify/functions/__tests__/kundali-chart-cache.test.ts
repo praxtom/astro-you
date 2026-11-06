@@ -98,8 +98,11 @@ test("cache key ignores cosmetic differences", () => {
   // Seconds on the birth time and sub-metre coordinate noise are the same moment/place.
   assert.equal(a, chartCacheKey({ ...base, tob: "06:30:00" }));
   assert.equal(a, chartCacheKey({ ...base, lat: 28.61391 }));
-  // With coordinates present, the place label does not matter.
-  assert.equal(a, chartCacheKey({ ...base, pob: "Delhi" }));
+  // Place label case/spacing is cosmetic...
+  assert.equal(a, chartCacheKey({ ...base, pob: "  new   delhi, INDIA " }));
+  // ...but the label itself is not: upstream uses it for the timezone lookup
+  // even when coordinates are sent, so a different label is a different key.
+  assert.notEqual(a, chartCacheKey({ ...base, pob: "Delhi" }));
   // Empty variant values are ignored.
   assert.equal(
     a,

@@ -10,12 +10,18 @@ import { forgetChat, isValidChatId } from "./shared/atman-brain";
 import {
   deleteChatInteractionLog,
   normalizeInteractionIds,
+  readAllInteractionIds,
   readChatInteractionIds,
   type RetentionDb,
 } from "./shared/interaction-retention";
+import { ownedInteractionIds } from "./shared/interaction-ownership";
 import { purgeInteractionsBestEffort } from "./shared/interaction-purge";
 
-/** Client-supplied ids are a fallback for chats that predate the server log. */
+/**
+ * Client-supplied ids are optional extras, honoured only when they appear in
+ * the caller's server-only interaction log (any chat) — an interaction id is
+ * a bearer token, so an arbitrary id must never be purged on request.
+ */
 const MAX_CLIENT_INTERACTION_IDS = 200;
 
 /**
@@ -25,7 +31,8 @@ const MAX_CLIENT_INTERACTION_IDS = 200;
  * advice, feelings, karmic threads, contradictions, ledger notes) and the
  * chat's stored summary. Works whether or not the chat doc still exists.
  * Also purges the chat's Gemini interactions (logged server-side under
- * users/{uid}/interactionLog/{chatId}, plus any optional client-supplied ids)
+ * users/{uid}/interactionLog/{chatId}, plus optional client-supplied ids that
+ * are also in the caller's log)
  * — best-effort, never failing the request.
  */
 export default async (req: Request, _context: Context) => {
@@ -84,10 +91,19 @@ async function purgeChatInteractions(
 ): Promise<number> {
   try {
     const retentionDb = db as unknown as RetentionDb;
-    const ids = normalizeInteractionIds([
-      ...(await readChatInteractionIds(retentionDb, uid, chatId)),
-      ...normalizeInteractionIds(clientIds, MAX_CLIENT_INTERACTION_IDS),
-    ]);
+    const chatIds = await readChatInteractionIds(retentionDb, uid, chatId);
+    const clientCandidates = normalizeInteractionIds(
+      clientIds,
+      MAX_CLIENT_INTERACTION_IDS,
+    );
+    const extra =
+      clientCandidates.length > 0
+        ? ownedInteractionIds(
+            clientCandidates,
+            await readAllInteractionIds(retentionDb, uid),
+          )
+        : [];
+    const ids = normalizeInteractionIds([...chatIds, ...extra]);
     const { queued } = await purgeInteractionsBestEffort(ids, { requestUrl });
     await deleteChatInteractionLog(retentionDb, uid, chatId);
     return queued;

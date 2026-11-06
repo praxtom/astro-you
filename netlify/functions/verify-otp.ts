@@ -123,6 +123,14 @@ export default async (req: Request, _context: Context) => {
     let userRecord;
     try {
       userRecord = await auth.getUserByEmail(normalizedEmail);
+      // Entering the emailed code proves ownership of the address, so mark
+      // an existing unverified account verified (digests/nudges are only
+      // sent to verified addresses).
+      if (!userRecord.emailVerified) {
+        userRecord = await auth.updateUser(userRecord.uid, {
+          emailVerified: true,
+        });
+      }
     } catch (error: any) {
       if (error.code === "auth/user-not-found") {
         userRecord = await auth.createUser({

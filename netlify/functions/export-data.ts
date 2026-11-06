@@ -7,6 +7,7 @@ import type {
 import { db, auth } from "./shared/firebase-admin";
 import { enforceIpRateLimit, AuthError } from "./shared/require-auth";
 import { writeAuditLog } from "./shared/audit-log";
+import { buildUserDocExport } from "./shared/user-export";
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST")
@@ -123,22 +124,12 @@ export default async (req: Request, _context: Context) => {
       readTopLevelCollectionByUid("paymentOrders", uid),
     ]);
 
-    const userData = userDoc.data() || {};
+    // The whole user document (minus the internal/secret fields documented
+    // in shared/user-export.ts), so no stored setting is silently left out.
+    const userFields = buildUserDocExport(userDoc.data());
     const exportData = {
       exportDate: new Date().toISOString(),
-      profile: userData.profile || {},
-      email: userData.email,
-      credits: userData.credits,
-      subscription: userData.subscription,
-      referral: userData.referral,
-      referredBy: userData.referredBy,
-      referralClaimedAt: userData.referralClaimedAt,
-      chartUrl: userData.chartUrl,
-      thumbnailUrl: userData.thumbnailUrl,
-      atman: userData.atman || {},
-      kundaliData: userData.kundaliData || {},
-      kundaliData_D9: userData.kundaliData_D9,
-      kundaliData_D10: userData.kundaliData_D10,
+      ...userFields,
       chats,
       consultations,
       friends,
@@ -171,7 +162,7 @@ export default async (req: Request, _context: Context) => {
     });
   } catch (err: any) {
     // Never echo the raw error — it can leak internal paths / Firestore details.
-    console.error("[ExportData] Failed:", err);
+    console.error("[ExportData] Failed:", err?.name || "error", err?.code);
     return new Response(
       JSON.stringify({
         error: "Could not export your data. Please try again.",

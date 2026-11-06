@@ -1,4 +1,4 @@
-import { db } from "./firebase-admin.js";
+import { auth, db } from "./firebase-admin.js";
 import {
   buildDailyDigest,
   buildUnsubscribeUrl,
@@ -6,6 +6,7 @@ import {
 } from "./digest.js";
 import { resolveResendApiKey } from "./env.js";
 import { buildUserContext } from "./user-context.js";
+import { lookupVerifiedAuthEmail } from "./verified-contact.js";
 
 export interface DailyDigestRunResult {
   uid: string;
@@ -34,9 +35,13 @@ export async function generateDailyDigestForUser(input: {
     };
   }
 
-  // Email is always resolved from the user's own profile — never from caller
-  // input — so this can't be used to send a digest to an arbitrary address.
-  const email = profile.email || userData.email;
+  // The recipient is the verified email on the Firebase Auth record — never
+  // caller input, and never the owner-writable user doc (`email`,
+  // `profile.email`), which would let anyone point our cron at a victim's
+  // inbox. Only resolved when we would actually send.
+  const email = input.sendEmail
+    ? await lookupVerifiedAuthEmail(input.uid, (uid) => auth.getUser(uid))
+    : null;
   const resendApiKey = resolveResendApiKey();
   const unsubscribeSecret = resolveUnsubscribeSecret();
 
@@ -99,7 +104,7 @@ export async function generateDailyDigestForUser(input: {
 
   const { userContext } = await buildUserContext({ uid: input.uid });
   const digest = buildDailyDigest({
-    name: userContext.name || profile.name || email?.split("@")[0] || "Seeker",
+    name: userContext.name || profile.name || "Seeker",
     panchang: userContext.panchangData,
     dashaInfo: userContext.dashaInfo,
     transitContext: userContext.transitContext,

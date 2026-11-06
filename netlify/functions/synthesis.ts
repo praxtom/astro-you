@@ -10,9 +10,18 @@ import { buildUserContext } from "./shared/user-context";
 import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit";
 import { dispatchBackgroundJob } from "./shared/internal-dispatch";
 import {
+  readChatInteractionIds,
   recordInteractionId,
   type RetentionDb,
 } from "./shared/interaction-retention";
+import {
+  messagesWithoutChain,
+  resolvePreviousInteractionId,
+} from "./shared/interaction-ownership";
+import {
+  PARTIAL_REPLY_NOTE,
+  partialReplyOnTimeout,
+} from "./shared/synthesis-timeout";
 import {
   finishSynthesisTurn,
   runSynthesisPostprocess,
@@ -47,6 +56,9 @@ const SSE_HEADERS = {
 
 /** How long "done" may wait for the (concurrently started) chat title. */
 const TITLE_GRACE_MS = 1_500;
+
+/** Same shape as atman-brain's isValidChatId — also used for message ids. */
+const CLIENT_DOC_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 
 class SynthesisTimeoutError extends Error {
   constructor() {
@@ -162,10 +174,10 @@ export default async (req: Request, context: Context) => {
   }
 
   const {
-    messages,
+    messages: rawMessages,
     birthData,
     kundaliData,
-    previousInteractionId,
+    previousInteractionId: clientPreviousInteractionId,
     atmanData,
     recentSummaries,
     chatMessages,
@@ -193,6 +205,7 @@ export default async (req: Request, context: Context) => {
   }
 
   // Validate messages input before doing any (paid) work.
+  let messages: any[] = rawMessages;
   if (
     !Array.isArray(messages) ||
     messages.length === 0 ||
@@ -218,6 +231,21 @@ export default async (req: Request, context: Context) => {
     !isWithinSynthesisInputLimits(chatMessages)
   ) {
     return new Response(JSON.stringify({ error: "Message too long" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // chatId / assistantMessageId become Firestore doc ids server-side: reject
+  // anything that isn't a plain id (no path separators, bounded length).
+  if (
+    (chatId !== undefined && chatId !== null &&
+      (typeof chatId !== "string" || !CLIENT_DOC_ID_PATTERN.test(chatId))) ||
+    (assistantMessageId !== undefined && assistantMessageId !== null &&
+      (typeof assistantMessageId !== "string" ||
+        !CLIENT_DOC_ID_PATTERN.test(assistantMessageId)))
+  ) {
+    return new Response(JSON.stringify({ error: "Invalid chat id" }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
     });
@@ -353,6 +381,26 @@ export default async (req: Request, context: Context) => {
     }
   };
 
+  // A client-supplied previousInteractionId is a bearer token for Gemini-side
+  // conversation state: only chain onto ids in the caller's own server-only
+  // interaction log. Otherwise start fresh (full context is rebuilt every
+  // turn) and replay the visible transcript the client sent instead.
+  let previousInteractionId: string | undefined;
+  if (uid && clientPreviousInteractionId) {
+    const logged = await readChatInteractionIds(
+      db as unknown as RetentionDb,
+      uid,
+      typeof chatId === "string" ? chatId : "",
+    );
+    previousInteractionId = resolvePreviousInteractionId(
+      clientPreviousInteractionId,
+      logged,
+    );
+  }
+  if (!previousInteractionId) {
+    messages = messagesWithoutChain(messages, chatMessages);
+  }
+
   // Build context inside the refund path: a Firestore blip here would otherwise
   // throw a 500 AFTER the credit was reserved, leaving the user charged for
   // nothing.
@@ -385,7 +433,9 @@ export default async (req: Request, context: Context) => {
   }
 
   const encoder = new TextEncoder();
-  const isFirstMessage = !previousInteractionId;
+  // Title only the opening turn of a chat (by what the client claimed — a
+  // refused chain id still means this is a follow-up, not a new chat).
+  const isFirstMessage = !clientPreviousInteractionId;
   const lastUserMessage = messages[messages.length - 1].content;
 
   // Cancel the upstream Gemini stream if the client disconnects mid-response,
@@ -395,6 +445,8 @@ export default async (req: Request, context: Context) => {
   // Keepalive timer lives outside start() so cancel() can clear it.
   let heartbeat: ReturnType<typeof setInterval> | undefined;
   let streamClosed = false;
+  // Text already streamed to the client (for a timeout after first token).
+  let streamedText = "";
 
   const readable = new ReadableStream({
     async start(controller) {
@@ -491,6 +543,7 @@ export default async (req: Request, context: Context) => {
           const event = next.value;
           if (event.type === "delta") {
             gotFirstToken = true;
+            streamedText += event.text;
             send({ type: "delta", text: event.text });
           } else if (event.type === "complete") {
             fullContent = event.content;
@@ -637,6 +690,36 @@ export default async (req: Request, context: Context) => {
         });
       } catch (error: any) {
         const timedOut = error instanceof SynthesisTimeoutError;
+        const partialContent = timedOut
+          ? partialReplyOnTimeout(streamedText)
+          : null;
+        if (partialContent) {
+          // The user already received (part of) a reply: keep the charge and
+          // finish calmly with what streamed, rather than refunding content
+          // that was delivered.
+          console.error("[Synthesis] Generation timed out after first token");
+          const content = partialContent;
+          send({ type: "delta", text: PARTIAL_REPLY_NOTE });
+          send({
+            type: "done",
+            content,
+            interactionId: null,
+            suggestAction: null,
+            brainUpdated: false,
+            generatedTitle: null,
+            conversationSummary: null,
+            suggestedRoutine: null,
+            partial: true,
+          });
+          close();
+          await persistAssistantReply({
+            uid,
+            chatId,
+            assistantMessageId,
+            content,
+          });
+          return;
+        }
         // Log the error type only — AI SDK messages can echo prompt or
         // response fragments containing the user's personal data.
         console.error(

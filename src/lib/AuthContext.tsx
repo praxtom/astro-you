@@ -17,6 +17,7 @@ import { AuthContext } from "./authContextValue";
 import { deriveProfileSigns, normalizeSignCode } from "./chart-summary";
 import { ZODIAC_SIGNS } from "./astrology";
 import { normalizeZodiacMode } from "./zodiac-mode";
+import { COMPATIBILITY_CONTEXT_KEY } from "../components/layout/AskJyotishBridge";
 
 /** A trusted sign name ("Taurus") from untrusted storage, or undefined. */
 function storedSignName(value: unknown): string | undefined {
@@ -277,6 +278,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem(STORAGE_KEYS.LOGIN_REDIRECT);
     sessionStorage.removeItem(STORAGE_KEYS.SYNTHESIS_DRAFT);
     sessionStorage.removeItem(STORAGE_KEYS.CONSULT_DRAFT);
+    // A just-run compatibility match (both people's details) handed to chat.
+    sessionStorage.removeItem(COMPATIBILITY_CONTEXT_KEY);
     // Reset the anonymous analytics device id so a different account signing in
     // on this browser isn't linked to the previous user's events.
     localStorage.removeItem("astroyou:analytics_id");

@@ -6,6 +6,36 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
+    // Contact points our scheduled jobs could deliver to. The jobs read the
+    // recipient only from verified sources (Firebase Auth email, server-written
+    // verifiedContacts), but these fields stay server-owned as well, so a
+    // client can never point a digest/nudge at someone else's inbox or phone.
+    // `email` may only ever be set to the caller's own token email.
+    function profileField(data, key) {
+      // `profile` may be absent or literally null on older docs.
+      return data.get('profile', null) is map ? data.profile.get(key, null) : null;
+    }
+    function contactFieldsCreateOk() {
+      return (request.resource.data.get('email', null) == null
+                || request.resource.data.email == request.auth.token.get('email', null))
+          && !('phoneE164' in request.resource.data)
+          && !('whatsappNumber' in request.resource.data)
+          && !('verifiedContacts' in request.resource.data)
+          && profileField(request.resource.data, 'email') == null
+          && profileField(request.resource.data, 'phoneE164') == null
+          && profileField(request.resource.data, 'whatsappNumber') == null;
+    }
+    function contactFieldsUpdateOk() {
+      return (request.resource.data.get('email', null) == resource.data.get('email', null)
+                || request.resource.data.get('email', null) == request.auth.token.get('email', null))
+          && request.resource.data.get('phoneE164', null) == resource.data.get('phoneE164', null)
+          && request.resource.data.get('whatsappNumber', null) == resource.data.get('whatsappNumber', null)
+          && request.resource.data.get('verifiedContacts', null) == resource.data.get('verifiedContacts', null)
+          && profileField(request.resource.data, 'email') == profileField(resource.data, 'email')
+          && profileField(request.resource.data, 'phoneE164') == profileField(resource.data, 'phoneE164')
+          && profileField(request.resource.data, 'whatsappNumber') == profileField(resource.data, 'whatsappNumber');
+    }
+
     // ── User documents — only owner can read/write ──────────────────
     match /users/{userId} {
       allow read: if isOwner(userId);
@@ -17,7 +47,8 @@ service cloud.firestore {
                     && !('credits' in request.resource.data)
                     && !('referral' in request.resource.data)
                     && !('referredBy' in request.resource.data)
-                    && !('referralClaimedAt' in request.resource.data);
+                    && !('referralClaimedAt' in request.resource.data)
+                    && contactFieldsCreateOk();
 
       // Money, subscription, and referral state are server-owned through
       // Admin SDK. Explicit field equality is more robust than
@@ -35,7 +66,8 @@ service cloud.firestore {
                     && request.resource.data.get('referredBy', null) == resource.data.get('referredBy', null)
                     && request.resource.data.get('referralClaimedAt', null) == resource.data.get('referralClaimedAt', null)
                     && request.resource.data.get('activeConsultSessionId', null) == resource.data.get('activeConsultSessionId', null)
-                    && request.resource.data.get('memoryPaused', false) is bool;
+                    && request.resource.data.get('memoryPaused', false) is bool
+                    && contactFieldsUpdateOk();
 
       // Chats subcollection
       match /chats/{chatId} {

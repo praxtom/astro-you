@@ -201,12 +201,35 @@ export class AstroChartError extends Error {
   }
 }
 
+/**
+ * An input-free stand-in for an upstream error body that classifies the same
+ * way (classifyUpstreamChartError). Upstream bodies can echo the request — the
+ * caller's birth date, time and place — so they never go into an error
+ * message, where they would reach logs. The `<Label> error: <status> - <body>`
+ * format is kept so classifyUpstreamErrorMessage still works across bundles.
+ */
+export function canonicalErrorBody(kind: UpstreamChartErrorKind): string {
+  switch (kind) {
+    case "quota_exhausted":
+      return '{"error":{"error_code":"RATE_LIMIT_EXCEEDED"}}';
+    case "dst_ambiguous":
+      return '{"detail":{"error":{"error_code":"CHART_CALCULATION_ERROR","message":"local time is nonexistent or ambiguous (DST)"}}}';
+    case "chart_calculation_failed":
+      return '{"detail":{"error":{"error_code":"CHART_CALCULATION_ERROR","message":"calculation failed"}}}';
+    case "location_unresolved":
+      return '{"detail":[{"msg":"location is required"}]}';
+    default:
+      return "upstream error";
+  }
+}
+
 /** Throw a classified error for a failed chart response. */
 async function throwChartError(res: Response, label: string): Promise<never> {
-  const body = await res.text();
+  const body = await res.text().catch(() => "");
+  const kind = classifyUpstreamChartError(res.status, body);
   throw new AstroChartError(
-    `${label} error: ${res.status} - ${body}`,
-    classifyUpstreamChartError(res.status, body),
+    `${label} error: ${res.status} - ${canonicalErrorBody(kind)}`,
+    kind,
     res.status,
   );
 }
@@ -240,7 +263,7 @@ async function throwIfRateLimited(res: Response, label: string): Promise<void> {
   const body = await res.text();
   if (classifyUpstreamChartError(429, body) !== "quota_exhausted") return;
   throw new AstroChartError(
-    `${label} error: 429 - ${body}`,
+    `${label} error: 429 - ${canonicalErrorBody("quota_exhausted")}`,
     "quota_exhausted",
     429,
   );

@@ -67,9 +67,22 @@ export async function reserveFeatureCredits(
 }
 
 /**
- * Standard 402 response body for an insufficient-balance CreditError.
+ * Standard response for a CreditError: 429 when the window's retry attempts
+ * are exhausted, otherwise the 402 insufficient-balance body.
  */
-export function insufficientCreditsResponse(): Response {
+export function insufficientCreditsResponse(err?: unknown): Response {
+  if (err instanceof CreditError && err.status === 429) {
+    return new Response(
+      JSON.stringify({
+        error: "Too many failed attempts for this request. Please try again later.",
+        code: "charge_attempts_exhausted",
+      }),
+      {
+        status: 429,
+        headers: { "Content-Type": "application/json", "Retry-After": "3600" },
+      },
+    );
+  }
   return new Response(
     JSON.stringify({
       error: "You're out of credits. Please top up to continue.",

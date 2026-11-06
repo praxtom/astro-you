@@ -17,6 +17,15 @@ import {
   type PersistAtmanInsightsResult,
 } from "./shared/atman-brain";
 import { isWithinSynthesisInputLimits } from "./shared/synthesis-limits";
+import {
+  readChatInteractionIds,
+  recordInteractionId,
+  type RetentionDb,
+} from "./shared/interaction-retention";
+import {
+  consultInteractionLogId,
+  resolvePreviousInteractionId,
+} from "./shared/interaction-ownership";
 
 interface ConsultMessagePayload {
   idToken?: string;
@@ -42,6 +51,10 @@ export default async (req: Request, _context: Context) => {
 
   if (!body.idToken || !body.sessionId || !Array.isArray(body.messages)) {
     return json({ error: "Missing session data" }, 400);
+  }
+  const logId = consultInteractionLogId(body.sessionId);
+  if (!logId) {
+    return json({ error: "Invalid session" }, 400);
   }
 
   // Bound the prompt payload BEFORE any (paid) Gemini call — the same limits
@@ -127,11 +140,23 @@ export default async (req: Request, _context: Context) => {
         ? session.preferredLanguage.trim().slice(0, 40)
         : "";
 
+    // previousInteractionId is a bearer token for Gemini-side conversation
+    // state: only chain onto an id this session logged server-side. Otherwise
+    // start fresh — the client always sends the visible transcript, which
+    // buildInteractionInput replays when there is no chain id.
+    const retentionDb = db as unknown as RetentionDb;
+    const previousInteractionId = body.previousInteractionId
+      ? resolvePreviousInteractionId(
+          body.previousInteractionId,
+          await readChatInteractionIds(retentionDb, uid, logId),
+        )
+      : undefined;
+
     const { userContext, kundaliSummary } = await buildUserContext({
       uid,
       birthData: body.birthData,
       kundaliData: body.kundaliData,
-      previousInteractionId: body.previousInteractionId,
+      previousInteractionId,
       atmanData: body.atmanData,
     });
 
@@ -157,7 +182,7 @@ export default async (req: Request, _context: Context) => {
             body.messages || [],
             userContext,
             kundaliSummary,
-            body.previousInteractionId,
+            previousInteractionId,
             personaOverride,
           )) {
             if (event.type === "delta") {
@@ -169,13 +194,27 @@ export default async (req: Request, _context: Context) => {
             }
           }
 
-          await sessionRef.set(
-            {
-              messageCount: FieldValue.increment(1),
-              updatedAt: FieldValue.serverTimestamp(),
-            },
-            { merge: true },
-          );
+          await Promise.all([
+            sessionRef.set(
+              {
+                messageCount: FieldValue.increment(1),
+                updatedAt: FieldValue.serverTimestamp(),
+              },
+              { merge: true },
+            ),
+            // Server-only log: lets the next turn chain, and account deletion
+            // purge this interaction. Never throws.
+            recordInteractionId(
+              {
+                db: retentionDb,
+                arrayUnion: (...ids: string[]) => FieldValue.arrayUnion(...ids),
+                now: () => FieldValue.serverTimestamp(),
+              },
+              uid,
+              logId,
+              interactionId,
+            ),
+          ]);
           // Emit `done` as soon as the answer is on disk — the per-minute meter
           // is running, so the user must not be kept waiting on the (slow,
           // best-effort) brain tasks below. `brainUpdated` arrives afterwards

@@ -1,5 +1,6 @@
 import { schedule } from "@netlify/functions";
-import { db, messaging } from "./shared/firebase-admin";
+import { auth, db, messaging } from "./shared/firebase-admin";
+import { lookupVerifiedAuthEmail } from "./shared/verified-contact";
 import {
   runProactiveBrainForUser,
   type BrainNudgeEmail,
@@ -16,6 +17,9 @@ export const handler = schedule("0 * * * *", async () => {
   const loadPushTokens = createPushTokenLoader();
   const sendPush = createPushSender();
   const sendWhatsApp = createWhatsAppSender();
+  // Recipient = verified Firebase Auth email, never the owner-writable doc.
+  const lookupVerifiedEmail = (uid: string) =>
+    lookupVerifiedAuthEmail(uid, (id) => auth.getUser(id));
   const results: Array<{
     sent?: boolean;
     emailSent?: boolean;
@@ -30,7 +34,14 @@ export const handler = schedule("0 * * * *", async () => {
       try {
         results.push(
           await runProactiveBrainForUser(
-            { db, sendEmail, loadPushTokens, sendPush, sendWhatsApp },
+            {
+              db,
+              sendEmail,
+              lookupVerifiedEmail,
+              loadPushTokens,
+              sendPush,
+              sendWhatsApp,
+            },
             { uid: userDoc.id, sendEmail: true },
           ),
         );

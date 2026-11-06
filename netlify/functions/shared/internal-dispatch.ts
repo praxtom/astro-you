@@ -7,6 +7,15 @@ import { createHmac, timingSafeEqual } from "node:crypto";
  * up to 15 minutes, so slow, best-effort work (memory analysis, summaries,
  * Gemini interaction purges) never sits on a user-facing response path.
  * They are publicly routable, so every call carries a shared internal secret.
+ *
+ * Configuration contract: the secret (INTERNAL_FUNCTION_SECRET, or the value
+ * derived from OTP_HASH_SECRET) MUST be identical in every function — the
+ * dispatcher and the background function each resolve it from the same
+ * site-wide env vars, which Netlify injects into all functions of a deploy.
+ * Netlify answers 202 for a background function BEFORE its code runs, so a
+ * mismatch is invisible to the dispatcher; the background function logs it
+ * (once per instance) instead. When no usable secret is configured at all,
+ * dispatch is skipped and callers run the work inline (logged once).
  */
 
 export const INTERNAL_AUTH_HEADER = "x-astroyou-internal";
@@ -35,16 +44,60 @@ export function resolveInternalSecret(
   return undefined;
 }
 
+const loggedOnce = new Set<string>();
+
+function logOnce(key: string, log: () => void): void {
+  if (loggedOnce.has(key)) return;
+  loggedOnce.add(key);
+  log();
+}
+
+/** Test hook: forget which one-time config warnings were already logged. */
+export function resetInternalDispatchWarnings(): void {
+  loggedOnce.clear();
+}
+
+/** Config sanity summary (no secret material). */
+export function internalDispatchConfig(env: Env = process.env): {
+  configured: boolean;
+  source: "explicit" | "derived" | "none";
+} {
+  const explicit = env.INTERNAL_FUNCTION_SECRET?.trim();
+  if (explicit && explicit.length >= MIN_SECRET_CHARS) {
+    return { configured: true, source: "explicit" };
+  }
+  return resolveInternalSecret(env)
+    ? { configured: true, source: "derived" }
+    : { configured: false, source: "none" };
+}
+
 export function isAuthorizedInternalRequest(
   req: Request,
   env: Env = process.env,
 ): boolean {
   const secret = resolveInternalSecret(env);
   const provided = req.headers.get(INTERNAL_AUTH_HEADER) || "";
-  if (!secret || !provided) return false;
+  if (!secret) {
+    logOnce("receiver_unconfigured", () =>
+      console.error(
+        "[InternalDispatch] Background function has no internal secret (INTERNAL_FUNCTION_SECRET / OTP_HASH_SECRET unset or < 32 chars); rejecting internal jobs.",
+      ),
+    );
+    return false;
+  }
+  if (!provided) return false;
   const a = Buffer.from(secret);
   const b = Buffer.from(provided);
-  return a.length === b.length && timingSafeEqual(a, b);
+  const ok = a.length === b.length && timingSafeEqual(a, b);
+  if (!ok) {
+    // The dispatcher already got a 202 and cannot see this — surface it here.
+    logOnce("receiver_mismatch", () =>
+      console.error(
+        "[InternalDispatch] Internal secret mismatch: the dispatching function and this background function resolved different secrets. INTERNAL_FUNCTION_SECRET / OTP_HASH_SECRET must be identical across all functions.",
+      ),
+    );
+  }
+  return ok;
 }
 
 /**
@@ -92,8 +145,16 @@ export async function dispatchBackgroundJob(
 ): Promise<boolean> {
   const env = options.env ?? process.env;
   const secret = resolveInternalSecret(env);
+  if (!secret) {
+    logOnce("dispatcher_unconfigured", () =>
+      console.warn(
+        "[InternalDispatch] INTERNAL_FUNCTION_SECRET and OTP_HASH_SECRET are unset (or < 32 chars); background jobs will run inline.",
+      ),
+    );
+    return false;
+  }
   const origin = resolveInternalOrigin(env, options.requestUrl);
-  if (!secret || !origin || !functionName.endsWith("-background")) return false;
+  if (!origin || !functionName.endsWith("-background")) return false;
   const fetchImpl = options.fetchImpl ?? fetch;
   try {
     const res = await fetchImpl(

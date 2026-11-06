@@ -77,7 +77,7 @@ export default async (req: Request, _context: Context) => {
         ),
       );
     } catch (err) {
-      if (err instanceof CreditError) return insufficientCreditsResponse();
+      if (err instanceof CreditError) return insufficientCreditsResponse(err);
       throw err;
     }
 

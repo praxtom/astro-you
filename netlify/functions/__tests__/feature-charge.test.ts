@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { CreditError } from "../shared/credits.js";
 import {
+  ChargeAttemptsExhaustedError,
   chargeLedgerId,
+  MAX_CHARGE_ATTEMPTS,
   refundLedgerId,
   reserveFeatureCharge,
 } from "../shared/feature-charge.js";
@@ -120,4 +122,22 @@ test("a zero-cost feature never touches the ledger", async () => {
   const c = await reserveFeatureCharge(fake.deps, "u1", F, 0, TXN);
   assert.equal(c.charged, false);
   assert.equal(fake.balance(), 10);
+});
+
+test("exhausted refund→retry attempts throw 429 instead of serving free", async () => {
+  const fake = makeFakeDb(10);
+  for (let n = 0; n < MAX_CHARGE_ATTEMPTS; n++) {
+    const c = await reserveFeatureCharge(fake.deps, "u1", F, 2, TXN);
+    assert.equal(c.charged, true);
+    await c.refund();
+  }
+  assert.equal(fake.balance(), 10);
+  await assert.rejects(
+    reserveFeatureCharge(fake.deps, "u1", F, 2, TXN),
+    (err: unknown) =>
+      err instanceof ChargeAttemptsExhaustedError &&
+      err instanceof CreditError &&
+      err.status === 429,
+  );
+  assert.equal(fake.balance(), 10, "nothing charged, nothing served");
 });

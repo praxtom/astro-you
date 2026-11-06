@@ -175,23 +175,15 @@ export default async (req: Request, _context: Context) => {
 };
 
 /**
- * Interaction ids from the server-side log, plus legacy chats that predate it
- * (chat docs' lastInteractionId). Never throws.
+ * Interaction ids from the server-side log only. Chat docs' lastInteractionId
+ * is client-writable, so it is never purged on its own (an interaction id is
+ * a bearer token — a planted id would delete someone else's interaction).
+ * Never throws.
  */
 async function collectInteractionIds(uid: string): Promise<string[]> {
   try {
     const logged = await readAllInteractionIds(db as unknown as RetentionDb, uid);
-    const chats = await db
-      .collection("users")
-      .doc(uid)
-      .collection("chats")
-      .select("lastInteractionId")
-      .get()
-      .catch(() => null);
-    const legacy = chats
-      ? chats.docs.map((d) => d.get("lastInteractionId"))
-      : [];
-    return normalizeInteractionIds([...logged, ...legacy]);
+    return normalizeInteractionIds(logged);
   } catch (err) {
     console.error(
       "[Delete Account] Interaction id collection failed:",

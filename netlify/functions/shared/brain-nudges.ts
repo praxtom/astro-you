@@ -13,6 +13,7 @@ import {
   validateNudgeInput,
 } from "../../../src/lib/atman-schema.js";
 import { buildUnsubscribeUrl, resolveUnsubscribeSecret } from "./digest.js";
+import { selectVerifiedWhatsAppNumber } from "./verified-contact.js";
 
 /**
  * Best-effort one-click unsubscribe URL for a user's nudge emails. Returns
@@ -92,6 +93,12 @@ export interface ProactiveBrainDeps {
   };
   now?: () => Date;
   sendEmail?: (email: BrainNudgeEmail) => Promise<void>;
+  /**
+   * The user's verified email from the Firebase Auth record (see
+   * shared/verified-contact.ts). Never read from the owner-writable user doc.
+   * Without it, email nudges are not sent.
+   */
+  lookupVerifiedEmail?: (uid: string) => Promise<string | null | undefined>;
   loadPushTokens?: (uid: string) => Promise<string[]>;
   sendPush?: (push: BrainPushNotification) => Promise<void>;
   sendWhatsApp?: (message: BrainWhatsAppMessage) => Promise<void>;
@@ -338,15 +345,17 @@ export async function runProactiveBrainForUser(
 
   let emailSent = false;
   let emailError: string | undefined;
-  if (
+  const emailTo =
     shouldEmailNudge(candidate, profile, input.sendEmail) &&
     deps.sendEmail &&
-    profile.email
-  ) {
+    deps.lookupVerifiedEmail
+      ? await deps.lookupVerifiedEmail(input.uid).catch(() => null)
+      : null;
+  if (emailTo && deps.sendEmail) {
     try {
       await deps.sendEmail(
         buildNudgeEmail(
-          profile.email,
+          emailTo,
           profile.name || "Friend",
           candidate,
           input.uid,
@@ -381,7 +390,7 @@ export async function runProactiveBrainForUser(
 
   let whatsappSent = false;
   let whatsappError: string | undefined;
-  const whatsappNumber = profile.whatsappNumber || profile.phoneE164;
+  const whatsappNumber = profile.whatsappNumber;
   if (
     shouldWhatsAppNudge(candidate, profile) &&
     deps.sendWhatsApp &&
@@ -537,13 +546,11 @@ function buildProfile(userData: Record<string, unknown>): BrainNudgeProfile {
   ) as Record<string, any>;
   return {
     name: profile.name || (userData.name as string | undefined),
-    email: profile.email || (userData.email as string | undefined),
-    phoneE164:
-      profile.phoneE164 ||
-      profile.phone ||
-      (userData.phoneE164 as string | undefined),
-    whatsappNumber:
-      profile.whatsappNumber || (userData.whatsappNumber as string | undefined),
+    // Contact points are never read from the owner-writable doc fields
+    // (email/phoneE164/whatsappNumber): email comes from the verified Auth
+    // record at send time, WhatsApp only from the server-written
+    // verifiedContacts field. See shared/verified-contact.ts.
+    whatsappNumber: selectVerifiedWhatsAppNumber(userData) ?? undefined,
     timezone: profile.timezone || (userData.timezone as string | undefined),
     notificationPrefs: profile.notificationPrefs || userData.notificationPrefs,
   };
@@ -556,7 +563,6 @@ function shouldEmailNudge(
 ) {
   if (!sendEmail || candidate.priority !== "high") return false;
   if (!candidate.channels.includes("email")) return false;
-  if (!profile.email) return false;
   return profile.notificationPrefs?.emailDigest !== false;
 }
 
@@ -573,7 +579,7 @@ function shouldWhatsAppNudge(
   profile: BrainNudgeProfile,
 ) {
   if (!candidate.channels.includes("whatsapp")) return false;
-  if (!(profile.whatsappNumber || profile.phoneE164)) return false;
+  if (!profile.whatsappNumber) return false;
   return profile.notificationPrefs?.whatsappDigest === true;
 }
 

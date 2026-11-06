@@ -237,6 +237,30 @@ export default function Reports() {
       const errorPayload = response.ok
         ? null
         : await response.json().catch(() => null);
+      if (
+        response.status === 409 &&
+        errorPayload?.code === "report_not_available"
+      ) {
+        // Only completed reports re-download for free. Offer a fresh (charged)
+        // report of the same type instead of failing silently.
+        const product = REPORT_PRODUCTS.find(
+          (p) => p.type === report.reportType,
+        );
+        if (
+          product &&
+          window.confirm(
+            `This report can't be downloaded. Generate a new ${product.title} for ${product.creditCost} credits?`,
+          )
+        ) {
+          setDownloadingId(null);
+          await generateReport(product);
+          return;
+        }
+        setError(
+          "This report isn't available to download. Please generate a new report.",
+        );
+        return;
+      }
       if (!response.ok) {
         throw new Error(errorPayload?.error || "Could not download report");
       }

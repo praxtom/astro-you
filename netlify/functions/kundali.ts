@@ -75,11 +75,16 @@ import {
   CHART_CACHE_COLLECTION,
   chartCacheKey,
   chartCacheTtlHours,
-  isDailyChartType,
+  clampedTodayKey,
+  isCalendarDateKey,
   isGuestChartType,
   NAME_DEPENDENT_CHART_TYPES,
   normalizeSubjectName,
+  panchangCacheDocId,
   refreshDashaCurrentFlags,
+  resolvePanchangPlace,
+  serverDateKey,
+  stripEchoedBirthInputs,
 } from "./shared/chart-cache";
 import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit";
 import { verifyToken, AuthError } from "./shared/require-auth";
@@ -206,8 +211,9 @@ export default async (req: Request, _context: Context) => {
   if (req.method !== "POST")
     return new Response("Method Not Allowed", { status: 405 });
 
+  let body: any;
   try {
-    const body = await req.json();
+    body = await req.json();
     const {
       birthData,
       chartType = "D1",
@@ -262,14 +268,27 @@ export default async (req: Request, _context: Context) => {
       }
     }
 
-    // Panchang doesn't need birthData
+    // Panchang doesn't need birthData. The cache key covers exactly what is
+    // sent upstream — the validated date plus the city label AND the
+    // coordinates — so a mismatched city/coords pair can only ever serve
+    // itself, never poison the entry for the real place.
     if (chartType === "PANCHANG") {
-      const cacheKey = date || requestedDateKey(body.localDate);
-      const locationKey = city || `${lat ?? 28.6139}_${lng ?? 77.209}`;
-      const docId = `${cacheKey}_${locationKey}`.replace(/[/\s]/g, "_");
-
-      const data = await getCachedOrFetch("panchang", docId, () =>
-        getPanchang(date, city, lat, lng),
+      if (
+        date !== undefined &&
+        date !== null &&
+        date !== "" &&
+        !isCalendarDateKey(date)
+      ) {
+        return json({ error: "Invalid date (expected YYYY-MM-DD)" }, 400);
+      }
+      const dateKey = isCalendarDateKey(date)
+        ? date
+        : clampedTodayKey(body.localDate);
+      const place = resolvePanchangPlace({ city, lat, lng });
+      const data = await getCachedOrFetch(
+        "panchang",
+        panchangCacheDocId(dateKey, place),
+        () => getPanchang(dateKey, place.city, place.lat, place.lng),
       );
       return json({ data });
     }
@@ -396,6 +415,30 @@ export default async (req: Request, _context: Context) => {
       return fetcher();
     };
 
+    // "Sky right now" readings: the caller's local day at their current
+    // location (body.city/lat/lng), falling back to the birth place.
+    const skyMoment = () => {
+      const hasSkyCoords =
+        typeof body.lat === "number" &&
+        typeof body.lng === "number" &&
+        Math.abs(body.lat) <= 90 &&
+        Math.abs(body.lng) <= 180;
+      const skyCity =
+        typeof body.city === "string" && body.city.trim()
+          ? body.city.trim().slice(0, 200)
+          : undefined;
+      return {
+        date: requestedDateKey(body.localDate),
+        ...(hasSkyCoords
+          ? { lat: body.lat as number, lng: body.lng as number }
+          : skyCity
+            ? { city: skyCity }
+            : { city: bd.pob || undefined, lat: bd.lat, lng: bd.lng }),
+      } as { date: string; city?: string; lat?: number; lng?: number };
+    };
+    const sky = skyMoment();
+    const biorhythmDate = clampedTodayKey(body.localDate);
+
     // Per-birth-data server cache (admin-only collection, long TTL for natal
     // data) — see shared/chart-cache.ts for the policy and key.
     const ttlHours = chartCacheTtlHours(type);
@@ -423,50 +466,43 @@ export default async (req: Request, _context: Context) => {
                 type === "LOCATION_ANALYSIS" ? body.targetLat : undefined,
               targetLng:
                 type === "LOCATION_ANALYSIS" ? body.targetLng : undefined,
-              date: isDailyChartType(type)
-                ? requestedDateKey(body.localDate)
-                : undefined,
-              // The lunar phase is cast for "today" at the viewer's location.
+              // Keyed on the day actually computed: biorhythms get an explicit
+              // (clamped) target date; wellness/energy/lunar phase are cast
+              // by the upstream for "now", so they key on the server's day.
+              date:
+                type === "BIORHYTHMS"
+                  ? biorhythmDate
+                  : type === "WELLNESS_SCORE" ||
+                      type === "ENERGY_PATTERNS" ||
+                      type === "LUNAR_PHASES"
+                    ? serverDateKey()
+                    : undefined,
+              // The lunar phase is cast at the viewer's location — key on the
+              // place actually sent upstream.
               sky:
                 type === "LUNAR_PHASES"
-                  ? [body.city, body.lat, body.lng]
-                      .map((v) => v ?? "")
+                  ? [sky.city, sky.lat, sky.lng]
+                      .map((v) =>
+                        typeof v === "number" ? v.toFixed(4) : (v ?? ""),
+                      )
                       .join("|")
                   : undefined,
             },
           });
-    const cached = <T>(fetcher: () => Promise<T>): Promise<T> =>
+    // Only computed fields are cached (and served): any echoed birth inputs
+    // are stripped before the write and again on read for older entries.
+    const cached = async <T>(fetcher: () => Promise<T>): Promise<T> =>
       cacheDocId && ttlHours !== null
-        ? getCachedOrFetch(
-            CHART_CACHE_COLLECTION,
-            cacheDocId,
-            () => guarded(fetcher),
-            ttlHours,
-            { serialize: true },
+        ? stripEchoedBirthInputs(
+            await getCachedOrFetch(
+              CHART_CACHE_COLLECTION,
+              cacheDocId,
+              async () => stripEchoedBirthInputs(await guarded(fetcher)),
+              ttlHours,
+              { serialize: true },
+            ),
           )
         : guarded(fetcher);
-
-    // "Sky right now" readings: the caller's local day at their current
-    // location (body.city/lat/lng), falling back to the birth place.
-    const skyMoment = () => {
-      const hasSkyCoords =
-        typeof body.lat === "number" &&
-        typeof body.lng === "number" &&
-        Math.abs(body.lat) <= 90 &&
-        Math.abs(body.lng) <= 180;
-      const skyCity =
-        typeof body.city === "string" && body.city.trim()
-          ? body.city.trim().slice(0, 200)
-          : undefined;
-      return {
-        date: requestedDateKey(body.localDate),
-        ...(hasSkyCoords
-          ? { lat: body.lat as number, lng: body.lng as number }
-          : skyCity
-            ? { city: skyCity }
-            : { city: bd.pob || undefined, lat: bd.lat, lng: bd.lng }),
-      };
-    };
 
     switch (chartType) {
       case "DASHAS": {
@@ -526,11 +562,12 @@ export default async (req: Request, _context: Context) => {
       }
       case "LUNAR_PHASES": {
         return json({
-          data: await cached(() => getLunarPhases(skyMoment())),
+          // Cast for "now" (the cache key's server day), never a client date.
+          data: await cached(() => getLunarPhases({ ...sky, date: undefined })),
         });
       }
       case "VOID_OF_COURSE": {
-        return json({ data: await getVoidOfCourse(skyMoment()) });
+        return json({ data: await getVoidOfCourse(sky) });
       }
       case "NUMEROLOGY": {
         return json({ data: await cached(() => getNumerologyReading(bd)) });
@@ -555,9 +592,7 @@ export default async (req: Request, _context: Context) => {
       }
       case "BIORHYTHMS": {
         return json({
-          data: await cached(() =>
-            getBiorhythms(bd, requestedDateKey(body.localDate)),
-          ),
+          data: await cached(() => getBiorhythms(bd, biorhythmDate)),
         });
       }
       case "WELLNESS_SCORE": {
@@ -614,7 +649,18 @@ export default async (req: Request, _context: Context) => {
       );
     }
 
-    console.error("[Kundali] Error:", error);
+    // Log only the classification — never the message/body, which can echo
+    // the upstream response (and with it the caller's birth inputs).
+    console.error("[Kundali] Error:", {
+      chartType:
+        typeof body?.chartType === "string"
+          ? body.chartType.slice(0, 32)
+          : undefined,
+      name: error?.name,
+      kind: typeof error?.kind === "string" ? error.kind : undefined,
+      status: typeof error?.status === "number" ? error.status : undefined,
+      code: typeof error?.code === "string" ? error.code : undefined,
+    });
 
     // A birth time that fell in a daylight-saving gap, or in a repeated
     // fall-back hour, can never succeed on retry — so it must not get the
