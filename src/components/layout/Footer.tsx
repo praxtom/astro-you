@@ -10,6 +10,7 @@ const toolLinks = [
 ];
 
 const guideLinks = [
+  { label: "All tools and guides", href: "/explore" },
   { label: "Kundali Guide", href: "/kundali" },
   { label: "Daily Horoscope", href: "/daily-horoscope" },
   { label: "Sade Sati", href: "/sade-sati" },

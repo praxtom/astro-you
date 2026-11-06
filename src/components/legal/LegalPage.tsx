@@ -1,3 +1,4 @@
+import SEO from "../SEO";
 import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import type { LegalSection } from "../../lib/legal-policies";
@@ -15,6 +16,7 @@ export function LegalPage({
 }) {
   return (
     <div className="min-h-screen bg-[#030308] text-white">
+      <SEO title={title} description={description} />
       <main className="platform-main max-w-4xl">
         <Link
           to="/"

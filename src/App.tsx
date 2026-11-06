@@ -7,6 +7,9 @@ import PageTransition from "./components/layout/PageTransition";
 import { OfflineIndicator } from "./lib/OfflineIndicator";
 import { InstallPrompt } from "./components/InstallPrompt";
 import { trackAcquisitionEvent } from "./lib/acquisition";
+import SEO from "./components/SEO";
+import { PUBLIC_PAGE_META } from "./lib/seo-public";
+import { isPrivateRoute } from "./lib/seo-routing";
 import { SEO_CONTENT_PAGES } from "./lib/seo-content";
 
 // Lazy load pages for better performance
@@ -47,11 +50,13 @@ const MuhuratSeo = lazy(() => import("./pages/MuhuratSeo"));
 const SeoContentPage = lazy(() => import("./pages/SeoContentPage"));
 const HumanDesign = lazy(() => import("./pages/HumanDesign"));
 const AdvancedVedic = lazy(() => import("./pages/AdvancedVedic"));
+const Explore = lazy(() => import("./pages/Explore"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Main Application Component
 function App() {
   const location = useLocation();
+  const publicMeta = PUBLIC_PAGE_META.find(page => page.path === location.pathname);
 
   useEffect(() => {
     trackAcquisitionEvent("page_view", {
@@ -74,10 +79,13 @@ function App() {
 
   return (
     <ErrorBoundary>
+      {publicMeta ? <SEO title={publicMeta.title} description={publicMeta.description} /> :
+        isPrivateRoute(location.pathname) ? <SEO title="Your AstroYou Account" noindex /> : null}
       {/* Main content with id for skip link */}
       <main id="main-content">
         <AnimatePresence mode="wait">
           <Routes location={location} key={getAnimationKey(location.pathname)}>
+            <Route path="/explore" element={<Suspense fallback={null}><Explore /></Suspense>} />
             {/* Space aliases: /today /guidance /chart /bonds /path land on
                 each space's primary page. */}
             {SPACES.map((space) => (

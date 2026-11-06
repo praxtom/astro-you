@@ -1,9 +1,11 @@
+import SEO from "../components/SEO";
 import { Link } from "react-router-dom";
 import { Home, ArrowLeft, Compass } from "lucide-react";
 
 export default function NotFound() {
   return (
     <div className="min-h-screen bg-[#030308] flex items-center justify-center p-6">
+      <SEO title="Page Not Found" description="This page does not exist. Browse AstroYou’s astrology tools or return home." noindex />
       {/* Background Ambiance */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[20%] w-[50vw] h-[50vw] bg-violet/10 blur-[120px] rounded-full"></div>

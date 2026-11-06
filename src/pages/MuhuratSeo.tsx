@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { postJson } from "../lib/apiFetch";
-import { Link } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { ArrowRight, Calendar, Loader2, MapPin, Sparkles } from "lucide-react";
 import Header from "../components/layout/Header";
 import SEO from "../components/SEO";
@@ -9,11 +9,12 @@ import {
   trackAcquisitionEvent,
 } from "../lib/acquisition";
 import {
-  buildFallbackPanchangSummary,
   normalizePanchangResponse,
   type PanchangSummary,
 } from "../lib/panchang-normalize";
 import { viewerDateKey } from "../lib/viewer-timezone";
+import NotFound from "./NotFound";
+import { muhuratRoute } from "../lib/seo-routing";
 import { siteUrl } from "../lib/site-url";
 
 const todayIso = () => viewerDateKey();
@@ -28,16 +29,29 @@ const PURPOSE_GUIDANCE: Record<string, string> = {
 };
 
 export default function MuhuratSeo() {
+  const { category } = useParams();
+  const route = muhuratRoute(category);
+  return route ? <MuhuratTool key={route.path} route={route} /> : <NotFound />;
+}
+
+function MuhuratTool({ route }: { route: NonNullable<ReturnType<typeof muhuratRoute>> }) {
   const [date, setDate] = useState(todayIso());
   const [city, setCity] = useState("New Delhi");
-  const [purpose, setPurpose] = useState("business");
+  const [purpose, setPurpose] = useState(route.purpose);
   const [panchang, setPanchang] = useState<PanchangSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [usingFallback, setUsingFallback] = useState(false);
   const initialLoadRef = useRef(false);
+  const requestRef = useRef<AbortController | null>(null);
+  useEffect(() => () => {
+    initialLoadRef.current = false;
+    requestRef.current?.abort();
+  }, []);
 
   const loadMuhurat = useCallback(async () => {
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
     setLoading(true);
     setError(null);
     try {
@@ -45,11 +59,11 @@ export default function MuhuratSeo() {
         chartType: "PANCHANG",
         date,
         city,
-      });
+      }, { signal: controller.signal });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Could not load Muhurat");
+      if (controller.signal.aborted) return;
       setPanchang(normalizePanchangResponse(data.data ?? data));
-      setUsingFallback(false);
       trackAcquisitionEvent("seo_tool_complete", {
         tool: "muhurat",
         city,
@@ -57,12 +71,12 @@ export default function MuhuratSeo() {
         purpose,
       });
     } catch (err: any) {
+      if (controller.signal.aborted) return;
       console.warn("[MuhuratSeo] Live Muhurat refresh failed:", err);
-      setPanchang(buildFallbackPanchangSummary());
-      setUsingFallback(true);
-      setError(null);
+      setPanchang(null);
+      setError("Muhurat timings are unavailable. Please try again.");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }, [city, date, purpose]);
 
@@ -102,17 +116,17 @@ export default function MuhuratSeo() {
     "@type": "WebApplication",
     name: "Free Muhurat Finder",
     applicationCategory: "LifestyleApplication",
-    url: siteUrl("/muhurat"),
+    url: siteUrl(route.path),
     offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
   };
 
   return (
     <div className="min-h-screen bg-[#030308] text-white">
       <SEO
-        title="Free Muhurat Finder: Auspicious Timing from Panchang"
-        description="Find a free Muhurat guide for business, marriage, travel, and home activities using Panchang, Rahu Kaal, and Abhijit Muhurat."
-        url={siteUrl("/muhurat")}
-        canonical={siteUrl("/muhurat")}
+        title={route.title}
+        description={`${route.title}: check Panchang, Rahu Kaal and Abhijit Muhurat for your chosen date and city.`}
+        url={siteUrl(route.path)}
+        canonical={siteUrl(route.path)}
         structuredData={structuredData}
       />
       <Header />
@@ -123,7 +137,7 @@ export default function MuhuratSeo() {
             Free Muhurat
           </div>
           <h1 className="font-display text-4xl md:text-5xl">
-            Free Muhurat Finder
+            {route.title}
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-white/55">
             Pick a date, place, and purpose. AstroYou checks Panchang timing and
@@ -183,12 +197,6 @@ export default function MuhuratSeo() {
             </button>
           </div>
           {error && <p className="mt-4 text-sm text-red-400">{error}</p>}
-          {usingFallback && (
-            <p className="mt-4 text-sm text-amber-200/70">
-              Live Muhurat timing is refreshing. Use this as a first-pass guide
-              and recheck before important commitments.
-            </p>
-          )}
         </section>
 
         {recommendation && panchang && (

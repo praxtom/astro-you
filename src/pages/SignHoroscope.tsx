@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Loader2, ArrowLeft } from "lucide-react";
+import NotFound from "./NotFound";
+import { horoscopeRoute } from "../lib/seo-routing";
 import SEO from "../components/SEO";
 import {
   captureAcquisitionSource,
@@ -15,12 +17,18 @@ import { viewerDateKey } from "../lib/viewer-timezone";
 import { getSiteOrigin, siteUrl } from "../lib/site-url";
 
 export default function SignHoroscope() {
-  const { sign = "aries", period = "daily" } = useParams();
+  const { sign, period } = useParams();
+  const route = horoscopeRoute(sign, period);
+  return route && sign ? <HoroscopeReading key={route.path} sign={sign} period={period} route={route} /> : <NotFound />;
+}
+
+function HoroscopeReading({ sign, period = "daily", route }: {
+  sign: string; period?: string; route: NonNullable<ReturnType<typeof horoscopeRoute>>;
+}) {
   const content = getSignHoroscopeContent(sign, period);
   const normalizedSign = content.sign.slug;
   const normalizedPeriod = content.period.slug;
   const signName = content.sign.name;
-  const periodName = content.period.name;
   const [horoscope, setHoroscope] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
@@ -77,7 +85,7 @@ export default function SignHoroscope() {
   };
 
   const forecastText = normalizeHoroscopeText(horoscope) || fallbackForecast;
-  const canonicalPath = content.path;
+  const canonicalPath = route.path;
   const relatedLinks = [
     ...HOROSCOPE_PERIODS.map((item) => ({
       label: `${signName} ${item.name}`,
@@ -91,7 +99,7 @@ export default function SignHoroscope() {
     {
       "@context": "https://schema.org",
       "@type": "Article",
-      headline: `${signName} ${periodName} Horoscope`,
+      headline: route.title,
       description: content.description,
       mainEntityOfPage: siteUrl(canonicalPath),
       publisher: { "@type": "Organization", name: "AstroYou" },
@@ -115,7 +123,7 @@ export default function SignHoroscope() {
         {
           "@type": "ListItem",
           position: 3,
-          name: `${signName} ${periodName}`,
+          name: route.title,
           item: siteUrl(canonicalPath),
         },
       ],
@@ -136,7 +144,7 @@ export default function SignHoroscope() {
   return (
     <div className="min-h-screen bg-[#030308] text-white p-6">
       <SEO
-        title={`${signName} ${periodName} Horoscope`}
+        title={route.title}
         description={content.description}
         url={siteUrl(canonicalPath)}
         canonical={siteUrl(canonicalPath)}
@@ -154,7 +162,7 @@ export default function SignHoroscope() {
         <div className="text-center mb-8">
           <span className="text-5xl">{content.sign.symbol}</span>
           <h1 className="text-3xl font-display mt-4">
-            {signName} {periodName} Horoscope
+            {route.title}
           </h1>
           <p className="text-white/40 text-sm mt-2">
             {new Date().toLocaleDateString("en-US", {

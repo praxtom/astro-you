@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import React from "react";
 import Header from "./Header";
 import { NightSky } from "./NightSky";
@@ -26,6 +27,7 @@ export const PageShell: React.FC<{
       {children}
     </main>
     <footer className="container mx-auto max-w-6xl px-6 py-8 border-t border-white/5 relative z-10">
+      <Link to="/explore" className="text-sm text-gold">All tools and guides</Link>
       <p className="text-[0.6rem] uppercase tracking-[0.35em] text-white/20">
         As above, so below
       </p>

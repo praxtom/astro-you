@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { postJson } from "../lib/apiFetch";
-import { Link } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import {
   ArrowRight,
   Calendar,
@@ -16,25 +16,39 @@ import {
   trackAcquisitionEvent,
 } from "../lib/acquisition";
 import {
-  buildFallbackPanchangSummary,
   normalizePanchangResponse,
   type PanchangSummary,
 } from "../lib/panchang-normalize";
 import { viewerDateKey } from "../lib/viewer-timezone";
+import NotFound from "./NotFound";
+import { panchangRoute } from "../lib/seo-routing";
 import { siteUrl } from "../lib/site-url";
 
 const todayIso = () => viewerDateKey();
 
 export default function PanchangSeo() {
-  const [date, setDate] = useState(todayIso());
+  const { date } = useParams();
+  const route = panchangRoute(date);
+  return route ? <PanchangTool key={route.path} route={route} /> : <NotFound />;
+}
+
+function PanchangTool({ route }: { route: NonNullable<ReturnType<typeof panchangRoute>> }) {
+  const [date, setDate] = useState(route.date || todayIso());
   const [city, setCity] = useState("New Delhi");
   const [panchang, setPanchang] = useState<PanchangSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [usingFallback, setUsingFallback] = useState(false);
   const initialLoadRef = useRef(false);
+  const requestRef = useRef<AbortController | null>(null);
+  useEffect(() => () => {
+    initialLoadRef.current = false;
+    requestRef.current?.abort();
+  }, []);
 
   const loadPanchang = useCallback(async () => {
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
     setLoading(true);
     setError(null);
     try {
@@ -42,23 +56,23 @@ export default function PanchangSeo() {
         chartType: "PANCHANG",
         date,
         city,
-      });
+      }, { signal: controller.signal });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Could not load Panchang");
+      if (controller.signal.aborted) return;
       setPanchang(normalizePanchangResponse(data.data ?? data));
-      setUsingFallback(false);
       trackAcquisitionEvent("seo_tool_complete", {
         tool: "panchang",
         city,
         date,
       });
     } catch (err: any) {
+      if (controller.signal.aborted) return;
       console.warn("[PanchangSeo] Live Panchang refresh failed:", err);
-      setPanchang(buildFallbackPanchangSummary());
-      setUsingFallback(true);
-      setError(null);
+      setPanchang(null);
+      setError("Panchang timings are unavailable. Please try again.");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }, [city, date]);
 
@@ -82,17 +96,17 @@ export default function PanchangSeo() {
     "@type": "WebApplication",
     name: "Today Panchang",
     applicationCategory: "LifestyleApplication",
-    url: siteUrl("/panchang"),
+    url: siteUrl(route.path),
     offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
   };
 
   return (
     <div className="min-h-screen bg-[#030308] text-white">
       <SEO
-        title="Today Panchang: Tithi, Nakshatra, Rahu Kaal, and Muhurat"
-        description="Check today's Panchang online for free. See tithi, nakshatra, yoga, karana, sunrise, sunset, Rahu Kaal, and auspicious timings."
-        url={siteUrl("/panchang")}
-        canonical={siteUrl("/panchang")}
+        title={route.title}
+        description={`Check ${route.date || "today’s"} Panchang: tithi, nakshatra, sunrise, sunset, Rahu Kaal and auspicious timings for your city.`}
+        url={siteUrl(route.path)}
+        canonical={siteUrl(route.path)}
         structuredData={structuredData}
       />
       <Header />
@@ -102,7 +116,7 @@ export default function PanchangSeo() {
             <Calendar size={14} />
             Free Panchang
           </div>
-          <h1 className="font-display text-4xl md:text-5xl">Today Panchang</h1>
+          <h1 className="font-display text-4xl md:text-5xl">{route.title}</h1>
           <p className="mx-auto mt-4 max-w-2xl text-white/55">
             Get tithi, nakshatra, yoga, karana, sunrise, sunset, Rahu Kaal, and
             daily auspicious timing in under a minute.
@@ -146,12 +160,6 @@ export default function PanchangSeo() {
             </button>
           </div>
           {error && <p className="mt-4 text-sm text-red-400">{error}</p>}
-          {usingFallback && (
-            <p className="mt-4 text-sm text-amber-200/70">
-              Live Panchang timing is refreshing. This baseline is safe for
-              planning; check again before final Muhurat decisions.
-            </p>
-          )}
         </section>
 
         {panchang && (

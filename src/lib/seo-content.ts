@@ -606,7 +606,7 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
   {
     slug: "love-compatibility",
     path: "/love-compatibility",
-    title: "Love Compatibility by Kundali, Moon Sign, and Relationship Timing",
+    title: "Love Compatibility: Kundali & Moon Signs",
     description:
       "Learn how Vedic astrology reads love compatibility through Moon sign, Venus, seventh house, dashas, and Guna Milan.",
     heading: "Love Compatibility",

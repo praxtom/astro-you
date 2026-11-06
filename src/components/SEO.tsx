@@ -1,4 +1,7 @@
 import { useEffect } from "react";
+import { useLocation } from "react-router-dom";
+import { PUBLIC_PAGE_META } from "../lib/seo-public";
+import { searchTitle, searchDescription, isPrivateRoute } from "../lib/seo-routing";
 import { getSiteOrigin, siteUrl } from "../lib/site-url";
 
 interface SEOProps {
@@ -8,6 +11,7 @@ interface SEOProps {
   url?: string;
   canonical?: string;
   type?: "website" | "article";
+  noindex?: boolean;
   structuredData?: Record<string, unknown> | Array<Record<string, unknown>>;
 }
 
@@ -30,12 +34,16 @@ export function SEO({
   canonical,
   type = "website",
   structuredData,
+  noindex = false,
 }: SEOProps) {
+  const { pathname } = useLocation();
+  const publicMeta = PUBLIC_PAGE_META.find(page => page.path === pathname);
+  const excludeFromSearch = noindex || isPrivateRoute(pathname);
   const meta = {
-    title: title ? `${title} | AstroYou` : defaultMeta.title,
-    description: description || defaultMeta.description,
+    title: searchTitle(publicMeta?.title || title || defaultMeta.title),
+    description: searchDescription(publicMeta?.description || description || defaultMeta.description),
     image: image || defaultMeta.image,
-    url: url || defaultMeta.url,
+    url: url || siteUrl(pathname),
     type,
   };
 
@@ -58,8 +66,9 @@ export function SEO({
     };
 
     // Standard meta tags
+    updateMeta("title", meta.title);
     updateMeta("description", meta.description);
-    updateMeta("robots", "index, follow");
+    updateMeta("robots", excludeFromSearch ? "noindex, follow" : "index, follow");
 
     // Open Graph tags
     updateMeta("og:title", meta.title, true);
@@ -74,6 +83,7 @@ export function SEO({
     updateMeta("twitter:title", meta.title);
     updateMeta("twitter:description", meta.description);
     updateMeta("twitter:image", meta.image);
+    updateMeta("twitter:url", meta.url);
 
     // Additional SEO tags
     updateMeta("theme-color", "#030308");
@@ -90,16 +100,21 @@ export function SEO({
     canonicalLink.href = canonical || meta.url;
 
     const scriptId = "astroyou-structured-data";
-    document.getElementById(scriptId)?.remove();
-    if (structuredData) {
+    const previousSchema = document.getElementById(scriptId);
+    if (structuredData || excludeFromSearch || (previousSchema && previousSchema.dataset.pageUrl !== meta.url)) {
+      previousSchema?.remove();
+    }
+    if (structuredData && !excludeFromSearch) {
       const script = document.createElement("script");
       script.id = scriptId;
       script.type = "application/ld+json";
+      script.dataset.pageUrl = meta.url;
       script.textContent = JSON.stringify(structuredData);
       document.head.appendChild(script);
     }
   }, [
     canonical,
+    excludeFromSearch,
     meta.title,
     meta.description,
     meta.image,
@@ -115,8 +130,8 @@ export function SEO({
 export function LandingSEO() {
   return (
     <SEO
-      title="Ancient Wisdom, Modern Clarity"
-      description="AstroYou combines ancient Vedic wisdom with modern precision to deliver accurate personal insights. Your birth chart, instantly revealed."
+      title="Free Kundali, Panchang & AI Jyotish"
+      description="Create your free Vedic Kundali, check compatibility and daily Panchang, and get AI Jyotish guidance that remembers your chart and questions."
     />
   );
 }

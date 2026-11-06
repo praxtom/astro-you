@@ -43,6 +43,9 @@ const LIB_SOURCES = [
   "src/lib/panchang.ts",
   "src/lib/credit-packs.ts",
   "src/lib/entitlements.ts",
+  "src/lib/seo-routing.ts",
+  "src/lib/seo-public.ts",
+  "src/lib/legal-policies.ts",
 ];
 
 async function loadSharedModules() {
@@ -61,13 +64,16 @@ async function loadSharedModules() {
     "--skipLibCheck",
   ]);
   const load = (name) => import(path.join(LIB_OUT, `${name}.js`));
-  const [seo, panchang, packs, entitlements] = await Promise.all([
+  const [seo, panchang, packs, entitlements, routing, publicSeo, legal] = await Promise.all([
     load("seo-content"),
     load("panchang"),
     load("credit-packs"),
     load("entitlements"),
+    load("seo-routing"),
+    load("seo-public"),
+    load("legal-policies"),
   ]);
-  return { seo, panchang, packs, entitlements };
+  return { seo, panchang, packs, entitlements, routing, publicSeo, legal };
 }
 
 const {
@@ -75,18 +81,22 @@ const {
   panchang: panchangLib,
   packs,
   entitlements,
+  routing, publicSeo, legal,
 } = await loadSharedModules();
 
 const {
   SEO_CONTENT_PAGES,
   getSeoContentFaqs,
   getRelatedSeoContentPages,
+  getSeoClusterPages,
   SEO_AUTHOR,
   SEO_PUBLISHER,
   SEO_CONTENT_REVIEWED,
 } = seo;
 
 // ── Static page definitions ──────────────────────────────────────────────────
+
+const { searchTitle, searchDescription, PRIVATE_ROUTES } = routing;
 
 const defaultSeoLinks = [
   { label: "Free Kundali", href: "/free-kundali" },
@@ -245,10 +255,10 @@ const futureDates = Array.from({ length: PANCHANG_DAYS }, (_, index) => {
 
 const homePage = {
   path: "/",
-  title: "AstroYou: Free Vedic Kundali, Panchang, and AI Jyotish Guidance",
+  title: "Free Kundali, Panchang & AI Jyotish | AstroYou",
   description:
-    "AstroYou generates a free Janam Kundali from your birth details using the Lahiri ayanamsa, then explains it with an AI Jyotish that remembers your chart, dashas, and past questions. Free Kundali matching and daily Panchang included.",
-  heading: "AstroYou",
+    "Create your free Vedic Kundali, check compatibility and daily Panchang, and get AI Jyotish guidance that remembers your chart and questions.",
+  heading: "Free Vedic Kundali and AI Jyotish Guidance",
   schemaType: "WebSite",
   updated: SEO_CONTENT_REVIEWED,
   intro:
@@ -321,6 +331,10 @@ const homePage = {
     { label: "Vedic Astrology Guide", href: "/vedic-astrology" },
     { label: "Pricing", href: "/pricing" },
     { label: "Trust and AI Policy", href: "/trust" },
+    { label: "Help Centre", href: "/help" },
+    { label: "Contact Support", href: "/support" },
+    { label: "Privacy Policy", href: "/privacy" },
+    { label: "Terms of Service", href: "/terms" },
   ],
   cta: "/free-kundali",
   ctaLabel: "Generate a free Kundali",
@@ -897,7 +911,7 @@ const supportPages = [
 const signIndexPages = signs.map(
   ([slug, name, sanskrit, lord, element, quality, nakshatras]) => ({
     path: `/horoscope/${slug}`,
-    title: `${name} Horoscope (${sanskrit}): Daily, Weekly, Monthly, Yearly`,
+    title: `${name} Horoscope`,
     description: `${name} — ${sanskrit} in Sanskrit — is a ${quality} ${element} sign ruled by ${lord}, spanning ${nakshatras}. Read free daily, weekly, monthly, and yearly forecasts.`,
     heading: `${name} Horoscope`,
     schemaType: "CollectionPage",
@@ -1247,16 +1261,17 @@ function panchangDatePage(date) {
       { label: "Muhurat Finder", href: "/muhurat" },
       { label: "Free Kundali", href: "/free-kundali" },
     ],
-    cta: "/panchang",
-    ctaLabel: "Open the live Panchang",
+    cta: `/panchang/${date}`,
+    ctaLabel: "Check this date’s Panchang",
   };
 
-  if (!data) {
+  if (!data || ![data.tithi, data.nakshatra, data.rahu_kaal, data.sunrise, data.sunset].every(has)) {
     // No fabricated almanac. The page says what it offers instead of listing
     // values it does not have — an empty promise is worse than an honest one.
     return {
       ...base,
-      title: `Panchang for ${readable} — Tithi, Nakshatra, Rahu Kaal`,
+      noindex: true,
+      title: routing.panchangRoute(date).title,
       description: `Panchang for ${readable} calculated for ${PANCHANG_CITY.city}: tithi, nakshatra, yoga, karana, sunrise, sunset, and Rahu Kaal. Open the live almanac for the current values.`,
       intro: `Panchang for ${readable}, calculated for ${PANCHANG_CITY.city}. Live values for tithi, nakshatra, yoga, karana, and Rahu Kaal are computed on the page itself.`,
       sections: [
@@ -1503,6 +1518,7 @@ const contentPages = SEO_CONTENT_PAGES.map((page) => ({
   ...page,
   faq: getSeoContentFaqs(page),
   links: [
+    ...getSeoClusterPages(page.slug).map(related => ({ label: related.heading, href: related.path })),
     ...getRelatedSeoContentPages(page.slug, 4).map((related) => ({
       label: related.heading,
       href: related.path,
@@ -1513,9 +1529,28 @@ const contentPages = SEO_CONTENT_PAGES.map((page) => ({
   ctaLabel: page.primaryCta.label,
 }));
 
+const toolPages = publicSeo.PUBLIC_TOOL_PAGES.map(page => ({
+  ...page, heading: page.title, intro: page.description, schemaType: "WebPage",
+  links: defaultSeoLinks, cta: page.path, ctaLabel: "Open the tool",
+  faq: [{ question: `What can I find on this page?`, answer: page.description }],
+}));
+const legalPages = [
+  ["/refund-policy", "Refund Policy", legal.REFUND_SECTIONS],
+  ["/disclaimer", "Astrology and AI Disclaimer", legal.DISCLAIMER_SECTIONS],
+].map(([path, title, sections]) => ({
+  path, title, heading: title, description: sections[0].content[0],
+  intro: sections[0].content[0], schemaType: "WebPage",
+  sections: sections.map(section => ({ title: section.title, body: section.content.join(" ") })),
+  links: [...defaultSeoLinks, { label: "Support", href: "/support" }],
+  cta: "/support", ctaLabel: "Contact support",
+  faq: [{ question: "Where can I ask a question?", answer: "Contact AstroYou support with questions about this policy." }],
+}));
+
 const pages = [
   homePage,
   pricingPage,
+  ...toolPages,
+  ...legalPages,
   ...supportPages,
   ...contentPages,
   ...signIndexPages,
@@ -1523,6 +1558,29 @@ const pages = [
   ...panchangDatePages,
   ...muhuratCategoryPages,
 ];
+
+// Link every public page through an HTML directory, including pages without JS navigation.
+const directoryPages = pages.filter(page => !page.noindex);
+const directory = {
+  path: "/explore", title: "Explore Astrology Tools & Guides", heading: "Explore AstroYou",
+  description: "Browse AstroYou’s birth chart tools, astrology guides, horoscopes and daily Panchang pages.",
+  intro: "Find a tool, learn about your chart, or explore a date in the Panchang.", schemaType: "CollectionPage",
+  sections: [{ title: "Tools and reference guides", body: "Browse the links below by topic. Personal tools may ask for your birth profile." }],
+  faq: [{ question: "Where should I start?", answer: "Start with a free Kundali, or browse the Vedic astrology guide." }],
+  links: directoryPages.map(page => ({ label: page.heading, href: page.path })),
+  cta: "/free-kundali", ctaLabel: "Create your Kundali",
+};
+pages.push(directory);
+for (const page of pages) {
+  const meta = publicSeo.PUBLIC_PAGE_META.find(item => item.path === page.path);
+  if (meta) { page.title = meta.title; page.description = meta.description; }
+  page.title = page.path.startsWith("/panchang/") ? routing.panchangRoute(page.path.split("/")[2]).title : page.title;
+  page.description = searchDescription(page.description);
+  page.links = [...new Map([
+    { label: "Home", href: "/" }, { label: "All tools and guides", href: "/explore" },
+    ...(page.links || []),
+  ].map(link => [link.href, link])).values()].filter(link => link.href !== page.path);
+}
 
 // ── Rendering ────────────────────────────────────────────────────────────────
 
@@ -1753,7 +1811,7 @@ const buildStructuredData = (page, canonical) => {
 const injectPage = (template, page) => {
   const canonical =
     page.path === "/" ? `${baseUrl}/` : `${baseUrl}${page.path}`;
-  const fullTitle = page.path === "/" ? page.title : `${page.title} | AstroYou`;
+  const fullTitle = searchTitle(page.title);
 
   let html = template
     .replace(/<title>.*?<\/title>/, `<title>${escapeHtml(fullTitle)}</title>`)
@@ -1763,6 +1821,7 @@ const injectPage = (template, page) => {
     )
     .replace(/<div id="root"><\/div>/, renderBody(page));
 
+  html = setMeta(html, 'name="robots"', page.noindex ? "noindex, follow" : "index, follow");
   html = setMeta(html, 'name="description"', page.description);
   html = setMeta(html, 'name="title"', fullTitle);
   html = setMeta(html, 'property="og:title"', fullTitle);
@@ -1788,7 +1847,7 @@ const injectPage = (template, page) => {
   );
   html = html.replace(
     "</head>",
-    `    <script type="application/ld+json">${JSON.stringify(buildStructuredData(page, canonical))}</script>\n  </head>`,
+    `    <script id="astroyou-structured-data" data-page-url="${canonical}" type="application/ld+json">${JSON.stringify(buildStructuredData(page, canonical))}</script>\n  </head>`,
   );
 
   assertNoDuplicateMeta(html, page.path);
@@ -1929,7 +1988,7 @@ const writeSitemap = async () => {
 
   const routes = Array.from(
     new Map(
-      pages.map((page) => [
+      pages.filter(page => !page.noindex).map((page) => [
         page.path,
         {
           path: page.path,
@@ -1982,6 +2041,19 @@ const writeRobots = async () => {
   ]);
 };
 
+const buildHostingFiles = (template) => {
+// Keep a separate empty app shell: private/dynamic routes must never inherit home content.
+let shell = template.replace(/<script[^>]*type="application\/ld\+json"[^>]*>[\s\S]*?<\/script>/g, "")
+  .replace(/<link rel="canonical"[^>]*>/g, "");
+shell = setMeta(shell, 'name="robots"', "noindex, follow");
+const notFound = shell.replace(/<title>.*?<\/title>/, "<title>Page Not Found | AstroYou</title>")
+  .replace('<div id="root"></div>', '<div id="root"><main><h1>Page not found</h1><p>This page does not exist.</p><a href="/">Return home</a></main></div>');
+  const redirects = PRIVATE_ROUTES.flatMap(route => [
+    `${route} /app-shell.html 200`, `${route}/* /app-shell.html 200`,
+  ]).join("\n") + "\n/panchang/:date /app-shell.html 200\n";
+  return { shell, notFound, redirects };
+};
+
 // ── Run ──────────────────────────────────────────────────────────────────────
 
 const template = await readFile(path.join(distDir, "index.html"), "utf8");
@@ -2008,9 +2080,13 @@ for (const page of pages) {
   }
 }
 
-await Promise.all(
-  pages.map((page) => writeRoute(page, injectPage(template, page))),
-);
+const hosting = buildHostingFiles(template);
+await Promise.all([
+  writeFile(path.join(distDir, "app-shell.html"), hosting.shell),
+  writeFile(path.join(distDir, "404.html"), hosting.notFound),
+  writeFile(path.join(distDir, "_redirects"), hosting.redirects),
+  ...pages.map(page => writeRoute(page, injectPage(template, page))),
+]);
 
 const routeCount = await writeSitemap();
 await writeRobots();

@@ -3,23 +3,16 @@
 User-agent: *
 Allow: /
 
-# Disallow private / authenticated routes (no indexable content)
+# App screens serve noindex HTML and remain crawlable so search engines can read it.
+# API responses are not public search pages.
 Disallow: /api/
-Disallow: /admin
-Disallow: /dashboard
-Disallow: /onboarding
-Disallow: /synthesis
-Disallow: /consult
-Disallow: /wallet
-Disallow: /reports
-Disallow: /remedies
-Disallow: /settings
+Disallow: /.netlify/functions/
 
 # ── AI answer-engine crawlers ────────────────────────────────────────────────
 # Named explicitly rather than left to the wildcard above. These are the bots
 # that feed ChatGPT, Perplexity, Claude, Gemini, and Copilot; being citable in
 # those answers requires them to be able to read the prerendered pages. The
-# same private-route exclusions apply.
+# same API exclusions apply.
 
 User-agent: GPTBot
 User-agent: ChatGPT-User
@@ -37,15 +30,7 @@ User-agent: cohere-ai
 User-agent: Meta-ExternalAgent
 Allow: /
 Disallow: /api/
-Disallow: /admin
-Disallow: /dashboard
-Disallow: /onboarding
-Disallow: /synthesis
-Disallow: /consult
-Disallow: /wallet
-Disallow: /reports
-Disallow: /remedies
-Disallow: /settings
+Disallow: /.netlify/functions/
 
 # Sitemap
 Sitemap: https://astroyou.app/sitemap.xml
