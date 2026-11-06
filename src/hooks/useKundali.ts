@@ -16,6 +16,26 @@ import {
   isUsableCachedKundali,
 } from "../lib/profile-readiness";
 import { normalizeZodiacMode, type ZodiacMode } from "../lib/zodiac-mode";
+import { deriveProfileSigns } from "../lib/chart-summary";
+
+/**
+ * Lazy backfill of profile.moonSign / sunSign / moonNakshatra from a Vedic D1
+ * (they are read by the forecast, AI context and share text but were never
+ * written). Only fills what is missing, so it writes at most once per chart.
+ */
+function profileSignUpdates(
+  kundali: KundaliData | null | undefined,
+  profile: Record<string, any> | null | undefined,
+): Record<string, string> | null {
+  const signs = deriveProfileSigns(kundali as any);
+  if (!signs) return null;
+  const updates: Record<string, string> = {};
+  if (!profile?.moonSign) updates.moonSign = signs.moonSign;
+  if (!profile?.sunSign && signs.sunSign) updates.sunSign = signs.sunSign;
+  if (!profile?.moonNakshatra && signs.moonNakshatra)
+    updates.moonNakshatra = signs.moonNakshatra;
+  return Object.keys(updates).length ? updates : null;
+}
 
 interface UseKundaliResult {
   kundaliData: KundaliData | null;
@@ -80,14 +100,35 @@ export function useKundali(
                 ? data.kundaliData
                 : data[`kundaliData_${chartType}`];
 
+            // A chart cached before the birth time was marked unknown still
+            // carries a guessed Lagna — refetch the time-unknown shape.
+            const timeShapeMatches =
+              Boolean(requestBirthData.birthTimeUnknown) ===
+              Boolean(cachedData?.timeUnknown);
             // Only use cached data if it has actual planetary positions
-            if (isUsableCachedKundali(cachedData, chartType, mode)) {
+            if (
+              timeShapeMatches &&
+              isUsableCachedKundali(cachedData, chartType, mode)
+            ) {
               devLog(
                 "[useKundali] Using cached data with",
                 cachedData.planetary_positions.length,
                 "planets",
               );
               setKundaliData(cachedData);
+              const backfill =
+                chartType === "D1" && mode === "vedic"
+                  ? profileSignUpdates(cachedData, data.profile)
+                  : null;
+              if (backfill && data.profile?.dob) {
+                void setDoc(
+                  docRef,
+                  { profile: backfill },
+                  { merge: true },
+                ).catch((e) =>
+                  console.warn("[useKundali] Sign backfill failed:", e),
+                );
+              }
               return;
             } else {
               devLog(
@@ -118,9 +159,13 @@ export function useKundali(
         if (!isCurrentRequest()) return;
 
         if (!response.ok) {
-          throw new Error(
-            `Failed to fetch ${chartType} chart data (${response.status})`,
-          );
+          // 422s carry user-facing copy (time unknown, uncalculable chart).
+          let message = `Failed to fetch ${chartType} chart data (${response.status})`;
+          if (response.status === 422) {
+            const body = await response.json().catch(() => null);
+            if (typeof body?.error === "string") message = body.error;
+          }
+          throw new Error(message);
         }
 
         const data = await response.json();
@@ -173,6 +218,9 @@ export function useKundali(
           planetary_positions: positions,
           house_cusps: data.house_cusps || [],
           ascendant: data.ascendant || null,
+          ...(data.timeUnknown
+            ? { timeUnknown: true, houseReference: data.houseReference || "moon" }
+            : {}),
         };
 
         if (isCurrentRequest()) setKundaliData(kundali);
@@ -182,6 +230,15 @@ export function useKundali(
           const docRef = doc(db, "users", user.uid);
           const cacheFieldName =
             chartType === "D1" ? "kundaliData" : `kundaliData_${chartType}`;
+          // Sidereal signs only — a Western chart's signs are tropical.
+          const profileSnap =
+            chartType === "D1" && mode === "vedic"
+              ? await getDoc(docRef).catch(() => null)
+              : null;
+          const profileData = profileSnap?.data()?.profile;
+          const backfill = profileData?.dob
+            ? profileSignUpdates(kundali, profileData)
+            : null;
           await setDoc(
             docRef,
             {
@@ -192,6 +249,7 @@ export function useKundali(
                 // silently serving the other zodiac's signs.
                 _zodiacMode: mode,
               },
+              ...(backfill ? { profile: backfill } : {}),
             },
             { merge: true },
           );

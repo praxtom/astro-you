@@ -8,6 +8,8 @@ interface PredictionSubjectData {
   tob?: string;
   pob?: string;
   sunSign?: string;
+  /** Sidereal Moon sign — the rashi Vedic sign horoscopes are read from. */
+  moonSign?: string;
   zodiacMode?: ZodiacMode;
 }
 
@@ -47,7 +49,7 @@ export function useDailyPrediction(userData: PredictionSubjectData | null) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const { dob, sunSign, zodiacMode } = userData ?? {};
+  const { dob, sunSign, moonSign, zodiacMode } = userData ?? {};
   const mode = normalizeZodiacMode(zodiacMode);
 
   useEffect(() => {
@@ -68,9 +70,13 @@ export function useDailyPrediction(userData: PredictionSubjectData | null) {
         // tropical date table below disagrees with it by about one sign,
         // which is exactly what made the dashboard and this forecast
         // contradict each other about the same person.
+        // Vedic: the sidereal Moon sign (Jyotish reads rashi horoscopes from
+        // the Moon), then the sidereal Sun sign. profile.moonSign/sunSign are
+        // sidereal, so Western mode uses the tropical date table instead.
         const zodiacSign =
-          sunSign ||
-          (mode === "western" ? getTropicalSunSign(day, month) : null);
+          mode === "western"
+            ? getTropicalSunSign(day, month)
+            : moonSign || sunSign || null;
 
         // No sign yet in vedic mode: wait for the chart rather than guess.
         if (!zodiacSign) {
@@ -126,7 +132,7 @@ export function useDailyPrediction(userData: PredictionSubjectData | null) {
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [dob, sunSign, mode]);
+  }, [dob, sunSign, moonSign, mode]);
 
   return { prediction, error, loading };
 }

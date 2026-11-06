@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useRequestBirthData } from "./useRequestBirthData";
 import { postJson } from "../lib/apiFetch";
+import { viewerDateKey } from "../lib/viewer-timezone";
 
 export interface LunarPhaseData {
   phase: string;
@@ -53,9 +54,33 @@ export function useLunarPhase(birthData: any): UseLunarPhaseResult {
         setLoading(true);
         setError(null);
 
+        // Tonight's Moon where the user is now — not the Moon at birth.
+        // The current location is a free-text place; when it differs from
+        // the birth place it is sent as `city`, otherwise the geocoded birth
+        // coordinates stand in for it.
+        const current =
+          typeof birthData?.currentLocation === "string"
+            ? birthData.currentLocation.trim()
+            : "";
+        const atBirthPlace =
+          !current ||
+          current.toLowerCase() === (requestBirthData.pob || "").trim().toLowerCase();
+        const coords = requestBirthData.coordinates;
+        const sky = atBirthPlace
+          ? coords
+            ? { lat: coords.lat, lng: coords.lng }
+            : requestBirthData.pob
+              ? { city: requestBirthData.pob }
+              : {}
+          : { city: current };
         const response = await postJson(
           "/api/kundali",
-          { birthData: requestBirthData, chartType: "LUNAR_PHASES" },
+          {
+            birthData: requestBirthData,
+            chartType: "LUNAR_PHASES",
+            localDate: viewerDateKey(),
+            ...sky,
+          },
           { signal: controller.signal },
         );
 
@@ -92,7 +117,7 @@ export function useLunarPhase(birthData: any): UseLunarPhaseResult {
 
     fetchLunar();
     return () => controller.abort();
-  }, [requestBirthData]);
+  }, [requestBirthData, birthData?.currentLocation]);
 
   return { lunar, loading, error };
 }

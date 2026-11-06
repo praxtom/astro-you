@@ -2,6 +2,12 @@ import { Config, Context } from "@netlify/functions";
 import Razorpay from "razorpay";
 import { auth, db, getStorageBucket } from "./shared/firebase-admin";
 import { writeAuditLog } from "./shared/audit-log";
+import {
+  normalizeInteractionIds,
+  readAllInteractionIds,
+  type RetentionDb,
+} from "./shared/interaction-retention";
+import { purgeInteractionsBestEffort } from "./shared/interaction-purge";
 
 // Statuses that Razorpay can no longer bill — everything else (active,
 // pending, halted, paused, cancelling, ...) must be cancelled at Razorpay
@@ -56,6 +62,10 @@ export default async (req: Request, _context: Context) => {
       uid,
       userData.subscription,
     );
+
+    // Collect the user's stored Gemini interaction ids BEFORE the subtree is
+    // deleted (the log lives under it). Purged after Firestore cleanup.
+    const interactionIds = await collectInteractionIds(uid);
 
     // Delete the Auth user next so access is revoked immediately. If a later
     // Firestore/Storage cleanup step fails, the worst case is orphaned data —
@@ -141,12 +151,20 @@ export default async (req: Request, _context: Context) => {
         console.error("[Delete Account] Storage cleanup failed:", storageError);
       });
 
+    // Purge Gemini-side conversation copies — best-effort, never blocking.
+    const interactionPurge = await purgeInteractionsBestEffort(interactionIds, {
+      requestUrl: req.url,
+    }).catch(() => ({ queued: 0, mode: "none" as const }));
+
     await writeAuditLog({
       uid,
       action: "account_deleted",
       entityType: "user",
       entityId: uid,
-      metadata: { subscriptionCancellation },
+      metadata: {
+        subscriptionCancellation,
+        interactionsPurgeQueued: interactionPurge.queued,
+      },
     });
 
     return json({ status: "success", subscriptionCancellation });
@@ -155,6 +173,33 @@ export default async (req: Request, _context: Context) => {
     return json({ error: "Could not delete account. Please try again." }, 500);
   }
 };
+
+/**
+ * Interaction ids from the server-side log, plus legacy chats that predate it
+ * (chat docs' lastInteractionId). Never throws.
+ */
+async function collectInteractionIds(uid: string): Promise<string[]> {
+  try {
+    const logged = await readAllInteractionIds(db as unknown as RetentionDb, uid);
+    const chats = await db
+      .collection("users")
+      .doc(uid)
+      .collection("chats")
+      .select("lastInteractionId")
+      .get()
+      .catch(() => null);
+    const legacy = chats
+      ? chats.docs.map((d) => d.get("lastInteractionId"))
+      : [];
+    return normalizeInteractionIds([...logged, ...legacy]);
+  } catch (err) {
+    console.error(
+      "[Delete Account] Interaction id collection failed:",
+      err instanceof Error ? err.name : "error",
+    );
+    return [];
+  }
+}
 
 async function cancelActiveSubscription(
   uid: string,

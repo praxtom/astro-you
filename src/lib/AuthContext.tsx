@@ -14,6 +14,56 @@ import {
   getPendingReferralCode,
 } from "./acquisition";
 import { AuthContext } from "./authContextValue";
+import { deriveProfileSigns, normalizeSignCode } from "./chart-summary";
+import { ZODIAC_SIGNS } from "./astrology";
+import { normalizeZodiacMode } from "./zodiac-mode";
+
+/** A trusted sign name ("Taurus") from untrusted storage, or undefined. */
+function storedSignName(value: unknown): string | undefined {
+  const code = normalizeSignCode(value);
+  return code ? ZODIAC_SIGNS.find((z) => z.code === code)?.western : undefined;
+}
+
+/**
+ * Best-effort: derive the sidereal Moon/Sun signs + Moon nakshatra for a
+ * just-migrated guest profile from its Vedic D1 (the guest already cast it,
+ * so this is normally a server-cache hit) and save them to the profile.
+ * Never blocks sign-in; useKundali backfills later if this fails.
+ */
+async function backfillMigratedSigns(
+  currentUser: User,
+  profile: Record<string, any>,
+): Promise<void> {
+  try {
+    const idToken = await currentUser.getIdToken();
+    const res = await fetch("/api/kundali", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        idToken,
+        chartType: "D1",
+        zodiacMode: "vedic",
+        birthData: {
+          dob: profile.dob,
+          tob: profile.tob,
+          ...(profile.pob ? { pob: profile.pob } : {}),
+          ...(profile.coordinates ?? {}),
+          ...(profile.birthTimeUnknown ? { birthTimeUnknown: true } : {}),
+        },
+      }),
+    });
+    if (!res.ok) return;
+    const signs = deriveProfileSigns(await res.json());
+    if (!signs) return;
+    await setDoc(
+      doc(db, "users", currentUser.uid),
+      { profile: signs },
+      { merge: true },
+    );
+  } catch (err) {
+    console.warn("[Auth] Sign backfill after migration failed:", err);
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -132,12 +182,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     lng: typeof parsed.lng === "number" ? parsed.lng : null,
                     coordinates: parsed.coordinates ?? null,
                     birthTimeUnknown: Boolean(parsed.birthTimeUnknown),
-                  };
+                  } as Record<string, any>;
+                  // Sidereal signs, when the guest session already derived
+                  // them — validated, since storage is untrusted.
+                  const moonSign = storedSignName(parsed.moonSign);
+                  const sunSign = storedSignName(parsed.sunSign);
+                  if (moonSign) profile.moonSign = moonSign;
+                  if (sunSign) profile.sunSign = sunSign;
+                  if (
+                    typeof parsed.moonNakshatra === "string" &&
+                    parsed.moonNakshatra.trim()
+                  ) {
+                    profile.moonNakshatra = parsed.moonNakshatra
+                      .trim()
+                      .slice(0, 40);
+                  }
                   await setDoc(
                     userDocRef,
                     { profile, updatedAt: new Date() },
                     { merge: true },
                   );
+                  if (
+                    !moonSign &&
+                    normalizeZodiacMode(parsed.zodiacMode) === "vedic"
+                  ) {
+                    void backfillMigratedSigns(currentUser, profile);
+                  }
                   // Clean up guest session data after migration
                   sessionStorage.removeItem(STORAGE_KEYS.GUEST_PROFILE);
                   sessionStorage.removeItem(STORAGE_KEYS.GUEST_COMPLETE);

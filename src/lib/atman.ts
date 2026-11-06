@@ -4,6 +4,14 @@ import {
   arrayUnion,
   Timestamp,
   getDoc,
+  runTransaction,
+  collection,
+  getDocs,
+  query,
+  orderBy,
+  limit,
+  writeBatch,
+  deleteField,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { devLog } from "./devLog";
@@ -27,6 +35,12 @@ import {
   validateRoutineInput,
 } from "./atman-schema";
 import { viewerDateKey } from "./viewer-timezone";
+import {
+  clearEmotionalMemory,
+  removeDerivedText,
+  stripUndefined,
+  syncMemoryBuckets,
+} from "./memory-ops";
 
 export { normalizeAtmanData } from "./atman-schema";
 
@@ -672,5 +686,246 @@ export const AtmanService = {
     } catch (error) {
       console.error("[Atman] Initialization failed:", error);
     }
+  },
+};
+
+// ── Memory controls ("What I remember") ──────────────────────────────────
+// Users may view, delete, clear and pause everything AstroYou derives from
+// their conversations. Firestore rules let the owner rewrite `atman` and
+// `memoryPaused`; edits run in a transaction so a concurrent server brain
+// write isn't silently clobbered.
+
+export type MemoryGroup =
+  | "feelings"
+  | "patterns"
+  | "events"
+  | "people"
+  | "routines"
+  | "advice"
+  | "karmicThreads"
+  | "contradictions"
+  | "notes";
+
+export type MemoryItemRef =
+  | { group: "feelings"; kind: "current" }
+  | { group: "feelings"; kind: "history"; key: string }
+  | { group: "patterns" | "events" | "people" | "routines" | "notes"; id: string }
+  | { group: "advice"; key: string }
+  | { group: "karmicThreads" | "contradictions"; text: string };
+
+/** Stable key for an emotional-history entry (no id field). */
+export function emotionalHistoryKey(entry: { state: string; date: unknown }) {
+  return `${entry.state}|${toMillis(entry.date)}`;
+}
+
+/** Stable key for an advice entry (no id field). */
+export function adviceKey(entry: { advice: string; date: string }) {
+  return `${entry.date}|${entry.advice.slice(0, 60)}`;
+}
+
+function toMillis(value: unknown): number {
+  if (value instanceof Date) return value.getTime();
+  if (value && typeof value === "object" && "toDate" in value) {
+    const toDate = (value as { toDate?: () => Date }).toDate;
+    if (typeof toDate === "function") return toDate.call(value).getTime();
+  }
+  const parsed = new Date(value as string | number).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/** Normalize for editing without inventing a "stable" mood that isn't stored. */
+function atmanForEdit(raw: Partial<AtmanData> | undefined): AtmanData {
+  const atman = normalizeAtmanData(raw) || createInitialAtmanData();
+  if (!raw?.emotionalState && !raw?.transient?.emotionalState) {
+    const loose = atman as Partial<AtmanData>;
+    delete loose.emotionalState;
+    delete loose.lastEmotionalUpdate;
+    delete loose.transient;
+  }
+  return atman;
+}
+
+async function editAtman(
+  userId: string,
+  edit: (atman: AtmanData) => AtmanData,
+) {
+  const userRef = doc(db, "users", userId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(userRef);
+    if (!snap.exists()) return;
+    const raw = snap.data().atman as Partial<AtmanData> | undefined;
+    if (!raw) return;
+    const next = syncMemoryBuckets(edit(atmanForEdit(raw)));
+    next.schemaVersion = ATMAN_SCHEMA_VERSION;
+    // Replace the whole map so deleted keys are really removed.
+    tx.update(userRef, { atman: stripUndefined(next) });
+  });
+}
+
+function removeItem(atman: AtmanData, ref: MemoryItemRef): AtmanData {
+  const next: AtmanData = { ...atman };
+  switch (ref.group) {
+    case "feelings":
+      if ("kind" in ref && ref.kind === "current") {
+        const loose = next as Partial<AtmanData>;
+        delete loose.emotionalState;
+        delete loose.lastEmotionalUpdate;
+        delete loose.transient;
+        return next;
+      }
+      next.emotionalHistory = (atman.emotionalHistory || []).filter(
+        (entry) => emotionalHistoryKey(entry) !== (ref as { key: string }).key,
+      );
+      return next;
+    case "patterns":
+      next.knownPatterns = (atman.knownPatterns || []).filter((p) => p.id !== ref.id);
+      return next;
+    case "events":
+      next.lifeEvents = (atman.lifeEvents || atman.activeEvents || []).filter(
+        (e) => e.id !== ref.id,
+      );
+      next.activeEvents = next.lifeEvents;
+      return next;
+    case "people":
+      next.keyRelationships = (atman.keyRelationships || []).filter((r) => r.id !== ref.id);
+      return next;
+    case "routines":
+      next.routines = (atman.routines || []).filter((r) => r.id !== ref.id);
+      return next;
+    case "notes":
+      next.memoryLedger = (atman.memoryLedger || []).filter((e) => e.id !== ref.id);
+      return next;
+    case "advice":
+      next.savedAdvice = (atman.savedAdvice || atman.adviceHistory || []).filter(
+        (entry) => adviceKey(entry) !== ref.key,
+      );
+      next.adviceHistory = next.savedAdvice;
+      return next;
+    case "karmicThreads":
+      return removeDerivedText(atman, "karmicThreads", ref.text);
+    case "contradictions":
+      return removeDerivedText(atman, "contradictedPatterns", ref.text);
+  }
+}
+
+function clearGroup(atman: AtmanData, group: MemoryGroup): AtmanData {
+  const next: AtmanData = { ...atman };
+  switch (group) {
+    case "feelings":
+      return clearEmotionalMemory(atman);
+    case "patterns":
+      next.knownPatterns = [];
+      return next;
+    case "events":
+      next.lifeEvents = [];
+      next.activeEvents = [];
+      return next;
+    case "people":
+      next.keyRelationships = [];
+      return next;
+    case "routines":
+      next.routines = [];
+      return next;
+    case "advice":
+      next.savedAdvice = [];
+      next.adviceHistory = [];
+      return next;
+    case "notes":
+      next.memoryLedger = [];
+      return next;
+    case "karmicThreads":
+      next.karmicThreads = [];
+      next.derivedTextSources = (atman.derivedTextSources || []).filter(
+        (s) => s.bucket !== "karmicThreads",
+      );
+      return next;
+    case "contradictions":
+      next.contradictedPatterns = [];
+      next.derivedTextSources = (atman.derivedTextSources || []).filter(
+        (s) => s.bucket !== "contradictedPatterns",
+      );
+      return next;
+  }
+}
+
+const SUMMARY_SCAN_LIMIT = 200;
+
+export const AtmanMemoryControls = {
+  /** Pause/resume automatic memory. The server skips extraction while paused. */
+  async setMemoryPaused(userId: string, paused: boolean) {
+    await updateDoc(doc(db, "users", userId), { memoryPaused: paused });
+  },
+
+  async forgetItem(userId: string, ref: MemoryItemRef) {
+    await editAtman(userId, (atman) => removeItem(atman, ref));
+  },
+
+  async clearGroup(userId: string, group: MemoryGroup) {
+    await editAtman(userId, (atman) => clearGroup(atman, group));
+  },
+
+  /** Recent chats that carry an AI-written summary. */
+  async listChatSummaries(userId: string) {
+    const snap = await getDocs(
+      query(
+        collection(db, "users", userId, "chats"),
+        orderBy("lastUpdatedAt", "desc"),
+        limit(SUMMARY_SCAN_LIMIT),
+      ),
+    );
+    return snap.docs
+      .filter((d) => typeof d.data().summary === "string" && d.data().summary)
+      .map((d) => ({
+        chatId: d.id,
+        title: (d.data().title as string) || "Untitled conversation",
+        summary: d.data().summary as string,
+        updatedAt: toMillis(d.data().lastUpdatedAt) || null,
+      }));
+  },
+
+  async deleteChatSummary(userId: string, chatId: string) {
+    await updateDoc(doc(db, "users", userId, "chats", chatId), {
+      summary: deleteField(),
+    });
+  },
+
+  async clearAllChatSummaries(userId: string) {
+    // Scan every chat (not just recent ones) so no summary is left behind.
+    const snap = await getDocs(collection(db, "users", userId, "chats"));
+    const withSummary = snap.docs.filter((d) => d.data().summary !== undefined);
+    for (let i = 0; i < withSummary.length; i += 400) {
+      const batch = writeBatch(db);
+      withSummary
+        .slice(i, i + 400)
+        .forEach((d) => batch.update(d.ref, { summary: deleteField() }));
+      await batch.commit();
+    }
+  },
+
+  /**
+   * Forget everything learned from conversations. Keeps things the user
+   * set themselves (meditation streak, practice preference, today's
+   * intention/gratitude).
+   */
+  async forgetEverything(userId: string) {
+    await editAtman(userId, (atman) => {
+      let next = clearEmotionalMemory(atman);
+      for (const group of [
+        "patterns",
+        "events",
+        "people",
+        "routines",
+        "advice",
+        "notes",
+        "karmicThreads",
+        "contradictions",
+      ] as MemoryGroup[]) {
+        next = clearGroup(next, group);
+      }
+      next.nudgeHistory = [];
+      next.derivedTextSources = [];
+      return next;
+    });
+    await AtmanMemoryControls.clearAllChatSummaries(userId);
   },
 };

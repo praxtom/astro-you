@@ -18,6 +18,7 @@ import {
   getSignByCode,
   getSignNumberByCode,
 } from "../../lib/astrology";
+import { resolveAscendant, resolveMoon } from "../../lib/chart-summary";
 import type { KundaliData, PlanetaryPosition } from "../../lib/astrology";
 import { X, Play, Pause, Sparkles } from "lucide-react";
 
@@ -801,14 +802,20 @@ export default function CelestialChart({
     driveUntilRef.current = performance.now() + 1800;
   }, [isDiamondView]);
 
-  const ascendantPos = data.planetary_positions.find(
-    (p) => p.name === "Ascendant",
-  );
-  const ascendantName = ascendantPos?.sign
-    ? getSignByCode(ascendantPos.sign)?.name
+  // The D1 payload carries the Lagna in `ascendant` (or the house-1 cusp),
+  // not as a planetary_positions entry — reading only the latter is what
+  // showed "Ascendant Lagna: Unknown" for charts with a known birth time.
+  // Birth time unknown: no Lagna — house 1 is the Moon's sign (Chandra
+  // Lagna), the ascendant marker is hidden and the label says so.
+  const timeUnknown = (data as { timeUnknown?: boolean }).timeUnknown === true;
+  const ascendant = timeUnknown ? null : resolveAscendant(data);
+  const chandraLagna = timeUnknown ? resolveMoon(data) : null;
+  const chandraLagnaName = chandraLagna
+    ? getSignByCode(chandraLagna.code)?.name || chandraLagna.code
     : null;
-  const ascendantDegree = ascendantPos
-    ? (getSignNumberByCode(ascendantPos.sign) - 1) * 30 + ascendantPos.degree
+  const ascendantName = ascendant?.name ?? null;
+  const ascendantDegree = ascendant
+    ? (getSignNumberByCode(ascendant.code) - 1) * 30 + ascendant.degree
     : null;
   const hasRenderablePlanets = data.planetary_positions.some((planet) =>
     isRenderablePlanet(planet, true),
@@ -943,7 +950,8 @@ export default function CelestialChart({
                   {selectedSignName} · {formatDegree(selected.degree)}
                 </p>
                 <p>
-                  House {selected.house} —{" "}
+                  House {selected.house}
+                  {timeUnknown ? " from the Moon" : ""} —{" "}
                   {HOUSE_MEANINGS[selected.house]?.short}
                   <span className="text-white/35">
                     {" "}
@@ -960,7 +968,9 @@ export default function CelestialChart({
                 <button
                   onClick={() =>
                     onAskAbout(
-                      `What does ${selectedInfo?.name || selected.name} in ${selectedSignName}, in my ${selected.house}th house, mean for me?`,
+                      timeUnknown
+                        ? `What does ${selectedInfo?.name || selected.name} in ${selectedSignName} mean for me? (My birth time is unknown.)`
+                        : `What does ${selectedInfo?.name || selected.name} in ${selectedSignName}, in my ${selected.house}th house, mean for me?`,
                     )
                   }
                   className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gold text-black text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors"
@@ -979,10 +989,14 @@ export default function CelestialChart({
 
           <div className="md:text-right">
             <div className="text-[0.6rem] font-bold uppercase tracking-[0.35em] text-white/35 mb-1.5">
-              Ascendant Lagna
+              {timeUnknown
+                ? "Chandra Lagna (birth time unknown)"
+                : "Ascendant Lagna"}
             </div>
             <div className="text-2xl font-display italic text-gold">
-              {ascendantName || "Unknown"}
+              {timeUnknown
+                ? chandraLagnaName || "Unknown"
+                : ascendantName || "Unknown"}
             </div>
           </div>
         </div>

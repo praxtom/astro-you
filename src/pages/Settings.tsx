@@ -4,7 +4,6 @@ import { doc, updateDoc } from "firebase/firestore";
 import { useAuth } from "../lib/useAuth";
 import { useUserProfile } from "../hooks";
 import { useSubscription } from "../hooks/useSubscription";
-import { useConsciousness } from "../hooks/useConsciousness";
 import { getTier, type SubscriptionTier } from "../lib/subscriptions";
 import {
   AlertCircle,
@@ -22,8 +21,8 @@ import {
   User,
 } from "lucide-react";
 import Header from "../components/layout/Header";
+import { MemoryManager } from "../components/memory/MemoryManager";
 import { db } from "../lib/firebase";
-import { ATMAN_SCHEMA_VERSION } from "../types/user";
 import { PLATFORM_LANGUAGES, normalizePlatformLanguage } from "../lib/languages";
 import { ZODIAC_MODES, normalizeZodiacMode } from "../lib/zodiac-mode";
 import {
@@ -44,13 +43,10 @@ import { useCurrency } from "../hooks/useCurrency";
 import { formatMoney } from "../lib/currency";
 import { TIERS } from "../lib/subscriptions";
 
-type MemoryBucket = "patterns" | "events" | "relationships" | "routines" | "advice";
-
 export default function Settings() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { profile } = useUserProfile();
-  const { atmanState } = useConsciousness();
   const { tier, credits } = useSubscription();
   const currentTier = getTier(tier);
   const { currency } = useCurrency();
@@ -62,10 +58,20 @@ export default function Settings() {
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [pushSaving, setPushSaving] = useState(false);
   const [pushMessage, setPushMessage] = useState("");
-  const [memoryBusy, setMemoryBusy] = useState<MemoryBucket | null>(null);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [installAvailable, setInstallAvailable] = useState(false);
   const [installMessage, setInstallMessage] = useState("");
+
+  // Deep link from "What AstroYou remembers" (/settings#memory).
+  useEffect(() => {
+    if (window.location.hash !== "#memory") return;
+    const t = window.setTimeout(() => {
+      document
+        .getElementById("memory")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+    return () => window.clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     const syncInstallState = () => setInstallAvailable(canInstallApp());
@@ -243,67 +249,6 @@ export default function Settings() {
         ? "AstroYou was added to your device."
         : "Install was dismissed. You can try again from the browser menu.",
     );
-  };
-
-  const memoryRows: Array<{
-    bucket: MemoryBucket;
-    label: string;
-    count: number;
-    preview: string;
-  }> = [
-    {
-      bucket: "patterns",
-      label: "Patterns",
-      count: atmanState?.knownPatterns?.length ?? 0,
-      preview: atmanState?.knownPatterns?.slice(0, 2).map((item) => item.pattern).join(", ") || "None saved",
-    },
-    {
-      bucket: "events",
-      label: "Life events",
-      count: atmanState?.activeEvents?.length ?? 0,
-      preview: atmanState?.activeEvents?.slice(0, 2).map((item) => item.title).join(", ") || "None saved",
-    },
-    {
-      bucket: "relationships",
-      label: "Relationships",
-      count: atmanState?.keyRelationships?.length ?? 0,
-      preview: atmanState?.keyRelationships?.slice(0, 2).map((item) => item.name).join(", ") || "None saved",
-    },
-    {
-      bucket: "routines",
-      label: "Routines",
-      count: atmanState?.routines?.length ?? 0,
-      preview: atmanState?.routines?.slice(0, 2).map((item) => item.title).join(", ") || "None saved",
-    },
-    {
-      bucket: "advice",
-      label: "Saved advice",
-      count: atmanState?.savedAdvice?.length ?? 0,
-      preview: atmanState?.savedAdvice?.slice(0, 2).map((item) => item.advice).join(", ") || "None saved",
-    },
-  ];
-
-  const clearMemoryBucket = async (bucket: MemoryBucket) => {
-    if (!user || !confirm(`Clear ${bucket} memory? This cannot be undone.`)) return;
-    setMemoryBusy(bucket);
-    try {
-      const base = { "atman.schemaVersion": ATMAN_SCHEMA_VERSION };
-      const updates: Record<string, unknown> =
-        bucket === "patterns"
-          ? { ...base, "atman.knownPatterns": [], "atman.memory.knownPatterns": [] }
-          : bucket === "events"
-            ? { ...base, "atman.activeEvents": [], "atman.lifeEvents": [], "atman.memory.lifeEvents": [] }
-            : bucket === "relationships"
-              ? { ...base, "atman.keyRelationships": [], "atman.memory.keyRelationships": [] }
-              : bucket === "routines"
-                ? { ...base, "atman.routines": [], "atman.memory.routines": [] }
-                : { ...base, "atman.savedAdvice": [], "atman.adviceHistory": [], "atman.memory.savedAdvice": [] };
-      await updateDoc(doc(db, "users", user.uid), updates);
-    } catch (err) {
-      console.error("Memory clear failed:", err);
-    } finally {
-      setMemoryBusy(null);
-    }
   };
 
   const handleDeleteAccount = async () => {
@@ -631,42 +576,20 @@ export default function Settings() {
         </section>
 
         {/* Memory */}
-        <section className="glass rounded-[2rem] p-6 mb-6">
+        <section id="memory" className="glass rounded-[2rem] p-6 mb-6 scroll-mt-24">
           <div className="flex items-center gap-3 mb-4">
             <Brain size={18} className="text-gold" />
             <h2 className="text-gold text-sm font-bold uppercase tracking-widest">
-              Memory
+              What I remember
             </h2>
           </div>
-          <div className="space-y-3">
-            {memoryRows.map((row) => (
-              <div
-                key={row.bucket}
-                className="rounded-xl bg-white/5 border border-white/10 p-3"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm text-white/80">
-                      {row.label} <span className="text-white/30">({row.count})</span>
-                    </p>
-                    <p className="text-xs text-white/35 line-clamp-1">{row.preview}</p>
-                  </div>
-                  <button
-                    onClick={() => clearMemoryBucket(row.bucket)}
-                    disabled={memoryBusy !== null || row.count === 0}
-                    className="p-2 rounded-lg border border-white/10 text-white/35 hover:text-red-400 disabled:opacity-30"
-                    title={`Clear ${row.label}`}
-                  >
-                    {memoryBusy === row.bucket ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <Trash2 size={14} />
-                    )}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+          <p className="text-xs text-white/40 mb-4">
+            AstroYou automatically turns your conversations into short notes
+            (feelings, patterns, people, events) to personalise guidance.
+            Review, delete or pause them here. Deleting a conversation also
+            deletes the notes derived from it.
+          </p>
+          <MemoryManager />
         </section>
 
         {/* Data & Privacy */}

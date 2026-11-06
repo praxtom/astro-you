@@ -5,7 +5,7 @@
 > interprets it with an AI Jyotish that retains chart, dasha timeline, and
 > conversation history between sessions.
 
-Last updated: 2026-08-19
+Last updated: 2026-11-06
 
 ## What it is
 
@@ -84,4 +84,4 @@ follows the classical order: behaviour and service before anything costly.
 
 ## Sitemap
 
-https://astroyou.app/sitemap.xml (441 URLs)
+https://astroyou.app/sitemap.xml (272 URLs)

@@ -18,7 +18,7 @@ The consult desk uses named AI astrologers today and can later replace the same 
 | Arjun Sharma | Career Strategist | Career & Finance | 8 |
 | Meera Devi | Relationship Guide | Love & Marriage | 5 |
 | Pandit Raghunath | Traditional Jyotish Scholar | Traditional Jyotish & Remedies | 10 |
-| Dr. Shanti | Wellbeing Guide | Health & Wellbeing | 8 |
+| Shanti Ma (id `dr-shanti`, kept for stored sessions) | Wellbeing Guide | Health & Wellbeing | 8 |
 | Nanda Ji | Family Advisor | Family, Property & Muhurat | 5 |
 | Ishaan Rao | Business Timing Advisor | Career & Business | 10 |
 | Tara Kapoor | Life Pattern Reader | Love, Career & Self | 8 |
@@ -39,4 +39,10 @@ When real people are added, keep the same catalogue fields:
 - `sampleQuestions`
 - `pricePerMin`
 
-Do not add claims like verified, years of experience, degrees, review counts, or live availability unless they are real and backed by the admin/trust system.
+Do not add claims like verified, years of experience, degrees, review counts, or live availability unless they are real and backed by the admin/trust system. This includes honorifics that imply a qualification (for example "Dr."). Persona `id`s are stable keys stored in consult sessions; rename the display `name` only and never change an `id`.
+
+## Guardrails In Prompts
+
+- No persona gives investment, trading, or financial-product advice or promises financial outcomes. Career and business personas describe dasha/transit timing windows as periods for reflection and planning, and point money decisions to a qualified financial adviser.
+- Wellbeing guidance stays preventive and non-diagnostic and suggests a doctor for serious concerns.
+- Remedies and doshas are explained without fear-based pressure.

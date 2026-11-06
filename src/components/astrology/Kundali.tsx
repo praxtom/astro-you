@@ -5,6 +5,7 @@ import {
   calculateHouseSigns,
   getSignNumberByCode,
 } from "../../lib/astrology";
+import { resolveAscendant, resolveMoon } from "../../lib/chart-summary";
 import "./Kundali.css";
 
 interface KundaliProps {
@@ -14,11 +15,16 @@ interface KundaliProps {
 
 const Kundali: React.FC<KundaliProps> = ({ data, className = "" }) => {
   // Find Ascendant sign number
-  const ascendantPos = data.planetary_positions.find(
-    (p) => p.name === "Ascendant"
-  );
-  const ascendantSignNum = ascendantPos
-    ? getSignNumberByCode(ascendantPos.sign)
+  // The D1 payload carries the Lagna in `ascendant` / house-1 cusp, not as a
+  // planetary_positions entry — resolveAscendant checks all three.
+  // Birth time unknown: there is no Lagna. House 1 is the Moon's sign
+  // (Chandra Lagna) and the server already counts houses from it.
+  const timeUnknown = (data as { timeUnknown?: boolean }).timeUnknown === true;
+  const moon = timeUnknown ? resolveMoon(data) : null;
+  const ascendant = timeUnknown ? null : resolveAscendant(data);
+  const firstHouseCode = timeUnknown ? moon?.code : ascendant?.code;
+  const ascendantSignNum = firstHouseCode
+    ? getSignNumberByCode(firstHouseCode)
     : 1;
 
   // Map planets to houses
@@ -155,9 +161,25 @@ const Kundali: React.FC<KundaliProps> = ({ data, className = "" }) => {
           );
         })}
 
-        {/* Central Overlay? No, keep it clean */}
+        {timeUnknown && (
+          <text
+            x={400}
+            y={235}
+            className="degree-text"
+            textAnchor="middle"
+            style={{ fill: "rgba(229,185,106,0.7)" }}
+          >
+            Chandra Lagna (birth time unknown)
+          </text>
+        )}
       </svg>
 
+      {timeUnknown && (
+        <p className="mt-2 text-center text-xs text-white/40">
+          House 1 is your Moon sign (Chandra Lagna, birth time unknown) — add
+          your birth time to see your rising sign.
+        </p>
+      )}
       {/* Legend/Info - Removed Nakshatra/Sidereal labels as requested */}
     </div>
   );

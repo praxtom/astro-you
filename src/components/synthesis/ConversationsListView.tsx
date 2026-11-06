@@ -230,15 +230,15 @@ export function BlueprintPanelControls({
         <div className="flex items-center gap-1.5 px-2 text-[0.65rem] font-mono">
           <Sparkles size={10} />
           <span className="font-sans text-white/55">Credits</span>
-          <span>{credits} min</span>
+          <span>{credits}</span>
         </div>
         <button
           type="button"
           onClick={onAddCredits}
           disabled={isPaying}
           className="flex h-6 items-center gap-1 rounded-full bg-gold/10 px-2 text-[0.58rem] font-bold uppercase tracking-[0.16em] text-gold transition-colors hover:bg-gold/20 disabled:cursor-not-allowed disabled:opacity-50"
-          title="Add more minutes"
-          aria-label="Add more minutes"
+          title="Add credits"
+          aria-label="Add credits"
         >
           {isPaying ? (
             <Loader2 size={10} className="animate-spin" />

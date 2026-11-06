@@ -17,6 +17,12 @@ import {
   validateLifeEventInput,
   validatePatternText,
 } from "../../../src/lib/atman-schema.js";
+import {
+  forgetChatInAtman,
+  memoryTextKey,
+  stripUndefined,
+  type ForgetChatCounts,
+} from "../../../src/lib/memory-ops.js";
 
 type BrainAnalysisResult = {
   emotionalState?: unknown;
@@ -89,6 +95,8 @@ export interface ApplyBrainInsightsInput {
   extractedAdvice?: { advice: string; context: string } | null;
   source: AtmanBrainSource;
   now?: Date;
+  /** Chat the insights came from; tagged on every derived entry. */
+  sourceChatId?: string;
 }
 
 export interface ApplyBrainInsightsResult {
@@ -107,6 +115,8 @@ export interface PersistAtmanInsightsInput {
 export interface PersistAtmanInsightsResult {
   persisted: boolean;
   changed: boolean;
+  /** True when the user has paused memory — nothing was written. */
+  paused?: boolean;
   ledgerEntry?: AtmanMemoryLedgerEntry;
 }
 
@@ -135,7 +145,11 @@ export function applyBrainInsights(
   const now = input.now || new Date();
   const atman =
     normalizeAtmanData(input.existingAtman, now) || createInitialAtmanData(now);
-  const evidence = buildEvidence(input.source, now);
+  const sourceChatId =
+    typeof input.sourceChatId === "string" && input.sourceChatId.trim()
+      ? input.sourceChatId.trim()
+      : undefined;
+  const evidence = buildEvidence(input.source, now, sourceChatId);
   const analysis = input.analysisResult || {};
   let ledgerEmotionalState: AtmanEmotion | undefined;
   let changed = false;
@@ -163,7 +177,11 @@ export function applyBrainInsights(
           ...(atman.emotionalHistory ||
             atman.transient?.emotionalHistory ||
             []),
-          { state: emotionalState, date: now },
+          {
+            state: emotionalState,
+            date: now,
+            ...(sourceChatId ? { sourceChatId } : {}),
+          },
         ].slice(-30),
       };
       atman.emotionalHistory = atman.transient.emotionalHistory;
@@ -202,6 +220,7 @@ export function applyBrainInsights(
       ...safeAdvice,
       date: now.toISOString(),
       followedUp: false,
+      ...(sourceChatId ? { sourceChatId } : {}),
     };
     const advice = [
       ...(atman.savedAdvice || atman.adviceHistory || []).slice(-19),
@@ -229,6 +248,13 @@ export function applyBrainInsights(
     const contradictions = analysis.detectedContradictions
       .map((value) => String(value || "").trim())
       .filter(Boolean);
+    tagDerivedText(
+      atman,
+      "contradictedPatterns",
+      atman.contradictedPatterns || [],
+      contradictions,
+      sourceChatId,
+    );
     atman.contradictedPatterns = mergeUniqueStrings(
       atman.contradictedPatterns || [],
       contradictions,
@@ -249,6 +275,13 @@ export function applyBrainInsights(
     const threads = analysis.karmicThreads
       .map((value) => String(value || "").trim())
       .filter(Boolean);
+    tagDerivedText(
+      atman,
+      "karmicThreads",
+      atman.karmicThreads || [],
+      threads,
+      sourceChatId,
+    );
     atman.karmicThreads = mergeUniqueStrings(
       atman.karmicThreads || [],
       threads,
@@ -280,7 +313,10 @@ export function applyBrainInsights(
 export async function persistAtmanInsights(
   deps: AtmanBrainDeps,
   input: PersistAtmanInsightsInput,
+  meta?: { chatId?: string },
 ): Promise<PersistAtmanInsightsResult> {
+  const sourceChatId =
+    typeof meta?.chatId === "string" && meta.chatId ? meta.chatId : undefined;
   const userRef = deps.db.collection("users").doc(input.uid);
   const now = deps.now?.() || new Date();
 
@@ -291,15 +327,19 @@ export async function persistAtmanInsights(
       const snap = await tx.get(userRef);
       if (!snap.exists) return { persisted: false, changed: false };
       const userData = snap.data() || {};
+      if (userData.memoryPaused === true) {
+        return { persisted: false, changed: false, paused: true };
+      }
       const result = applyBrainInsights({
         existingAtman: userData.atman as Partial<AtmanData> | undefined,
         analysisResult: input.analysisResult,
         extractedAdvice: input.extractedAdvice,
         source: input.source,
         now,
+        sourceChatId,
       });
       if (!result.changed) return { persisted: false, changed: false };
-      tx.set(userRef, { atman: result.atman }, { merge: true });
+      tx.set(userRef, { atman: stripUndefined(result.atman) }, { merge: true });
       return {
         persisted: true,
         changed: true,
@@ -315,19 +355,23 @@ export async function persistAtmanInsights(
   }
 
   const userData = userSnap.data() || {};
+  if (userData.memoryPaused === true) {
+    return { persisted: false, changed: false, paused: true };
+  }
   const result = applyBrainInsights({
     existingAtman: userData.atman as Partial<AtmanData> | undefined,
     analysisResult: input.analysisResult,
     extractedAdvice: input.extractedAdvice,
     source: input.source,
     now,
+    sourceChatId,
   });
 
   if (!result.changed) {
     return { persisted: false, changed: false };
   }
 
-  await userRef.set({ atman: result.atman }, { merge: true });
+  await userRef.set({ atman: stripUndefined(result.atman) }, { merge: true });
   return {
     persisted: true,
     changed: true,
@@ -471,7 +515,7 @@ export async function persistPredictionFeedbackSignal(
     feedback: input.feedback,
     now: deps.now?.() || new Date(),
   });
-  await userRef.set({ atman: result.atman }, { merge: true });
+  await userRef.set({ atman: stripUndefined(result.atman) }, { merge: true });
   return { persisted: true, changed: true, ledgerEntry: result.ledgerEntry };
 }
 
@@ -505,7 +549,7 @@ export async function persistAtmanMaintenance(
     };
   }
 
-  await userRef.set({ atman: result.atman }, { merge: true });
+  await userRef.set({ atman: stripUndefined(result.atman) }, { merge: true });
   return {
     persisted: true,
     changed: true,
@@ -893,6 +937,7 @@ function syncAtmanBuckets(atman: AtmanData) {
 function buildEvidence(
   source: AtmanBrainSource,
   now: Date,
+  sourceChatId?: string,
 ): AtmanMemoryEvidence {
   const message = [
     source.userMessage ? `User: ${source.userMessage}` : "",
@@ -909,6 +954,7 @@ function buildEvidence(
     personaId: source.personaId,
     messageExcerpt: truncate(message, 260),
     confidence: source.confidence || 0.7,
+    ...(sourceChatId ? { sourceChatId } : {}),
   };
 }
 
@@ -938,6 +984,32 @@ function scoreEvent(event: UserLifeEvent) {
   const statusBoost =
     event.status === "pending" ? 50 : event.status === "completed" ? 10 : 0;
   return statusBoost + event.confidence * 10;
+}
+
+const MAX_DERIVED_TEXT_SOURCES = 100;
+
+/** Remember which chat introduced each NEW karmic thread / contradiction. */
+function tagDerivedText(
+  atman: AtmanData,
+  bucket: "karmicThreads" | "contradictedPatterns",
+  existing: string[],
+  incoming: string[],
+  sourceChatId: string | undefined,
+) {
+  if (!sourceChatId) return;
+  const known = new Set(existing.map(memoryTextKey));
+  const added: NonNullable<AtmanData["derivedTextSources"]> = [];
+  for (const text of incoming) {
+    const key = memoryTextKey(text);
+    if (known.has(key)) continue;
+    known.add(key);
+    added.push({ bucket, text, sourceChatId });
+  }
+  if (added.length === 0) return;
+  atman.derivedTextSources = [
+    ...(atman.derivedTextSources || []),
+    ...added,
+  ].slice(-MAX_DERIVED_TEXT_SOURCES);
 }
 
 function mergeUniqueStrings(existing: string[], incoming: string[]) {
@@ -1048,4 +1120,100 @@ function daysBetween(from: Date, to: Date) {
 
 function roundScore(value: number) {
   return Math.round(value * 100) / 100;
+}
+
+// ── Forget a conversation ──────────────────────────────────────────────
+
+type ForgetDocSnapshot = {
+  exists: boolean;
+  data(): Record<string, unknown> | undefined;
+};
+
+type ForgetDocRef = {
+  get(): Promise<ForgetDocSnapshot>;
+  update(data: Record<string, unknown>): Promise<unknown>;
+  collection(name: string): { doc(id: string): ForgetDocRef };
+};
+
+export interface ForgetChatDeps {
+  db: {
+    collection(name: string): { doc(id: string): ForgetDocRef };
+    runTransaction?: <T>(fn: (tx: any) => Promise<T>) => Promise<T>;
+  };
+  /** FieldValue.delete() in production. */
+  deleteField: () => unknown;
+}
+
+export interface ForgetChatResult {
+  atmanChanged: boolean;
+  summaryRemoved: boolean;
+  removed: ForgetChatCounts;
+}
+
+const CHAT_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+
+export function isValidChatId(chatId: unknown): chatId is string {
+  return typeof chatId === "string" && CHAT_ID_PATTERN.test(chatId);
+}
+
+/**
+ * Remove every memory derived from one chat (entries tagged with that
+ * sourceChatId) plus the chat's stored summary. Safe to call after the chat
+ * document itself has been deleted.
+ */
+export async function forgetChat(
+  deps: ForgetChatDeps,
+  uid: string,
+  chatId: string,
+): Promise<ForgetChatResult> {
+  if (!isValidChatId(chatId)) throw new Error("Invalid chatId");
+  const userRef = deps.db.collection("users").doc(uid);
+
+  const applyToSnapshot = (snap: ForgetDocSnapshot) => {
+    if (!snap.exists) return null;
+    const data = snap.data() || {};
+    if (!data.atman) return null;
+    return forgetChatInAtman(data.atman as Partial<AtmanData>, chatId);
+  };
+
+  let atmanResult: ReturnType<typeof forgetChatInAtman> | null;
+  if (typeof deps.db.runTransaction === "function") {
+    atmanResult = await deps.db.runTransaction(async (tx: any) => {
+      const result = applyToSnapshot(await tx.get(userRef));
+      // update() replaces the whole atman map, so fields we deleted
+      // (e.g. an emotionalState that only this chat set) are really gone.
+      if (result?.changed) {
+        tx.update(userRef, { atman: stripUndefined(result.atman) });
+      }
+      return result;
+    });
+  } else {
+    atmanResult = applyToSnapshot(await userRef.get());
+    if (atmanResult?.changed) {
+      await userRef.update({ atman: stripUndefined(atmanResult.atman) });
+    }
+  }
+
+  let summaryRemoved = false;
+  const chatRef = userRef.collection("chats").doc(chatId);
+  const chatSnap = await chatRef.get();
+  if (chatSnap.exists && chatSnap.data()?.summary !== undefined) {
+    await chatRef.update({ summary: deps.deleteField() });
+    summaryRemoved = true;
+  }
+
+  return {
+    atmanChanged: Boolean(atmanResult?.changed),
+    summaryRemoved,
+    removed: atmanResult?.removed || {
+      patterns: 0,
+      events: 0,
+      advice: 0,
+      ledger: 0,
+      emotionalHistory: 0,
+      karmicThreads: 0,
+      contradictedPatterns: 0,
+      emotionalStateReset: false,
+    },
+  };
 }

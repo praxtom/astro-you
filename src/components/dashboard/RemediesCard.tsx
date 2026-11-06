@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Gem, Loader2, Moon, Flame, HandHeart, Plus, Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useRemedies, type Remedy } from '../../hooks/useRemedies';
+import { PersonalCardNotice } from './PersonalCardNotice';
 import { useAuth } from '../../lib/useAuth';
 import { AtmanService } from '../../lib/atman';
 import { useToast } from '../ui/toast-context';
@@ -104,7 +105,7 @@ const foundationalRemedies: Remedy[] = [
 ];
 
 export const RemediesCard: React.FC<RemediesCardProps> = ({ birthData }) => {
-    const { remedies, loading, error } = useRemedies(birthData);
+    const { remedies, loading, error, errorKind, retry } = useRemedies(birthData);
     const { user } = useAuth();
     const { addToast } = useToast();
     const [addedRoutines, setAddedRoutines] = useState<Set<string>>(new Set());
@@ -176,11 +177,17 @@ export const RemediesCard: React.FC<RemediesCardProps> = ({ birthData }) => {
                             />
                         ))}
                     </div>
-                    <p className="mt-3 text-xs leading-relaxed text-white/35">
-                        {hasBirthProfile
-                            ? 'Personal remedies will appear here when the chart reading is available.'
-                            : 'Add birth details to receive chart-specific remedies.'}
-                    </p>
+                    {hasBirthProfile && error && errorKind ? (
+                        <div className="mt-3">
+                            <PersonalCardNotice kind={errorKind} thing="personal remedies" onRetry={retry} />
+                        </div>
+                    ) : (
+                        <p className="mt-3 text-xs leading-relaxed text-white/35">
+                            {hasBirthProfile
+                                ? 'Your chart did not call for specific remedies right now — these daily practices suit every chart.'
+                                : 'Add birth details to receive chart-specific remedies.'}
+                        </p>
+                    )}
                     <Link
                         to="/remedies"
                         className="mt-3 flex w-full items-center justify-center rounded-xl border border-gold/20 bg-gold/10 px-3 py-2 text-xs font-bold uppercase text-gold hover:bg-gold/15"

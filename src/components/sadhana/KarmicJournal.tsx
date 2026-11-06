@@ -17,7 +17,7 @@ import {
     PenTool
 } from 'lucide-react';
 import { AtmanData, UserLifeEvent, WeightedPattern } from '../../types/user';
-import { AtmanService } from '../../lib/atman';
+import { AtmanService, AtmanMemoryControls } from '../../lib/atman';
 import { postJson } from '../../lib/apiFetch';
 import { InnerCircleManager } from './InnerCircleManager';
 import { GrowthRadar } from './GrowthRadar';
@@ -174,6 +174,19 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
     const [expandedSection, setExpandedSection] = useState<string | null>('patterns');
     const [journalText, setJournalText] = useState('');
     const [journalInsights, setJournalInsights] = useState<JournalInsight[]>([]);
+    const [removingThread, setRemovingThread] = useState<string | null>(null);
+
+    const handleRemoveThread = async (thread: string) => {
+        setRemovingThread(thread);
+        try {
+            await AtmanMemoryControls.forgetItem(userId, { group: 'karmicThreads', text: thread });
+            onRefresh();
+        } catch (err) {
+            console.error('[KarmicJournal] Failed to remove karmic thread:', err);
+        } finally {
+            setRemovingThread(null);
+        }
+    };
 
     if (!atmanState) {
         return (
@@ -773,10 +786,20 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                                     <p className="text-[10px] text-violet-400/60 uppercase tracking-widest mb-1">Connections across life domains</p>
                                     {atmanState.karmicThreads.map((thread, idx) => (
                                         <div 
-                                            key={idx}
-                                            className="p-3 bg-violet-500/10 border border-violet-500/20 rounded-lg text-sm text-violet-100 italic"
+                                            key={`${idx}-${thread}`}
+                                            className="flex items-start justify-between gap-2 p-3 bg-violet-500/10 border border-violet-500/20 rounded-lg text-sm text-violet-100 italic"
                                         >
-                                            " {thread} "
+                                            <span className="min-w-0">" {thread} "</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRemoveThread(thread)}
+                                                disabled={removingThread !== null}
+                                                aria-label="Remove this karmic thread"
+                                                title="Remove"
+                                                className="shrink-0 p-1 rounded-md not-italic text-violet-300/40 hover:text-red-300 disabled:opacity-30"
+                                            >
+                                                <X size={12} />
+                                            </button>
                                         </div>
                                     ))}
                                 </div>

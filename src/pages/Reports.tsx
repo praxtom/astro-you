@@ -6,7 +6,16 @@ import { PageShell } from "../components/layout/PageShell";
 import AuthModal from "../components/AuthModal";
 import { useAuth } from "../lib/useAuth";
 import { db } from "../lib/firebase";
-import { useSubscription, useUserProfile } from "../hooks";
+import {
+  useDashaPeriods,
+  useKundali,
+  useSubscription,
+  useUserProfile,
+} from "../hooks";
+import Kundali from "../components/astrology/Kundali";
+import { ChartThreeLinesCard } from "../components/dashboard/ChartThreeLinesCard";
+import { STORAGE_KEYS } from "../lib/constants";
+import { parseStoredJSON } from "../lib/safeStorage";
 import { useCreditTopup } from "../hooks/useCreditTopup";
 import { DEFAULT_CREDIT_PACK } from "../lib/credit-packs";
 import { trackAcquisitionEvent } from "../lib/acquisition";
@@ -43,6 +52,20 @@ export default function Reports() {
   const [libraryError, setLibraryError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+
+  // "My Chart" leads with the chart itself; the report store follows. Guests
+  // see the chart they just cast (session profile) too.
+  const [guestBirthData] = useState<any>(() =>
+    parseStoredJSON(sessionStorage, STORAGE_KEYS.GUEST_PROFILE),
+  );
+  const chartBirthData: any = birthData?.dob ? birthData : guestBirthData;
+  const hasChartBirthData = Boolean(chartBirthData?.dob && chartBirthData?.tob);
+  const natal = useKundali(
+    hasChartBirthData ? chartBirthData : null,
+    "D1",
+    profile?.zodiacMode,
+  );
+  const dasha = useDashaPeriods(hasChartBirthData ? chartBirthData : null);
 
   const loadReports = useCallback(async () => {
     if (!user) return;
@@ -232,12 +255,65 @@ export default function Reports() {
   return (
     <PageShell>
       <div>
+        <section className="mb-8" aria-labelledby="my-chart-title">
+          <p className="platform-eyebrow mb-2">My Chart</p>
+          <h1 id="my-chart-title" className="type-page-title max-w-3xl">
+            Your birth chart
+          </h1>
+          {!hasChartBirthData ? (
+            <div className="platform-panel mt-4 p-4">
+              <p className="type-body text-white/70">
+                Add your birth date, time and place to see your chart.
+              </p>
+              <button
+                onClick={() => navigate("/onboarding")}
+                className="platform-button-primary mt-3"
+              >
+                Add birth details
+              </button>
+            </div>
+          ) : (
+            <div className="mt-4 grid grid-cols-1 lg:grid-cols-[minmax(0,28rem)_1fr] gap-4 items-start">
+              <div className="platform-panel p-3">
+                {natal.kundaliData ? (
+                  <Kundali data={natal.kundaliData as any} />
+                ) : natal.loading ? (
+                  <div className="aspect-square w-full rounded-xl bg-white/5 animate-pulse" />
+                ) : (
+                  <div className="p-4 text-sm text-white/55">
+                    Your chart is temporarily unavailable. Please try again in a
+                    little while.
+                    <button
+                      onClick={() => void natal.refetch()}
+                      className="platform-button-secondary mt-3"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                )}
+              </div>
+              <ChartThreeLinesCard
+                kundali={natal.kundaliData}
+                kundaliLoading={natal.loading}
+                dashaPeriods={dasha.periods}
+                dashaLoading={dasha.loading}
+                errorKind={dasha.errorKind}
+                showFullChartLink={false}
+                onRetry={() => {
+                  dasha.retry();
+                  void natal.refetch();
+                }}
+              />
+            </div>
+          )}
+        </section>
+
         <section className="grid grid-cols-1 lg:grid-cols-[1fr_19rem] gap-4 items-start mb-4">
           <div>
             <p className="platform-eyebrow mb-2">Report Studio</p>
-            <h1 className="type-page-title max-w-3xl">
+            <h2 className="type-page-title max-w-3xl">
               Reports that are generated, stored, and reusable.
-            </h1>
+            </h2>
             <p className="platform-copy mt-3 max-w-2xl">
               Generate PDF reports from your saved birth profile. Completed
               files are stored in your private library and can be downloaded

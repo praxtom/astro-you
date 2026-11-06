@@ -1,8 +1,4 @@
-import { useEffect, useState, useRef } from "react";
-import { useAuth } from "../lib/useAuth";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "../lib/firebase";
-import { postJson } from "../lib/apiFetch";
+import { useEffect, useState } from "react";
 
 export interface DashaTransition {
   planet: string;
@@ -10,92 +6,64 @@ export interface DashaTransition {
   type: "Mahadasha" | "Antardasha";
 }
 
+interface MonitoredDashaPeriod {
+  planet: string;
+  endDate: string;
+  subPeriods?: Array<{ planet: string; endDate: string }>;
+}
+
 /**
- * Hook to monitor upcoming significant Dasha transitions.
- * Triggers events for proactive preparation nudges.
+ * Watches already-loaded dasha periods for a significant transition in the
+ * next 35 days and emits `atman:dasha-shift-approaching` for
+ * useProactiveTriggers.
+ *
+ * It takes the periods as input instead of fetching them: the Dashboard loads
+ * DASHAS once (useDashaPeriods) and shares the result, so the monitor costs no
+ * extra astrology-API call. Re-checks hourly against the same data.
  */
-export function useDashaMonitor() {
-  const { user } = useAuth();
+export function useDashaMonitor(
+  periods: MonitoredDashaPeriod[] | null | undefined,
+  enabled = true,
+) {
   const [upcomingTransition, setUpcomingTransition] =
     useState<DashaTransition | null>(null);
-  const lastCheckRef = useRef<number>(0);
 
   useEffect(() => {
-    if (!user) return;
+    if (!enabled || !periods || periods.length === 0) return;
 
-    const checkTransitions = async () => {
-      // Rate limit checks to once per hour
+    const checkTransitions = () => {
       const now = Date.now();
-      if (now - lastCheckRef.current < 3600000) return;
-      lastCheckRef.current = now;
+      const limit = new Date(now);
+      limit.setDate(limit.getDate() + 35);
 
-      try {
-        // Get birth data from user profile
-        const userDoc = await getDoc(doc(db, "users", user.uid));
-        if (!userDoc.exists()) return;
-        const data = userDoc.data();
-        // Birth data is stored under the 'profile' sub-object in Firestore
-        const profile = data.profile || data;
+      const nextShift = findNextSignificantShift(periods, new Date(now), limit);
+      setUpcomingTransition(nextShift);
+      if (!nextShift) return;
 
-        if (!profile.dob || !profile.tob) return;
-
-        const birthData = {
-          dob: profile.dob,
-          tob: profile.tob,
-          pob: profile.pob || "Unknown",
-          lat: profile.coordinates?.lat,
-          lng: profile.coordinates?.lng,
-        };
-
-        const response = await postJson("/api/kundali", {
-          birthData,
-          chartType: "DASHAS",
-        });
-
-        if (!response.ok) return;
-        const result = await response.json();
-        const dashas = result.periods || result;
-
-        // Find next transition in the next 35 days
-        const thirtyFiveDaysFromNow = new Date();
-        thirtyFiveDaysFromNow.setDate(thirtyFiveDaysFromNow.getDate() + 35);
-
-        const nextShift = findNextSignificantShift(
-          dashas,
-          new Date(),
-          thirtyFiveDaysFromNow,
-        );
-        if (nextShift) {
-          setUpcomingTransition(nextShift);
-
-          // Emit custom event for useProactiveTriggers
-          const event = new CustomEvent("atman:dasha-shift-approaching", {
-            detail: {
-              planet: nextShift.planet,
-              date: nextShift.date,
-              type: nextShift.type,
-              daysRemaining: Math.ceil(
-                (nextShift.date.getTime() - now) / (1000 * 60 * 60 * 24),
-              ),
-            },
-          });
-          window.dispatchEvent(event);
-        }
-      } catch (e) {
-        console.error("Dasha Monitor fail:", e);
-      }
+      window.dispatchEvent(
+        new CustomEvent("atman:dasha-shift-approaching", {
+          detail: {
+            planet: nextShift.planet,
+            date: nextShift.date,
+            type: nextShift.type,
+            daysRemaining: Math.ceil(
+              (nextShift.date.getTime() - now) / (1000 * 60 * 60 * 24),
+            ),
+          },
+        }),
+      );
     };
 
     checkTransitions();
     const interval = setInterval(checkTransitions, 3600000);
     return () => clearInterval(interval);
-  }, [user]);
+  }, [periods, enabled]);
 
   return upcomingTransition;
 }
 
 function findNextSignificantShift(
-  dashas: any[],
+  dashas: MonitoredDashaPeriod[],
   now: Date,
   limit: Date,
 ): DashaTransition | null {

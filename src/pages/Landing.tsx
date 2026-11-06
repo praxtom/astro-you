@@ -14,6 +14,8 @@ import { useAuth } from "../lib/useAuth";
 import { auth, db } from "../lib/firebase";
 import { STORAGE_KEYS } from "../lib/constants";
 import { captureReferralFromUrl } from "../lib/acquisition";
+import { hasSavedBirthProfile } from "../lib/saved-profile";
+import { SIGNUP_BONUS_CREDITS } from "../lib/signup-offer";
 import {
   getPlanetStoryState,
   PLANET_STORY_CHAPTERS,
@@ -26,12 +28,12 @@ function PlanetStoryNarrative({
   chapter,
   isActive,
   onReveal,
-  onSignIn,
+  onHaveChart,
 }: {
   chapter: PlanetStoryChapter;
   isActive: boolean;
   onReveal: () => void;
-  onSignIn: () => void;
+  onHaveChart: () => void;
 }) {
   const isOpening = chapter.id === "moving-sky";
   const isSynthesis = chapter.id === "synthesis";
@@ -167,7 +169,7 @@ function PlanetStoryNarrative({
           {isOpening ? (
             <button
               className="btn border-0 bg-transparent px-8 text-white/70 underline decoration-white/20 underline-offset-8 hover:text-white"
-              onClick={onSignIn}
+              onClick={onHaveChart}
             >
               I already have a chart
             </button>
@@ -193,11 +195,94 @@ function getPlanetStoryScrimClass(chapter: PlanetStoryChapter) {
   return `${mobileScrim} lg:bg-[linear-gradient(90deg,rgba(3,3,8,0.82)_0%,rgba(3,3,8,0.52)_30%,rgba(3,3,8,0.08)_54%,transparent_72%)]`;
 }
 
+function HaveChartChoice({
+  isOpen,
+  onClose,
+  onUpload,
+  onSignIn,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onUpload: () => void;
+  onSignIn: () => void;
+}) {
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-black/85 backdrop-blur-md"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="have-chart-title"
+        className="relative z-10 w-full max-w-md rounded-[2rem] border border-white/10 bg-[#0a0a0f] p-6 shadow-2xl"
+      >
+        <h2 id="have-chart-title" className="font-display text-2xl text-white">
+          Welcome back to your sky
+        </h2>
+        <p className="mt-2 text-sm text-white/55">
+          How would you like to bring your chart in?
+        </p>
+        <div className="mt-6 space-y-3">
+          <button
+            type="button"
+            onClick={onSignIn}
+            className="w-full rounded-2xl border border-gold/30 bg-gold/10 px-5 py-4 text-left transition-colors hover:bg-gold/15"
+          >
+            <span className="block text-sm font-bold uppercase tracking-widest text-gold">
+              Sign in
+            </span>
+            <span className="mt-1 block text-sm text-white/60">
+              Your chart is already saved with AstroYou.
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={onUpload}
+            className="w-full rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-left transition-colors hover:border-gold/30"
+          >
+            <span className="block text-sm font-bold uppercase tracking-widest text-white/80">
+              Upload a Kundali
+            </span>
+            <span className="mt-1 block text-sm text-white/50">
+              Photo of a printed or handwritten chart — we read the birth details from it.
+            </span>
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-5 w-full text-xs uppercase tracking-widest text-white/40 hover:text-white/70"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Landing() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
+  // "I already have a chart": choose between uploading a Kundali image and
+  // signing in to a saved chart. Upload is only offered on this path.
+  const [showHaveChartChoice, setShowHaveChartChoice] = useState(false);
+  const [onboardingStartsWithUpload, setOnboardingStartsWithUpload] =
+    useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [showCelestialEngine, setShowCelestialEngine] = useState(false);
   const [trustSummary, setTrustSummary] = useState<LandingTrustSummary | null>(
@@ -265,15 +350,45 @@ function Landing() {
     }
   }, [user, navigate]);
 
+  // Returning signed-in users with a saved birth profile belong on their
+  // dashboard, not the marketing page.
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    getDoc(doc(db, "users", user.uid))
+      .then((snap) => {
+        if (alive && snap.exists() && hasSavedBirthProfile(snap.data())) {
+          navigate("/dashboard", { replace: true });
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [user, navigate]);
+
+  const userHasSavedProfile = async (uid: string) => {
+    try {
+      const docSnap = await getDoc(doc(db, "users", uid));
+      return docSnap.exists() && hasSavedBirthProfile(docSnap.data());
+    } catch {
+      return false;
+    }
+  };
+
+  const openOnboarding = (startWithUpload: boolean) => {
+    setOnboardingStartsWithUpload(startWithUpload);
+    setShowOnboardingModal(true);
+  };
+
   const handleLoginSuccess = async () => {
     const currentUser = auth.currentUser || user;
     if (currentUser) {
-      const docSnap = await getDoc(doc(db, "users", currentUser.uid));
-      if (docSnap.exists() && docSnap.data().name) {
+      if (await userHasSavedProfile(currentUser.uid)) {
         navigate("/dashboard");
       } else {
         sessionStorage.setItem(STORAGE_KEYS.MODE, "logged_in");
-        setShowOnboardingModal(true);
+        openOnboarding(false);
       }
     } else {
       navigate("/dashboard");
@@ -282,19 +397,29 @@ function Landing() {
 
   const handleRevealBirthSky = async () => {
     if (user) {
-      const docSnap = await getDoc(doc(db, "users", user.uid));
-      if (docSnap.exists() && docSnap.data().name) {
+      if (await userHasSavedProfile(user.uid)) {
         navigate("/dashboard");
         return;
       }
 
       sessionStorage.setItem(STORAGE_KEYS.MODE, "logged_in");
-      setShowOnboardingModal(true);
+      openOnboarding(false);
       return;
     }
 
     sessionStorage.setItem(STORAGE_KEYS.MODE, "guest");
-    setShowOnboardingModal(true);
+    openOnboarding(false);
+  };
+
+  const handleUploadChart = () => {
+    setShowHaveChartChoice(false);
+    sessionStorage.setItem(STORAGE_KEYS.MODE, user ? "logged_in" : "guest");
+    openOnboarding(true);
+  };
+
+  const handleSignInFromChoice = () => {
+    setShowHaveChartChoice(false);
+    setShowAuthModal(true);
   };
 
   return (
@@ -314,7 +439,7 @@ function Landing() {
 
       <Header
         onShowAuth={() => setShowAuthModal(true)}
-        onShowOnboarding={() => setShowOnboardingModal(true)}
+        onShowOnboarding={() => openOnboarding(false)}
       />
 
       <div
@@ -360,7 +485,7 @@ function Landing() {
                   chapter={chapter}
                   isActive={storyState.activeIndex === index}
                   onReveal={handleRevealBirthSky}
-                  onSignIn={() => setShowAuthModal(true)}
+                  onHaveChart={() => setShowHaveChartChoice(true)}
                 />
               </div>
 
@@ -384,18 +509,30 @@ function Landing() {
 
       <Footer />
 
+      <HaveChartChoice
+        isOpen={showHaveChartChoice}
+        onClose={() => setShowHaveChartChoice(false)}
+        onUpload={handleUploadChart}
+        onSignIn={handleSignInFromChoice}
+      />
+
       <OnboardingModal
         isOpen={showOnboardingModal}
         onClose={() => setShowOnboardingModal(false)}
         onComplete={() => navigate("/dashboard")}
+        startWithUpload={onboardingStartsWithUpload}
+        onSignIn={() => {
+          setShowOnboardingModal(false);
+          setShowAuthModal(true);
+        }}
       />
 
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
         onSuccess={handleLoginSuccess}
-        title="Secure Access"
-        message="Sign in to save your profile and unlock unlimited insights."
+        title="Welcome back"
+        message={`Sign in to save your chart and get ${SIGNUP_BONUS_CREDITS} free credits.`}
       />
     </div>
   );

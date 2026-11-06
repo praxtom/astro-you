@@ -8,7 +8,8 @@
  * view spends from it. Tune the cost table here — it is the single source of truth.
  */
 import { createHash } from "node:crypto";
-import { applyCreditChange, CreditError } from "./credits.js";
+import { CreditError } from "./credits.js";
+import { reserveFeatureCharge, type FeatureCharge } from "./feature-charge.js";
 import { db, FieldValue } from "./firebase-admin.js";
 
 export const FEATURE_CREDIT_COST = {
@@ -39,66 +40,30 @@ export function stableChargeKey(
     .slice(0, 24);
 }
 
-export interface FeatureCharge {
-  charged: boolean;
-  refund: () => Promise<void>;
-}
+export type { FeatureCharge };
 
 /**
  * Reserve credits for a metered premium feature BEFORE the (paid) upstream call,
  * so a user cannot get free premium content by dropping the connection. Throws
  * CreditError (status 402) when the balance is insufficient. Returns a refund()
  * to call if delivery fails, so a user is never charged for a forecast they
- * didn't receive. Charge + refund are idempotent per `txnId`.
+ * didn't receive.
+ *
+ * Genuine duplicates of a paid window are not charged again; a window whose
+ * charge was refunded IS charged again on retry (see feature-charge.ts).
  */
 export async function reserveFeatureCredits(
   uid: string,
   feature: MeteredFeature,
   txnId: string,
 ): Promise<FeatureCharge> {
-  const cost = FEATURE_CREDIT_COST[feature];
-  const noop: FeatureCharge = { charged: false, refund: async () => {} };
-  if (!cost || cost <= 0) return noop;
-
-  const result = await applyCreditChange(
+  return reserveFeatureCharge(
     { db, FieldValue },
-    {
-      uid,
-      amount: -cost,
-      type: "feature",
-      source: `feature_${feature}`,
-      ledgerId: `feature_${feature}_${txnId}`,
-      metadata: { feature },
-    },
+    uid,
+    feature,
+    FEATURE_CREDIT_COST[feature],
+    txnId,
   );
-
-  // A duplicate means this window was already paid for (deterministic txnId) —
-  // nothing was deducted now, so a later failure must not "refund" it.
-  if (result.duplicate) return noop;
-
-  let refunded = false;
-  return {
-    charged: true,
-    refund: async () => {
-      if (refunded) return;
-      refunded = true;
-      try {
-        await applyCreditChange(
-          { db, FieldValue },
-          {
-            uid,
-            amount: cost,
-            type: "refund",
-            source: `feature_${feature}_refund`,
-            ledgerId: `feature_${feature}_refund_${txnId}`,
-            metadata: { feature, reason: "delivery_failed" },
-          },
-        );
-      } catch (err) {
-        console.error(`[Credits] Refund failed for ${feature}:`, err);
-      }
-    },
-  };
 }
 
 /**

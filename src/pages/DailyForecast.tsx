@@ -17,9 +17,13 @@ import {
   Shield,
   Download,
   Share2,
+  RefreshCw,
+  LogIn,
 } from "lucide-react";
-import { useUserProfile } from "../hooks";
+import { useSubscription, useUserProfile } from "../hooks";
 import { useAuth } from "../lib/useAuth";
+import AuthModal from "../components/AuthModal";
+import { REPORT_PRICING, type ReportType } from "../lib/report-pricing";
 import { FullPageSkeleton } from "../components/ui/Skeleton";
 import type { ForecastData } from "../types";
 import { postJson } from "../lib/apiFetch";
@@ -66,9 +70,19 @@ const getAreaColor = (area: string) => {
 const DailyForecast: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { birthData, loading: profileLoading } = useUserProfile();
+  const { birthData, profile, loading: profileLoading } = useUserProfile();
+  const { credits } = useSubscription();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Why the personal forecast is missing. We never substitute invented
+  // content for the user's forecast: each failure gets an honest state.
+  const [errorKind, setErrorKind] = useState<
+    "auth" | "credits" | "unavailable" | null
+  >(null);
+  const [retryNonce, setRetryNonce] = useState(0);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const [pdfSuccess, setPdfSuccess] = useState<string | null>(null);
   const [forecast, setForecast] = useState<ForecastData | null>(null);
   const [period, setPeriod] = useState<
     "daily" | "weekly" | "monthly" | "yearly"
@@ -87,6 +101,7 @@ const DailyForecast: React.FC = () => {
     if (!birthData) {
       setForecast(null);
       setError(null);
+      setErrorKind(null);
       setLoading(false);
       return;
     }
@@ -108,9 +123,28 @@ const DailyForecast: React.FC = () => {
           // isn't loading.
           if (response.status === 402) {
             setForecast(null);
+            setErrorKind("credits");
             setError(
               body.error ||
                 "You're out of credits. Top up to unlock this forecast.",
+            );
+            return;
+          }
+          if (response.status === 401) {
+            setForecast(null);
+            setErrorKind("auth");
+            setError("Sign in to see your personal forecast.");
+            return;
+          }
+          // 503 forecast_unavailable: the server refunded the reservation and
+          // says so ("No credits were used") — show its copy, not ours.
+          if (response.status === 503) {
+            setForecast(null);
+            setErrorKind("unavailable");
+            setError(
+              typeof body.error === "string" && body.error
+                ? body.error
+                : "Your forecast is temporarily unavailable. Please try again in a moment.",
             );
             return;
           }
@@ -119,36 +153,105 @@ const DailyForecast: React.FC = () => {
         const data = await response.json();
         setForecast(data);
         setError(null);
+        setErrorKind(null);
       } catch (err: any) {
         console.error("Error fetching forecast:", err);
-        setForecast(buildFallbackForecast(period));
-        setError(null);
+        setForecast(null);
+        setErrorKind("unavailable");
+        setError(
+          "Your forecast is temporarily unavailable. Please try again in a moment.",
+        );
       } finally {
         setLoading(false);
       }
     };
 
     fetchForecast();
-  }, [birthData, profileLoading, period]);
+  }, [birthData, profileLoading, period, retryNonce, user]);
+
+  // The forecast PDF goes through the priced reports flow (/api/pdf-report),
+  // which charges credits and saves the report to the user's library.
+  // Monthly has no PDF product, so it hands off to the reports page.
+  const pdfReportType: ReportType | null =
+    period === "monthly" ? null : (period as ReportType);
+  const pdfPrice = pdfReportType
+    ? REPORT_PRICING[pdfReportType].creditCost
+    : null;
 
   const handleDownloadPDF = async () => {
     if (!birthData || downloading) return;
+    setPdfError(null);
+    setPdfSuccess(null);
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
+    if (!pdfReportType || pdfPrice === null) {
+      navigate("/reports");
+      return;
+    }
+    if (credits < pdfPrice) {
+      setPdfError(
+        `This PDF costs ${pdfPrice} credits and you have ${credits}. Top up on the Reports page to continue.`,
+      );
+      return;
+    }
+    const confirmed = window.confirm(
+      `Generate your ${REPORT_PRICING[pdfReportType].title} for ${pdfPrice} credits? It will also be saved to your Reports library.`,
+    );
+    if (!confirmed) return;
+
     setDownloading(true);
     try {
-      const response = await postJson("/api/kundali", {
-        birthData,
-        chartType: "PDF_NATAL",
+      const idToken = await user.getIdToken();
+      const response = await fetch("/api/pdf-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idToken,
+          birthData: {
+            name: birthData.name || profile?.name || "Seeker",
+            dob: birthData.dob,
+            tob: birthData.tob,
+            pob: birthData.pob || profile?.pob || "",
+            lat: birthData.coordinates?.lat ?? profile?.coordinates?.lat,
+            lng: birthData.coordinates?.lng ?? profile?.coordinates?.lng,
+          },
+          reportType: pdfReportType,
+          date: viewerDateKey(),
+          localDate: viewerDateKey(),
+        }),
       });
-      if (!response.ok) throw new Error("Failed to generate PDF");
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        if (response.status === 402) {
+          throw new Error(
+            payload?.error ||
+              `You need ${pdfPrice} credits for this PDF. Top up on the Reports page.`,
+          );
+        }
+        throw new Error(
+          payload?.error ||
+            "We couldn't generate the PDF right now. No credits were used — please try again.",
+        );
+      }
       const blob = await response.blob();
+      const filename =
+        response.headers
+          .get("Content-Disposition")
+          ?.match(/filename="([^"]+)"/)?.[1] ||
+        `astroyou-${pdfReportType}-report.pdf`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "astroyou-natal-report.pdf";
+      a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
+      setPdfSuccess("PDF generated and saved to your Reports library.");
     } catch (err) {
-      console.error("PDF download error:", err);
+      setPdfError(
+        err instanceof Error ? err.message : "Could not generate the PDF.",
+      );
     } finally {
       setDownloading(false);
     }
@@ -266,7 +369,11 @@ const DailyForecast: React.FC = () => {
                 className="ml-auto px-4 py-2 rounded-xl border border-white/10 text-white/40 hover:text-gold hover:border-gold/30 text-xs uppercase tracking-widest transition-all flex items-center gap-2 disabled:opacity-50"
               >
                 <Download size={14} />
-                {downloading ? "Generating..." : "PDF Report"}
+                {downloading
+                  ? "Generating..."
+                  : pdfPrice !== null
+                    ? `PDF Report · ${pdfPrice} credits`
+                    : "PDF Reports"}
               </button>
               <button
                 onClick={() => {
@@ -316,15 +423,70 @@ const DailyForecast: React.FC = () => {
           </div>
         </header>
 
-        {error ? (
-          <div className="glass p-4 rounded-2xl border border-red-500/20 text-center">
-            <p className="text-red-400 mb-4">{error}</p>
+        {(pdfError || pdfSuccess) && (
+          <div
+            role="status"
+            className={`mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4 text-sm ${
+              pdfError
+                ? "border-amber-400/20 bg-amber-400/5 text-amber-200"
+                : "border-emerald-400/20 bg-emerald-400/5 text-emerald-200"
+            }`}
+          >
+            <span>{pdfError || pdfSuccess}</span>
             <button
-              onClick={() => window.location.reload()}
-              className="px-6 py-2 bg-white/5 hover:bg-white/10 rounded-full text-xs font-bold transition-all border border-white/10"
+              onClick={() => navigate("/reports")}
+              className="rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-white/70 hover:border-gold/30 hover:text-gold"
             >
-              Retry
+              Open Reports
             </button>
+          </div>
+        )}
+
+        {error ? (
+          <div className="glass p-6 rounded-2xl border border-white/10 text-center">
+            {errorKind === "auth" ? (
+              <>
+                <p className="text-white/80 mb-2 text-lg font-light">
+                  Sign in to see your personal forecast
+                </p>
+                <p className="text-white/45 text-sm mb-5">
+                  Your forecast is read from your own chart, so it needs your
+                  AstroYou account.
+                </p>
+                <button
+                  onClick={() => setShowAuthModal(true)}
+                  className="inline-flex items-center gap-2 rounded-xl bg-gold px-5 py-3 text-sm font-bold uppercase tracking-widest text-black transition hover:bg-gold/90"
+                >
+                  <LogIn size={14} />
+                  Sign in
+                </button>
+              </>
+            ) : errorKind === "credits" ? (
+              <>
+                <p className="text-amber-200 mb-4">{error}</p>
+                <button
+                  onClick={() => navigate("/wallet")}
+                  className="px-6 py-2 bg-white/5 hover:bg-white/10 rounded-full text-xs font-bold transition-all border border-white/10"
+                >
+                  Top up credits
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-white/75 mb-2">{error}</p>
+                <p className="text-white/40 text-sm mb-5">
+                  Nothing is wrong with your chart — our forecast service is
+                  just busy.
+                </p>
+                <button
+                  onClick={() => setRetryNonce((n) => n + 1)}
+                  className="inline-flex items-center gap-2 px-6 py-2 bg-white/5 hover:bg-white/10 rounded-full text-xs font-bold transition-all border border-white/10"
+                >
+                  <RefreshCw size={12} />
+                  Try again
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-1000">
@@ -773,76 +935,19 @@ const DailyForecast: React.FC = () => {
           </div>
         )}
       </div>
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={() => {
+          setShowAuthModal(false);
+          setRetryNonce((n) => n + 1);
+        }}
+        title="Sign in for your forecast"
+        message="Your personal forecast and PDF reports are tied to your AstroYou account and birth chart."
+      />
     </PageShell>
   );
 };
 
 export default DailyForecast;
 
-function buildFallbackForecast(
-  period: "daily" | "weekly" | "monthly" | "yearly",
-): ForecastData {
-  const now = new Date();
-  const themeByPeriod = {
-    daily:
-      "Keep the day simple: one clear priority, one clean conversation, and one small act of care.",
-    weekly:
-      "This week rewards steady pacing. Protect attention, review promises, and move only the commitments that matter.",
-    monthly:
-      "This month is best used for practical alignment: simplify routines, mature relationships, and avoid reactive decisions.",
-    yearly:
-      "This year favors consistency over intensity. Build habits and let major choices mature before acting.",
-  };
-
-  return {
-    narrative: themeByPeriod[period],
-    horoscope: {
-      date: viewerDateKey(now),
-      overall_theme: themeByPeriod[period],
-      overall_rating: 3,
-      planetary_influences: [],
-      lucky_elements: {
-        colors: ["Gold", "White"],
-        numbers: [3, 9],
-        stones: ["Clear quartz"],
-        directions: ["East"],
-        times: ["Morning", "Sunset"],
-      },
-      tips: [
-        "Do the next practical thing before asking for the next prediction.",
-        "Delay final decisions if the body feels rushed.",
-      ],
-      life_areas: [
-        {
-          area: "career",
-          title: "Work",
-          prediction:
-            "Choose one concrete task and finish it cleanly before expanding the day.",
-          rating: 3,
-          keywords: ["focus", "steady"],
-        },
-        {
-          area: "love",
-          title: "Relationships",
-          prediction:
-            "Use direct, warm words. Do not make someone interpret silence.",
-          rating: 3,
-          keywords: ["clarity", "care"],
-        },
-        {
-          area: "health",
-          title: "Wellbeing",
-          prediction:
-            "A lighter routine and slower breath will do more than force today.",
-          rating: 3,
-          keywords: ["rhythm", "rest"],
-        },
-      ],
-    },
-    dasha: {
-      mahadasha: "Personal timing",
-      bhukti: "Refreshing",
-      ends: now.toISOString(),
-    },
-  };
-}

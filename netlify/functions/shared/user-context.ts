@@ -1,4 +1,6 @@
 import { db } from "./firebase-admin.js";
+import { getCachedOrFetch } from "./cache.js";
+import { requestedDateKey } from "./request-date.js";
 import {
   getDashaPeriods,
   getPanchang,
@@ -43,7 +45,15 @@ interface BuildUserContextOptions {
   uid?: string;
   birthData?: any;
   kundaliData?: any;
+  /**
+   * Accepted for call-site compatibility only. Context is built in full on
+   * EVERY turn: the Interactions API does not carry system_instruction across
+   * previous_interaction_id, so a follow-up turn built without dasha/transit/
+   * yoga/memory would answer blind.
+   */
   previousInteractionId?: string;
+  /** Caller's local YYYY-MM-DD (for the daily panchang cache key). */
+  localDate?: string;
   atmanData?: UserContext["atman"];
   recentSummaries?: UserContext["recentSummaries"];
   yogaData?: UserContext["yogaData"];
@@ -81,22 +91,70 @@ const weeklyAstrologyContextStore: WeeklyAstrologyContextStore = {
   },
 };
 
+export interface PanchangLocation {
+  city?: string;
+  lat?: number;
+  lng?: number;
+}
+
+/** Data loaders, injectable so the context assembly is unit-testable. */
+export interface UserContextDeps {
+  loadUserDoc(uid: string): Promise<Record<string, any>>;
+  loadRecentSummaries(uid: string): Promise<UserContext["recentSummaries"]>;
+  loadWeeklyContext(input: {
+    uid?: string;
+    birthData: any;
+  }): Promise<WeeklyAstrologyContextData>;
+  loadDailyPanchang(input: {
+    dateKey: string;
+    location?: PanchangLocation;
+  }): Promise<UserContext["panchangData"]>;
+}
+
+const defaultDeps: UserContextDeps = {
+  async loadUserDoc(uid) {
+    const snapshot = await db.collection("users").doc(uid).get();
+    return snapshot.data() || {};
+  },
+  loadRecentSummaries,
+  async loadWeeklyContext({ uid, birthData }) {
+    const weeklyContext = await getWeeklyAstrologyContext({
+      uid,
+      birthData,
+      store: weeklyAstrologyContextStore,
+      fetchFresh: () => fetchFreshAstrologyContext(birthData),
+    });
+    if (weeklyContext.source !== "cache") {
+      console.info(
+        `[UserContext] Weekly astrology context source: ${weeklyContext.source}`,
+      );
+    }
+    return weeklyContext.data;
+  },
+  loadDailyPanchang,
+};
+
 export async function buildUserContext(
   options: BuildUserContextOptions,
+  deps: UserContextDeps = defaultDeps,
 ): Promise<BuiltUserContext> {
-  const userDoc = options.uid
-    ? await db.collection("users").doc(options.uid).get()
-    : null;
-  const userData = userDoc?.data() || {};
+  const userData = options.uid ? await deps.loadUserDoc(options.uid) : {};
   const profile = userData.profile || {};
   const birthData = options.birthData || toBirthData(profile);
   const kundaliData = options.kundaliData || userData.kundaliData;
-  const kundaliSummary = buildKundaliSummary(kundaliData);
-  const recentSummaries =
-    options.recentSummaries ||
-    (options.uid && !options.previousInteractionId
-      ? await loadRecentSummaries(options.uid)
-      : undefined);
+  // "I don't know my birth time": the chart was cast for noon, so there is
+  // no Lagna, houses are counted from the Moon, and dasha dates are rough.
+  const birthTimeUnknown =
+    options.birthData?.birthTimeUnknown === true ||
+    // The profile flag applies when the chat is about the profile's own chart.
+    (profile.birthTimeUnknown === true &&
+      (!options.birthData || options.birthData.dob === profile.dob)) ||
+    kundaliData?.timeUnknown === true;
+  const kundaliSummary = buildKundaliSummary(
+    birthTimeUnknown && kundaliData && !kundaliData.timeUnknown
+      ? { ...kundaliData, timeUnknown: true }
+      : kundaliData,
+  );
   const atmanSource = resolveAtmanContextSource({
     uid: options.uid,
     clientAtman: options.atmanData,
@@ -106,32 +164,47 @@ export async function buildUserContext(
   // the guest path where atman data comes straight from the request body.
   const atmanContext = sanitizeAtmanContext(selectBrainContext(atmanSource));
 
-  let dashaInfo: UserContext["dashaInfo"] = undefined;
-  let transitContext: string | undefined = undefined;
-  let weeklyAstrologyContext: WeeklyAstrologyContextData = {};
-
-  if (!options.previousInteractionId && birthData?.dob && birthData?.tob) {
-    try {
-      const weeklyContext = await getWeeklyAstrologyContext({
-        uid: options.uid,
-        birthData,
-        store: weeklyAstrologyContextStore,
-        fetchFresh: () => fetchFreshAstrologyContext(birthData),
-      });
-
-      weeklyAstrologyContext = weeklyContext.data;
-      dashaInfo = weeklyAstrologyContext.dashaInfo;
-      transitContext = weeklyAstrologyContext.transitContext;
-
-      if (weeklyContext.source !== "cache") {
-        console.info(
-          `[UserContext] Weekly astrology context source: ${weeklyContext.source}`,
-        );
-      }
-    } catch (error) {
-      console.warn("[UserContext] Weekly astrology context unavailable:", error);
-    }
-  }
+  // Every turn gets the full context (weekly-cached astrology, daily-cached
+  // panchang, recent diary entries) — loaded in parallel, each failure-safe.
+  const [recentSummaries, weeklyAstrologyContext, dailyPanchang] =
+    await Promise.all([
+      options.recentSummaries
+        ? Promise.resolve(options.recentSummaries)
+        : options.uid
+          ? deps.loadRecentSummaries(options.uid).catch((error) => {
+              console.warn("[UserContext] Recent summaries unavailable:", error);
+              return undefined;
+            })
+          : Promise.resolve(undefined),
+      birthData?.dob && birthData?.tob
+        ? deps
+            .loadWeeklyContext({ uid: options.uid, birthData })
+            .catch((error): WeeklyAstrologyContextData => {
+              console.warn(
+                "[UserContext] Weekly astrology context unavailable:",
+                error,
+              );
+              return {};
+            })
+        : Promise.resolve({} as WeeklyAstrologyContextData),
+      // Same gate as the astrology context: no chart, no paid lookups.
+      options.panchangData || !(birthData?.dob && birthData?.tob)
+        ? Promise.resolve(undefined)
+        : deps
+            .loadDailyPanchang({
+              dateKey: requestedDateKey(options.localDate),
+              location: resolvePanchangLocation(profile, birthData),
+            })
+            .catch((error) => {
+              console.warn("[UserContext] Panchang unavailable:", error);
+              return undefined;
+            }),
+    ]);
+  const dashaInfo =
+    birthTimeUnknown && weeklyAstrologyContext.dashaInfo
+      ? { ...weeklyAstrologyContext.dashaInfo, approximate: true }
+      : weeklyAstrologyContext.dashaInfo;
+  const transitContext = weeklyAstrologyContext.transitContext;
 
   const userContext: UserContext = {
     // The display name is interpolated into every prompt. It is user-supplied
@@ -147,8 +220,14 @@ export async function buildUserContext(
       ? { dob: birthData.dob, tob: birthData.tob, pob: birthData.pob }
       : undefined,
     kundaliSummary,
-    moonSign: profile.moonSign || userData.moonSign,
-    ascendant: normalizeAscendant(profile.ascendant || userData.ascendant),
+    moonSign: toOptionalString(profile.moonSign || userData.moonSign),
+    sunSign: toOptionalString(profile.sunSign || userData.sunSign),
+    moonNakshatra: toOptionalString(profile.moonNakshatra),
+    // A noon-cast Lagna is a guess — never hand it to the model.
+    ascendant: birthTimeUnknown
+      ? undefined
+      : normalizeAscendant(profile.ascendant || userData.ascendant),
+    birthTimeUnknown: birthTimeUnknown || undefined,
     credits: userData.credits,
     subscriptionTier: userData.subscription?.tier,
     dashaInfo,
@@ -164,28 +243,114 @@ export async function buildUserContext(
       weeklyAstrologyContext.yogaData ||
       undefined,
     panchangData:
-      options.panchangData || weeklyAstrologyContext.panchangData || undefined,
+      options.panchangData ||
+      dailyPanchang ||
+      // Legacy weekly cache records still carry a (stale) panchang snapshot.
+      weeklyAstrologyContext.panchangData ||
+      undefined,
   };
 
-  return { userContext, kundaliSummary };
+  return { userContext: stripUndefinedFields(userContext), kundaliSummary };
+}
+
+/** Drop undefined top-level fields so no prompt ever renders "undefined". */
+function stripUndefinedFields<T extends object>(value: T): T {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, v]) => v !== undefined),
+  ) as T;
+}
+
+/**
+ * Where to compute today's panchang for this user. Only returns a location
+ * when we have real coordinates for it — getPanchang otherwise pairs any city
+ * name with New Delhi's coordinates, which would be silently wrong.
+ */
+export function resolvePanchangLocation(
+  profile: Record<string, any> | undefined,
+  birthData?: any,
+): PanchangLocation | undefined {
+  const current =
+    typeof profile?.currentLocation === "string"
+      ? profile.currentLocation.trim()
+      : "";
+  const currentCoords = readCoords(
+    profile?.currentCoordinates ?? profile?.currentLocationCoordinates,
+  );
+  if (current && currentCoords) return { city: current, ...currentCoords };
+
+  const pob =
+    typeof (birthData?.pob ?? profile?.pob) === "string"
+      ? String(birthData?.pob ?? profile?.pob).trim()
+      : "";
+  const birthCoords =
+    readCoords(birthData?.coordinates) ??
+    readCoords({ lat: birthData?.lat, lng: birthData?.lng }) ??
+    readCoords(profile?.coordinates);
+  // Birth coordinates only stand in when the user lives where they were born
+  // (or never told us otherwise).
+  if (birthCoords && pob && (!current || current === pob)) {
+    return { city: pob, ...birthCoords };
+  }
+  return undefined;
+}
+
+function readCoords(value: any): { lat: number; lng: number } | undefined {
+  const lat = Number(value?.lat);
+  const lng = Number(value?.lng);
+  if (
+    value?.lat == null ||
+    value?.lng == null ||
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng)
+  ) {
+    return undefined;
+  }
+  return { lat, lng };
+}
+
+/**
+ * Shared panchang cache doc id — the same key kundali.ts PANCHANG uses, so the
+ * dashboard card and chat context share one cached API call per day/place.
+ */
+export function panchangCacheDocId(
+  dateKey: string,
+  location?: PanchangLocation,
+): string {
+  const locationKey =
+    location?.city || `${location?.lat ?? 28.6139}_${location?.lng ?? 77.209}`;
+  return `${dateKey}_${locationKey}`.replace(/[/\s]/g, "_");
+}
+
+async function loadDailyPanchang(input: {
+  dateKey: string;
+  location?: PanchangLocation;
+}): Promise<UserContext["panchangData"]> {
+  const { dateKey, location } = input;
+  const raw = await withTimeout(
+    getCachedOrFetch("panchang", panchangCacheDocId(dateKey, location), () =>
+      getPanchang(dateKey, location?.city, location?.lat, location?.lng),
+    ),
+    5000,
+    null,
+  );
+  return normalizePanchang(raw);
 }
 
 async function fetchFreshAstrologyContext(
   birthData: any,
 ): Promise<WeeklyAstrologyContextData> {
-  const [dashas, transitEvents, yogasResult, panchangResult] =
-    await Promise.all([
-      readAstrologyPart("Dasha", getDashaPeriods(birthData), []),
-      readAstrologyPart("Transit report", getTransitReport(birthData), []),
-      readAstrologyPart("Yoga analysis", getYogaAnalysis(birthData), null),
-      readAstrologyPart("Panchang", getPanchang(), null),
-    ]);
+  // Panchang is daily data — it is fetched per day via loadDailyPanchang,
+  // not frozen into this weekly record.
+  const [dashas, transitEvents, yogasResult] = await Promise.all([
+    readAstrologyPart("Dasha", getDashaPeriods(birthData), []),
+    readAstrologyPart("Transit report", getTransitReport(birthData), []),
+    readAstrologyPart("Yoga analysis", getYogaAnalysis(birthData), null),
+  ]);
 
   const context = {
     dashaInfo: extractDashaInfo(dashas),
     transitContext: buildTransitContext(transitEvents),
     yogaData: normalizeYogas(yogasResult?.yogas || yogasResult),
-    panchangData: normalizePanchang(panchangResult),
   };
 
   if (!hasAstrologyContextData(context)) {
@@ -218,20 +383,59 @@ function toBirthData(profile: Record<string, any>) {
     lat: profile.lat ?? profile.coordinates?.lat,
     lng: profile.lng ?? profile.coordinates?.lng,
     coordinates: profile.coordinates,
+    ...(profile.birthTimeUnknown === true ? { birthTimeUnknown: true } : {}),
   };
 }
 
-function buildKundaliSummary(kundaliData: any) {
+export function buildKundaliSummary(kundaliData: any) {
+  // Time unknown: house numbers are counted from the Moon (Chandra Lagna).
+  const fromMoon = kundaliData?.timeUnknown === true;
+  const houseLabel = (house: unknown) => {
+    if (!fromMoon) return formatHouse(house);
+    const ordinal = formatOrdinal(house);
+    return ordinal && ordinal !== "0th" ? `${ordinal} from the Moon` : "";
+  };
   return (
     kundaliData?.planetary_positions
+      ?.filter(
+        (planet: any) =>
+          !(fromMoon && /^(ascendant|lagna|asc)$/i.test(String(planet?.name))),
+      )
       ?.map(
         (planet: any) =>
-          `${planet.name} in ${planet.sign} (${planet.house}th House)${
+          `${planet.name} in ${planet.sign}${
+            houseLabel(planet.house) ? ` (${houseLabel(planet.house)})` : ""
+          }${
             planet.is_retrograde ? " [Retrograde]" : ""
           }`,
       )
       .join(", ") || "Planetary data currently veiled."
   );
+}
+
+/** 1 → "1st", 2 → "2nd", 11 → "11th", 22 → "22nd". */
+export function formatOrdinal(value: unknown): string {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(n) || n < 0) return "";
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
+}
+
+/** "1st House", or "" when the house number is missing/unparseable. */
+export function formatHouse(value: unknown): string {
+  if (value === undefined || value === null || value === "") return "";
+  const ordinal = formatOrdinal(value);
+  return ordinal ? `${ordinal} House` : "";
 }
 
 function normalizeAscendant(value: unknown) {

@@ -50,6 +50,8 @@ export interface AtmanMemoryEvidence {
   personaId?: string;
   messageExcerpt?: string;
   confidence?: number;
+  /** Chat this memory was derived from — lets "delete conversation" forget it. */
+  sourceChatId?: string;
 }
 
 export interface AtmanMemoryLedgerEntry extends AtmanMemoryEvidence {
@@ -100,6 +102,7 @@ export type AtmanEmotion =
 export interface AtmanEmotionalHistoryEntry {
   state: AtmanEmotion;
   date: Date;
+  sourceChatId?: string;
 }
 
 export interface AtmanAdviceEntry {
@@ -107,6 +110,7 @@ export interface AtmanAdviceEntry {
   context: string;
   date: string;
   followedUp?: boolean;
+  sourceChatId?: string;
 }
 
 export interface AtmanNudgeEntry {
@@ -131,6 +135,12 @@ export interface AtmanDurableMemory {
   nudgeHistory: AtmanNudgeEntry[];
 }
 
+export interface AtmanDerivedTextSource {
+  bucket: "karmicThreads" | "contradictedPatterns";
+  text: string;
+  sourceChatId: string;
+}
+
 export interface AtmanData {
   schemaVersion?: number;
   transient?: AtmanTransientState;
@@ -149,6 +159,8 @@ export interface AtmanData {
   knownPatterns: WeightedPattern[]; // Enhanced from string[]
   contradictedPatterns?: string[]; // E.g., "Used to be anxious about money, now confident"
   karmicThreads?: string[]; // Connections across domains (Level 4 Brain)
+  /** Which chat introduced a karmic thread / contradiction (plain strings can't carry it). */
+  derivedTextSources?: AtmanDerivedTextSource[];
 
   // 4. Spiritual Journey (The Sadhana) - NEW
   meditationStreak: number;
@@ -219,8 +231,12 @@ export interface UserProfile {
   chartGeneratedAt?: Date; // When the chart was last generated
 
   // Computed from Kundali
+  /** Western name of the sidereal (Vedic) Moon sign, e.g. "Taurus". */
   moonSign?: string;
+  /** Western name of the sidereal (Vedic) Sun sign. */
   sunSign?: string;
+  /** The Moon's nakshatra at birth, e.g. "Rohini". */
+  moonNakshatra?: string;
   ascendant?: string | { sign?: string };
 
   // Settings
@@ -259,6 +275,11 @@ export interface UserProfile {
 
   // Atman (Consciousness) Data
   atman?: AtmanData;
+
+  // Memory controls: when true the server skips memory extraction.
+  memoryPaused?: boolean;
+  // First-chat "I'll remember what matters" notice has been dismissed.
+  memoryNoticeDismissed?: boolean;
 
   // Metadata
   createdAt?: Date;

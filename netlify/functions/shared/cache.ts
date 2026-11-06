@@ -4,6 +4,13 @@
  */
 import { db } from "./firebase-admin.js";
 
+export interface CacheOptions {
+  serialize?: boolean;
+}
+
+// Firestore's hard document limit is 1 MiB; leave room for the envelope.
+const MAX_SERIALIZED_CHARS = 900_000;
+
 /**
  * Get or set a cached document. Returns cached data if fresh, otherwise calls fetcher and caches result.
  *
@@ -16,12 +23,16 @@ import { db } from "./firebase-admin.js";
  * @param docId - Document ID (typically a date string like "2026-03-29")
  * @param fetcher - Async function that fetches fresh data from the API
  * @param ttlHours - Cache TTL in hours (default 20 — covers a full day with buffer)
+ * @param options.serialize - Store the payload as a JSON string. Use for
+ *   upstream payloads of unknown shape: Firestore rejects nested arrays and
+ *   `undefined` values, which would otherwise make every write fail silently.
  */
 export async function getCachedOrFetch<T>(
   collection: string,
   docId: string,
   fetcher: () => Promise<T>,
   ttlHours: number = 20,
+  options: CacheOptions = {},
 ): Promise<T> {
   const docRef = db.collection(collection).doc(docId);
 
@@ -34,6 +45,7 @@ export async function getCachedOrFetch<T>(
       const ageHours = (Date.now() - cachedAt.getTime()) / (1000 * 60 * 60);
 
       if (ageHours < ttlHours) {
+        if (typeof data._json === "string") return JSON.parse(data._json) as T;
         if ("_payload" in data) return data._payload as T;
         const { _cachedAt, ...rest } = data;
         return rest as T;
@@ -58,8 +70,17 @@ export async function getCachedOrFetch<T>(
     (typeof fresh === "object" && Object.keys(fresh as object).length === 0);
 
   if (!isEmpty) {
+    let envelope: Record<string, unknown> = {
+      _payload: fresh,
+      _cachedAt: new Date(),
+    };
+    if (options.serialize) {
+      const json = JSON.stringify(fresh);
+      if (json.length > MAX_SERIALIZED_CHARS) return fresh;
+      envelope = { _json: json, _cachedAt: new Date() };
+    }
     // Fire-and-forget, don't block response.
-    docRef.set({ _payload: fresh, _cachedAt: new Date() }).catch((err) => {
+    docRef.set(envelope).catch((err) => {
       console.warn(
         `[Cache] Failed to write ${collection}/${docId}:`,
         err.message,

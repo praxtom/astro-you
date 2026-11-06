@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Users, Shield, Zap, Coffee, GraduationCap, Edit2, Heart } from 'lucide-react';
 import { KeyRelationship } from '../../types/user';
@@ -9,15 +9,30 @@ interface InnerCircleManagerProps {
     userId: string;
     keyRelationships: KeyRelationship[];
     onRefresh: () => void;
+    /**
+     * When set, the "add connection" form opens immediately pre-filled with
+     * these values (used by Bonds → "Save partner to your circle").
+     */
+    initialDraft?: Partial<Omit<KeyRelationship, 'id'>>;
 }
 
 export const InnerCircleManager: React.FC<InnerCircleManagerProps> = ({
     userId,
     keyRelationships,
-    onRefresh
+    onRefresh,
+    initialDraft,
 }) => {
-    const [isFormOpen, setIsFormOpen] = useState(false);
+    const [isFormOpen, setIsFormOpen] = useState(Boolean(initialDraft));
     const [editingRel, setEditingRel] = useState<KeyRelationship | undefined>();
+    const [draft, setDraft] = useState(initialDraft);
+
+    useEffect(() => {
+        if (initialDraft) {
+            setDraft(initialDraft);
+            setEditingRel(undefined);
+            setIsFormOpen(true);
+        }
+    }, [initialDraft]);
 
     const handleSave = async (relData: Omit<KeyRelationship, 'id'> | Partial<KeyRelationship>) => {
         if (editingRel) {
@@ -27,6 +42,7 @@ export const InnerCircleManager: React.FC<InnerCircleManagerProps> = ({
         }
         setIsFormOpen(false);
         setEditingRel(undefined);
+        setDraft(undefined);
         onRefresh();
     };
 
@@ -70,6 +86,7 @@ export const InnerCircleManager: React.FC<InnerCircleManagerProps> = ({
                 <button
                     onClick={() => {
                         setEditingRel(undefined);
+                        setDraft(undefined);
                         setIsFormOpen(true);
                     }}
                     className="p-1.5 bg-gold/10 hover:bg-gold/20 text-gold rounded-lg transition-colors"
@@ -147,11 +164,13 @@ export const InnerCircleManager: React.FC<InnerCircleManagerProps> = ({
                 {isFormOpen && (
                     <RelationshipForm
                         relationship={editingRel}
+                        initialValues={editingRel ? undefined : draft}
                         onSave={handleSave}
                         onDelete={handleDelete}
                         onClose={() => {
                             setIsFormOpen(false);
                             setEditingRel(undefined);
+                            setDraft(undefined);
                         }}
                     />
                 )}

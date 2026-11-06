@@ -42,7 +42,6 @@ import {
   getManglikDosha,
   getPanchang,
   getFestivalCalendar,
-  getNatalReportPDF,
   getNatalChartSVG,
   getRenderedNatalChart,
   getSadeSati,
@@ -68,13 +67,26 @@ import {
   getBodygraphSVG,
   getShadbala,
   getVarshaphal,
+  shapeTimeUnknownChart,
   BirthData,
 } from "./shared/astro-api";
 import { getCachedOrFetch } from "./shared/cache";
+import {
+  CHART_CACHE_COLLECTION,
+  chartCacheKey,
+  chartCacheTtlHours,
+  isDailyChartType,
+  isGuestChartType,
+  refreshDashaCurrentFlags,
+} from "./shared/chart-cache";
 import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit";
 import { verifyToken, AuthError } from "./shared/require-auth";
 import { requestedDateKey } from "./shared/request-date.js";
 import { classifyUpstreamErrorMessage } from "./shared/astro-error-classify";
+import {
+  chartErrorResponse,
+  TIME_UNKNOWN_MESSAGE,
+} from "./shared/kundali-errors";
 import { normalizeZodiacMode } from "../../src/lib/zodiac-mode.js";
 import { normalizeFestivalRegion } from "../../src/lib/festival-regions.js";
 
@@ -94,11 +106,19 @@ const PUBLIC_CHART_TYPES = new Set([
   "TAROT_THREE",
 ]);
 
-// The minimal natal set guests may request without an account — the SEO
-// acquisition pages (/free-kundali) and guest chat render a basic D1 chart
-// before signup. Gated by the stricter fail-closed per-IP budget below.
-const GUEST_CHART_TYPES = new Set(["D1"]);
+// The minimal natal set guests may request without an account (D1, DASHAS,
+// NAKSHATRA — see shared/chart-cache.ts): the SEO acquisition pages, guest
+// chat and the guest dashboard render these before signup. Upstream (paid)
+// calls for guests are gated by the stricter fail-closed per-IP budget below;
+// server-cache hits cost nothing upstream and do not consume it.
 const GUEST_REQUESTS_PER_IP_PER_HOUR = 8;
+
+class GuestBudgetError extends Error {
+  constructor() {
+    super("Guest chart budget exhausted");
+    this.name = "GuestBudgetError";
+  }
+}
 
 /**
  * Fail-closed per-IP limiter for guest chart requests. "kundali_guest" is not
@@ -224,29 +244,19 @@ export default async (req: Request, _context: Context) => {
     // for the marketing pages but remain rate-limited above. Guests may also
     // request the basic natal set (GUEST_CHART_TYPES) under a strict
     // fail-closed per-IP budget; authenticated behavior is unchanged.
+    let isGuest = false;
     if (!PUBLIC_CHART_TYPES.has(String(chartType))) {
       try {
         await verifyToken(body.idToken);
       } catch (err) {
-        if (!GUEST_CHART_TYPES.has(String(chartType))) {
+        if (!isGuestChartType(chartType)) {
           const status = err instanceof AuthError ? err.status : 401;
-          return json({ error: "Authentication required" }, status);
-        }
-        const guestAllowed = await allowAnonRequest(
-          req,
-          "kundali_guest",
-          GUEST_REQUESTS_PER_IP_PER_HOUR,
-          60 * 60 * 1000,
-        );
-        if (!guestAllowed) {
           return json(
-            {
-              error:
-                "Too many chart requests. Sign in for full access, or try again later.",
-            },
-            429,
+            { error: "Authentication required", code: "auth_required" },
+            status,
           );
         }
+        isGuest = true;
       }
     }
 
@@ -298,40 +308,186 @@ export default async (req: Request, _context: Context) => {
       return json({ data });
     }
 
+    // "I don't know my birth time": the chart is cast for noon and shaped
+    // below (no Lagna/houses, approximate dashas, no house-based verdicts).
+    const birthTimeUnknown =
+      birthData && typeof birthData === "object"
+        ? birthData.birthTimeUnknown === true
+        : false;
+    if (birthTimeUnknown && !TOB_RE.test(String(birthData.tob ?? ""))) {
+      birthData.tob = "12:00";
+    }
+
     // Everything else needs valid birthData.
     const validationError = validateBirthData(birthData);
     if (validationError) {
       return json({ error: validationError }, 400);
     }
-    const bd = birthData as BirthData;
+    // Profile-shaped clients send { coordinates: { lat, lng } } instead of
+    // top-level lat/lng. Lift them so the upstream call uses the exact
+    // geocoded point (not a re-geocode of the place string) and the cache
+    // key is the same however the client shaped the request.
+    const liftedCoords =
+      (birthData.lat === undefined || birthData.lat === null) &&
+      birthData.coordinates &&
+      typeof birthData.coordinates.lat === "number" &&
+      typeof birthData.coordinates.lng === "number" &&
+      Math.abs(birthData.coordinates.lat) <= 90 &&
+      Math.abs(birthData.coordinates.lng) <= 180
+        ? {
+            lat: birthData.coordinates.lat as number,
+            lng: birthData.coordinates.lng as number,
+          }
+        : null;
+    const bd: BirthData = {
+      name: birthData.name,
+      dob: birthData.dob,
+      tob: birthData.tob,
+      pob: birthData.pob,
+      lat: liftedCoords ? liftedCoords.lat : birthData.lat,
+      lng: liftedCoords ? liftedCoords.lng : birthData.lng,
+      ...(birthTimeUnknown ? { birthTimeUnknown: true } : {}),
+    };
+    const type = String(chartType);
+
+    // Divisional charts (D9, D10, ...) subdivide signs by a few degrees and
+    // hinge on the Lagna — a noon guess is wrong more often than right.
+    if (birthTimeUnknown && DIVISIONAL_CHARTS.has(type)) {
+      return json(
+        {
+          error: TIME_UNKNOWN_MESSAGE,
+          code: "time_unknown",
+          unavailable: "time_unknown",
+        },
+        422,
+      );
+    }
+
+    // Paid PDFs are sold through /api/pdf-report, which charges the report's
+    // credit price and stores the file for free re-download. Serving them here
+    // would hand out the same report for free.
+    if (type === "PDF_NATAL") {
+      return json(
+        {
+          error:
+            "Natal PDF reports are generated through the reports flow, which shows the credit price first.",
+          code: "use_reports_endpoint",
+          endpoint: "/api/pdf-report",
+          reportType: "natal",
+        },
+        410,
+      );
+    }
+
+    // Upstream call guard: guests spend the per-IP budget only when a paid
+    // upstream call is actually about to happen.
+    const guarded = async <T>(fetcher: () => Promise<T>): Promise<T> => {
+      if (isGuest) {
+        const allowed = await allowAnonRequest(
+          req,
+          "kundali_guest",
+          GUEST_REQUESTS_PER_IP_PER_HOUR,
+          60 * 60 * 1000,
+        );
+        if (!allowed) throw new GuestBudgetError();
+      }
+      return fetcher();
+    };
+
+    // Per-birth-data server cache (admin-only collection, long TTL for natal
+    // data) — see shared/chart-cache.ts for the policy and key.
+    const ttlHours = chartCacheTtlHours(type);
+    const cacheDocId =
+      ttlHours === null
+        ? null
+        : chartCacheKey({
+            chartType: type,
+            dob: bd.dob,
+            tob: bd.tob,
+            lat: bd.lat,
+            lng: bd.lng,
+            pob: bd.pob,
+            zodiacMode: type === "D1" ? zodiacMode : undefined,
+            birthTimeUnknown,
+            variant: {
+              remedyType: type === "REMEDIES" ? remedyType : undefined,
+              year: type === "VARSHAPHAL" ? body.year : undefined,
+              targetLat:
+                type === "LOCATION_ANALYSIS" ? body.targetLat : undefined,
+              targetLng:
+                type === "LOCATION_ANALYSIS" ? body.targetLng : undefined,
+              date: isDailyChartType(type)
+                ? requestedDateKey(body.localDate)
+                : undefined,
+              // The lunar phase is cast for "today" at the viewer's location.
+              sky:
+                type === "LUNAR_PHASES"
+                  ? [body.city, body.lat, body.lng].map((v) => v ?? "").join("|")
+                  : undefined,
+            },
+          });
+    const cached = <T>(fetcher: () => Promise<T>): Promise<T> =>
+      cacheDocId && ttlHours !== null
+        ? getCachedOrFetch(
+            CHART_CACHE_COLLECTION,
+            cacheDocId,
+            () => guarded(fetcher),
+            ttlHours,
+            { serialize: true },
+          )
+        : guarded(fetcher);
+
+    // "Sky right now" readings: the caller's local day at their current
+    // location (body.city/lat/lng), falling back to the birth place.
+    const skyMoment = () => {
+      const hasSkyCoords =
+        typeof body.lat === "number" &&
+        typeof body.lng === "number" &&
+        Math.abs(body.lat) <= 90 &&
+        Math.abs(body.lng) <= 180;
+      const skyCity =
+        typeof body.city === "string" && body.city.trim()
+          ? body.city.trim().slice(0, 200)
+          : undefined;
+      return {
+        date: requestedDateKey(body.localDate),
+        ...(hasSkyCoords
+          ? { lat: body.lat as number, lng: body.lng as number }
+          : skyCity
+            ? { city: skyCity }
+            : { city: bd.pob || undefined, lat: bd.lat, lng: bd.lng }),
+      };
+    };
 
     switch (chartType) {
       case "DASHAS": {
-        const periods = await getDashaPeriods(bd);
-        return json({ periods });
+        const periods = await cached(() => getDashaPeriods(bd));
+        // Dasha dates follow the Moon's exact longitude, which moves ~6 deg
+        // in 12 hours — with a noon placeholder they can be years off.
+        return json({
+          periods: refreshDashaCurrentFlags(periods),
+          ...(birthTimeUnknown ? { approximate: true } : {}),
+        });
       }
       case "YOGAS": {
-        const data = await getYogaAnalysis(bd);
+        const data = await cached(() => getYogaAnalysis(bd));
         return json({ data });
       }
       case "REMEDIES": {
-        const data = await getRemedies(bd, remedyType);
+        const data = await cached(() => getRemedies(bd, remedyType));
         return json({ data });
       }
       case "MANGLIK": {
-        const data = await getManglikDosha(bd);
+        // Manglik is Mars's house from the Lagna — no verdict without a time.
+        if (birthTimeUnknown) {
+          return json({
+            data: null,
+            unavailable: "time_unknown",
+            message: TIME_UNKNOWN_MESSAGE,
+          });
+        }
+        const data = await cached(() => getManglikDosha(bd));
         return json({ data });
-      }
-      case "PDF_NATAL": {
-        const pdf = await getNatalReportPDF(bd);
-        if (!pdf) return json({ error: "PDF generation failed" }, 500);
-        return new Response(pdf, {
-          status: 200,
-          headers: {
-            "Content-Type": "application/pdf",
-            "Content-Disposition": "attachment; filename=natal-report.pdf",
-          },
-        });
       }
       case "SVG_NATAL": {
         const svg = await getNatalChartSVG(bd, zodiacMode);
@@ -345,61 +501,63 @@ export default async (req: Request, _context: Context) => {
         return json({ url });
       }
       case "SADE_SATI": {
-        return json({ data: await getSadeSati(bd) });
+        return json({ data: await cached(() => getSadeSati(bd)) });
       }
       case "KAAL_SARPA": {
-        return json({ data: await getKaalSarpaDosha(bd) });
+        return json({ data: await cached(() => getKaalSarpaDosha(bd)) });
       }
       case "NAKSHATRA": {
-        return json({ data: await getNakshatraPredictions(bd) });
+        return json({ data: await cached(() => getNakshatraPredictions(bd)) });
       }
       case "ASHTAKVARGA": {
-        return json({ data: await getAshtakvarga(bd) });
+        return json({ data: await cached(() => getAshtakvarga(bd)) });
       }
       case "ECLIPSE_IMPACT": {
-        return json({ data: await getEclipseNatalImpact(bd) });
+        return json({ data: await cached(() => getEclipseNatalImpact(bd)) });
       }
       case "LUNAR_PHASES": {
-        return json({ data: await getLunarPhases(bd) });
+        return json({
+          data: await cached(() => getLunarPhases(skyMoment())),
+        });
       }
       case "VOID_OF_COURSE": {
-        return json({ data: await getVoidOfCourse(bd) });
+        return json({ data: await getVoidOfCourse(skyMoment()) });
       }
       case "NUMEROLOGY": {
-        return json({ data: await getNumerologyReading(bd) });
+        return json({ data: await cached(() => getNumerologyReading(bd)) });
       }
       case "CORE_NUMBERS": {
-        return json({ data: await getCoreNumbers(bd) });
+        return json({ data: await cached(() => getCoreNumbers(bd)) });
       }
       case "ASTRO_LINES": {
-        return json({ data: await getAstrocartographyLines(bd) });
+        return json({ data: await cached(() => getAstrocartographyLines(bd)) });
       }
       case "POWER_ZONES": {
-        return json({ data: await getPowerZones(bd) });
+        return json({ data: await cached(() => getPowerZones(bd)) });
       }
       case "LOCATION_ANALYSIS": {
         if (!body.targetLat || !body.targetLng)
           return json({ error: "Missing targetLat/targetLng" }, 400);
         return json({
-          data: await getLocationAnalysis(bd, body.targetLat, body.targetLng),
+          data: await cached(() => getLocationAnalysis(bd, body.targetLat, body.targetLng)),
         });
       }
       case "BIORHYTHMS": {
         return json({
-          data: await getBiorhythms(bd, requestedDateKey(body.localDate)),
+          data: await cached(() => getBiorhythms(bd, requestedDateKey(body.localDate))),
         });
       }
       case "WELLNESS_SCORE": {
-        return json({ data: await getWellnessScore(bd) });
+        return json({ data: await cached(() => getWellnessScore(bd)) });
       }
       case "ENERGY_PATTERNS": {
-        return json({ data: await getEnergyPatterns(bd) });
+        return json({ data: await cached(() => getEnergyPatterns(bd)) });
       }
       case "HUMAN_DESIGN": {
-        return json({ data: await getHumanDesignType(bd) });
+        return json({ data: await cached(() => getHumanDesignType(bd)) });
       }
       case "BODYGRAPH": {
-        return json({ data: await getBodygraph(bd) });
+        return json({ data: await cached(() => getBodygraph(bd)) });
       }
       case "BODYGRAPH_SVG": {
         const svg = await getBodygraphSVG(bd);
@@ -409,14 +567,14 @@ export default async (req: Request, _context: Context) => {
         });
       }
       case "SHADBALA": {
-        return json({ data: await getShadbala(bd) });
+        return json({ data: await cached(() => getShadbala(bd)) });
       }
       case "VARSHAPHAL": {
-        return json({ data: await getVarshaphal(bd, body.year) });
+        return json({ data: await cached(() => getVarshaphal(bd, body.year)) });
       }
       case "D1": {
-        const data = await getNatalChart(bd, zodiacMode);
-        return json(data);
+        const data = await cached(() => getNatalChart(bd, zodiacMode));
+        return json(birthTimeUnknown ? shapeTimeUnknownChart(data) : data);
       }
       default: {
         // Divisional charts (D9, D10, …). Reject unknown chartTypes instead of
@@ -424,30 +582,32 @@ export default async (req: Request, _context: Context) => {
         if (!DIVISIONAL_CHARTS.has(String(chartType))) {
           return json({ error: `Unknown chartType: ${chartType}` }, 400);
         }
-        const data = await getNavamsaChart(bd, [chartType]);
+        const data = await cached(() => getNavamsaChart(bd, [chartType]));
         return json(data);
       }
     }
   } catch (error: any) {
+    if (error instanceof GuestBudgetError || error?.name === "GuestBudgetError") {
+      return json(
+        {
+          error:
+            "Too many chart requests. Sign in for full access, or try again later.",
+          code: "guest_budget",
+        },
+        429,
+      );
+    }
+
     console.error("[Kundali] Error:", error);
 
     // A birth time that fell in a daylight-saving gap, or in a repeated
     // fall-back hour, can never succeed on retry — so it must not get the
     // generic "please try again". Matched on `name` rather than `instanceof`
     // so the guard survives differing class identities across bundles.
-    if (error?.name === "AstroChartError" && error.kind === "dst_ambiguous") {
-      return json(
-        {
-          error:
-            "That birth time doesn't map to a single moment in your birth " +
-            "city — it either never occurred or occurred twice when the " +
-            "clocks changed for daylight saving. Please check the time on " +
-            "your birth record; if it's correct, try it one hour later.",
-          code: "dst_ambiguous",
-        },
-        422,
-      );
-    }
+    // Same for any chart the upstream could not calculate (or whose place it
+    // could not resolve): a 422 with actionable copy, not a 500 "try again".
+    const chartFailure = chartErrorResponse(error);
+    if (chartFailure) return json(chartFailure.body, chartFailure.status);
 
     // Our upstream allowance for the billing period is spent. That is an
     // operator problem, not a bad request: a 500 "please try again" hides it

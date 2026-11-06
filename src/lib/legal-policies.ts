@@ -120,7 +120,8 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   {
     title: "5. Sensitive Data",
     content: [
-      "Guidance features store emotional-state notes, relationship context, and reflections you choose to share. This may be treated as sensitive or special-category personal data under laws such as the GDPR. We use it only to personalize your guidance and remember context, and you can remove it through Support.",
+      "When you chat with AstroYou, your conversations are automatically summarized into notes, including how you have been feeling, recurring patterns, people you mention, life events, advice given, and short excerpts of the conversation. These notes are created without a separate prompt each time and may be treated as sensitive or special-category personal data under laws such as the GDPR. We use them only to personalize your guidance and remember context.",
+      "You can view, delete individual notes, clear them entirely, or pause note-taking at any time in Settings under What I remember. While memory is paused, new conversations are not added to these notes. When you delete a conversation, the notes derived from it and its summary are deleted as well.",
     ],
   },
   {

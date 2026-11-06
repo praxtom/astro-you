@@ -20,3 +20,4 @@ export { useLastChat } from "./useLastChat";
 export { useDailyPrediction } from "./useDailyPrediction";
 export { useDashaPeriods } from "./useDashaPeriods";
 export { useReferralInfo } from "./useReferralInfo";
+export { useMemoryRecord } from "./useMemoryRecord";

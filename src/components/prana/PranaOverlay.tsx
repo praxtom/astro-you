@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Volume2, VolumeX, Music2, Wind, Waves, Circle, Plus } from 'lucide-react';
 import { useAudio, SoundType, SOUND_OPTIONS } from '../../hooks/useAudio';
@@ -8,13 +8,16 @@ interface PranaOverlayProps {
     onClose: () => void;
     initialMode?: 'calm' | 'energize' | 'balance';
     duration?: number; // in seconds
+    /** Fires once when a session runs to its end (not when closed early). */
+    onComplete?: () => void;
 }
 
 export const PranaOverlay: React.FC<PranaOverlayProps> = ({
     isOpen,
     onClose,
     initialMode = 'calm',
-    duration = 60 // 1 minute default
+    duration = 60, // 1 minute default
+    onComplete
 }) => {
     const [mode, setMode] = useState<'calm' | 'energize' | 'balance'>(initialMode);
     const [timeLeft, setTimeLeft] = useState(duration);
@@ -79,17 +82,30 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
         setTimeLeft(duration);
 
         const timer = setInterval(() => {
-            setTimeLeft((prev) => {
-                if (prev <= 1) {
-                    onClose();
-                    return 0;
-                }
-                return prev - 1;
-            });
+            setTimeLeft((prev) => Math.max(0, prev - 1));
         }, 1000);
 
         return () => clearInterval(timer);
-    }, [isOpen, onClose, duration, isPreparing]);
+    }, [isOpen, duration, isPreparing]);
+
+    // Session end: side effects live here, not inside the state updater (which
+    // React may invoke twice). The ref guards against a double completion.
+    const completedRef = useRef(false);
+    useEffect(() => {
+        if (!isOpen) {
+            // Reset so the next open starts a fresh session (prep countdown
+            // included) instead of instantly "completing" with timeLeft = 0.
+            completedRef.current = false;
+            setIsPreparing(true);
+            setPrepCountdown(3);
+            setTimeLeft(duration);
+            return;
+        }
+        if (isPreparing || timeLeft > 0 || completedRef.current) return;
+        completedRef.current = true;
+        onComplete?.();
+        onClose();
+    }, [isOpen, isPreparing, timeLeft, duration, onClose, onComplete]);
 
     // Start/stop audio on open/close
     useEffect(() => {

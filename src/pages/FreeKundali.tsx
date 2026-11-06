@@ -12,27 +12,69 @@ import { postJson } from "../lib/apiFetch";
 import { siteUrl } from "../lib/site-url";
 
 interface KundaliResult {
+  /** Display string, e.g. "Leo 12.4°" — never the raw {sign, degree} object. */
   ascendant?: string;
   moonSign?: string;
+  moonNakshatra?: string;
   sunSign?: string;
   planets?: any[];
   yogas?: any[];
   [key: string]: any;
 }
 
+const textOf = (value: unknown): string | undefined =>
+  typeof value === "string" && value.trim() ? value.trim() : undefined;
+
+/** The API returns ascendant as {sign, degree}; older shapes used a string. */
+const formatAscendant = (value: unknown): string | undefined => {
+  if (typeof value === "string") return textOf(value);
+  if (value && typeof value === "object") {
+    const v = value as { sign?: unknown; degree?: unknown };
+    const sign = textOf(v.sign);
+    if (!sign) return undefined;
+    const degree = Number(v.degree);
+    return Number.isFinite(degree) ? `${sign} ${degree.toFixed(1)}°` : sign;
+  }
+  return undefined;
+};
+
+/** Case-insensitive planet lookup in planetary_positions (sidereal, as returned). */
+const findPlanet = (planets: any[], name: string) =>
+  planets.find(
+    (p) =>
+      String(p?.name ?? p?.planet ?? "")
+        .trim()
+        .toLowerCase() === name,
+  );
+
 const normalizeKundaliResult = (payload: any): KundaliResult => {
   const raw = payload?.data ?? payload;
-  const planets =
+  const rawPlanets =
     raw?.planets ?? raw?.planetary_positions ?? raw?.planetaryPositions ?? [];
+  const planets = Array.isArray(rawPlanets) ? rawPlanets : [];
+  const moon = findPlanet(planets, "moon");
+  const sun = findPlanet(planets, "sun");
   return {
     ...raw,
-    ascendant: raw?.ascendant || raw?.lagna || raw?.ascendant_sign,
-    moonSign: raw?.moonSign || raw?.moon_sign || raw?.rashi,
-    sunSign: raw?.sunSign || raw?.sun_sign,
-    planets: Array.isArray(planets) ? planets : [],
+    ascendant:
+      formatAscendant(raw?.ascendant) ||
+      formatAscendant(raw?.lagna) ||
+      formatAscendant(raw?.ascendant_sign) ||
+      formatAscendant(findPlanet(planets, "ascendant")),
+    moonSign:
+      textOf(moon?.sign) ||
+      textOf(raw?.moonSign) ||
+      textOf(raw?.moon_sign) ||
+      textOf(raw?.rashi),
+    moonNakshatra: textOf(moon?.nakshatra),
+    sunSign: textOf(sun?.sign) || textOf(raw?.sunSign) || textOf(raw?.sun_sign),
+    planets,
     yogas: Array.isArray(raw?.yogas) ? raw.yogas : [],
   };
 };
+
+/** Points that depend on the exact birth time (hidden when it's unknown). */
+const TIME_SENSITIVE_POINTS = new Set(["ascendant", "lagna", "mc", "midheaven"]);
 
 export default function FreeKundali() {
   const [form, setForm] = useState({
@@ -41,6 +83,10 @@ export default function FreeKundali() {
     tob: "12:00",
     pob: "",
   });
+  // An unknown time is cast at noon but flagged, so neither the server nor
+  // the UI presents Lagna/houses as if they were exact.
+  const [timeUnknown, setTimeUnknown] = useState(false);
+  const [resultTimeUnknown, setResultTimeUnknown] = useState(false);
   const [result, setResult] = useState<KundaliResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -54,15 +100,25 @@ export default function FreeKundali() {
     setLoading(true);
     try {
       const res = await postJson("/api/kundali", {
-        birthData: form,
+        birthData: timeUnknown
+          ? { ...form, tob: "12:00", birthTimeUnknown: true }
+          : form,
         chartType: "D1",
       });
       if (res.ok) {
         const data = await res.json();
         setResult(normalizeKundaliResult(data));
+        setResultTimeUnknown(timeUnknown);
         trackAcquisitionEvent("seo_tool_complete", { tool: "free_kundali" });
       } else {
-        setError("Something went wrong. Please try again.");
+        // The server sends user-safe copy (e.g. "check the birth date, time
+        // and place") — show it instead of a generic failure.
+        const body = await res.json().catch(() => null);
+        setError(
+          typeof body?.error === "string" && body.error
+            ? body.error
+            : "Something went wrong. Please try again.",
+        );
       }
     } catch {
       setError("Network error. Please check your connection.");
@@ -195,11 +251,27 @@ export default function FreeKundali() {
                 <input
                   type="time"
                   value={form.tob}
+                  disabled={timeUnknown}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, tob: e.target.value }))
                   }
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-transparent transition-all [color-scheme:dark]"
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-transparent transition-all [color-scheme:dark] disabled:opacity-40"
                 />
+                <label className="mt-2 flex items-center gap-2 text-sm text-white/50 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={timeUnknown}
+                    onChange={(e) => setTimeUnknown(e.target.checked)}
+                    className="accent-amber-500"
+                  />
+                  I don't know my birth time
+                </label>
+                {timeUnknown && (
+                  <p className="mt-1 text-xs text-white/35">
+                    We'll still show your Moon sign, nakshatra and planets by
+                    sign. Rising sign and houses need an exact birth time.
+                  </p>
+                )}
               </div>
 
               {/* Place of Birth */}
@@ -287,11 +359,29 @@ export default function FreeKundali() {
               </p>
             )}
 
+            {resultTimeUnknown && (
+              <p className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-center text-sm text-white/60">
+                Rising sign and houses need an exact birth time, so they're
+                hidden here. Moon sign, nakshatra and planets by sign don't
+                depend on it.
+              </p>
+            )}
+
             {/* Key Highlights */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
               {[
-                { label: "Ascendant (Lagna)", value: result.ascendant || "—" },
-                { label: "Moon Sign (Rashi)", value: result.moonSign || "—" },
+                {
+                  label: "Ascendant (Lagna)",
+                  value: resultTimeUnknown
+                    ? "Needs birth time"
+                    : result.ascendant || "—",
+                },
+                {
+                  label: "Moon Sign (Rashi)",
+                  value: result.moonNakshatra
+                    ? `${result.moonSign || "—"} · ${result.moonNakshatra}`
+                    : result.moonSign || "—",
+                },
                 { label: "Sun Sign", value: result.sunSign || "—" },
               ].map((item) => (
                 <div
@@ -346,17 +436,30 @@ export default function FreeKundali() {
                   Planetary Positions
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {result.planets.slice(0, 9).map((planet: any, i: number) => (
-                    <div key={i} className="flex items-center gap-2 text-sm">
-                      <span className="w-2 h-2 rounded-full bg-amber-400/60" />
-                      <span className="text-white/60">
-                        {planet.name || `Planet ${i + 1}`}
-                      </span>
-                      <span className="text-white/30 ml-auto">
-                        {planet.sign || planet.rashi || "—"}
-                      </span>
-                    </div>
-                  ))}
+                  {result.planets
+                    .filter(
+                      (planet: any) =>
+                        !resultTimeUnknown ||
+                        !TIME_SENSITIVE_POINTS.has(
+                          String(planet?.name ?? planet?.planet ?? "")
+                            .trim()
+                            .toLowerCase(),
+                        ),
+                    )
+                    .slice(0, 9)
+                    .map((planet: any, i: number) => (
+                      <div key={i} className="flex items-center gap-2 text-sm">
+                        <span className="w-2 h-2 rounded-full bg-amber-400/60" />
+                        <span className="text-white/60">
+                          {textOf(planet?.name) ||
+                            textOf(planet?.planet) ||
+                            `Planet ${i + 1}`}
+                        </span>
+                        <span className="text-white/30 ml-auto">
+                          {textOf(planet?.sign) || textOf(planet?.rashi) || "—"}
+                        </span>
+                      </div>
+                    ))}
                 </div>
               </div>
             )}
@@ -417,8 +520,10 @@ export default function FreeKundali() {
             <div className="flex gap-3 mt-6 justify-center">
               <button
                 onClick={() => {
-                  const asc = result.ascendant || "";
-                  const text = `My Ascendant is ${asc}! Get your free Vedic birth chart:`;
+                  const text =
+                    !resultTimeUnknown && result.ascendant
+                      ? `My Ascendant is ${result.ascendant}! Get your free Vedic birth chart:`
+                      : `My Moon sign is ${result.moonSign || "revealed"}! Get your free Vedic birth chart:`;
                   const url = window.location.href;
                   if (navigator.share) {
                     navigator.share({ title: "My Birth Chart", text, url });

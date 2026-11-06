@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { PersonalDataError, errorKindOf, type PersonalDataErrorKind } from "../lib/personal-data-error";
 import type { BirthData } from "../types";
 import { useRequestBirthData } from "./useRequestBirthData";
 import { postJson } from "../lib/apiFetch";
@@ -19,18 +20,26 @@ interface UseRemediesResult {
   remedies: RemediesData | null;
   loading: boolean;
   error: string | null;
+  errorKind: PersonalDataErrorKind | null;
+  retry: () => void;
 }
 
 export function useRemedies(birthData: BirthData | null): UseRemediesResult {
   const [remedies, setRemedies] = useState<RemediesData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorKind, setErrorKind] = useState<PersonalDataErrorKind | null>(
+    null,
+  );
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
   const requestBirthData = useRequestBirthData(birthData);
 
   useEffect(() => {
     if (!requestBirthData?.dob || !requestBirthData.tob) {
       setRemedies(null);
       setError(null);
+      setErrorKind(null);
       setLoading(false);
       return;
     }
@@ -46,6 +55,7 @@ export function useRemedies(birthData: BirthData | null): UseRemediesResult {
       try {
         setLoading(true);
         setError(null);
+        setErrorKind(null);
 
         const response = await postJson(
           "/api/kundali",
@@ -53,9 +63,7 @@ export function useRemedies(birthData: BirthData | null): UseRemediesResult {
           { signal: controller.signal },
         );
 
-        if (!response.ok) {
-          throw new Error("Failed to fetch remedies");
-        }
+        if (!response.ok) throw new PersonalDataError(response.status);
 
         const result = await response.json();
         const raw = result.data ?? result;
@@ -80,11 +88,15 @@ export function useRemedies(birthData: BirthData | null): UseRemediesResult {
         setRemedies({ remedies: normalized });
       } catch (err: any) {
         if (err.name === "AbortError") {
-          if (timedOut) setError("Remedies took too long to load");
+          if (timedOut) {
+            setError("Remedies took too long to load");
+            setErrorKind("unavailable");
+          }
           return;
         }
         console.error("[useRemedies] Error:", err);
         setError(err.message);
+        setErrorKind(errorKindOf(err));
       } finally {
         window.clearTimeout(timeoutId);
         setLoading(false);
@@ -96,7 +108,7 @@ export function useRemedies(birthData: BirthData | null): UseRemediesResult {
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [requestBirthData]);
+  }, [requestBirthData, attempt]);
 
-  return { remedies, loading, error };
+  return { remedies, loading, error, errorKind, retry };
 }

@@ -1,6 +1,10 @@
 import { Config, Context } from "@netlify/functions";
 import { getCompatibilityDetails, getKundliMatching } from "./shared/astro-api";
-import { normalizeMatchPayload } from "./shared/compatibility-payload.js";
+import {
+  attachPairManglik,
+  normalizeMatchPayload,
+  orientVedicPair,
+} from "./shared/compatibility-payload.js";
 import { generateCompatibilityNarrative } from "./shared/gemini";
 import { buildUserContext } from "./shared/user-context";
 import {
@@ -86,11 +90,15 @@ export default async (req: Request, _context: Context) => {
       useVedicMatching === true ||
       (personA.dob && personA.tob && personB.dob && personB.tob);
 
+    // Ashtakoot is asymmetric (groom vs bride slot): pick slots by gender,
+    // not by entry order. Same/missing gender keeps entry order and is flagged.
+    const vedicPair = orientVedicPair(personA, personB);
+
     // Build parallel promises
     const promises: [Promise<any>, Promise<any>] = [
       getCompatibilityDetails(personA, personB),
       shouldUseVedic
-        ? getKundliMatching(personA, personB).catch((err) => {
+        ? getKundliMatching(vedicPair.groom, vedicPair.bride).catch((err) => {
             console.warn(
               "[Compatibility] Vedic matching failed (non-critical):",
               err,
@@ -132,7 +140,15 @@ export default async (req: Request, _context: Context) => {
       JSON.stringify({
         ...matchData,
         aiNarrative,
-        ...(vedicMatching ? { vedicMatching } : {}),
+        ...(vedicMatching && typeof vedicMatching === "object"
+          ? {
+              vedicMatching: attachPairManglik(
+                vedicMatching,
+                vedicPair.groomIs,
+              ),
+              orientationAssumed: vedicPair.orientationAssumed,
+            }
+          : {}),
       }),
       {
         status: 200,

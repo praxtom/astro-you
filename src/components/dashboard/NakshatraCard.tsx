@@ -1,15 +1,17 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Star, Loader2 } from 'lucide-react';
-import { useNakshatra } from '../../hooks/useNakshatra';
+import type { UseNakshatraResult } from '../../hooks/useNakshatra';
 import { GlossaryTerm } from "../ui/GlossaryTerm";
+import { PersonalCardNotice } from './PersonalCardNotice';
 
 interface NakshatraCardProps {
-    birthData: any;
+    /** Shared result of the Dashboard's single useNakshatra call. */
+    state: UseNakshatraResult;
 }
 
-export const NakshatraCard: React.FC<NakshatraCardProps> = ({ birthData }) => {
-    const { nakshatra, loading, error } = useNakshatra(birthData);
+export const NakshatraCard: React.FC<NakshatraCardProps> = ({ state }) => {
+    const { nakshatra, loading, error, errorKind, retry } = state;
 
     if (loading) {
         return (
@@ -37,15 +39,7 @@ export const NakshatraCard: React.FC<NakshatraCardProps> = ({ birthData }) => {
                     <h3 className="text-sm font-semibold text-gold tracking-wide">Birth <GlossaryTerm k="nakshatra">Nakshatra</GlossaryTerm></h3>
                 </div>
 
-                <p className="text-sm text-white/70 leading-relaxed">
-                    Birth star reading is refreshing from your saved profile.
-                </p>
-                <div className="mt-3 pt-3 border-t border-white/5">
-                    <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1">Today</p>
-                    <p className="text-sm text-white/60 leading-relaxed">
-                        Keep the day simple: one clear intention, one important conversation, one completed task.
-                    </p>
-                </div>
+                <PersonalCardNotice kind={errorKind ?? 'unavailable'} thing="birth star reading" onRetry={retry} />
             </motion.div>
         );
     }

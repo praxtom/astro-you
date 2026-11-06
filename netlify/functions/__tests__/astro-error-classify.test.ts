@@ -1,14 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  chartErrorUserMessage,
   classifyUpstreamChartError,
   classifyUpstreamErrorMessage,
 } from "../shared/astro-error-classify.js";
 
 // Real 422 body shape observed from astrology-api.io for a birth time that
 // falls in the DST spring-forward gap (Denver, 2020-03-08 02:30) or the
-// repeated fall-back hour (Denver, 2020-11-01 01:30).
-const DST_422 = JSON.stringify({
+// repeated fall-back hour (Denver, 2020-11-01 01:30). Note the message is the
+// generic one — the same body comes back for non-DST calculation failures, so
+// on its own it must NOT be reported as a DST problem.
+const GENERIC_CALC_422 = JSON.stringify({
   detail: {
     success: false,
     error: {
@@ -29,8 +32,53 @@ const LOCATION_422 = JSON.stringify({
   ],
 });
 
-test("classifies a chart-calculation 422 as DST-ambiguous", () => {
+const DST_422 = JSON.stringify({
+  detail: {
+    success: false,
+    error: {
+      error_code: "CHART_CALCULATION_ERROR",
+      message: "Local time 2020-03-08 02:30 is nonexistent in America/Denver",
+      field: "birth_data",
+    },
+  },
+});
+
+test("a generic CHART_CALCULATION_ERROR is not reported as DST", () => {
+  assert.equal(
+    classifyUpstreamChartError(422, GENERIC_CALC_422),
+    "chart_calculation_failed",
+  );
+});
+
+test("classifies a chart-calculation 422 as DST only when the text says so", () => {
   assert.equal(classifyUpstreamChartError(422, DST_422), "dst_ambiguous");
+  const ambiguous = JSON.stringify({
+    detail: {
+      error: {
+        error_code: "CHART_CALCULATION_ERROR",
+        message: "AmbiguousTimeError: 2020-11-01 01:30:00",
+      },
+    },
+  });
+  assert.equal(classifyUpstreamChartError(422, ambiguous), "dst_ambiguous");
+  const viaDetails = JSON.stringify({
+    detail: {
+      error: {
+        error_code: "CHART_CALCULATION_ERROR",
+        message: "Failed to calculate astrological chart",
+        details: { reason: "time falls in daylight saving gap" },
+      },
+    },
+  });
+  assert.equal(classifyUpstreamChartError(422, viaDetails), "dst_ambiguous");
+});
+
+test("user messages: DST copy only for DST, generic copy otherwise", () => {
+  assert.match(chartErrorUserMessage("dst_ambiguous") ?? "", /daylight saving/);
+  const generic = chartErrorUserMessage("chart_calculation_failed") ?? "";
+  assert.match(generic, /check the birth date, time and place/);
+  assert.doesNotMatch(generic, /daylight/i);
+  assert.equal(chartErrorUserMessage("unknown"), null);
 });
 
 test("classifies a missing-location 422 separately", () => {
@@ -42,6 +90,7 @@ test("classifies a missing-location 422 separately", () => {
 
 test("does not classify non-422 failures", () => {
   assert.equal(classifyUpstreamChartError(500, DST_422), "unknown");
+  assert.equal(classifyUpstreamChartError(500, GENERIC_CALC_422), "unknown");
   assert.equal(classifyUpstreamChartError(401, "nope"), "unknown");
 });
 

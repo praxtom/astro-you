@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { PersonalDataError, errorKindOf, type PersonalDataErrorKind } from "../lib/personal-data-error";
 import { useRequestBirthData } from "./useRequestBirthData";
 import { postJson } from "../lib/apiFetch";
 
@@ -10,16 +11,23 @@ export interface NakshatraData {
   symbol?: string;
 }
 
-interface UseNakshatraResult {
+export interface UseNakshatraResult {
   nakshatra: NakshatraData | null;
   loading: boolean;
   error: string | null;
+  errorKind: PersonalDataErrorKind | null;
+  retry: () => void;
 }
 
 export function useNakshatra(birthData: any): UseNakshatraResult {
   const [nakshatra, setNakshatra] = useState<NakshatraData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorKind, setErrorKind] = useState<PersonalDataErrorKind | null>(
+    null,
+  );
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
   const requestBirthData = useRequestBirthData(birthData);
 
   useEffect(() => {
@@ -34,6 +42,7 @@ export function useNakshatra(birthData: any): UseNakshatraResult {
       try {
         setLoading(true);
         setError(null);
+        setErrorKind(null);
 
         const response = await postJson(
           "/api/kundali",
@@ -44,7 +53,7 @@ export function useNakshatra(birthData: any): UseNakshatraResult {
           { signal: controller.signal },
         );
 
-        if (!response.ok) throw new Error("Failed to fetch Nakshatra data");
+        if (!response.ok) throw new PersonalDataError(response.status);
 
         const result = await response.json();
         const data = result.data ?? result;
@@ -65,6 +74,7 @@ export function useNakshatra(birthData: any): UseNakshatraResult {
         if (err.name === "AbortError") return;
         console.error("[useNakshatra] Error:", err);
         setError(err.message);
+        setErrorKind(errorKindOf(err));
       } finally {
         setLoading(false);
       }
@@ -72,7 +82,7 @@ export function useNakshatra(birthData: any): UseNakshatraResult {
 
     fetchNakshatra();
     return () => controller.abort();
-  }, [requestBirthData]);
+  }, [requestBirthData, attempt]);
 
-  return { nakshatra, loading, error };
+  return { nakshatra, loading, error, errorKind, retry };
 }

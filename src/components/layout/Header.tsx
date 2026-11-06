@@ -22,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 import { STORAGE_KEYS } from "../../lib/constants";
+import { hasSavedBirthProfile } from "../../lib/saved-profile";
 import {
   SPACES,
   getSpaceForPath,
@@ -101,15 +102,27 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
   const closeUserMenu = () => setIsUserMenuOpen(false);
 
   const goToDashboard = async () => {
+    closeUserMenu();
     if (location.pathname === "/dashboard") return;
     if (!user) return;
-    const docSnap = await getDoc(doc(db, "users", user.uid));
-    if (docSnap.exists() && docSnap.data().name) {
-      navigate("/dashboard");
-    } else {
-      sessionStorage.setItem(STORAGE_KEYS.MODE, "logged_in");
-      onShowOnboarding?.();
+    let hasProfile = Boolean(profile?.dob && profile?.tob);
+    if (!hasProfile) {
+      try {
+        const docSnap = await getDoc(doc(db, "users", user.uid));
+        hasProfile = docSnap.exists() && hasSavedBirthProfile(docSnap.data());
+      } catch {
+        // Offline / rules hiccup — the dashboard handles a missing profile itself.
+        hasProfile = true;
+      }
     }
+    if (hasProfile) {
+      navigate("/dashboard");
+      return;
+    }
+    sessionStorage.setItem(STORAGE_KEYS.MODE, "logged_in");
+    // Pages without an onboarding modal still get a working path.
+    if (onShowOnboarding) onShowOnboarding();
+    else navigate("/onboarding");
   };
 
   const userMenuItems = [

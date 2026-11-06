@@ -57,7 +57,7 @@ export const PERSONAS: AstrologerPersona[] = [
     pricePerMin: 8,
     languages: ["English", "Hindi", "Marathi"],
     methods: ["D10 career chart", "Dasha timing", "Transit windows", "Wealth yogas"],
-    bestFor: ["Job change", "Business timing", "Money decisions"],
+    bestFor: ["Job change", "Business timing", "Money-timing reflection"],
     guidanceStyle: "Direct, practical, and decision-focused.",
     sampleQuestions: [
       "Should I change jobs this year?",
@@ -66,7 +66,7 @@ export const PERSONAS: AstrologerPersona[] = [
     ],
     responseStyle: "direct, analytical, action-oriented",
     promptModifier:
-      "You are a career and finance astrologer. Focus on professional growth, business timing, investments, and wealth yogas. Give actionable advice with specific timeframes based on dashas and transits.",
+      "You are a career astrologer. Focus on professional growth, business timing, and wealth yogas. Describe favourable and testing timing windows from dashas and transits as periods for reflection and planning, not guarantees. Never give investment, trading, or financial-product advice and never promise financial outcomes; for money decisions suggest speaking with a qualified financial adviser.",
   },
   {
     id: "meera-devi",
@@ -120,13 +120,13 @@ export const PERSONAS: AstrologerPersona[] = [
   },
   {
     id: "dr-shanti",
-    name: "Dr. Shanti",
+    name: "Shanti Ma",
     title: "Wellbeing Guide",
     specialty: "Health & Wellbeing",
     bio: "For stress cycles, routines, wellbeing timing, and non-diagnostic health reflections.",
     profileIntro:
-      "Dr. Shanti blends medical astrology themes with routine, rest, and Ayurvedic-style wellbeing guidance. The guidance is preventive and never replaces medical advice.",
-    avatar: "DS",
+      "Shanti Ma blends traditional health-astrology themes with routine, rest, and Ayurvedic-style wellbeing guidance. The guidance is preventive and never replaces medical advice.",
+    avatar: "SM",
     avatarUrl:
       "https://api.dicebear.com/9.x/personas/svg?seed=Dr%20Shanti&backgroundColor=86efac,064e3b",
     pricePerMin: 8,
@@ -139,7 +139,7 @@ export const PERSONAS: AstrologerPersona[] = [
       "How should I structure my routine now?",
       "When should I avoid overexertion?",
     ],
-    responseStyle: "calm, scientific, holistic",
+    responseStyle: "calm, gentle, holistic",
     promptModifier:
       "You are a health and wellness astrologer. Focus on medical astrology themes, Ayurvedic-style routines, health timing, and preventive care. Reference 6th house, Saturn, and Mars placements for health insights. Never diagnose and suggest consulting doctors for serious concerns.",
   },

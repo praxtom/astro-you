@@ -90,7 +90,9 @@ export function useCreditTopup() {
           const checkout = new Razorpay({
             key: import.meta.env.VITE_RAZORPAY_KEY_ID,
             // Minor units, straight from the Razorpay order.
-            amount: order.amount || toMinorUnits(getPackAmount(pack, currency), currency),
+            amount:
+              order.amount ||
+              toMinorUnits(getPackAmount(pack, currency), currency),
             currency: order.currency || currency,
             name: "AstroYou",
             description: `${pack.label} for AstroYou`,
@@ -152,7 +154,7 @@ export function useCreditTopup() {
         return false;
       }
     },
-    [user],
+    [user, currency],
   );
 
   return { buyCredits, isPaying, error };

@@ -25,13 +25,17 @@ service cloud.firestore {
       // to get subtly wrong. Referral fields may be absent, so compare via
       // get() with a null default — a client-writable referral.code would let
       // an attacker hijack another user's referral rewards.
+      // Memory controls: the owner may edit/clear their own `atman` memory
+      // and toggle `memoryPaused` (must be a bool; the server skips memory
+      // extraction while it is true).
       allow update: if isOwner(userId)
                     && request.resource.data.credits == resource.data.credits
                     && request.resource.data.subscription == resource.data.subscription
                     && request.resource.data.get('referral', null) == resource.data.get('referral', null)
                     && request.resource.data.get('referredBy', null) == resource.data.get('referredBy', null)
                     && request.resource.data.get('referralClaimedAt', null) == resource.data.get('referralClaimedAt', null)
-                    && request.resource.data.get('activeConsultSessionId', null) == resource.data.get('activeConsultSessionId', null);
+                    && request.resource.data.get('activeConsultSessionId', null) == resource.data.get('activeConsultSessionId', null)
+                    && request.resource.data.get('memoryPaused', false) is bool;
 
       // Chats subcollection
       match /chats/{chatId} {

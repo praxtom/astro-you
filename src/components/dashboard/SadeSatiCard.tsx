@@ -3,13 +3,14 @@ import { motion } from 'framer-motion';
 import { AlertTriangle, Shield, Loader2 } from 'lucide-react';
 import { useSadeSati } from '../../hooks/useSadeSati';
 import { GlossaryTerm } from "../ui/GlossaryTerm";
+import { PersonalCardNotice } from './PersonalCardNotice';
 
 interface SadeSatiCardProps {
     birthData: any;
 }
 
 export const SadeSatiCard: React.FC<SadeSatiCardProps> = ({ birthData }) => {
-    const { sadeSati, loading, error } = useSadeSati(birthData);
+    const { sadeSati, loading, error, errorKind, retry } = useSadeSati(birthData);
 
     if (loading) {
         return (
@@ -36,9 +37,7 @@ export const SadeSatiCard: React.FC<SadeSatiCardProps> = ({ birthData }) => {
                     </div>
                     <h3 className="text-sm font-semibold text-white/90 tracking-wide">Saturn Period Check</h3>
                 </div>
-                <p className="text-sm text-white/65 leading-relaxed">
-                    Live Saturn timing is refreshing. Keep commitments simple and choose consistency over urgency today.
-                </p>
+                <PersonalCardNotice kind={errorKind ?? 'unavailable'} thing="Sade Sati timing" onRetry={retry} />
             </motion.div>
         );
     }

@@ -24,7 +24,7 @@ Shared style suffix for every prompt — keeps the set cohesive:
 | `arjun-sharma.png`     | Arjun Sharma — Career Strategist       | Confident Indian man in his late 30s, neat short hair, charcoal kurta with rolled sleeves, focused and approachable |
 | `meera-devi.png`       | Meera Devi — Relationship Guide        | Warm Indian woman in her 40s, soft maroon saree, small gold earrings, kind knowing smile                            |
 | `pandit-raghunath.png` | Pandit Raghunath — Traditional Scholar | Dignified elderly Indian pandit in his 70s, white kurta and angavastram, tilak on forehead, scholarly bearing       |
-| `dr-shanti.png`        | Dr. Shanti — Wellbeing Guide           | Composed Indian woman in her 50s, short grey-streaked hair, sage-green shawl, gentle clinical warmth                |
+| `dr-shanti.png`        | Shanti Ma — Wellbeing Guide            | Composed Indian woman in her 50s, short grey-streaked hair, sage-green shawl, gentle clinical warmth                |
 | `nanda-ji.png`         | Nanda Ji — Family Advisor              | Kindly Indian elder in his 60s, cream shawl, reading glasses on a cord, grandfatherly warmth                        |
 | `ishaan-rao.png`       | Ishaan Rao — Business Timing           | Sharp young Indian man around 30, modern navy bandhgala, subtle confidence, city bokeh behind                       |
 | `tara-kapoor.png`      | Tara Kapoor — Life Pattern Reader      | Thoughtful young Indian woman in her early 30s, loose dark hair, deep violet dupatta, quiet intensity               |

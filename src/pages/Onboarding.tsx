@@ -30,6 +30,13 @@ import {
 } from "../lib/zodiac-mode";
 import { useErrorToast } from "../components/ui/toast-context";
 import { trackAcquisitionEvent } from "../lib/acquisition";
+import {
+  deriveProfileSigns,
+  resolveAscendant,
+  resolveMoon,
+} from "../lib/chart-summary";
+import { ZODIAC_SIGNS } from "../lib/astrology";
+import { SIGNUP_BONUS_CREDITS } from "../lib/signup-offer";
 
 type Step = "upload" | "identity" | "temporal" | "spatial" | "present";
 import type { ParsedChartData } from "../types";
@@ -69,6 +76,11 @@ export default function Onboarding() {
 
   // Preview: background-fetch kundali data when entering "present" step
   const [preview, setPreview] = useState<any>(null);
+  const previewLagna = resolveAscendant(preview);
+  const previewMoon = resolveMoon(preview);
+  const previewMoonSign = previewMoon
+    ? ZODIAC_SIGNS.find((z) => z.code === previewMoon.code)?.western
+    : null;
   const { name, gender, dob, tob, pob, birthTimeUnknown } = formData;
 
   useEffect(() => {
@@ -232,8 +244,12 @@ export default function Onboarding() {
         ? Intl.DateTimeFormat().resolvedOptions().timeZone
         : undefined,
     );
+    // Current location is optional; default it to the birth place.
+    const profileData = formData.currentLocation.trim()
+      ? formData
+      : { ...formData, currentLocation: formData.pob };
     const storedProfile = JSON.stringify({
-      ...formData,
+      ...profileData,
       timezone,
       ...(birthCoordinates ? { coordinates: birthCoordinates } : {}),
     });
@@ -257,7 +273,7 @@ export default function Onboarding() {
           );
 
           const profilePayload: Record<string, any> = {
-            ...formData,
+            ...profileData,
             timezone,
             parsedChart: parsedChart,
           };
@@ -265,7 +281,7 @@ export default function Onboarding() {
             profilePayload.coordinates = birthCoordinates;
           } else if (
             prevCoords &&
-            (prevProfile?.pob || "").trim() !== formData.pob.trim()
+            (prevProfile?.pob || "").trim() !== profileData.pob.trim()
           ) {
             // pob changed without picking a suggestion — the stored
             // coordinates belong to the old place and must not survive.
@@ -287,9 +303,9 @@ export default function Onboarding() {
                   }
                 : null,
               {
-                dob: formData.dob,
-                tob: formData.tob,
-                pob: formData.pob,
+                dob: profileData.dob,
+                tob: profileData.tob,
+                pob: profileData.pob,
                 coordinates: birthCoordinates,
               },
             )
@@ -299,6 +315,23 @@ export default function Onboarding() {
             updates.kundaliData = deleteField();
             updates.kundaliData_D9 = deleteField();
             updates.kundaliData_D10 = deleteField();
+            // The saved signs belong to the old chart too.
+            profilePayload.moonSign = deleteField();
+            profilePayload.sunSign = deleteField();
+            profilePayload.moonNakshatra = deleteField();
+          }
+          // Sidereal Moon/Sun signs + Moon nakshatra from the preview D1 (cast
+          // for exactly this birth data — it resets whenever an input changes).
+          // A Western preview is tropical, so it never writes them; useKundali
+          // backfills from the Vedic D1 later if they are still missing.
+          const previewSigns =
+            formData.zodiacMode === "vedic" ? deriveProfileSigns(preview) : null;
+          if (previewSigns) {
+            profilePayload.moonSign = previewSigns.moonSign;
+            if (previewSigns.sunSign)
+              profilePayload.sunSign = previewSigns.sunSign;
+            if (previewSigns.moonNakshatra)
+              profilePayload.moonNakshatra = previewSigns.moonNakshatra;
           }
 
           await setDoc(userRef, updates, { merge: true });
@@ -933,13 +966,24 @@ export default function Onboarding() {
                   Quick Preview
                 </p>
                 <p className="text-sm text-white/70">
-                  Moon Sign:{" "}
+                  {/* The preview is the D1 chart: `ascendant` is the Lagna,
+                      the Moon sign comes from the Moon's own position. */}
+                  Lagna:{" "}
                   <span className="text-white font-medium">
-                    {preview.ascendant?.sign ||
-                      preview.moonSign ||
-                      preview.ascendant ||
-                      "Calculating..."}
+                    {preview.timeUnknown || birthTimeUnknown
+                      ? "needs an exact birth time"
+                      : previewLagna
+                        ? `${previewLagna.western} (${previewLagna.name})`
+                        : "Calculating..."}
                   </span>
+                  {previewMoonSign && (
+                    <>
+                      {" · "}Moon:{" "}
+                      <span className="text-white font-medium">
+                        {previewMoonSign}
+                      </span>
+                    </>
+                  )}
                   {preview.planetary_positions?.length > 0 &&
                     ` · ${preview.planetary_positions.length} planets analyzed`}
                   {!preview.planetary_positions?.length &&
@@ -1033,7 +1077,8 @@ export default function Onboarding() {
             onClick={prevStep}
             className="btn btn-outline py-3 flex-1 font-bold tracking-widest text-xs uppercase"
           >
-            {step === "identity" ? "Cancel" : "Back"}
+            {/* Upload is the first step, so only it cancels; identity goes back to it. */}
+            {step === "upload" ? "Cancel" : "Back"}
           </button>
           <button
             disabled={isSaving}
@@ -1041,8 +1086,7 @@ export default function Onboarding() {
             className={`btn btn-primary py-3 flex-[2] font-bold tracking-widest text-xs uppercase flex items-center justify-center gap-2 transition-all ${
               (step === "identity" && (!formData.name || !formData.gender)) ||
               (step === "temporal" && (!formData.dob || !formData.tob)) ||
-              (step === "spatial" && !formData.pob) ||
-              (step === "present" && !formData.currentLocation)
+              (step === "spatial" && !formData.pob)
                 ? "opacity-40 cursor-not-allowed grayscale"
                 : ""
             }`}
@@ -1061,8 +1105,8 @@ export default function Onboarding() {
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
-        title="Secure Your Destiny"
-        message="Create your celestial profile to save your coordinates and receive deeply personalized astrological synthesis."
+        title="Save your chart"
+        message={`Sign in to save your chart and get ${SIGNUP_BONUS_CREDITS} free credits.`}
       />
     </div>
   );

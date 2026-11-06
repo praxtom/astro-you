@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { PersonalDataError, errorKindOf, type PersonalDataErrorKind } from "../lib/personal-data-error";
 import { postJson } from "../lib/apiFetch";
 import type { BirthData, Yoga } from '../types';
 import { useRequestBirthData } from './useRequestBirthData';
@@ -16,12 +17,17 @@ interface UseYogasResult {
     yogas: Yoga[];
     loading: boolean;
     error: string | null;
+    errorKind: PersonalDataErrorKind | null;
+    retry: () => void;
 }
 
 export function useYogas(birthData: BirthData | null): UseYogasResult {
     const [yogas, setYogas] = useState<Yoga[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [errorKind, setErrorKind] = useState<PersonalDataErrorKind | null>(null);
+    const [attempt, setAttempt] = useState(0);
+    const retry = useCallback(() => setAttempt((n) => n + 1), []);
     const requestBirthData = useRequestBirthData(birthData);
 
     useEffect(() => {
@@ -36,12 +42,11 @@ export function useYogas(birthData: BirthData | null): UseYogasResult {
             try {
                 setLoading(true);
                 setError(null);
+                setErrorKind(null);
 
                 const response = await postJson("/api/kundali", { birthData: requestBirthData, chartType: 'YOGAS' }, { signal: controller.signal });
 
-                if (!response.ok) {
-                    throw new Error('Failed to fetch yoga data');
-                }
+                if (!response.ok) throw new PersonalDataError(response.status);
 
                 const result = await response.json();
                 const data = result.data ?? result;
@@ -61,6 +66,7 @@ export function useYogas(birthData: BirthData | null): UseYogasResult {
                 if (err.name === 'AbortError') return;
                 console.error('[useYogas] Error:', err);
                 setError(err.message);
+                setErrorKind(errorKindOf(err));
             } finally {
                 setLoading(false);
             }
@@ -68,7 +74,7 @@ export function useYogas(birthData: BirthData | null): UseYogasResult {
 
         fetchYogas();
         return () => controller.abort();
-    }, [requestBirthData]);
+    }, [requestBirthData, attempt]);
 
-    return { yogas, loading, error };
+    return { yogas, loading, error, errorKind, retry };
 }

@@ -30,6 +30,10 @@ export interface KundaliData {
         degree: number;
     };
     calculatedAt?: Date;
+    /** Birth time unknown: no Lagna/house cusps (see /api/kundali). */
+    timeUnknown?: boolean;
+    /** What house 1 is counted from: the Lagna (default) or the Moon sign. */
+    houseReference?: "lagna" | "moon";
 }
 
 export interface DashaPeriod {

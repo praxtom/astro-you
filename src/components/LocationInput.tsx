@@ -2,6 +2,7 @@ import { useState, useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { MapPin, Loader2, X } from "lucide-react";
 import { FieldError } from "../lib/FieldError";
+import { dedupeLocationSuggestions } from "../lib/location-dedupe";
 
 const LOOKUP_ERROR =
   "Couldn't look up places right now. Check your connection and try again.";
@@ -126,11 +127,13 @@ export default function LocationInput({
         throw new Error(`Geocoder responded ${response.status}`);
       const data = await response.json();
 
-      const filtered = data.map((item: any) => ({
-        display_name: item.display_name,
-        lat: item.lat,
-        lon: item.lon,
-      }));
+      const filtered: Suggestion[] = dedupeLocationSuggestions(
+        (Array.isArray(data) ? data : []).map((item: any) => ({
+          display_name: item.display_name,
+          lat: item.lat,
+          lon: item.lon,
+        })),
+      );
 
       // A search that got through clears any earlier failure.
       setLookupError(null);

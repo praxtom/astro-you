@@ -944,7 +944,7 @@ Competitor Comparison:
     - [x] **Arjun Sharma** — Career, finance, business timing (uses career-focused prompt)
     - [x] **Meera Devi** — Love, marriage, relationships (uses relationship prompt)
     - [x] **Pandit Raghunath** — Traditional Vedic, doshas, remedies (uses classical Jyotish prompt)
-    - [x] **Dr. Shanti** — Health, wellness, biorhythms (uses wellness prompt)
+    - [x] **Shanti Ma** (id `dr-shanti`) — Health, wellness, biorhythms (uses wellness prompt)
     - [x] **Nanda Ji** — Family, children, property, muhurat (uses practical life prompt)
     - [x] **Ishaan Rao** — Business timing: launches, negotiations, partnerships (uses business-timing prompt)
     - [x] **Tara Kapoor** — Cross-life generalist: love, career, self-patterns (uses life-pattern prompt)

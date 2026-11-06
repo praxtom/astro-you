@@ -9,6 +9,8 @@ interface UtilityDockProps {
   profile?: any;
   hasBirthData: boolean;
   downloadingNatal: boolean;
+  /** Credit price of the natal PDF, shown on the button. */
+  natalReportCost: number;
   onDownloadNatalReport: () => void;
   onUpdateBirthData: () => void;
   onOpenAltar: () => void;
@@ -22,6 +24,7 @@ interface UtilityDockProps {
 export const UtilityDock: React.FC<UtilityDockProps> = ({
   hasBirthData,
   downloadingNatal,
+  natalReportCost,
   onDownloadNatalReport,
   onUpdateBirthData,
   onOpenAltar,
@@ -81,7 +84,9 @@ export const UtilityDock: React.FC<UtilityDockProps> = ({
             className={linkClass}
           >
             <Download size={14} />
-            {downloadingNatal ? "Generating…" : "Download Natal Report"}
+            {downloadingNatal
+              ? "Generating…"
+              : `Natal Report PDF · ${natalReportCost} credits`}
           </button>
         )}
 

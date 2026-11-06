@@ -14,10 +14,18 @@ import {
   Star,
   Share2,
   Download,
+  Users,
+  UserPlus,
+  X,
 } from "lucide-react";
 import { PageShell } from "../components/layout/PageShell";
-import { AskJyotishBridge } from "../components/layout/AskJyotishBridge";
-import { useUserProfile } from "../hooks";
+import {
+  AskJyotishBridge,
+  COMPATIBILITY_CONTEXT_KEY,
+} from "../components/layout/AskJyotishBridge";
+import { InnerCircleManager } from "../components/sadhana/InnerCircleManager";
+import { useConsciousness, useUserProfile } from "../hooks";
+import type { KeyRelationship } from "../types/user";
 import { useAuth } from "../lib/useAuth";
 import LocationInput from "../components/LocationInput";
 import { viewerDateKey } from "../lib/viewer-timezone";
@@ -118,11 +126,27 @@ interface MatchResult {
       description?: string;
       interpretation?: string;
     }[];
+    kutas?: {
+      name: string;
+      score?: number;
+      obtained?: number;
+      max?: number;
+      max_score?: number;
+      maximum?: number;
+      description?: string;
+      interpretation?: string;
+    }[];
     manglik_male?: boolean | { is_manglik: boolean; description?: string };
     manglik_female?: boolean | { is_manglik: boolean; description?: string };
     groom_manglik?: boolean | { is_manglik: boolean; description?: string };
     bride_manglik?: boolean | { is_manglik: boolean; description?: string };
+    // Server-mapped onto the people as entered (groom/bride slots are chosen
+    // by gender server-side, so they no longer imply entry order).
+    personA_manglik?: boolean | { is_manglik: boolean; description?: string };
+    personB_manglik?: boolean | { is_manglik: boolean; description?: string };
   };
+  /** True when genders didn't give a groom/bride pair and entry order was used. */
+  orientationAssumed?: boolean;
   personA?: { name?: string };
   personB?: { name?: string };
 }
@@ -143,14 +167,80 @@ const normalizeScore = (value: number, key: string) => {
   return Math.round((value / max) * 100);
 };
 
+type ManglikField = NonNullable<MatchResult["vedicMatching"]>["manglik_male"];
+
+function readManglik(data: ManglikField): boolean | null {
+  if (data === undefined || data === null) return null;
+  return typeof data === "object" ? Boolean(data.is_manglik) : data === true;
+}
+
+/** Score at or above which we offer to share the number itself. */
+const SHAREABLE_SCORE = 70;
+
+/**
+ * Compact, plain-text summary of a match for the chat (≤1500 chars).
+ * The chat client forwards it; the server injects it as context so the guide
+ * answers about THIS match instead of asking the user to repeat it.
+ */
+function buildCompatibilitySummary(
+  result: MatchResult,
+  seekerName: string,
+  partnerName: string,
+): string {
+  const partnerFirst = partnerName.trim().split(/\s+/)[0] || "Partner";
+  const seekerFirst = seekerName.trim().split(/\s+/)[0] || "Seeker";
+  const lines: string[] = [
+    `Compatibility match just run between ${seekerFirst} (the user) and ${partnerFirst}.`,
+  ];
+  const synastry = result.overall_score || result.compatibility_score;
+  if (typeof synastry === "number" && synastry > 0) {
+    lines.push(`Synastry harmony index: ${synastry}%.`);
+  }
+  const vm = result.vedicMatching;
+  if (vm) {
+    const guna = vm.total_score ?? vm.score;
+    if (typeof guna === "number") {
+      lines.push(`Guna Milan: ${guna}/36 (${getGunaQuality(guna).label}).`);
+    }
+    const a = readManglik(
+      vm.personA_manglik ?? vm.manglik_male ?? vm.groom_manglik,
+    );
+    const b = readManglik(
+      vm.personB_manglik ?? vm.manglik_female ?? vm.bride_manglik,
+    );
+    const fmt = (v: boolean | null) =>
+      v === null ? "unknown" : v ? "Manglik" : "not Manglik";
+    if (a !== null || b !== null) {
+      lines.push(
+        `Manglik: ${seekerFirst} ${fmt(a)}; ${partnerFirst} ${fmt(b)}.`,
+      );
+    }
+  }
+  const strengths = (result.composite?.strengths || []).slice(0, 3);
+  const frictions = (result.composite?.challenges || []).slice(0, 3);
+  if (strengths.length) lines.push(`Top strengths: ${strengths.join("; ")}.`);
+  if (frictions.length) lines.push(`Main frictions: ${frictions.join("; ")}.`);
+  if (result.composite?.relationship_purpose) {
+    lines.push(`Composite theme: ${result.composite.relationship_purpose}.`);
+  }
+  return lines.join("\n").slice(0, 1500);
+}
+
 export default function Compatibility() {
   const { user } = useAuth();
   const { birthData } = useUserProfile();
-  const [partnerData, setPartnerData] = useState({
+  const [partnerData, setPartnerData] = useState<{
+    name: string;
+    dob: string;
+    tob: string;
+    pob: string;
+    gender: "" | "male" | "female" | "other";
+  }>({
     name: "",
     dob: "1995-01-01",
     tob: "12:00",
     pob: "",
+    gender: "",
   });
 
   const [seekerCoords, setSeekerCoords] = useState<{
@@ -166,6 +256,24 @@ export default function Compatibility() {
   const [isDownloadingReport, setIsDownloadingReport] = useState(false);
   const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { atmanState, refreshAtman } = useConsciousness();
+  const [circleOpen, setCircleOpen] = useState(false);
+  const [circleDraft, setCircleDraft] = useState<
+    Partial<Omit<KeyRelationship, "id">> | undefined
+  >(undefined);
+
+  const openCircle = (draft?: Partial<Omit<KeyRelationship, "id">>) => {
+    setCircleDraft(draft);
+    setCircleOpen(true);
+  };
+
+  const partnerAlreadyInCircle = Boolean(
+    partnerData.name.trim() &&
+    atmanState?.keyRelationships?.some(
+      (rel) =>
+        rel.name.trim().toLowerCase() === partnerData.name.trim().toLowerCase(),
+    ),
+  );
 
   // Auto-set seeker coords from birthData if available
   useEffect(() => {
@@ -203,11 +311,14 @@ export default function Compatibility() {
           dob: birthData.dob,
           tob: birthData.tob || "12:00",
           pob: birthData.pob,
+          // Gender picks the groom/bride slot for Ashtakoot server-side.
+          gender: birthData.gender || undefined,
           lat: seekerCoords?.lat,
           lng: seekerCoords?.lon,
         },
         personB: {
           ...partnerData,
+          gender: partnerData.gender || undefined,
           lat: partnerCoords?.lat,
           lng: partnerCoords?.lon,
         },
@@ -280,6 +391,20 @@ export default function Compatibility() {
             A professional-grade synthesis of Synastry and Composite dynamics to
             reveal the soul-level blueprint of your connection.
           </p>
+          {user && (
+            <button
+              onClick={() => openCircle()}
+              className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-widest text-white/60 transition hover:border-gold/30 hover:text-gold"
+            >
+              <Users size={14} />
+              Your Inner Circle
+              {atmanState?.keyRelationships?.length ? (
+                <span className="text-white/35">
+                  ({atmanState.keyRelationships.length})
+                </span>
+              ) : null}
+            </button>
+          )}
         </header>
 
         {!matchResult ? (
@@ -338,6 +463,31 @@ export default function Compatibility() {
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 font-sans text-white focus:outline-none focus:border-gold/30 transition-all [color-scheme:dark]"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="partner-gender"
+                  className="text-[10px] uppercase tracking-widest text-white/40 font-black ml-1"
+                >
+                  Gender
+                </label>
+                <select
+                  id="partner-gender"
+                  value={partnerData.gender}
+                  onChange={(e) =>
+                    setPartnerData({
+                      ...partnerData,
+                      gender: e.target.value as typeof partnerData.gender,
+                    })
+                  }
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 font-sans text-white focus:outline-none focus:border-gold/30 transition-all [color-scheme:dark]"
+                >
+                  <option value="">Prefer not to say</option>
+                  <option value="female">Female</option>
+                  <option value="male">Male</option>
+                  <option value="other">Other</option>
+                </select>
               </div>
 
               <div className="space-y-1.5">
@@ -434,7 +584,12 @@ export default function Compatibility() {
                     matchResult.overall_score ||
                     matchResult.compatibility_score ||
                     0;
-                  const text = `Our compatibility score: ${score}%! ✨ Check yours on AstroYou`;
+                  // A low number shared out of context reads like a verdict
+                  // on the relationship, so only strong scores carry it.
+                  const text =
+                    score >= SHAREABLE_SCORE
+                      ? `Our compatibility score: ${score}%! ✨ Check yours on AstroYou`
+                      : "We just explored our compatibility on AstroYou ✨ Check yours";
                   const url = `${window.location.origin}/free-kundali-matching`;
                   if (navigator.share) {
                     navigator.share({
@@ -455,6 +610,24 @@ export default function Compatibility() {
                 <Share2 size={16} />
                 <span className="text-xs uppercase tracking-widest">Share</span>
               </button>
+              {user && partnerData.name.trim() && !partnerAlreadyInCircle && (
+                <button
+                  onClick={() =>
+                    openCircle({
+                      name: partnerData.name.trim(),
+                      relation: "partner",
+                      dynamic: "supportive",
+                    })
+                  }
+                  className="mt-3 ml-2 p-2 rounded-xl border border-white/10 text-white/60 hover:text-gold hover:border-gold/30 transition-all inline-flex items-center gap-1.5"
+                >
+                  <UserPlus size={16} />
+                  <span className="text-xs uppercase tracking-widest">
+                    Save {partnerData.name.trim().split(/\s+/)[0]} to your
+                    circle
+                  </span>
+                </button>
+              )}
               {user && (
                 <button
                   onClick={downloadCompatibilityReport}
@@ -488,7 +661,7 @@ export default function Compatibility() {
                         ? "Good compatibility overall"
                         : score >= 18
                           ? "Workable, with some friction to navigate"
-                          : "Challenging — worth talking through with a guide"}
+                          : "Needs care — worth talking through together or with a guide"}
                   </p>
                 );
               })()}
@@ -560,6 +733,12 @@ export default function Compatibility() {
                 personA={matchResult.personA}
                 personB={matchResult.personB}
               />
+            )}
+            {matchResult.vedicMatching && matchResult.orientationAssumed && (
+              <p className="text-xs text-white/40 text-center -mt-2">
+                Traditional Ashtakoot matching assumes a bride and groom; we
+                used the order you entered.
+              </p>
             )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -788,6 +967,14 @@ export default function Compatibility() {
               <AskJyotishBridge
                 eyebrow="Understand this match"
                 question="We just ran our compatibility. What are the real strengths and friction points between us, and how do we work with them?"
+                context={{
+                  storageKey: COMPATIBILITY_CONTEXT_KEY,
+                  summary: buildCompatibilitySummary(
+                    matchResult,
+                    birthData?.name || "Seeker",
+                    partnerData.name || "Partner",
+                  ),
+                }}
               />
             </div>
 
@@ -802,6 +989,43 @@ export default function Compatibility() {
           </div>
         )}
       </div>
+
+      {circleOpen && user && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setCircleOpen(false);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Your Inner Circle"
+            className="relative w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-[2rem] border border-white/10 bg-[#0B0B12] p-6"
+          >
+            <button
+              onClick={() => setCircleOpen(false)}
+              className="absolute right-4 top-4 text-white/40 hover:text-white"
+              aria-label="Close"
+            >
+              <X size={20} />
+            </button>
+            <p className="mb-5 pr-8 text-xs leading-relaxed text-white/45">
+              The people you add here give your readings and chats context about
+              who matters in your life. You can edit or remove them any time.
+            </p>
+            <InnerCircleManager
+              userId={user.uid}
+              keyRelationships={atmanState?.keyRelationships || []}
+              onRefresh={() => {
+                setCircleDraft(undefined);
+                void refreshAtman();
+              }}
+              initialDraft={circleDraft}
+            />
+          </div>
+        </div>
+      )}
     </PageShell>
   );
 }
@@ -964,7 +1188,7 @@ function getGunaQuality(score: number): { label: string; color: string } {
   if (score >= 32) return { label: "Excellent", color: "text-yellow-400" };
   if (score >= 24) return { label: "Good", color: "text-emerald-400" };
   if (score >= 18) return { label: "Acceptable", color: "text-yellow-500" };
-  return { label: "Challenging", color: "text-red-400" };
+  return { label: "Needs care", color: "text-amber-300" };
 }
 
 function VedicGunaMilan({
@@ -977,7 +1201,10 @@ function VedicGunaMilan({
   personB?: { name?: string };
 }) {
   const totalScore = vedicMatching.total_score ?? vedicMatching.score ?? 0;
-  const gunaItems = vedicMatching.gunas ?? vedicMatching.aspects ?? [];
+  // The API spec's example names this list `kutas`; older shapes used
+  // `gunas` or `aspects`.
+  const gunaItems =
+    vedicMatching.gunas ?? vedicMatching.aspects ?? vedicMatching.kutas ?? [];
   const quality = getGunaQuality(totalScore);
 
   return (
@@ -1054,7 +1281,7 @@ function VedicGunaMilan({
                       </td>
                       <td className="py-3 px-3 text-center">
                         <span
-                          className={`font-mono font-bold ${pct >= 75 ? "text-emerald-400" : pct >= 50 ? "text-amber-400" : "text-red-400"}`}
+                          className={`font-mono font-bold ${pct >= 75 ? "text-emerald-400" : pct >= 50 ? "text-amber-400" : "text-white/55"}`}
                         >
                           {obtained}/{max}
                         </span>
@@ -1062,7 +1289,7 @@ function VedicGunaMilan({
                       <td className="py-3 px-3">
                         <div className="w-full bg-white/10 rounded-full h-1.5">
                           <div
-                            className={`h-1.5 rounded-full ${pct >= 75 ? "bg-emerald-400" : pct >= 50 ? "bg-amber-400" : "bg-red-400"}`}
+                            className={`h-1.5 rounded-full ${pct >= 75 ? "bg-emerald-400" : pct >= 50 ? "bg-amber-400" : "bg-white/30"}`}
                             style={{ width: `${pct}%` }}
                           />
                         </div>
@@ -1091,8 +1318,13 @@ function VedicGunaMilan({
         {totalScore < 18 && (
           <div className="mt-6 p-5 rounded-2xl bg-amber-500/5 border border-amber-500/20">
             <h4 className="text-amber-400 text-sm font-bold uppercase tracking-widest mb-3">
-              Recommended Remedies
+              Needs care — worth talking through
             </h4>
+            <p className="mb-3 text-xs leading-relaxed text-white/50">
+              A lower Guna score points to areas that may take more patience and
+              conversation. It's one traditional lens, not a verdict on the
+              relationship. If you'd like, tradition suggests:
+            </p>
             <ul className="space-y-2 text-sm text-white/60">
               <li>
                 Perform Navagraha Puja to strengthen weak planetary combinations
@@ -1105,7 +1337,8 @@ function VedicGunaMilan({
               </li>
               {totalScore < 12 && (
                 <li className="text-amber-400">
-                  Consider detailed Nadi analysis before proceeding
+                  A fuller reading (including Nadi) can add nuance the score
+                  alone can't
                 </li>
               )}
             </ul>
@@ -1119,69 +1352,78 @@ function VedicGunaMilan({
           const manglikEntries = [
             {
               label: personA?.name || "Person 1",
-              data: vedicMatching.manglik_male ?? vedicMatching.groom_manglik,
+              data:
+                vedicMatching.personA_manglik ??
+                vedicMatching.manglik_male ??
+                vedicMatching.groom_manglik,
             },
             {
               label: personB?.name || "Person 2",
-              data: vedicMatching.manglik_female ?? vedicMatching.bride_manglik,
+              data:
+                vedicMatching.personB_manglik ??
+                vedicMatching.manglik_female ??
+                vedicMatching.bride_manglik,
             },
           ].filter(({ data }) => data !== undefined && data !== null);
 
           if (manglikEntries.length === 0) return null;
 
+          const statuses = manglikEntries.map(({ label, data }) => ({
+            label,
+            isManglik: readManglik(data) === true,
+          }));
           const bothManglik =
-            manglikEntries.length === 2 &&
-            manglikEntries.every(({ data }) => {
-              return typeof data === "object" && data !== null
-                ? data.is_manglik
-                : data === true;
-            });
+            statuses.length === 2 && statuses.every((e) => e.isManglik);
+          const oneManglik =
+            statuses.length === 2 &&
+            statuses.filter((e) => e.isManglik).length === 1;
 
+          // We deliberately do not show the upstream API's raw dosha
+          // `description` — it can carry fear-based phrasing. These are our
+          // own calm explanations (same tone as glossary.ts).
           return (
             <>
               <div className="grid grid-cols-2 gap-4 mt-6">
-                {manglikEntries.map(({ label, data }) => {
-                  const isManglik =
-                    typeof data === "object" && data !== null
-                      ? data.is_manglik
-                      : data === true;
-                  const description =
-                    typeof data === "object" && data !== null
-                      ? data.description
-                      : undefined;
-
-                  return (
-                    <div
-                      key={label}
-                      className="p-4 rounded-xl bg-white/5 border border-white/10"
+                {statuses.map(({ label, isManglik }) => (
+                  <div
+                    key={label}
+                    className="p-4 rounded-xl bg-white/5 border border-white/10"
+                  >
+                    <p className="text-[10px] text-white/40 uppercase tracking-widest mb-1">
+                      {label}
+                    </p>
+                    <p
+                      className={`text-sm font-medium ${isManglik ? "text-amber-300" : "text-white/80"}`}
                     >
-                      <p className="text-[10px] text-white/40 uppercase tracking-widest mb-1">
-                        {label}
-                      </p>
-                      <p
-                        className={`text-sm font-medium ${isManglik ? "text-red-400" : "text-emerald-400"}`}
-                      >
-                        {isManglik ? (
-                          <GlossaryTerm k="manglik">Manglik</GlossaryTerm>
-                        ) : (
-                          "Non-Manglik"
-                        )}
-                      </p>
-                      {description && (
-                        <p className="text-xs text-white/40 mt-1">
-                          {description}
-                        </p>
+                      {isManglik ? (
+                        <GlossaryTerm k="manglik">Manglik</GlossaryTerm>
+                      ) : (
+                        "Not Manglik"
                       )}
-                    </div>
-                  );
-                })}
+                    </p>
+                    <p className="text-xs text-white/40 mt-1 leading-relaxed">
+                      {isManglik
+                        ? "Mars sits in a placement tradition links with friction in partnership. Many practitioners read it as tension to manage rather than a verdict."
+                        : "Mars isn't in a traditional Manglik placement in this chart."}
+                    </p>
+                  </div>
+                ))}
               </div>
-              {/* If both are Manglik, show neutralization note */}
               {bothManglik && (
-                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 mt-3">
-                  <p className="text-xs text-emerald-300">
-                    Both partners are Manglik — the dosha is neutralized. No
-                    adverse effects expected.
+                <div className="p-3 rounded-xl bg-white/5 border border-white/10 mt-3">
+                  <p className="text-xs text-white/60 leading-relaxed">
+                    Traditionally, when both partners are Manglik the effect is
+                    considered balanced. It's one factor among many.
+                  </p>
+                </div>
+              )}
+              {oneManglik && (
+                <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/15 mt-3">
+                  <p className="text-xs text-white/60 leading-relaxed">
+                    Needs care — worth talking through. When only one partner is
+                    Manglik, tradition suggests paying attention to how you each
+                    handle conflict and pace. It's one factor among many, not a
+                    prediction.
                   </p>
                 </div>
               )}

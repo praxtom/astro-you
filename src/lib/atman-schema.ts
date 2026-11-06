@@ -340,7 +340,13 @@ function normalizeEmotionalHistory(values: unknown[], now: Date): AtmanEmotional
             if (!value || typeof value !== "object") return null;
             const entry = value as { state?: unknown; date?: unknown };
             if (!isAtmanEmotionalState(entry.state)) return null;
-            return { state: entry.state, date: coerceDate(entry.date, now) };
+            return {
+                state: entry.state,
+                date: coerceDate(entry.date, now),
+                ...(typeof (entry as { sourceChatId?: unknown }).sourceChatId === "string"
+                    ? { sourceChatId: (entry as { sourceChatId: string }).sourceChatId }
+                    : {}),
+            };
         })
         .filter(Boolean) as AtmanEmotionalHistoryEntry[];
 }
@@ -356,6 +362,7 @@ function normalizeAdviceHistory(values: unknown[]): AtmanAdviceEntry[] {
                 context: String(advice.context).trim(),
                 date: String(advice.date),
                 followedUp: Boolean(advice.followedUp),
+                ...(typeof advice.sourceChatId === "string" ? { sourceChatId: advice.sourceChatId } : {}),
             };
         })
         .filter(Boolean) as AtmanAdviceEntry[];
@@ -394,6 +401,7 @@ function normalizeEvidence(values: unknown[], now: Date): AtmanMemoryEvidence[] 
                 confidence: evidence.confidence === undefined
                     ? undefined
                     : clampNumber(evidence.confidence, 0, 1, 0.5),
+                ...(typeof evidence.sourceChatId === "string" ? { sourceChatId: evidence.sourceChatId } : {}),
             };
         })
         .filter(Boolean) as AtmanMemoryEvidence[];
@@ -422,6 +430,7 @@ function normalizeMemoryLedger(values: unknown[], now: Date): AtmanMemoryLedgerE
                 adviceSaved: normalizeNonNegativeNumber(entry.adviceSaved, 0),
                 contradictionsDetected: normalizeNonNegativeNumber(entry.contradictionsDetected, 0),
                 karmicThreadsDetected: normalizeNonNegativeNumber(entry.karmicThreadsDetected, 0),
+                ...(typeof entry.sourceChatId === "string" ? { sourceChatId: entry.sourceChatId } : {}),
             };
         })
         .filter(Boolean) as AtmanMemoryLedgerEntry[];

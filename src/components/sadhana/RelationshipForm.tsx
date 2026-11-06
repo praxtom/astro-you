@@ -6,6 +6,8 @@ import { RELATIONS, DYNAMICS, ZODIAC_SIGNS } from '../../lib/constants';
 
 interface RelationshipFormProps {
     relationship?: KeyRelationship;
+    /** Pre-fill values for a NEW connection (e.g. "Save partner" from Bonds). Ignored when editing. */
+    initialValues?: Partial<Omit<KeyRelationship, 'id'>>;
     onSave: (rel: Omit<KeyRelationship, 'id'> | Partial<KeyRelationship>) => void;
     onDelete?: () => void;
     onClose: () => void;
@@ -13,15 +15,17 @@ interface RelationshipFormProps {
 
 export const RelationshipForm: React.FC<RelationshipFormProps> = ({
     relationship,
+    initialValues,
     onSave,
     onDelete,
     onClose
 }) => {
-    const [name, setName] = useState(relationship?.name || '');
-    const [relation, setRelation] = useState<KeyRelationship['relation']>(relationship?.relation || 'friend');
-    const [dynamic, setDynamic] = useState<KeyRelationship['dynamic']>(relationship?.dynamic || 'supportive');
-    const [zodiacSign, setZodiacSign] = useState(relationship?.zodiacSign || '');
-    const [notes, setNotes] = useState(relationship?.notes || '');
+    const seed = relationship ?? initialValues;
+    const [name, setName] = useState(seed?.name || '');
+    const [relation, setRelation] = useState<KeyRelationship['relation']>(seed?.relation || 'friend');
+    const [dynamic, setDynamic] = useState<KeyRelationship['dynamic']>(seed?.dynamic || 'supportive');
+    const [zodiacSign, setZodiacSign] = useState(seed?.zodiacSign || '');
+    const [notes, setNotes] = useState(seed?.notes || '');
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();

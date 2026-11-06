@@ -27,6 +27,8 @@ import {
   saveReportPdf,
 } from "./shared/report-storage";
 import { requestedDateKey } from "./shared/request-date.js";
+import { isEmptyForecast } from "./shared/forecast-delivery.js";
+import { normalizeZodiacMode } from "../../src/lib/zodiac-mode.js";
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
@@ -91,8 +93,15 @@ export default async (req: Request, _context: Context) => {
     const filename =
       existingReport?.filename || createReportFilename(product.type, dateKey);
     const isRedownload = Boolean(existingReport);
-    const effectiveBirthData =
-      birthData || toBirthData(userData.profile || userData);
+    const savedProfile = userData.profile || userData;
+    const effectiveBirthData = withProfileSigns(
+      birthData || toBirthData(savedProfile),
+      savedProfile,
+    );
+    // Sign PDFs: sidereal Moon sign in Vedic mode, tropical in Western.
+    const signOptions = {
+      mode: normalizeZodiacMode(savedProfile?.zodiacMode ?? userData.zodiacMode),
+    };
 
     if (isRedownload && existingReport?.storagePath) {
       const storedPdf = await downloadReportPdf({
@@ -214,18 +223,51 @@ export default async (req: Request, _context: Context) => {
           pdfBuffer = await getNatalReportPDF(effectiveBirthData);
           break;
         case "daily":
-          pdfBuffer = await getDailyHoroscopePDF(effectiveBirthData, dateKey);
+          pdfBuffer = await getDailyHoroscopePDF(
+            effectiveBirthData,
+            dateKey,
+            signOptions,
+          );
           break;
         case "weekly":
-          pdfBuffer = await getWeeklyHoroscopePDF(effectiveBirthData, dateKey);
+          pdfBuffer = await getWeeklyHoroscopePDF(
+            effectiveBirthData,
+            dateKey,
+            signOptions,
+          );
           break;
         case "yearly": {
           const yearly = await getYearlyHoroscope(effectiveBirthData, dateKey);
+          // The wrapper degrades to null on upstream failure. Never sell a
+          // hollow "data was unavailable" PDF: refund and tell the user.
+          if (isEmptyForecast(yearly)) {
+            await refundReport("forecast_unavailable");
+            await reportRef.set(
+              {
+                status: "failed",
+                failureReason: "forecast_unavailable",
+                updatedAt: FieldValue.serverTimestamp(),
+              },
+              { merge: true },
+            );
+            return new Response(
+              JSON.stringify({
+                error:
+                  "Your yearly forecast couldn't be prepared right now. No credits were used — please try again in a little while.",
+                code: "forecast_unavailable",
+              }),
+              {
+                status: 503,
+                headers: {
+                  "Content-Type": "application/json",
+                  "Retry-After": "300",
+                },
+              },
+            );
+          }
           pdfBuffer = createTextPdf(product.title, [
             `Prepared for ${effectiveBirthData.name || "Seeker"}.`,
-            stringifyReportData(
-              yearly || "Yearly forecast data was unavailable.",
-            ),
+            stringifyReportData(yearly),
           ]);
           break;
         }
@@ -369,6 +411,24 @@ function toBirthData(profile: any) {
     lat: profile.lat ?? profile.coordinates?.lat,
     lng: profile.lng ?? profile.coordinates?.lng,
     coordinates: profile.coordinates,
+  };
+}
+
+/**
+ * Attach the profile's saved sidereal Moon/Sun signs — but only when the
+ * report is for the profile's own birth moment (a client-sent chart for
+ * someone else must not inherit the account holder's signs).
+ */
+function withProfileSigns(birth: any, profile: any) {
+  if (!birth) return birth;
+  const sameChart =
+    profile?.dob === birth.dob &&
+    String(profile?.tob ?? "").slice(0, 5) === String(birth.tob ?? "").slice(0, 5);
+  if (!sameChart) return birth;
+  return {
+    ...birth,
+    ...(typeof profile.moonSign === "string" ? { moonSign: profile.moonSign } : {}),
+    ...(typeof profile.sunSign === "string" ? { sunSign: profile.sunSign } : {}),
   };
 }
 

@@ -148,14 +148,20 @@ function FAQItem({ question, answer }: (typeof faqItems)[number]) {
   );
 }
 
-function TrustMetric({ label, value }: { label: string; value?: number | string }) {
+/** A counter is worth showing only when it holds a real, non-zero value. */
+function hasMetricValue(value: number | string | undefined | null): value is number | string {
+  if (typeof value === "number") return Number.isFinite(value) && value > 0;
+  return typeof value === "string" && value.trim() !== "";
+}
+
+function TrustMetric({ label, value }: { label: string; value: number | string }) {
   return (
     <div
       className="relative border-0 bg-transparent py-6 sm:py-8"
       data-surface-treatment="open"
     >
       <p className="font-display text-5xl leading-none text-gold sm:text-6xl lg:text-7xl">
-        {value === undefined ? "—" : value}
+        {value}
       </p>
       <p className="mt-3 text-[10px] font-bold uppercase tracking-[0.28em] text-white/38 sm:text-xs">
         {label}
@@ -168,11 +174,30 @@ export default function CosmosToSelfStory({
   trustSummary,
   onReveal,
 }: CosmosToSelfStoryProps) {
-  const helpfulRate =
-    trustSummary?.predictionFeedback?.helpfulRate !== null &&
-    trustSummary?.predictionFeedback?.helpfulRate !== undefined
-      ? `${trustSummary.predictionFeedback.helpfulRate}%`
-      : "Listening";
+  const rawHelpfulRate = trustSummary?.predictionFeedback?.helpfulRate;
+  // Hide each counter that is zero or unavailable — "0 approved stories"
+  // reads as a warning, not as honesty. The honesty note always stays.
+  const trustMetricCandidates: Array<{
+    label: string;
+    value: number | string | undefined;
+  }> = [
+    { label: "Approved stories", value: trustSummary?.totals?.approvedTestimonials },
+    { label: "Approved reviews", value: trustSummary?.totals?.approvedReviews },
+    {
+      label: "Helpful feedback",
+      value:
+        typeof rawHelpfulRate === "number" &&
+        rawHelpfulRate > 0 &&
+        (trustSummary?.predictionFeedback?.total ?? 0) > 0
+          ? `${rawHelpfulRate}%`
+          : undefined,
+    },
+  ];
+  const trustMetrics = trustMetricCandidates.flatMap((metric) =>
+    hasMetricValue(metric.value)
+      ? [{ label: metric.label, value: metric.value }]
+      : [],
+  );
 
   return (
     <div
@@ -404,17 +429,13 @@ export default function CosmosToSelfStory({
           </div>
 
           <div className="mt-28 h-px w-full bg-gradient-to-r from-gold/45 via-white/10 to-transparent sm:mt-36" />
-          <div className="mt-8 grid gap-4 sm:grid-cols-3 sm:gap-8">
-            <TrustMetric
-              label="Approved stories"
-              value={trustSummary?.totals?.approvedTestimonials}
-            />
-            <TrustMetric
-              label="Approved reviews"
-              value={trustSummary?.totals?.approvedReviews}
-            />
-            <TrustMetric label="Helpful feedback" value={helpfulRate} />
-          </div>
+          {trustMetrics.length > 0 && (
+            <div className="mt-8 grid gap-4 sm:grid-cols-3 sm:gap-8">
+              {trustMetrics.map((metric) => (
+                <TrustMetric key={metric.label} label={metric.label} value={metric.value} />
+              ))}
+            </div>
+          )}
           <p className="mt-8 max-w-2xl text-xs leading-relaxed text-white/32 sm:text-sm">
             Public stories appear only after genuine submission and moderation. Feedback is reported as an aggregate signal, never inflated social proof.
           </p>
@@ -476,7 +497,7 @@ export default function CosmosToSelfStory({
             <span className="font-light italic text-gold">that began with you.</span>
           </h2>
           <p className="mx-auto mt-8 max-w-xl text-base font-light leading-relaxed text-white/58 sm:text-lg">
-            Begin with a free birth chart. Keep the guidance that feels true, useful, and alive in your own experience.
+            Begin with a free birth chart. Keep a guide that knows your chart, remembers what you share, and helps you through the hard days. You still choose the path.
           </p>
           <button className="btn btn-primary group mt-10 px-10" onClick={onReveal}>
             Reveal my birth sky

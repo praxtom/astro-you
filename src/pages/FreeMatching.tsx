@@ -10,12 +10,16 @@ import {
   trackAcquisitionEvent,
 } from "../lib/acquisition";
 import { siteUrl } from "../lib/site-url";
+import { useAuth } from "../lib/useAuth";
+import AuthModal from "../components/AuthModal";
 
 interface PersonForm {
   name: string;
   dob: string;
   tob: string;
   pob: string;
+  /** Picks the Ashtakoot groom/bride slot server-side ("" = not given). */
+  gender: "" | "male" | "female" | "other";
 }
 
 interface GunaResult {
@@ -29,6 +33,7 @@ interface MatchResult {
   overallScore: number;
   maxScore: number;
   gunas: GunaResult[];
+  orientationAssumed: boolean;
 }
 
 const emptyPerson = (): PersonForm => ({
@@ -36,7 +41,49 @@ const emptyPerson = (): PersonForm => ({
   dob: "",
   tob: "12:00",
   pob: "",
+  gender: "",
 });
+
+const num = (...values: unknown[]): number | undefined => {
+  for (const v of values) {
+    const n = typeof v === "string" ? Number(v) : v;
+    if (typeof n === "number" && Number.isFinite(n)) return n;
+  }
+  return undefined;
+};
+
+/**
+ * Map /api/compatibility's response onto this page. Guna Milan lives under
+ * `vedicMatching` (upstream /vedic/kundli-matching: total_score, max_score,
+ * kutas[{name, score, max}]); the same aliases Compatibility.tsx accepts
+ * (gunas/aspects, obtained, max_score/maximum) are tolerated too.
+ */
+const normalizeMatchResponse = (data: any): MatchResult | null => {
+  const vm = data?.vedicMatching;
+  if (!vm || typeof vm !== "object") return null;
+  const rawItems = vm.kutas ?? vm.gunas ?? vm.aspects ?? vm.ashtakoot ?? [];
+  const gunas: GunaResult[] = (Array.isArray(rawItems) ? rawItems : [])
+    .map((g: any, i: number) => ({
+      name:
+        (typeof g?.name === "string" && g.name) ||
+        (typeof g?.kuta === "string" && g.kuta) ||
+        `Guna ${i + 1}`,
+      score: num(g?.score, g?.obtained, g?.points) ?? 0,
+      maxScore: num(g?.max, g?.max_score, g?.maximum, g?.max_points) ?? 0,
+      description:
+        typeof g?.description === "string" ? g.description : undefined,
+    }));
+  const total =
+    num(vm.total_score, vm.score, vm.total_points) ??
+    (gunas.length ? gunas.reduce((sum, g) => sum + g.score, 0) : undefined);
+  if (total === undefined) return null;
+  return {
+    overallScore: total,
+    maxScore: num(vm.max_score, vm.maximum_score) ?? 36,
+    gunas,
+    orientationAssumed: data?.orientationAssumed === true,
+  };
+};
 
 const PersonFormBlock = ({
   label,
@@ -86,6 +133,24 @@ const PersonFormBlock = ({
       />
     </div>
     <div>
+      <label className="block text-sm text-white/60 mb-1.5">Gender</label>
+      <select
+        value={person.gender}
+        onChange={(e) =>
+          onChange({
+            ...person,
+            gender: e.target.value as PersonForm["gender"],
+          })
+        }
+        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-transparent transition-all [color-scheme:dark]"
+      >
+        <option value="">Prefer not to say</option>
+        <option value="female">Female</option>
+        <option value="male">Male</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div>
       <label className="block text-sm text-white/60 mb-1.5">
         Place of Birth <span className="text-amber-400">*</span>
       </label>
@@ -105,6 +170,18 @@ export default function FreeMatching() {
   const [result, setResult] = useState<MatchResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // /api/compatibility needs an account (it spends paid upstream calls and
+  // credits), so guests are asked to sign in BEFORE anything is calculated.
+  const { user } = useAuth();
+  const [showAuth, setShowAuth] = useState(false);
+
+  const toPayload = (p: PersonForm) => ({
+    name: p.name,
+    dob: p.dob,
+    tob: p.tob,
+    pob: p.pob,
+    ...(p.gender ? { gender: p.gender } : {}),
+  });
 
   const handleCheck = async () => {
     if (!person1.dob || !person1.pob || !person2.dob || !person2.pob) {
@@ -113,39 +190,51 @@ export default function FreeMatching() {
       );
       return;
     }
+    if (!user) {
+      setError("");
+      setShowAuth(true);
+      return;
+    }
     setError("");
     setLoading(true);
 
     try {
       const compatRes = await postJson("/api/compatibility", {
-        maleData: person1,
-        femaleData: person2,
+        personA: toPayload(person1),
+        personB: toPayload(person2),
       });
+      const compatData = await compatRes.json().catch(() => null);
 
-      if (!compatRes.ok) throw new Error("Compatibility API failed");
+      if (!compatRes.ok) {
+        if (compatRes.status === 401) {
+          setShowAuth(true);
+        } else {
+          setError(
+            (typeof compatData?.error === "string" && compatData.error) ||
+              "Something went wrong. Please try again.",
+          );
+        }
+        return;
+      }
 
-      const compatData = await compatRes.json();
+      const normalized = normalizeMatchResponse(compatData);
+      if (!normalized) {
+        setError(
+          "We couldn't calculate the Guna Milan score for these charts. Please check the birth details and try again.",
+        );
+        return;
+      }
 
-      // Normalize the response into our MatchResult shape
-      const gunas: GunaResult[] =
-        compatData.gunas || compatData.ashtakoot || [];
-      const overallScore =
-        compatData.overallScore ??
-        compatData.totalScore ??
-        (gunas.length > 0
-          ? gunas.reduce((s: number, g: GunaResult) => s + (g.score || 0), 0)
-          : 0);
-      const maxScore = compatData.maxScore ?? 36;
-
-      setResult({ overallScore, maxScore, gunas });
+      setResult(normalized);
       trackAcquisitionEvent("seo_tool_complete", {
         tool: "free_kundali_matching",
-        score: overallScore,
+        score: normalized.overallScore,
       });
     } catch {
-      setError("Something went wrong. Please try again.");
+      setError("Network error. Please check your connection.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const rememberSource = (target: string) => {
@@ -229,6 +318,12 @@ export default function FreeMatching() {
               {error && (
                 <p className="text-red-400 text-sm text-center mt-5">{error}</p>
               )}
+              {!user && (
+                <p className="text-white/40 text-sm text-center mt-5">
+                  Sign in to run a free match — new accounts start with free
+                  credits.
+                </p>
+              )}
 
               <button
                 onClick={handleCheck}
@@ -243,7 +338,7 @@ export default function FreeMatching() {
                 ) : (
                   <>
                     <Heart className="w-5 h-5" />
-                    Check Compatibility
+                    {user ? "Check Compatibility" : "Sign in to run a free match"}
                   </>
                 )}
               </button>
@@ -293,6 +388,13 @@ export default function FreeMatching() {
                       : "Needs careful consideration"}
               </p>
             </div>
+
+            {result.orientationAssumed && (
+              <p className="text-xs text-white/40 text-center -mt-4 mb-8">
+                Traditional Ashtakoot matching assumes a bride and groom; we
+                used the order you entered.
+              </p>
+            )}
 
             {/* Guna breakdown: show 3, blur the rest */}
             {result.gunas.length > 0 && (
@@ -392,6 +494,13 @@ export default function FreeMatching() {
           </motion.div>
         )}
       </div>
+      <AuthModal
+        isOpen={showAuth && !user}
+        onClose={() => setShowAuth(false)}
+        onSuccess={() => setShowAuth(false)}
+        title="Sign in to run a free match"
+        message="Your Guna Milan score is calculated from both birth charts. New accounts start with free credits."
+      />
     </div>
   );
 }

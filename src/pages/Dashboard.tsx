@@ -11,7 +11,16 @@ import {
   useLastChat,
   useDailyPrediction,
   useDashaPeriods,
+  useKundali,
+  useNakshatra,
+  useSubscription,
 } from "../hooks";
+import { useProactiveTriggers } from "../hooks/useProactiveTriggers";
+import AuthModal from "../components/AuthModal";
+import { ChartThreeLinesCard } from "../components/dashboard/ChartThreeLinesCard";
+import { OPEN_AUTH_EVENT } from "../components/dashboard/PersonalCardNotice";
+import { REPORT_PRICING } from "../lib/report-pricing";
+import { SIGNUP_BONUS_CREDITS } from "../lib/signup-offer";
 import { STORAGE_KEYS } from "../lib/constants";
 import { parseStoredJSON } from "../lib/safeStorage";
 import SectionErrorBoundary from "../components/SectionErrorBoundary";
@@ -28,6 +37,8 @@ import { AskJyotishBar } from "../components/dashboard/AskJyotishBar";
 import { ExploreIndex } from "../components/dashboard/ExploreIndex";
 import { TodayTriptych } from "../components/dashboard/TodayTriptych";
 import { buildTodayGuide } from "../lib/todayGuide";
+import { deriveProfileSigns } from "../lib/chart-summary";
+import { normalizeZodiacMode } from "../lib/zodiac-mode";
 import { MemoryPanel } from "../components/dashboard/MemoryPanel";
 import { UtilityDock } from "../components/dashboard/UtilityDock";
 
@@ -84,6 +95,17 @@ export default function Dashboard() {
   const [showDailyAltar, setShowDailyAltar] = useState(false);
   const [showChartShare, setShowChartShare] = useState(false);
   const [downloadingNatal, setDownloadingNatal] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const { credits } = useSubscription();
+  const natalReportCost = REPORT_PRICING.natal.creditCost;
+
+  // Personal cards ask for sign-in through a window event (see
+  // PersonalCardNotice) so each card need not thread a callback.
+  useEffect(() => {
+    const open = () => setShowAuthModal(true);
+    window.addEventListener(OPEN_AUTH_EVENT, open);
+    return () => window.removeEventListener(OPEN_AUTH_EVENT, open);
+  }, []);
 
   // Guest mode fallback — no account, but birth data stashed during onboarding
   useEffect(() => {
@@ -116,7 +138,22 @@ export default function Dashboard() {
   );
   const { lunar } = useLunarPhase(userData);
   const lastChat = useLastChat();
-  const dashaPeriods = useDashaPeriods(userData);
+  // Each of these is ONE request shared by every card that needs it — dasha
+  // periods feed DashaCard, DashaTimeline, the three-lines card and the dasha
+  // monitor; the nakshatra reading feeds NakshatraCard and the three lines.
+  const dasha = useDashaPeriods(userData);
+  const dashaPeriods = dasha.periods;
+  const nakshatraState = useNakshatra(userData);
+  const natal = useKundali(hasBirthData ? userData : null, "D1", profile?.zodiacMode);
+
+  // Proactive nudges (signed-in only; the hook no-ops for guests and keeps
+  // persistent per-trigger cooldowns plus a daily cap).
+  useProactiveTriggers({
+    atmanState,
+    userName: displayName === "Seeker" ? undefined : displayName,
+    panchangData: panchang,
+    dashaPeriods,
+  });
   const {
     prediction,
     loading: isPredictionLoading,
@@ -134,12 +171,17 @@ export default function Dashboard() {
   }, [atmanState, panchang, panchangError, user]);
 
   const handleShareSign = () => {
-    const ascendantSign =
-      typeof profile?.ascendant === "string"
-        ? profile.ascendant
-        : profile?.ascendant?.sign;
-    const moonSign = profile?.moonSign || ascendantSign || "a cosmic being";
-    const text = `I'm a ${moonSign} Moon ✨ What's your Moon sign? Find out free:`;
+    // Only ever the Moon sign — the Lagna is a different point and must never
+    // be shared as "my Moon". Saved sidereal sign first, then the loaded
+    // Vedic chart; with neither, share without claiming a sign.
+    const moonSign =
+      userData?.moonSign ||
+      (normalizeZodiacMode(profile?.zodiacMode) === "vedic"
+        ? deriveProfileSigns(natal.kundaliData)?.moonSign
+        : undefined);
+    const text = moonSign
+      ? `I'm a ${moonSign} Moon ✨ What's your Moon sign? Find out free:`
+      : "What's your Moon sign? Find yours free:";
     const url = `${window.location.origin}/free-kundali`;
     if (navigator.share) {
       navigator.share({ title: "My Moon Sign", text, url });
@@ -153,6 +195,16 @@ export default function Dashboard() {
 
   const handleDownloadNatalReport = async () => {
     if (!userData || downloadingNatal) return;
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
+    // Not enough credits: send the user to the priced report flow, which
+    // shows the price and offers a top-up — never a request that will fail.
+    if (credits < natalReportCost) {
+      navigate("/reports");
+      return;
+    }
     setDownloadingNatal(true);
     try {
       const idToken = user ? await user.getIdToken() : null;
@@ -215,6 +267,26 @@ export default function Dashboard() {
           onShareSign={handleShareSign}
         />
 
+        {hasBirthData && (
+          <div className="mt-8">
+            <SectionErrorBoundary label="chart summary">
+              <ChartThreeLinesCard
+                kundali={natal.kundaliData}
+                kundaliLoading={natal.loading}
+                nakshatra={nakshatraState.nakshatra?.name}
+                dashaPeriods={dashaPeriods}
+                dashaLoading={dasha.loading}
+                errorKind={dasha.errorKind ?? nakshatraState.errorKind}
+                onRetry={() => {
+                  dasha.retry();
+                  nakshatraState.retry();
+                  void natal.refetch();
+                }}
+              />
+            </SectionErrorBoundary>
+          </div>
+        )}
+
         <div className="mt-8">
           <AskJyotishBar lastChat={lastChat} />
         </div>
@@ -264,7 +336,7 @@ export default function Dashboard() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-reveal-progressive">
                 <SadeSatiCard birthData={userData} />
-                <NakshatraCard birthData={userData} />
+                {hasBirthData && <NakshatraCard state={nakshatraState} />}
               </div>
             </div>
           </SectionErrorBoundary>
@@ -315,7 +387,13 @@ export default function Dashboard() {
                 />
               )}
 
-              <DashaCard />
+              <DashaCard
+                periods={dashaPeriods}
+                loading={dasha.loading}
+                errorKind={dasha.errorKind}
+                onRetry={dasha.retry}
+                hasBirthData={hasBirthData}
+              />
               <RemediesCard birthData={userData} />
               <FestivalCard region={profile?.festivalRegion} />
 
@@ -323,6 +401,7 @@ export default function Dashboard() {
                 profile={profile}
                 hasBirthData={hasBirthData}
                 downloadingNatal={downloadingNatal}
+                natalReportCost={natalReportCost}
                 onDownloadNatalReport={handleDownloadNatalReport}
                 onUpdateBirthData={() => setShowOnboardingModal(true)}
                 onOpenAltar={() => setShowDailyAltar(true)}
@@ -355,6 +434,14 @@ export default function Dashboard() {
           }
         }}
         existingProfile={profile}
+      />
+
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={() => setShowAuthModal(false)}
+        title="Save your chart"
+        message={`Sign in to save your chart and get ${SIGNUP_BONUS_CREDITS} free credits.`}
       />
 
       {user && (

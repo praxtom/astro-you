@@ -95,6 +95,9 @@ export default async (req: Request, _context: Context) => {
             name: sign,
           } as BirthData,
           date,
+          // The client already chose the sign (sidereal Moon sign in Vedic
+          // mode) — never re-derive it from the anchor dob.
+          { sign },
         );
         // Throw instead of returning null so an upstream failure is
         // never cached as an empty document for the full TTL.

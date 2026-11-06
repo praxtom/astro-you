@@ -17,9 +17,7 @@ export type PatternDecision =
   | "strong_intervention";
 
 export type PatternChangeDirection =
-  | "getting_stronger"
-  | "fading"
-  | "changed_recently";
+  "getting_stronger" | "fading" | "changed_recently";
 
 export interface PatternSignal {
   id: string;
@@ -117,7 +115,15 @@ const STOP_WORDS = new Set([
 
 const CATEGORY_HINTS: Record<string, string[]> = {
   work: ["work", "workload", "deadline", "task", "career", "manager", "job"],
-  pressure: ["pressure", "stress", "heavy", "too", "much", "overwhelmed", "piling"],
+  pressure: [
+    "pressure",
+    "stress",
+    "heavy",
+    "too",
+    "much",
+    "overwhelmed",
+    "piling",
+  ],
   capacity: [
     "responsibility",
     "responsibilities",
@@ -200,9 +206,20 @@ export function buildPatternIntelligence(
   if (!atman) return emptyIntelligence();
 
   const signals = [
-    ...signalsFromPatterns(latestMessage, atman.knownPatterns || [], atman, now),
-    ...signalsFromEvents(latestMessage, atman.activeEvents || atman.lifeEvents || []),
-    ...signalsFromAdvice(latestMessage, atman.savedAdvice || atman.adviceHistory || []),
+    ...signalsFromPatterns(
+      latestMessage,
+      atman.knownPatterns || [],
+      atman,
+      now,
+    ),
+    ...signalsFromEvents(
+      latestMessage,
+      atman.activeEvents || atman.lifeEvents || [],
+    ),
+    ...signalsFromAdvice(
+      latestMessage,
+      atman.savedAdvice || atman.adviceHistory || [],
+    ),
   ]
     .filter((signal) => signal.relevance >= 0.28 && signal.confidence >= 0.45)
     .sort((a, b) => b.relevance * b.confidence - a.relevance * a.confidence)
@@ -232,7 +249,7 @@ export function buildPatternIntelligencePrompt(
   return `
 ### ADAPTIVE COMPANION GUIDANCE:
 Decision: ${intelligence.decision}
-Use this only if it helps the latest reply. Speak like someone who remembers, not like a system explaining itself. Do not name the mechanism.
+Use this only if it helps the latest reply. Speak like someone who remembers, not like a system explaining itself. Do not name the mechanism unprompted — but if the user asks what you remember or how you know this, answer plainly that AstroYou keeps notes from past conversations, which they can view, edit or pause in "What I remember".
 ${cues}${changes}
 `;
 }
@@ -340,8 +357,8 @@ function classifyPattern(
     return "growth_change";
   }
   if (
-    atman.contradictedPatterns?.some((text) =>
-      scoreRelevance(text, pattern.pattern) >= 0.25,
+    atman.contradictedPatterns?.some(
+      (text) => scoreRelevance(text, pattern.pattern) >= 0.25,
     )
   ) {
     return "growth_change";
@@ -432,7 +449,9 @@ function chooseDecision(
     primary.confidence >= 0.75 &&
     primary.relevance >= 0.35
   ) {
-    return changeSignals.some((signal) => signal.direction === "getting_stronger")
+    return changeSignals.some(
+      (signal) => signal.direction === "getting_stronger",
+    )
       ? "suggest_action"
       : "reflect";
   }
@@ -450,7 +469,11 @@ function toNaturalCue(
   if (memoryType === "growth_change") {
     return "This may be one of those moments where the old response is changing.";
   }
-  if (text.includes("work") || text.includes("deadline") || text.includes("pressure")) {
+  if (
+    text.includes("work") ||
+    text.includes("deadline") ||
+    text.includes("pressure")
+  ) {
     return "When pressure rises, the user tends to carry more than one person should.";
   }
   if (text.includes("conversation") || text.includes("avoid")) {
@@ -471,7 +494,11 @@ function toSuggestedMove(
   if (memoryType === "growth_change") {
     return `Reflect the change warmly and keep it brief.${restraint}`;
   }
-  if (text.includes("work") || text.includes("deadline") || text.includes("pressure")) {
+  if (
+    text.includes("work") ||
+    text.includes("deadline") ||
+    text.includes("pressure")
+  ) {
     return `Suggest one concrete narrowing step instead of more effort.${restraint}`;
   }
   if (text.includes("conversation") || text.includes("avoid")) {
@@ -494,7 +521,8 @@ function scoreRelevance(message: string, memoryText: string): number {
   if (messageTokens.size === 0 || memoryTokens.size === 0) return 0;
 
   const overlap = [...messageTokens].filter((token) => memoryTokens.has(token));
-  const lexicalScore = overlap.length / Math.min(messageTokens.size, memoryTokens.size);
+  const lexicalScore =
+    overlap.length / Math.min(messageTokens.size, memoryTokens.size);
   const hintScore = scoreCategoryHints(messageTokens, memoryTokens);
   const semanticScore = scoreSemanticConcepts(messageTokens, memoryTokens);
   return clamp(Math.max(lexicalScore, hintScore, semanticScore), 0, 1);
@@ -506,10 +534,15 @@ function scoreCategoryHints(
 ): number {
   let score = 0;
   for (const hints of Object.values(CATEGORY_HINTS)) {
-    const messageMatches = hints.filter((hint) => messageTokens.has(hint)).length;
+    const messageMatches = hints.filter((hint) =>
+      messageTokens.has(hint),
+    ).length;
     const memoryMatches = hints.filter((hint) => memoryTokens.has(hint)).length;
     if (messageMatches > 0 && memoryMatches > 0) {
-      score = Math.max(score, 0.35 + Math.min(messageMatches + memoryMatches, 4) * 0.08);
+      score = Math.max(
+        score,
+        0.35 + Math.min(messageMatches + memoryMatches, 4) * 0.08,
+      );
     }
   }
   return score;
@@ -521,7 +554,9 @@ function scoreSemanticConcepts(
 ): number {
   let score = 0;
   for (const terms of Object.values(SEMANTIC_CONCEPTS)) {
-    const messageMatches = terms.filter((term) => messageTokens.has(term)).length;
+    const messageMatches = terms.filter((term) =>
+      messageTokens.has(term),
+    ).length;
     const memoryMatches = terms.filter((term) => memoryTokens.has(term)).length;
     if (messageMatches > 0 && memoryMatches > 0) {
       const depth = Math.min(messageMatches + memoryMatches, 6);
@@ -548,7 +583,9 @@ function isEmotionalTrendWorsening(
 
   const first = recent[0].intensity;
   const last = recent[recent.length - 1].intensity;
-  const hasHighRecentState = recent.slice(-2).some((entry) => entry.intensity >= 3);
+  const hasHighRecentState = recent
+    .slice(-2)
+    .some((entry) => entry.intensity >= 3);
   return last > first && hasHighRecentState;
 }
 
@@ -600,7 +637,10 @@ function normalizeKey(value: string): string {
 }
 
 function isCasualAcknowledgement(value: string): boolean {
-  const normalized = value.toLowerCase().replace(/[.!?,\s]+/g, " ").trim();
+  const normalized = value
+    .toLowerCase()
+    .replace(/[.!?,\s]+/g, " ")
+    .trim();
   return CASUAL_ACKNOWLEDGEMENTS.has(normalized);
 }
 

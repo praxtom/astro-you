@@ -49,6 +49,17 @@ export default async (req: Request, _context: Context) => {
         headers: { "Content-Type": "application/json" },
       });
     }
+    // Profile-shaped clients send { coordinates: { lat, lng } }; the subject
+    // and transit-time builders read flat lat/lng, so lift them (the exact
+    // geocoded point beats re-geocoding the place string).
+    if (
+      (birthData.lat === undefined || birthData.lat === null) &&
+      typeof birthData.coordinates?.lat === "number" &&
+      typeof birthData.coordinates?.lng === "number"
+    ) {
+      birthData.lat = birthData.coordinates.lat;
+      birthData.lng = birthData.coordinates.lng;
+    }
 
     // Transit Oracle is a premium surface — reserve credits before the paid
     // API calls. Refunded by the outer catch if the chart fetch fails. Keyed

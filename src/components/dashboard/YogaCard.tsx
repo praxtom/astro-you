@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { useYogas } from '../../hooks/useYogas';
+import { PersonalCardNotice } from './PersonalCardNotice';
 import type { BirthData, Yoga } from '../../types';
 
 interface YogaCardProps {
@@ -23,7 +24,7 @@ function StrengthBadge({ strength }: { strength?: Yoga['strength'] }) {
 }
 
 export const YogaCard: React.FC<YogaCardProps> = ({ birthData }) => {
-    const { yogas, loading, error } = useYogas(birthData);
+    const { yogas, loading, error, errorKind, retry } = useYogas(birthData);
     const [expanded, setExpanded] = useState(false);
 
     const displayedYogas = expanded ? yogas : yogas.slice(0, 3);
@@ -48,9 +49,14 @@ export const YogaCard: React.FC<YogaCardProps> = ({ birthData }) => {
             )}
 
             {/* Error / empty state */}
-            {!loading && (error || !yogas?.length) && (
+            {!loading && error && errorKind && (
+                <PersonalCardNotice kind={errorKind} thing="planetary yogas" onRetry={retry} />
+            )}
+            {!loading && !error && !yogas?.length && (
                 <p className="text-white/40 text-sm italic text-center py-6">
-                    Chart analysis pending...
+                    {birthData?.dob
+                        ? 'No major yogas stand out in your chart — its strength lies in the balance of its placements.'
+                        : 'Add your birth details to see the yogas in your chart.'}
                 </p>
             )}
 

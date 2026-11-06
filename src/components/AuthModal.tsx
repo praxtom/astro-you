@@ -9,6 +9,7 @@ import {
 } from "firebase/auth";
 import { auth } from "../lib/firebase";
 import { STORAGE_KEYS } from "../lib/constants";
+import { SIGNUP_BONUS_CREDITS } from "../lib/signup-offer";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -52,7 +53,7 @@ export default function AuthModal({
   onClose,
   onSuccess,
   title = "Welcome to AstroYou",
-  message = "Sign in to access your cosmic insights and birth charts.",
+  message = `Sign in to save your chart and get ${SIGNUP_BONUS_CREDITS} free credits.`,
 }: AuthModalProps) {
   const [step, setStep] = useState<AuthStep>("email");
   const [email, setEmail] = useState("");

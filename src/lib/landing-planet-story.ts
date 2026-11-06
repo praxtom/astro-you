@@ -45,7 +45,7 @@ export const PLANET_STORY_CHAPTERS: readonly PlanetStoryChapter[] = [
     number: "00",
     eyebrow: "The Moving Sky",
     title: "The stars, revealed.",
-    body: "Before your first breath, the sky was already in motion. AstroYou turns that moment into a living Vedic map—one you can understand, explore, and use.",
+    body: "Before your first breath, the sky was already in motion. AstroYou is your personal Jyotish guide: it knows your chart, remembers your story, and stays with you on the hard days.",
     jyotish:
       "Jyotish means the science of light: nine grahas describe how consciousness meets life.",
     question: "Descend to meet the forces in conversation.",

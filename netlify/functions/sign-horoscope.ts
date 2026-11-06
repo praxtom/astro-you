@@ -88,6 +88,8 @@ function fetchSignHoroscope(
           name: sign,
         } as BirthData,
         date,
+        // The page is for this exact sign — never re-derive it from the anchor.
+        { sign },
       );
   }
 }

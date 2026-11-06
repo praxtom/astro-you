@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { PersonalDataError, errorKindOf, type PersonalDataErrorKind } from "../lib/personal-data-error";
 import { postJson } from "../lib/apiFetch";
 import { useRequestBirthData } from './useRequestBirthData';
 
@@ -14,12 +15,17 @@ interface UseSadeSatiResult {
     sadeSati: SadeSatiData | null;
     loading: boolean;
     error: string | null;
+    errorKind: PersonalDataErrorKind | null;
+    retry: () => void;
 }
 
 export function useSadeSati(birthData: any): UseSadeSatiResult {
     const [sadeSati, setSadeSati] = useState<SadeSatiData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [errorKind, setErrorKind] = useState<PersonalDataErrorKind | null>(null);
+    const [attempt, setAttempt] = useState(0);
+    const retry = useCallback(() => setAttempt((n) => n + 1), []);
     const requestBirthData = useRequestBirthData(birthData);
 
     useEffect(() => {
@@ -34,10 +40,11 @@ export function useSadeSati(birthData: any): UseSadeSatiResult {
             try {
                 setLoading(true);
                 setError(null);
+                setErrorKind(null);
 
                 const response = await postJson("/api/kundali", { birthData: requestBirthData, chartType: 'SADE_SATI' }, { signal: controller.signal });
 
-                if (!response.ok) throw new Error('Failed to fetch Sade Sati data');
+                if (!response.ok) throw new PersonalDataError(response.status);
 
                 const result = await response.json();
                 const data = result.data ?? result;
@@ -57,6 +64,7 @@ export function useSadeSati(birthData: any): UseSadeSatiResult {
                 if (err.name === 'AbortError') return;
                 console.error('[useSadeSati] Error:', err);
                 setError(err.message);
+                setErrorKind(errorKindOf(err));
             } finally {
                 setLoading(false);
             }
@@ -64,7 +72,7 @@ export function useSadeSati(birthData: any): UseSadeSatiResult {
 
         fetchSadeSati();
         return () => controller.abort();
-    }, [requestBirthData]);
+    }, [requestBirthData, attempt]);
 
-    return { sadeSati, loading, error };
+    return { sadeSati, loading, error, errorKind, retry };
 }

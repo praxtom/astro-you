@@ -22,6 +22,50 @@ import {
   type MeteredFeature,
 } from "./shared/feature-credits";
 import { requestedDateKey } from "./shared/request-date.js";
+import { db } from "./shared/firebase-admin";
+import { normalizeZodiacMode } from "../../src/lib/zodiac-mode.js";
+
+/**
+ * The saved sidereal Moon/Sun signs and zodiac mode for the sign-based daily
+ * text. Signs are attached only when the request is for the profile's own
+ * birth moment. Best-effort: a read failure falls back to the client's
+ * birthData (and the date-derived sidereal Sun sign).
+ */
+async function loadSignContext(
+  uid: string,
+  birthData: Record<string, any>,
+): Promise<{ birth: Record<string, any>; mode: "vedic" | "western" }> {
+  try {
+    const snap = await db.collection("users").doc(uid).get();
+    const data = snap.data() ?? {};
+    const profile = data.profile ?? data;
+    const mode = normalizeZodiacMode(profile.zodiacMode ?? data.zodiacMode);
+    const sameChart =
+      profile.dob === birthData.dob &&
+      String(profile.tob ?? "").slice(0, 5) ===
+        String(birthData.tob ?? "").slice(0, 5);
+    if (!sameChart) return { birth: birthData, mode };
+    return {
+      birth: {
+        ...birthData,
+        ...(typeof profile.moonSign === "string"
+          ? { moonSign: profile.moonSign }
+          : {}),
+        ...(typeof profile.sunSign === "string"
+          ? { sunSign: profile.sunSign }
+          : {}),
+      },
+      mode,
+    };
+  } catch (err) {
+    console.warn("[Horoscope] Profile sign lookup failed:", err);
+    return { birth: birthData, mode: normalizeZodiacMode(birthData.zodiacMode) };
+  }
+}
+import {
+  forecastUnavailableResponse,
+  isEmptyForecast,
+} from "./shared/forecast-delivery.js";
 
 // Extended forecasts are premium: charged in credits (daily stays free).
 const PERIOD_FEATURE: Record<string, MeteredFeature> = {
@@ -125,6 +169,12 @@ export default async (req: Request, _context: Context) => {
         getDashaPeriods(birthData),
       ]);
 
+      // Paid window: an empty upstream result must refund, not 200 a blank
+      // forecast the user was charged for.
+      if (isEmptyForecast(horoscopeData)) {
+        return forecastUnavailableResponse(charge, "weekly");
+      }
+
       const currentDasha = dashaData?.find((d: any) => d.isCurrent);
       const currentBhukti = currentDasha?.subPeriods?.find(
         (s: any) => s.isCurrent,
@@ -148,6 +198,12 @@ export default async (req: Request, _context: Context) => {
         getMonthlyHoroscope(birthData, date),
         getDashaPeriods(birthData),
       ]);
+
+      // Paid window: an empty upstream result must refund, not 200 a blank
+      // forecast the user was charged for.
+      if (isEmptyForecast(monthlyData)) {
+        return forecastUnavailableResponse(charge, "monthly");
+      }
 
       const currentDasha = dashaData?.find((d: any) => d.isCurrent);
       const currentBhukti = currentDasha?.subPeriods?.find(
@@ -173,6 +229,12 @@ export default async (req: Request, _context: Context) => {
         getDashaPeriods(birthData),
       ]);
 
+      // Paid window: an empty upstream result must refund, not 200 a blank
+      // forecast the user was charged for.
+      if (isEmptyForecast(yearlyData)) {
+        return forecastUnavailableResponse(charge, "yearly");
+      }
+
       const currentDasha = dashaData?.find((d: any) => d.isCurrent);
       const currentBhukti = currentDasha?.subPeriods?.find(
         (s: any) => s.isCurrent,
@@ -192,10 +254,14 @@ export default async (req: Request, _context: Context) => {
     }
 
     // Default: daily horoscope (structured), narrative, dashas, and panchang in parallel
+    // The narrative is sign-based: the sidereal Moon sign in Vedic mode.
+    const signContext = await loadSignContext(decoded.uid, birthData);
     const [horoscopeData, narrativeData, dashaData, panchangData] =
       await Promise.all([
         getDailyHoroscope(birthData, date),
-        getDailyHoroscopeText(birthData, date),
+        getDailyHoroscopeText(signContext.birth as typeof birthData, date, {
+          mode: signContext.mode,
+        }),
         getDashaPeriods(birthData),
         getPanchang(date, birthData.pob, birthData.lat, birthData.lng).catch(
           () => null,

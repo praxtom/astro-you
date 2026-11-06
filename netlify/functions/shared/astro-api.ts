@@ -5,7 +5,8 @@
  * ── Currently wired endpoints ──────────────────────────────────────────────
  *
  * Charts
- *   POST /charts/natal                         → getNatalChart()
+ *   POST /charts/natal                         → getNatalChart() (Western)
+ *   POST /vedic/divisional-chart (D1)          → getNatalChart() (Vedic, Lahiri)
  *   POST /charts/transit                       → getTransitChart()
  *   POST /charts/synastry                      → (used inside getCompatibilityDetails)
  *
@@ -44,9 +45,9 @@
  * Analysis
  *   POST /analysis/natal-transit-report        → getTransitReport()
  *
- * SVG
- *   POST /svg/natal                             → getNatalChartSVG()
- *   POST /svg/transit                           → getTransitChartSVG()
+ * SVG (via /render/*, format "svg" — /svg/* is deprecated)
+ *   POST /render/natal                          → getNatalChartSVG()
+ *   POST /render/transit                        → getTransitChartSVG()
  *
  * Render
  *   POST /render/transit                        → getRenderedTransitChart() (existing)
@@ -83,6 +84,10 @@ import {
   classifyUpstreamChartError,
   type UpstreamChartErrorKind,
 } from "./astro-error-classify.js";
+import {
+  markCurrentDashaPeriods,
+  type DashaCurrentPeriod,
+} from "./chart-cache.js";
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -93,6 +98,12 @@ export interface BirthData {
   pob: string; // Place of birth (city name)
   lat?: number;
   lng?: number;
+  /** Birth time is a placeholder (noon) — see kundali.ts time-unknown shaping. */
+  birthTimeUnknown?: boolean;
+  /** Sidereal Moon sign (profile.moonSign) — the Vedic rashi for sign horoscopes. */
+  moonSign?: string;
+  /** Sidereal Sun sign (profile.sunSign) — fallback when moonSign is missing. */
+  sunSign?: string;
 }
 
 export interface PlanetaryPosition {
@@ -116,6 +127,10 @@ export interface KundaliData {
   planetary_positions: PlanetaryPosition[];
   house_cusps: HouseCusp[];
   ascendant?: { sign: string; degree: number };
+  /** Birth time unknown: no Lagna/house cusps; houses counted from the Moon. */
+  timeUnknown?: boolean;
+  /** What house 1 is: the Lagna (default) or the Moon sign (Chandra Lagna). */
+  houseReference?: "lagna" | "moon";
 }
 
 export interface DashaPeriod {
@@ -301,27 +316,72 @@ function parseBirthData(
   };
 }
 
+/** Every option the Vedic (VedicOptions) endpoints take that the app pins. */
+export const VEDIC_OPTIONS = {
+  ayanamsa: "lahiri",
+  bhava_system: "whole_sign",
+} as const;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The instant a "for date X" reading is cast for. A date within ~a day of now
+ * is the caller's local "today" → cast for the current instant; any other date
+ * → noon UTC of that day.
+ */
+export function readingInstant(date?: string, nowMs: number = Date.now()): Date {
+  if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const noon = Date.parse(`${date}T12:00:00Z`);
+    if (Number.isFinite(noon) && Math.abs(noon - nowMs) > 1.5 * DAY_MS) {
+      return new Date(noon);
+    }
+  }
+  return new Date(nowMs);
+}
+
+/**
+ * DateTimeLocation for an absolute instant. The clock fields are UTC and say
+ * so via `timezone: "UTC"` (spec: DateTimeLocation.timezone) — sending UTC
+ * hour/minute without a timezone made the API read them as local time at the
+ * location, skewing transits by the location's UTC offset. Coordinates are
+ * preferred over the city (a city triggers a timezone lookup of its own).
+ */
+export function buildInstantDateTimeLocation(
+  instant: Date,
+  place: { city?: string; lat?: number; lng?: number } = {},
+): Record<string, any> {
+  const hasCoords =
+    typeof place.lat === "number" &&
+    Number.isFinite(place.lat) &&
+    typeof place.lng === "number" &&
+    Number.isFinite(place.lng);
+  return {
+    year: instant.getUTCFullYear(),
+    month: instant.getUTCMonth() + 1,
+    day: instant.getUTCDate(),
+    hour: instant.getUTCHours(),
+    minute: instant.getUTCMinutes(),
+    second: 0,
+    timezone: "UTC",
+    ...(hasCoords
+      ? { latitude: place.lat, longitude: place.lng }
+      : place.city
+        ? { city: place.city }
+        : {}),
+  };
+}
+
 /** Transit-time payload: { datetime: DateTimeLocation }. */
-function buildTransitTime(
+export function buildTransitTime(
   birthData: BirthData,
   transitDate?: string,
+  nowMs: number = Date.now(),
 ): Record<string, any> {
-  const now = new Date();
-  const dateStr = transitDate || now.toISOString().split("T")[0];
-  const [y, m, d] = dateStr.split("-").map(Number);
   return {
-    datetime: {
-      year: y,
-      month: m,
-      day: d,
-      hour: now.getUTCHours(),
-      minute: now.getUTCMinutes(),
-      second: 0,
-      ...(birthData.pob ? { city: birthData.pob } : {}),
-      ...(birthData.lat !== undefined && birthData.lng !== undefined
-        ? { latitude: birthData.lat, longitude: birthData.lng }
-        : {}),
-    },
+    datetime: buildInstantDateTimeLocation(
+      readingInstant(transitDate, nowMs),
+      { city: birthData.pob || undefined, lat: birthData.lat, lng: birthData.lng },
+    ),
   };
 }
 
@@ -380,16 +440,22 @@ function transformKundaliResponse(apiResponse: any): KundaliData {
   }
 
   let ascendant: KundaliData["ascendant"] | null = null;
-  if (data.ascendant) {
+  // The ascendant may sit at the top level, inside the planets map, or only
+  // as the first house cusp, depending on the upstream response version.
+  const asc = data.ascendant || src.ascendant || src.asc;
+  const firstCusp = house_cusps.find((h) => h.house === 1 && h.sign);
+  if (asc) {
     ascendant = {
-      sign: data.ascendant.sign || data.ascendant,
-      degree: data.ascendant.position || data.ascendant.degree || 0,
+      sign: asc.sign || asc.zodiac_sign || asc,
+      degree: asc.position || asc.degree || 0,
     };
   } else if (data.first_house) {
     ascendant = {
       sign: data.first_house.sign || "",
       degree: data.first_house.position || 0,
     };
+  } else if (firstCusp) {
+    ascendant = { sign: firstCusp.sign, degree: firstCusp.degree || 0 };
   }
 
   return {
@@ -534,6 +600,105 @@ export function normalizeDivisionalChartResponse(
   };
 }
 
+const NAKSHATRAS = [
+  "Ashwini",
+  "Bharani",
+  "Krittika",
+  "Rohini",
+  "Mrigashira",
+  "Ardra",
+  "Punarvasu",
+  "Pushya",
+  "Ashlesha",
+  "Magha",
+  "Purva Phalguni",
+  "Uttara Phalguni",
+  "Hasta",
+  "Chitra",
+  "Swati",
+  "Vishakha",
+  "Anuradha",
+  "Jyeshtha",
+  "Mula",
+  "Purva Ashadha",
+  "Uttara Ashadha",
+  "Shravana",
+  "Dhanishta",
+  "Shatabhisha",
+  "Purva Bhadrapada",
+  "Uttara Bhadrapada",
+  "Revati",
+];
+
+/** Nakshatra of a sidereal position given its sign code and in-sign degree. */
+export function nakshatraFromSidereal(
+  signCode: string,
+  degree: number,
+): string | undefined {
+  const signIndex = DIVISIONAL_SIGN_ORDER.indexOf(normalizeDivisionalSign(signCode));
+  if (signIndex < 0 || !Number.isFinite(degree)) return undefined;
+  const longitude = signIndex * 30 + Math.min(Math.max(degree, 0), 29.9999);
+  return NAKSHATRAS[Math.floor(longitude / (360 / 27)) % 27];
+}
+
+/**
+ * Shape a /vedic/divisional-chart D1 response like the /charts/natal D1 the
+ * app has always consumed: the Ascendant lives in `ascendant` (not among the
+ * planets), whole-sign house cusps are listed, and each planet carries its
+ * nakshatra (derived from the sidereal longitude when the API omits it).
+ */
+export function normalizeVedicD1Response(apiResponse: any): KundaliData {
+  const chart = normalizeDivisionalChartResponse(apiResponse, "D1");
+  const ascIndex = chart.ascendant
+    ? DIVISIONAL_SIGN_ORDER.indexOf(normalizeDivisionalSign(chart.ascendant.sign))
+    : -1;
+  const planetary_positions = chart.planetary_positions
+    .filter((p) => p.name !== "Ascendant")
+    .map((p) => ({
+      ...p,
+      nakshatra: p.nakshatra || nakshatraFromSidereal(p.sign, p.degree),
+    }));
+  const house_cusps: HouseCusp[] =
+    ascIndex >= 0
+      ? DIVISIONAL_SIGN_ORDER.map((_, i) => ({
+          house: i + 1,
+          sign: DIVISIONAL_SIGN_ORDER[(ascIndex + i) % 12],
+          degree: 0,
+        }))
+      : [];
+  return { planetary_positions, house_cusps, ascendant: chart.ascendant };
+}
+
+/**
+ * Birth time unknown: a noon chart's Lagna and house cusps are guesses (the
+ * Lagna moves a sign every ~2 hours), so drop them. Planets keep their signs
+ * (and the Moon its nakshatra); houses are counted from the Moon's sign
+ * (Chandra Lagna), the Jyotish convention without a birth time.
+ */
+export function shapeTimeUnknownChart(chart: KundaliData): KundaliData {
+  const planets = (chart.planetary_positions || []).filter(
+    (p) => !/^(ascendant|lagna|asc)$/i.test(p.name || ""),
+  );
+  const moon = planets.find((p) => /^moon$/i.test(p.name || ""));
+  const moonIndex = moon
+    ? DIVISIONAL_SIGN_ORDER.indexOf(normalizeDivisionalSign(moon.signCode || moon.sign))
+    : -1;
+  return {
+    planetary_positions: planets.map((p) => {
+      const idx = DIVISIONAL_SIGN_ORDER.indexOf(
+        normalizeDivisionalSign(p.signCode || p.sign),
+      );
+      return {
+        ...p,
+        house: moonIndex >= 0 && idx >= 0 ? ((idx - moonIndex + 12) % 12) + 1 : 0,
+      };
+    }),
+    house_cusps: [],
+    timeUnknown: true,
+    houseReference: "moon",
+  };
+}
+
 function parseHouseNumber(houseName: string | number | undefined): number {
   if (typeof houseName === "number") return houseName;
   if (!houseName) return 1;
@@ -563,11 +728,31 @@ function unwrap(result: any): any {
 //  CHARTS  (/charts/*)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/** POST /charts/natal — Full natal chart. */
+/**
+ * Natal (D1) chart.
+ *
+ * Vedic: POST /vedic/divisional-chart (charts ["D1"]) with an explicit Lahiri
+ * ayanamsa — /charts/natal's ChartOptions has no ayanamsa field and the spec
+ * documents its Sidereal default as Fagan-Bradley, ~0.9 deg off Lahiri.
+ * Western: POST /charts/natal, tropical + Placidus.
+ */
 export async function getNatalChart(
   birthData: BirthData,
   mode: ZodiacMode = DEFAULT_ZODIAC_MODE,
 ): Promise<KundaliData> {
+  if (mode !== "western") {
+    const res = await apiFetch(`${API_BASE}/vedic/divisional-chart`, {
+      method: "POST",
+      headers: getHeaders(),
+      body: JSON.stringify({
+        subject: buildSubject(birthData),
+        charts: ["D1"],
+        options: { ...VEDIC_OPTIONS, precision: 2 },
+      }),
+    });
+    if (!res.ok) await throwChartError(res, "Natal chart");
+    return normalizeVedicD1Response(await res.json());
+  }
   const res = await apiFetch(`${API_BASE}/charts/natal`, {
     method: "POST",
     headers: getHeaders(),
@@ -679,7 +864,11 @@ export async function getNavamsaChart(
     const res = await apiFetch(`${API_BASE}/vedic/divisional-chart`, {
       method: "POST",
       headers: getHeaders(),
-      body: JSON.stringify({ subject: buildSubject(birthData), charts }),
+      body: JSON.stringify({
+        subject: buildSubject(birthData),
+        charts,
+        options: VEDIC_OPTIONS,
+      }),
     });
     if (!res.ok) await throwChartError(res, "Divisional chart");
     return normalizeDivisionalChartResponse(await res.json(), charts[0]);
@@ -701,6 +890,7 @@ export async function getDashaPeriods(
       dasha_level: "antardasha",
       // Dasha periods span months to years, so a one-day skew is immaterial.
       target_date: new Date().toISOString().split("T")[0],
+      options: VEDIC_OPTIONS,
     }),
   });
   if (!res.ok) {
@@ -709,14 +899,30 @@ export async function getDashaPeriods(
     return [];
   }
 
-  const data = unwrap(await res.json());
-  const raw =
-    data.mahadashas ||
-    data.periods ||
-    data.dashas ||
-    (Array.isArray(data) ? data : []);
+  return parseDashaResponse(unwrap(await res.json()));
+}
 
-  return raw.map(
+/**
+ * Map a /vedic/vimshottari-dasha response to DashaPeriod[], marking the
+ * running periods from the response's `current_period` summary when present,
+ * else from the period dates (see markCurrentDashaPeriods).
+ */
+export function parseDashaResponse(
+  data: any,
+  now: number = Date.now(),
+): DashaPeriod[] {
+  const raw =
+    data?.mahadashas ||
+    data?.periods ||
+    data?.dashas ||
+    (Array.isArray(data) ? data : []);
+  if (!Array.isArray(raw)) return [];
+  const currentPeriod: DashaCurrentPeriod | null =
+    data?.current_period && typeof data.current_period === "object"
+      ? data.current_period
+      : null;
+
+  const periods = raw.map(
     (m: any) =>
       ({
         planet: m.planet || m.lord || m.name || "",
@@ -733,6 +939,7 @@ export async function getDashaPeriods(
         ),
       }) as DashaPeriod,
   );
+  return markCurrentDashaPeriods(periods, { now, currentPeriod });
 }
 
 /** POST /vedic/panchang — Daily almanac (Tithi, Nakshatra, Karana, Rahu Kaal). */
@@ -754,6 +961,7 @@ export async function getPanchang(
         lat ?? 28.6139,
         lng ?? 77.209,
       ),
+      options: VEDIC_OPTIONS,
     }),
   });
   if (!res.ok) await throwChartError(res, "Panchang");
@@ -788,7 +996,10 @@ export async function getYogaAnalysis(birthData: BirthData): Promise<any> {
   const res = await apiFetch(`${API_BASE}/vedic/yoga-analysis`, {
     method: "POST",
     headers: getHeaders(),
-    body: JSON.stringify({ subject: buildSubject(birthData) }),
+    body: JSON.stringify({
+      subject: buildSubject(birthData),
+      options: VEDIC_OPTIONS,
+    }),
   });
   if (!res.ok) await throwChartError(res, "Yoga analysis");
   return unwrap(await res.json());
@@ -806,6 +1017,7 @@ export async function getKundliMatching(
       groom: buildSubject(person1),
       bride: buildSubject(person2),
       include_manglik: true,
+      options: VEDIC_OPTIONS,
     }),
   });
   if (!res.ok) await throwChartError(res, "Kundli matching");
@@ -817,10 +1029,30 @@ export async function getManglikDosha(birthData: BirthData): Promise<any> {
   const res = await apiFetch(`${API_BASE}/vedic/manglik-dosha`, {
     method: "POST",
     headers: getHeaders(),
-    body: JSON.stringify({ subject: buildSubject(birthData) }),
+    body: JSON.stringify({
+      subject: buildSubject(birthData),
+      options: VEDIC_OPTIONS,
+    }),
   });
   if (!res.ok) await throwChartError(res, "Manglik dosha");
   return unwrap(await res.json());
+}
+
+/** remedy_type values the spec's VedicRemediesRequest enum accepts. */
+const REMEDY_TYPES = new Set(["all", "gemstones", "mantras", "pujas", "rudrakshas"]);
+
+/** /vedic/remedies body. remedy_type is a non-nullable enum — omit when unset. */
+export function buildRemediesBody(
+  birthData: BirthData,
+  remedyType?: string,
+): Record<string, any> {
+  const type =
+    typeof remedyType === "string" ? remedyType.trim().toLowerCase() : "";
+  return {
+    subject: buildSubject(birthData),
+    ...(REMEDY_TYPES.has(type) ? { remedy_type: type } : {}),
+    options: VEDIC_OPTIONS,
+  };
 }
 
 /** POST /vedic/remedies — Gemstones, mantras, fasting, rituals. */
@@ -831,10 +1063,7 @@ export async function getRemedies(
   const res = await apiFetch(`${API_BASE}/vedic/remedies`, {
     method: "POST",
     headers: getHeaders(),
-    body: JSON.stringify({
-      subject: buildSubject(birthData),
-      remedy_type: remedyType || null,
-    }),
+    body: JSON.stringify(buildRemediesBody(birthData, remedyType)),
   });
   if (!res.ok) await throwChartError(res, "Remedies");
   return unwrap(await res.json());
@@ -848,6 +1077,7 @@ export async function getSadeSati(birthData: BirthData): Promise<any> {
     body: JSON.stringify({
       subject: buildSubject(birthData),
       include_remedies: true,
+      options: VEDIC_OPTIONS,
     }),
   });
   if (!res.ok) await throwChartError(res, "Sade Sati");
@@ -862,6 +1092,7 @@ export async function getKaalSarpaDosha(birthData: BirthData): Promise<any> {
     body: JSON.stringify({
       subject: buildSubject(birthData),
       include_remedies: true,
+      options: VEDIC_OPTIONS,
     }),
   });
   if (!res.ok) await throwChartError(res, "Kaal Sarpa");
@@ -875,7 +1106,10 @@ export async function getNakshatraPredictions(
   const res = await apiFetch(`${API_BASE}/vedic/nakshatra-predictions`, {
     method: "POST",
     headers: getHeaders(),
-    body: JSON.stringify({ subject: buildSubject(birthData) }),
+    body: JSON.stringify({
+      subject: buildSubject(birthData),
+      options: VEDIC_OPTIONS,
+    }),
   });
   if (!res.ok) await throwChartError(res, "Nakshatra predictions");
   return unwrap(await res.json());
@@ -889,6 +1123,7 @@ export async function getAshtakvarga(birthData: BirthData): Promise<any> {
     body: JSON.stringify({
       subject: buildSubject(birthData),
       include_sarva: true,
+      options: VEDIC_OPTIONS,
     }),
   });
   if (!res.ok) await throwChartError(res, "Ashtakvarga");
@@ -922,20 +1157,31 @@ export async function getEclipseNatalImpact(
   return unwrap(await res.json());
 }
 
-/** POST /lunar/phases — Precise lunar phases. */
-export async function getLunarPhases(birthData: BirthData): Promise<any> {
-  // This endpoint takes a top-level `datetime_location`, NOT a `subject`
-  // wrapper — sending `subject` triggers a 422 (missing required field).
+/** Where/when a "sky right now" reading (lunar phase, void of course) is cast. */
+export interface SkyMomentInput {
+  /** The caller's local day (YYYY-MM-DD); today → the current instant. */
+  date?: string;
+  city?: string;
+  lat?: number;
+  lng?: number;
+}
+
+/**
+ * POST /lunar/phases — the Moon's phase for *today* at the user's location.
+ * (It used to be cast for the birth date/time, so the dashboard showed the
+ * birth-night Moon.) Takes a top-level `datetime_location`, NOT `subject`.
+ */
+export async function getLunarPhases(
+  moment: SkyMomentInput,
+  nowMs: number = Date.now(),
+): Promise<any> {
   const res = await apiFetch(`${API_BASE}/lunar/phases`, {
     method: "POST",
     headers: getHeaders(),
     body: JSON.stringify({
-      datetime_location: buildDateTimeLocation(
-        birthData.dob,
-        birthData.tob,
-        birthData.pob || undefined,
-        birthData.lat,
-        birthData.lng,
+      datetime_location: buildInstantDateTimeLocation(
+        readingInstant(moment.date, nowMs),
+        moment,
       ),
     }),
   });
@@ -943,19 +1189,19 @@ export async function getLunarPhases(birthData: BirthData): Promise<any> {
   return unwrap(await res.json());
 }
 
-/** POST /lunar/void-of-course — Void of Course moon status. */
-export async function getVoidOfCourse(birthData: BirthData): Promise<any> {
+/** POST /lunar/void-of-course — Void of Course status from now (not birth). */
+export async function getVoidOfCourse(
+  moment: SkyMomentInput,
+  nowMs: number = Date.now(),
+): Promise<any> {
   // Like /lunar/phases, this takes `datetime_location`, not a `subject`.
   const res = await apiFetch(`${API_BASE}/lunar/void-of-course`, {
     method: "POST",
     headers: getHeaders(),
     body: JSON.stringify({
-      datetime_location: buildDateTimeLocation(
-        birthData.dob,
-        birthData.tob,
-        birthData.pob || undefined,
-        birthData.lat,
-        birthData.lng,
+      datetime_location: buildInstantDateTimeLocation(
+        readingInstant(moment.date, nowMs),
+        moment,
       ),
     }),
   });
@@ -966,6 +1212,99 @@ export async function getVoidOfCourse(birthData: BirthData): Promise<any> {
 // ═══════════════════════════════════════════════════════════════════════════════
 //  HOROSCOPE  (/horoscope/*)
 // ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Sign selection for sign-based horoscopes ────────────────────────────────
+
+/** Western sign names, Aries-first (aligned with DIVISIONAL_SIGN_ORDER). */
+const SIGN_NAMES = [
+  "Aries",
+  "Taurus",
+  "Gemini",
+  "Cancer",
+  "Leo",
+  "Virgo",
+  "Libra",
+  "Scorpio",
+  "Sagittarius",
+  "Capricorn",
+  "Aquarius",
+  "Pisces",
+];
+
+/** "Ari" / "aries" / "Aries" → "Aries"; anything else → null. */
+export function signNameOf(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const idx = DIVISIONAL_SIGN_ORDER.indexOf(normalizeDivisionalSign(value));
+  return idx >= 0 ? SIGN_NAMES[idx] : null;
+}
+
+function dobMonthDay(dob: string): [number, number] | null {
+  const [, month, day] = String(dob || "").split("-").map(Number);
+  if (!(month >= 1 && month <= 12) || !(day >= 1 && day <= 31)) return null;
+  return [month, day];
+}
+
+/** Tropical (Western) Sun sign from the birth date's month/day. */
+function tropicalSunSign(dob: string): string | null {
+  const md = dobMonthDay(dob);
+  if (!md) return null;
+  const [month, day] = md;
+  // Day each month's later sign begins (Jan 20 → Aquarius, ...).
+  const bounds = [20, 19, 21, 20, 21, 21, 23, 23, 23, 23, 22, 22];
+  const startIdx = (month + 9) % 12; // sign beginning in this month
+  return SIGN_NAMES[day >= bounds[month - 1] ? startIdx : (startIdx + 11) % 12];
+}
+
+/**
+ * Sidereal (Lahiri) Sun sign from the birth date — the Sun's sidereal
+ * ingresses fall ~24 days after the tropical ones (Mesha ~Apr 14). Only a
+ * last resort for a Vedic reading when the chart-derived signs are missing;
+ * it can be a sign off within a day of an ingress.
+ */
+function approxSiderealSunSign(dob: string): string | null {
+  const md = dobMonthDay(dob);
+  if (!md) return null;
+  const [month, day] = md;
+  const bounds = [14, 13, 14, 14, 15, 15, 16, 17, 17, 17, 16, 16];
+  const startIdx = (month + 8) % 12; // sign the Sun enters this month
+  return SIGN_NAMES[day >= bounds[month - 1] ? startIdx : (startIdx + 11) % 12];
+}
+
+export interface HoroscopeSignOptions {
+  /** Explicit sign (sign pages) — wins over everything else. */
+  sign?: string;
+  mode?: ZodiacMode;
+}
+
+/**
+ * The sign a sign-based horoscope is fetched for (full Western name).
+ *
+ * Vedic (default): the sidereal Moon sign — rashi horoscopes are read from the
+ * Moon in Jyotish — then the sidereal Sun sign, then an approximate sidereal
+ * Sun sign from the date. Western: the tropical Sun sign from the date range.
+ */
+export function resolveHoroscopeSign(
+  birthData: Pick<BirthData, "dob" | "moonSign" | "sunSign">,
+  options: HoroscopeSignOptions = {},
+): string {
+  const explicit = signNameOf(options.sign);
+  if (explicit) return explicit;
+  if (options.mode === "western") {
+    return tropicalSunSign(birthData.dob) || "Aries";
+  }
+  return (
+    signNameOf(birthData.moonSign) ||
+    signNameOf(birthData.sunSign) ||
+    approxSiderealSunSign(birthData.dob) ||
+    "Aries"
+  );
+}
+
+/** 3-letter sign code ("Ari") the PDF endpoints take. */
+function signAbbrev(name: string): string {
+  const idx = SIGN_NAMES.indexOf(name);
+  return DIVISIONAL_SIGN_ORDER[idx >= 0 ? idx : 0];
+}
 
 /** POST /horoscope/personal/daily — Personalized daily horoscope. */
 export async function getDailyHoroscope(
@@ -1085,24 +1424,9 @@ export async function getYearlyHoroscope(
 export async function getDailyHoroscopeText(
   birthData: BirthData,
   date?: string,
+  options: HoroscopeSignOptions = {},
 ): Promise<any> {
-  const [, month, day] = birthData.dob.split("-").map(Number);
-  const signs = [
-    "Capricorn",
-    "Aquarius",
-    "Pisces",
-    "Aries",
-    "Taurus",
-    "Gemini",
-    "Cancer",
-    "Leo",
-    "Virgo",
-    "Libra",
-    "Scorpio",
-    "Sagittarius",
-  ];
-  const bounds = [20, 19, 21, 20, 21, 21, 23, 23, 23, 23, 22, 22];
-  const sign = day < bounds[month - 1] ? signs[month - 1] : signs[month % 12];
+  const sign = resolveHoroscopeSign(birthData, options);
 
   const res = await apiFetch(`${API_BASE}/horoscope/sign/daily/text`, {
     method: "POST",
@@ -1241,42 +1565,57 @@ export async function getRenderedTransitChart(
 //  SVG CHARTS  (/svg/*)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/** POST /svg/natal — Get natal chart as SVG. */
+/**
+ * SVG text from a /render/* response: served as image/svg+xml, or wrapped in
+ * a JSON envelope ({ svg } / { data }) depending on the API version.
+ */
+async function readRenderedSvg(res: Response): Promise<string> {
+  const type = res.headers.get("content-type") || "";
+  if (!type.includes("json")) return res.text();
+  const result = await res.json();
+  const body = result?.data ?? result;
+  return typeof body === "string" ? body : body?.svg || body?.content || "";
+}
+
+/**
+ * Natal chart as SVG via POST /render/natal (format "svg") — the spec marks
+ * /svg/natal deprecated in favour of it (removed in v4).
+ */
 export async function getNatalChartSVG(
   birthData: BirthData,
   mode: ZodiacMode = DEFAULT_ZODIAC_MODE,
 ): Promise<string> {
-  const res = await apiFetch(`${API_BASE}/svg/natal`, {
+  const res = await apiFetch(`${API_BASE}/render/natal`, {
     method: "POST",
     headers: getHeaders(),
     body: JSON.stringify({
       subject: buildSubject(birthData),
       options: { ...zodiacApiOptions(mode), precision: 2 },
-      svg_options: { theme: "dark" },
+      render_options: { format: "svg", theme: "dark" },
     }),
   });
   if (!res.ok) await throwChartError(res, "SVG natal");
-  return res.text();
+  return readRenderedSvg(res);
 }
 
-/** POST /svg/transit — Get transit chart as SVG. */
+/** Transit chart as SVG via POST /render/transit (/svg/transit is deprecated). */
 export async function getTransitChartSVG(
   birthData: BirthData,
   transitDate?: string,
   mode: ZodiacMode = DEFAULT_ZODIAC_MODE,
 ): Promise<string> {
-  const res = await apiFetch(`${API_BASE}/svg/transit`, {
+  const res = await apiFetch(`${API_BASE}/render/transit`, {
     method: "POST",
     headers: getHeaders(),
     body: JSON.stringify({
       subject: buildSubject(birthData),
       transit_time: buildTransitTime(birthData, transitDate),
       options: { ...zodiacApiOptions(mode), precision: 2 },
-      svg_options: { theme: "dark" },
+      render_options: { format: "svg", theme: "dark" },
     }),
   });
   if (!res.ok) await throwChartError(res, "SVG transit");
-  return res.text();
+  return readRenderedSvg(res);
 }
 
 /** POST /render/natal — Render natal chart as PNG image. Returns image URL or data. */
@@ -1437,25 +1776,9 @@ export async function getNatalReportPDF(
 export async function getDailyHoroscopePDF(
   birthData: BirthData,
   date?: string,
+  options: HoroscopeSignOptions = {},
 ): Promise<ArrayBuffer | null> {
-  const [, month, day] = birthData.dob.split("-").map(Number);
-  const abbrevs = [
-    "Cap",
-    "Aqu",
-    "Pis",
-    "Ari",
-    "Tau",
-    "Gem",
-    "Can",
-    "Leo",
-    "Vir",
-    "Lib",
-    "Sco",
-    "Sag",
-  ];
-  const bounds = [20, 19, 21, 20, 21, 21, 23, 23, 23, 23, 22, 22];
-  const idx = day < bounds[month - 1] ? month - 1 : month % 12;
-  const sign = abbrevs[idx];
+  const sign = signAbbrev(resolveHoroscopeSign(birthData, options));
 
   const res = await apiFetch(`${API_BASE}/pdf/horoscope/daily`, {
     method: "POST",
@@ -1478,32 +1801,18 @@ export async function getDailyHoroscopePDF(
 export async function getWeeklyHoroscopePDF(
   birthData: BirthData,
   date?: string,
+  options: HoroscopeSignOptions = {},
 ): Promise<ArrayBuffer | null> {
-  const [, month, day] = birthData.dob.split("-").map(Number);
-  const abbrevs = [
-    "Cap",
-    "Aqu",
-    "Pis",
-    "Ari",
-    "Tau",
-    "Gem",
-    "Can",
-    "Leo",
-    "Vir",
-    "Lib",
-    "Sco",
-    "Sag",
-  ];
-  const bounds = [20, 19, 21, 20, 21, 21, 23, 23, 23, 23, 22, 22];
-  const idx = day < bounds[month - 1] ? month - 1 : month % 12;
-  const sign = abbrevs[idx];
+  const sign = signAbbrev(resolveHoroscopeSign(birthData, options));
 
   const res = await apiFetch(`${API_BASE}/pdf/horoscope/weekly`, {
     method: "POST",
     headers: getHeaders(),
     body: JSON.stringify({
       sign,
-      target_date: date || new Date().toISOString().split("T")[0],
+      // Spec: WeeklyHoroscopePDFRequest takes `week_start` (normalized to
+      // that week's Monday upstream), not `target_date`.
+      week_start: date || new Date().toISOString().split("T")[0],
       language: "en",
     }),
   });
@@ -1519,16 +1828,27 @@ export async function getWeeklyHoroscopePDF(
 //  NUMEROLOGY  (/numerology/*)
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/**
+ * Numerology body — spec: SingleSubjectRequest { subject: { name, birth_data } }.
+ * The name IS a numerology input (destiny/soul numbers), so it is sent here,
+ * unlike the chart endpoints; only the birth date is needed from birth_data.
+ */
+export function buildNumerologyBody(birthData: BirthData): Record<string, any> {
+  const [year, month, day] = birthData.dob.split("-").map(Number);
+  return {
+    subject: {
+      name: birthData.name?.trim() || "Anonymous",
+      birth_data: { year, month, day },
+    },
+  };
+}
+
 /** POST /numerology/comprehensive — Full numerology reading. */
 export async function getNumerologyReading(birthData: BirthData): Promise<any> {
-  const [year, month, day] = birthData.dob.split("-").map(Number);
   const res = await apiFetch(`${API_BASE}/numerology/comprehensive`, {
     method: "POST",
     headers: getHeaders(),
-    body: JSON.stringify({
-      name: birthData.name || "User",
-      birth_date: { year, month, day },
-    }),
+    body: JSON.stringify(buildNumerologyBody(birthData)),
   });
   if (!res.ok) await throwChartError(res, "Numerology");
   return unwrap(await res.json());
@@ -1536,14 +1856,10 @@ export async function getNumerologyReading(birthData: BirthData): Promise<any> {
 
 /** POST /numerology/core-numbers — Life path, destiny, soul numbers. */
 export async function getCoreNumbers(birthData: BirthData): Promise<any> {
-  const [year, month, day] = birthData.dob.split("-").map(Number);
   const res = await apiFetch(`${API_BASE}/numerology/core-numbers`, {
     method: "POST",
     headers: getHeaders(),
-    body: JSON.stringify({
-      name: birthData.name || "User",
-      birth_date: { year, month, day },
-    }),
+    body: JSON.stringify(buildNumerologyBody(birthData)),
   });
   if (!res.ok) await throwChartError(res, "Core numbers");
   return unwrap(await res.json());
@@ -1601,15 +1917,18 @@ export async function getNumerologyCompatibility(
   const res = await apiFetch(`${API_BASE}/numerology/compatibility`, {
     method: "POST",
     headers: getHeaders(),
+    // Spec: MultipleSubjectsRequest { subjects: Subject[] }.
     body: JSON.stringify({
-      person1: {
-        name: person1.name || "Person 1",
-        birth_date: { year: y1, month: m1, day: d1 },
-      },
-      person2: {
-        name: person2.name || "Person 2",
-        birth_date: { year: y2, month: m2, day: d2 },
-      },
+      subjects: [
+        {
+          name: person1.name || "Person 1",
+          birth_data: { year: y1, month: m1, day: d1 },
+        },
+        {
+          name: person2.name || "Person 2",
+          birth_data: { year: y2, month: m2, day: d2 },
+        },
+      ],
     }),
   });
   if (!res.ok) await throwChartError(res, "Numerology compatibility");
@@ -1620,14 +1939,18 @@ export async function getNumerologyCompatibility(
 //  ECLIPSE INTERPRETATION
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/** POST /eclipses/interpretation — Interpretation for a specific eclipse date. */
+/**
+ * POST /eclipses/interpretation — Interpretation of one eclipse. Spec:
+ * EclipseInterpretationRequest requires `eclipse_id` (NASA-format id, as listed
+ * by /eclipses/upcoming), not a date.
+ */
 export async function getEclipseInterpretation(
-  eclipseDate: string,
+  eclipseId: string,
 ): Promise<any> {
   const res = await apiFetch(`${API_BASE}/eclipses/interpretation`, {
     method: "POST",
     headers: getHeaders(),
-    body: JSON.stringify({ date: eclipseDate }),
+    body: JSON.stringify({ eclipse_id: eclipseId, language: "en" }),
   });
   if (!res.ok) await throwChartError(res, "Eclipse interpretation");
   return unwrap(await res.json());
@@ -1770,7 +2093,10 @@ export async function getShadbala(birthData: BirthData): Promise<any> {
   const res = await apiFetch(`${API_BASE}/vedic/shadbala`, {
     method: "POST",
     headers: getHeaders(),
-    body: JSON.stringify({ subject: buildSubject(birthData) }),
+    body: JSON.stringify({
+      subject: buildSubject(birthData),
+      options: VEDIC_OPTIONS,
+    }),
   });
   if (!res.ok) await throwChartError(res, "Shadbala");
   return unwrap(await res.json());
@@ -1786,7 +2112,9 @@ export async function getVarshaphal(
     headers: getHeaders(),
     body: JSON.stringify({
       subject: buildSubject(birthData),
-      year: year || new Date().getFullYear(),
+      // Spec: VedicVarshaphalRequest requires `target_year` (not `year`).
+      target_year: year || new Date().getFullYear(),
+      options: VEDIC_OPTIONS,
     }),
   });
   if (!res.ok) await throwChartError(res, "Varshaphal");

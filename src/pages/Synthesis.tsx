@@ -19,7 +19,13 @@ import {
   Download,
   Save,
   Share2,
+  Wind,
+  RotateCcw,
+  X,
+  CalendarClock,
+  BookHeart,
 } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import ChartShareModal from "../components/ChartShareModal";
 import AuthModal from "../components/AuthModal";
 import OnboardingModal from "../components/OnboardingModal";
@@ -38,14 +44,24 @@ import {
   limit,
   limitToLast,
   onSnapshot,
+  getDoc,
   getDocs,
   serverTimestamp,
   writeBatch,
   Timestamp,
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
+import { postJson } from "../lib/apiFetch";
 import { trackAcquisitionEvent } from "../lib/acquisition";
-import { loadRazorpayCheckout } from "../lib/razorpay-loader";
+import { useCreditTopup } from "../hooks/useCreditTopup";
+import { useCurrency } from "../hooks/useCurrency";
+import { DEFAULT_CREDIT_PACK, getPackAmount } from "../lib/credit-packs";
+import { formatMoney } from "../lib/currency";
+import { AtmanService } from "../lib/atman";
+import { recordPracticeSession } from "../lib/practice-streak";
+import { isAnxiousMessage, isRelationshipMessage } from "../lib/chat-intent";
+import { MemoryManager } from "../components/memory/MemoryManager";
+import { COMPATIBILITY_CONTEXT_KEY } from "../components/layout/AskJyotishBridge";
 import { SynthesisSEO } from "../components/SEO";
 import Kundali from "../components/astrology/Kundali";
 import { downloadChart } from "../lib/chartStorage";
@@ -130,9 +146,85 @@ const CelestialChart = lazy(
 const OPENING_QUESTIONS = [
   "What does my current dasha ask of me?",
   "Why does this week feel heavy?",
-  "What is my Moon trying to teach me?",
+  "Something's weighing on my heart about a relationship",
   "When is a good time to start something new?",
 ];
+
+// COMPATIBILITY_CONTEXT_KEY is written by the Compatibility page
+// (AskJyotishBridge) and consumed once, by the next message.
+const COMPATIBILITY_CONTEXT_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+
+/** Returns a fresh compatibility summary, dropping stale or corrupt entries. */
+function readCompatibilityContext(): string | null {
+  try {
+    const raw = sessionStorage.getItem(COMPATIBILITY_CONTEXT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as {
+      summary?: unknown;
+      createdAt?: unknown;
+    };
+    const fresh =
+      typeof parsed.createdAt === "number" &&
+      Date.now() - parsed.createdAt < COMPATIBILITY_CONTEXT_MAX_AGE_MS;
+    if (fresh && typeof parsed.summary === "string" && parsed.summary.trim()) {
+      return parsed.summary;
+    }
+    sessionStorage.removeItem(COMPATIBILITY_CONTEXT_KEY);
+  } catch {
+    /* storage unavailable or corrupt JSON — no context */
+  }
+  return null;
+}
+
+function clearCompatibilityContext() {
+  try {
+    sessionStorage.removeItem(COMPATIBILITY_CONTEXT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+const MEMORY_NOTICE_KEY_PREFIX = "astroyou.memoryNoticeDismissed.";
+
+function readMemoryNoticeDismissed(uid: string): boolean {
+  try {
+    return localStorage.getItem(MEMORY_NOTICE_KEY_PREFIX + uid) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Guest timer: a second only counts when the guest is actually using the chat
+ * — the tab is visible AND either a reply is in flight or they typed within
+ * this window. An idle or backgrounded tab no longer burns their 10 minutes.
+ */
+const GUEST_ACTIVE_TYPING_WINDOW_MS = 60_000;
+
+/** Server keepalive events carry no content and must never reach the UI. */
+const KEEPALIVE_EVENT_TYPES = new Set(["keepalive", "heartbeat", "ping"]);
+
+const CHECK_IN_DELAY_MS = 3 * 24 * 60 * 60 * 1000;
+
+/** The calm copy shown in place of any raw gateway / server error body. */
+const QUIET_SKY_MESSAGE =
+  "The sky went quiet for a moment — your question is safe. Try again";
+
+interface SendFailure {
+  /** The exact question that failed, resent verbatim by Retry. */
+  content: string;
+  clientId: string;
+  /** Whether the user turn already reached Firestore (signed-in only). */
+  persisted: boolean;
+  /** The chat the failed turn belongs to. */
+  chatId: string | null;
+  message: string;
+}
+
+interface SendOptions {
+  /** Resend a failed turn without adding a second user bubble. */
+  retryOf?: SendFailure;
+}
 
 const DESKTOP_MEDIA_QUERY = "(min-width: 1024px)";
 
@@ -156,26 +248,46 @@ const DELETE_BATCH_SIZE = 400;
 /** Cap the live message subscription — very long chats keep the newest turns. */
 const MESSAGE_WINDOW = 200;
 
-/** Toast title for a failed send, keyed on the HTTP status (if any). */
-const sendFailureTitle = (status?: number) => {
-  switch (status) {
-    case 401:
-      return "Sign in to continue";
-    case 402:
-      return "Out of credits";
-    case 429:
-      return "Slow down — try again shortly";
-    default:
-      return "Connection lost";
-  }
-};
-
 class SendError extends Error {
   status?: number;
   constructor(message: string, status?: number) {
     super(message);
     this.name = "SendError";
     this.status = status;
+  }
+}
+
+/**
+ * Turn a non-OK response into a short, human message. Gateways (e.g. a 504
+ * "Inactivity Timeout") return HTML — that must never be shown as text, so
+ * only a JSON `error` string from our own function is surfaced.
+ */
+async function readSendError(response: Response): Promise<SendError> {
+  let message = QUIET_SKY_MESSAGE;
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    try {
+      const body = (await response.json()) as { error?: unknown };
+      if (
+        typeof body.error === "string" &&
+        body.error.trim() &&
+        body.error.length < 300 &&
+        !/<[a-z!/]/i.test(body.error)
+      ) {
+        message = body.error;
+      }
+    } catch {
+      /* unparseable — keep the calm default */
+    }
+  }
+  return new SendError(message, response.status);
+}
+
+/** An `error` event delivered inside the SSE stream by our own function. */
+class StreamError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "StreamError";
   }
 }
 
@@ -198,6 +310,10 @@ export default function Synthesis() {
   const { isAnxious, isChaotic, isReactive, atmanState, refreshAtman } =
     useConsciousness();
   const [showPrana, setShowPrana] = useState(false);
+  // Breathing opened by hand (Breathe button / offer chip) always starts calm.
+  const [pranaManual, setPranaManual] = useState(false);
+  // Gentle "breathe first?" chip after an anxious-sounding message.
+  const [showBreathOffer, setShowBreathOffer] = useState(false);
   const [showAltar, setShowAltar] = useState(false);
   const [suggestedRoutine, setSuggestedRoutine] = useState<UserRoutine | null>(
     null,
@@ -252,7 +368,18 @@ export default function Synthesis() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [isSynthesizing, setIsSynthesizing] = useState(false);
-  const [isPaying, setIsPaying] = useState(false);
+  const { buyCredits, isPaying, error: topupError } = useCreditTopup();
+  const { currency } = useCurrency();
+  // Inline calm failure state with a Retry for the exact failed question.
+  const [sendFailure, setSendFailure] = useState<SendFailure | null>(null);
+  // "Check in with me in 3 days" offer after a heavy-hearted reply.
+  const [checkInOffer, setCheckInOffer] = useState<{
+    question: string;
+    category: "relationship" | "health";
+  } | null>(null);
+  const [checkInScheduled, setCheckInScheduled] = useState<string | null>(null);
+  const [showMemoryNotice, setShowMemoryNotice] = useState(false);
+  const [showMemoryPanel, setShowMemoryPanel] = useState(false);
   // Shown in-thread when a signed-in user tries to send with no credits left.
   const [showCreditsNotice, setShowCreditsNotice] = useState(false);
   // Visually-hidden live region so screen readers hear when a reply lands.
@@ -308,6 +435,11 @@ export default function Synthesis() {
   // Previous auth uid, so the guest-turn migration only fires on an actual
   // guest → signed-in transition (not on "New conversation" resets).
   const prevUidRef = useRef<string | null>(null);
+  // Last time the guest typed in the composer (drives the active-time timer).
+  const lastTypedAtRef = useRef(0);
+  // A failed question auto-restored into the empty composer. Selected on
+  // restore so the next keystroke replaces it instead of appending to it.
+  const restoredDraftRef = useRef<string | null>(null);
 
   // Resetting both rails to their defaults is a visible jolt (an open drawer
   // snaps shut), so this must only re-run on things that actually change the
@@ -795,124 +927,186 @@ export default function Synthesis() {
   // Initialize trial timer from localStorage
   useEffect(() => {
     if (user) return;
-    const saved = localStorage.getItem(STORAGE_KEYS.FREE_SECONDS);
-    if (saved) setSecondsUsed(parseInt(saved));
+    try {
+      const saved = Number.parseInt(
+        localStorage.getItem(STORAGE_KEYS.FREE_SECONDS) || "",
+        10,
+      );
+      if (Number.isFinite(saved) && saved > 0) setSecondsUsed(saved);
+    } catch {
+      /* storage blocked — start from zero */
+    }
   }, [user]);
 
-  // Update timer every second
+  // Guest timer — counts ACTIVE time only. Each tick adds a second only when:
+  //   1. the tab is visible, and
+  //   2. a reply is in flight (sendingRef covers the request AND the stream),
+  //      or the guest typed within the last GUEST_ACTIVE_TYPING_WINDOW_MS.
+  // Reading refs inside one long-lived interval keeps this simple: no effect
+  // re-subscribes every second.
   useEffect(() => {
-    if (user || secondsUsed >= FREE_LIMIT_SECONDS) {
-      if (!user && secondsUsed >= FREE_LIMIT_SECONDS) setShowAuthModal(true);
-      return;
-    }
-
+    if (user) return;
     const interval = setInterval(() => {
-      setSecondsUsed((prev) => {
-        const next = prev + 1;
-        localStorage.setItem(STORAGE_KEYS.FREE_SECONDS, next.toString());
-        return next;
-      });
+      if (document.visibilityState !== "visible") return;
+      const typedRecently =
+        Date.now() - lastTypedAtRef.current < GUEST_ACTIVE_TYPING_WINDOW_MS;
+      if (!sendingRef.current && !typedRecently) return;
+      setSecondsUsed((prev) => Math.min(FREE_LIMIT_SECONDS, prev + 1));
     }, 1000);
-
     return () => clearInterval(interval);
+  }, [user]);
+
+  // Persist the guest's used seconds and prompt sign-in at the limit.
+  useEffect(() => {
+    if (user) return;
+    if (secondsUsed > 0) {
+      try {
+        localStorage.setItem(STORAGE_KEYS.FREE_SECONDS, String(secondsUsed));
+      } catch {
+        /* storage blocked — the timer still works for this tab */
+      }
+    }
+    if (secondsUsed >= FREE_LIMIT_SECONDS) setShowAuthModal(true);
   }, [secondsUsed, user]);
 
-  const handlePurchase = async (minutes: number, price: number) => {
+  // Composer edits: track guest activity and drop the restored-draft marker
+  // once the user changes it themselves.
+  const handleInputChange = useCallback((value: string) => {
+    lastTypedAtRef.current = Date.now();
+    if (
+      restoredDraftRef.current !== null &&
+      value !== restoredDraftRef.current
+    ) {
+      restoredDraftRef.current = null;
+    }
+    setInput(value);
+  }, []);
+
+  // ── Memory notice: one-time line on a signed-in user's first ever chat ──
+  const memoryNoticeProfileFlag = Boolean(
+    (profile as { memoryNoticeDismissed?: unknown } | null | undefined)
+      ?.memoryNoticeDismissed,
+  );
+  const uid = user?.uid ?? null;
+  useEffect(() => {
+    if (!uid || memoryNoticeProfileFlag || readMemoryNoticeDismissed(uid)) {
+      setShowMemoryNotice(false);
+      return;
+    }
+    let cancelled = false;
+    // "First ever chat" = at most one chat doc exists (the one being had).
+    getDocs(query(collection(db, "users", uid, "chats"), limit(2)))
+      .then((snap) => {
+        if (!cancelled) setShowMemoryNotice(snap.size <= 1);
+      })
+      .catch(() => {
+        /* offline or denied — simply don't show the notice */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [uid, memoryNoticeProfileFlag]);
+
+  const dismissMemoryNotice = useCallback(() => {
+    setShowMemoryNotice(false);
+    if (!uid) return;
+    try {
+      localStorage.setItem(MEMORY_NOTICE_KEY_PREFIX + uid, "1");
+    } catch {
+      /* ignore — the profile flag below still persists it */
+    }
+    updateDoc(doc(db, "users", uid), { memoryNoticeDismissed: true }).catch(
+      () => {},
+    );
+  }, [uid]);
+
+  // Escape closes the "What I remember" panel.
+  useEffect(() => {
+    if (!showMemoryPanel) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowMemoryPanel(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [showMemoryPanel]);
+
+  // ── Breathing ──
+  const openBreathing = useCallback(() => {
+    setShowBreathOffer(false);
+    setPranaManual(true);
+    setShowPrana(true);
+  }, []);
+  const closeBreathing = useCallback(() => {
+    setShowPrana(false);
+    setPranaManual(false);
+  }, []);
+  const handleBreathingComplete = useCallback(() => {
+    void recordPracticeSession(uid).then((streak) => {
+      if (!streak) return;
+      refreshAtman();
+      showSuccess(
+        "Breath complete",
+        streak > 1
+          ? `${streak} days of practice in a row.`
+          : "Your practice streak has begun.",
+      );
+    });
+  }, [uid, refreshAtman, showSuccess]);
+
+  // ── Check-in follow-up (signed-in only) ──
+  const scheduleCheckIn = async () => {
+    if (!user || !checkInOffer) return;
+    const due = new Date(Date.now() + CHECK_IN_DELAY_MS);
+    const topic = checkInOffer.question.replace(/\s+/g, " ").trim();
+    const title = `Check in about: ${
+      topic.length > 80 ? `${topic.slice(0, 80).trimEnd()}…` : topic
+    }`;
+    setCheckInOffer(null);
+    await AtmanService.addLifeEvent(user.uid, {
+      title,
+      date: due,
+      status: "pending",
+      category: checkInOffer.category,
+      confidence: 1,
+    });
+    refreshAtman();
+    setCheckInScheduled(due.toLocaleDateString(undefined, { weekday: "long" }));
+  };
+
+  // In-chat top-up buys the recommended pack (valid on the server); the full
+  // pack picker lives on /wallet.
+  const purchasePack = DEFAULT_CREDIT_PACK;
+  const purchasePrice = formatMoney(
+    getPackAmount(purchasePack, currency),
+    currency,
+  );
+  const handlePurchase = async () => {
     if (!user) {
       setShowAuthModal(true);
       return;
     }
-
-    setIsPaying(true);
-    try {
-      await loadRazorpayCheckout();
-      const Razorpay = (window as Window & { Razorpay?: any }).Razorpay;
-      if (!Razorpay || !import.meta.env.VITE_RAZORPAY_KEY_ID) {
-        throw new Error("Payment checkout is not configured.");
-      }
-
-      const resp = await fetch("/api/pay/create-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          idToken: await user.getIdToken(),
-          minutes,
-          amount: price,
-        }),
+    const ok = await buyCredits(purchasePack.minutes);
+    if (ok) {
+      trackAcquisitionEvent("first_payment", {
+        amount: getPackAmount(purchasePack, currency),
       });
-      const order = await resp.json();
-      if (!resp.ok) {
-        throw new Error(order.error || "Could not create payment order.");
-      }
-
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-        amount: order.amount,
-        currency: order.currency,
-        name: "AstroYou",
-        description: `Purchase ${minutes} Minutes`,
-        order_id: order.id,
-        handler: async (response: any) => {
-          // A thrown fetch or a non-JSON error body must never leave the user
-          // with a silent, unacknowledged payment.
-          try {
-            const verifyResp = await fetch("/api/pay/verify", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                ...response,
-                idToken: await user.getIdToken(),
-              }),
-            });
-            if (!verifyResp.ok) {
-              throw new Error(`Verification failed (${verifyResp.status})`);
-            }
-            const verifyData = await verifyResp.json();
-
-            if (verifyData.status === "success") {
-              setCredits((prev) => prev + minutes);
-              trackAcquisitionEvent("first_payment", { amount: price });
-              showSuccess(
-                "Minutes Added",
-                `${minutes} minutes were added to your account.`,
-              );
-            } else {
-              showError(
-                "Payment Verification Failed",
-                "Please contact support.",
-              );
-            }
-          } catch (err) {
-            console.error("[Synthesis] Payment verification failed:", err);
-            showError("Payment Verification Failed", "Please contact support.");
-          }
-        },
-        prefill: {
-          name: user.displayName || "",
-          email: user.email || "",
-        },
-        theme: {
-          color: "#ffcd6a",
-        },
-      };
-
-      const rzp = new Razorpay(options);
-      rzp.open();
-    } catch (err) {
-      console.error(err);
-      showError(
-        "Payment Error",
-        "Payment failed to initialize. Please try again.",
+      showSuccess(
+        "Credits added",
+        `${purchasePack.label} were added to your account.`,
       );
-    } finally {
-      setIsPaying(false);
     }
   };
 
-  // Handle message sending
-  const handleSend = async () => {
+  useEffect(() => {
+    if (topupError) showError("Payment didn't go through", topupError);
+  }, [topupError, showError]);
+
+  // Handle message sending. `retryOf` resends a failed turn verbatim without
+  // adding a second user bubble (or a second Firestore user message).
+  const handleSend = async ({ retryOf }: SendOptions = {}) => {
+    const text = retryOf ? retryOf.content : input;
     if (
-      !input.trim() ||
+      !text.trim() ||
       isSynthesizing ||
       sendingRef.current ||
       streamingContent !== null ||
@@ -940,25 +1134,36 @@ export default function Synthesis() {
       return;
     }
     setShowCreditsNotice(false);
+    setSendFailure(null);
+    setCheckInOffer(null);
+    setCheckInScheduled(null);
 
-    const originalDraft = input;
-    const userMsgContent = input;
-    const userMsgClientId = `user_${Date.now()}`;
-    const userMsg: Message = {
-      id: `pending_${userMsgClientId}`,
-      clientId: userMsgClientId,
-      pending: true,
-      role: "user",
-      content: userMsgContent,
-      timestamp: new Date(),
-    };
+    const userMsgContent = text;
+    const userMsgClientId = retryOf ? retryOf.clientId : `user_${Date.now()}`;
+    const soundsAnxious = isAnxiousMessage(userMsgContent);
+    const aboutRelationship = isRelationshipMessage(userMsgContent);
+    // Offer a breath before the reply lands — never forced, one tap away.
+    setShowBreathOffer(soundsAnxious);
 
-    setMessages((prev) => [...prev, userMsg]);
-    if (user) {
-      pendingMessagesRef.current = [...pendingMessagesRef.current, userMsg];
+    if (!retryOf) {
+      const userMsg: Message = {
+        id: `pending_${userMsgClientId}`,
+        clientId: userMsgClientId,
+        pending: true,
+        role: "user",
+        content: userMsgContent,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, userMsg]);
+      if (user) {
+        pendingMessagesRef.current = [...pendingMessagesRef.current, userMsg];
+      }
+      setInput("");
+    } else if (input === retryOf.content) {
+      // Retry supersedes the auto-restored draft — don't leave a copy behind.
+      setInput("");
     }
-
-    setInput("");
+    restoredDraftRef.current = null;
     setIsSynthesizing(true);
 
     // One request at a time, abortable (unmount / chat switch), and pinned to
@@ -968,6 +1173,8 @@ export default function Synthesis() {
     // Whether the assistant reply reached the UI/store — a failure AFTER that
     // point (e.g. the convergence setDoc) must not restore the draft.
     let replyDelivered = false;
+    // Whether the user turn is in Firestore, so a Retry doesn't write it twice.
+    let userPersisted = Boolean(retryOf?.persisted);
     const controller = new AbortController();
     sendAbortRef.current = controller;
     let chatIdAtSend = currentChatId;
@@ -982,9 +1189,8 @@ export default function Synthesis() {
       setStreamingContent(streamBufferRef.current);
     };
 
+    let chatId = currentChatId;
     try {
-      let chatId = currentChatId;
-
       // If logged in and first message, create chat doc
       if (user && !chatId) {
         const newChatRef = await addDoc(
@@ -1007,8 +1213,8 @@ export default function Synthesis() {
         trackAcquisitionEvent("first_chat");
       }
 
-      // Save user message to Firestore if logged in
-      if (user && chatId) {
+      // Save user message to Firestore if logged in (once, even across retries)
+      if (user && chatId && !userPersisted) {
         await addDoc(
           collection(db, "users", user.uid, "chats", chatId, "messages"),
           {
@@ -1018,6 +1224,7 @@ export default function Synthesis() {
             timestamp: serverTimestamp(),
           },
         );
+        userPersisted = true;
         // Update lastUpdatedAt
         await updateDoc(doc(db, "users", user.uid, "chats", chatId), {
           lastUpdatedAt: serverTimestamp(),
@@ -1028,22 +1235,28 @@ export default function Synthesis() {
       const recentSummaries = !interactionId ? await loadRecentSummaries() : [];
 
       // Build enriched chat history for summary generation and fallback memory.
-      const chatMessagesForSummary = messages
-        .filter((m) => m.id !== "welcome")
+      // A retried turn is already in `messages` — exclude it so it isn't sent twice.
+      const priorTurns = messages.filter(
+        (m) =>
+          m.id !== "welcome" &&
+          !(retryOf && (m.clientId ?? m.id) === retryOf.clientId),
+      );
+      const chatMessagesForSummary = priorTurns
         .slice(-10)
         .map((m) => ({ role: m.role, content: m.content }));
+      const currentTurn = { role: "user" as const, content: userMsgContent };
       const requestMessages =
         interactionId || chatMessagesForSummary.length === 0
-          ? [{ role: userMsg.role, content: userMsg.content }]
-          : [
-              ...chatMessagesForSummary,
-              { role: userMsg.role, content: userMsg.content },
-            ].slice(-10);
+          ? [currentTurn]
+          : [...chatMessagesForSummary, currentTurn].slice(-10);
 
       // Pre-generate the assistant message id so the server can durably persist
       // the reply under the SAME doc id the client writes — if the tab closes
       // before the client's write, the server's copy survives (no duplicate).
       const aiMsgClientId = `assistant_${crypto.randomUUID()}`;
+
+      // One-shot context handed over from the Compatibility page.
+      const compatibilityContext = readCompatibilityContext();
 
       const idToken = user ? await user.getIdToken() : undefined;
       const response = await fetch("/api/synthesis", {
@@ -1064,33 +1277,65 @@ export default function Synthesis() {
             chatMessagesForSummary.length > 0
               ? chatMessagesForSummary
               : undefined,
-          messageCount: messages.filter((m) => m.id !== "welcome").length,
+          messageCount: priorTurns.length,
           idToken,
           chatId: user ? chatId : undefined,
           assistantMessageId: user ? aiMsgClientId : undefined,
+          compatibilityContext: compatibilityContext ?? undefined,
         }),
       });
 
-      // Read the status BEFORE touching the stream so failures get the right
-      // toast (401/402/429 vs a generic connection error).
+      // Read the status BEFORE touching the stream. Error bodies (gateway
+      // HTML, JSON) are never rendered — readSendError maps them to calm copy.
       if (!response.ok) {
-        const errorText = await response.text().catch(() => "");
-        let errorMsg = "The cosmos is momentarily unreachable.";
-        try {
-          errorMsg = JSON.parse(errorText)?.error || errorMsg;
-        } catch {
-          errorMsg = errorText || errorMsg;
-        }
-        throw new SendError(errorMsg, response.status);
+        throw await readSendError(response);
       }
+      // A 200 that isn't our event stream (e.g. an HTML error page from a
+      // proxy) must not be parsed or shown either.
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("text/event-stream") || !response.body) {
+        throw new SendError(QUIET_SKY_MESSAGE, response.status);
+      }
+      // The server accepted the context; it applies to this message only.
+      if (compatibilityContext) clearCompatibilityContext();
 
       // --- Real SSE Stream Consumption ---
-      const reader = response.body!.getReader();
+      const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
       let metadata: any = null;
 
       setIsSynthesizing(false); // Hide loader, streaming content will show instead
+
+      const handleEventLine = (line: string) => {
+        // SSE comments (":keepalive") and non-data fields carry no content.
+        if (!line.startsWith("data:")) return;
+        const jsonStr = line.slice(5).trim();
+        if (!jsonStr) return;
+        let event: any;
+        try {
+          event = JSON.parse(jsonStr);
+        } catch {
+          return; // Ignore malformed SSE lines
+        }
+        if (!event || typeof event !== "object") return;
+        if (KEEPALIVE_EVENT_TYPES.has(event.type)) return;
+
+        if (event.type === "delta" && typeof event.text === "string") {
+          // Deltas accumulate in a ref and flush at most once per frame —
+          // per-token setState would re-render the whole thread per token.
+          streamBufferRef.current += event.text;
+          if (streamFrameRef.current === null) {
+            streamFrameRef.current = requestAnimationFrame(flushStream);
+          }
+        } else if (event.type === "done") {
+          metadata = event;
+        } else if (event.type === "error") {
+          throw new StreamError(
+            typeof event.error === "string" ? event.error : QUIET_SKY_MESSAGE,
+          );
+        }
+      };
 
       while (true) {
         const { done, value } = await reader.read();
@@ -1101,38 +1346,11 @@ export default function Synthesis() {
         // Parse SSE events from buffer
         const lines = buffer.split("\n");
         buffer = lines.pop() || ""; // Keep incomplete line in buffer
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const jsonStr = line.slice(6).trim();
-          if (!jsonStr) continue;
-
-          try {
-            const event = JSON.parse(jsonStr);
-
-            if (event.type === "delta" && event.text) {
-              // Deltas accumulate in a ref and flush at most once per frame —
-              // per-token setState would re-render the whole thread per token.
-              streamBufferRef.current += event.text;
-              if (streamFrameRef.current === null) {
-                streamFrameRef.current = requestAnimationFrame(flushStream);
-              }
-            } else if (event.type === "done") {
-              metadata = event;
-            } else if (event.type === "error") {
-              throw new Error(event.error || "Synthesis failed");
-            }
-          } catch (parseErr: any) {
-            if (
-              parseErr.message === "Synthesis failed" ||
-              parseErr.message?.includes("Synthesis")
-            ) {
-              throw parseErr;
-            }
-            // Ignore malformed SSE lines
-          }
-        }
+        for (const line of lines) handleEventLine(line);
       }
+      // A final event without a trailing newline.
+      buffer += decoder.decode();
+      if (buffer) handleEventLine(buffer);
 
       // The stream is over: cancel any pending flush so a late frame cannot
       // repaint the streaming bubble after the final message is applied.
@@ -1142,8 +1360,8 @@ export default function Synthesis() {
       }
 
       const fullContent = streamBufferRef.current;
-      if (!fullContent && !metadata) {
-        throw new Error("No response from the cosmos");
+      if (!fullContent.trim() && !metadata?.content) {
+        throw new SendError(QUIET_SKY_MESSAGE);
       }
 
       const finalContent = metadata?.content || fullContent;
@@ -1171,12 +1389,8 @@ export default function Synthesis() {
         setTimeout(() => setSuggestedRoutine(metadata.suggestedRoutine), 2000);
       }
 
-      // P0: Save conversation summary to chat doc
-      if (metadata?.conversationSummary && user && chatId) {
-        updateDoc(doc(db, "users", user.uid, "chats", chatId), {
-          summary: metadata.conversationSummary,
-        }).catch(() => {});
-      }
+      // Conversation summaries are written server-side (and skipped while
+      // memory is paused), so the client no longer saves them.
 
       // Store the new interaction ID for next turn
       if (metadata?.interactionId) {
@@ -1194,6 +1408,14 @@ export default function Synthesis() {
         updateDoc(doc(db, "users", user.uid, "chats", chatId), {
           title: metadata.generatedTitle,
         }).catch(() => {});
+      }
+
+      // Signed-in: after a heavy-hearted question, offer a gentle check-in.
+      if (user && isCurrent() && (aboutRelationship || soundsAnxious)) {
+        setCheckInOffer({
+          question: userMsgContent,
+          category: aboutRelationship ? "relationship" : "health",
+        });
       }
 
       if (user && chatId) {
@@ -1264,32 +1486,62 @@ export default function Synthesis() {
       ) {
         return;
       }
-      console.error(err);
-      const status = err instanceof SendError ? err.status : undefined;
-      const errorMessage =
-        err instanceof Error
-          ? err.message
-          : "Could not reach the cosmos. Please try sending your message again.";
+      console.error(
+        "[Synthesis] Send failed:",
+        err instanceof Error ? err.name : err,
+      );
       setStreamingContent(null);
-      // Give the user their words back so a failed send costs nothing to
-      // retry — but never clobber text they typed while waiting, and never
-      // restore when the reply already landed (e.g. only the convergence
-      // setDoc failed).
-      if (!replyDelivered) {
-        setInput((current) => (current.trim() ? current : originalDraft));
+      // The reply already landed (only the convergence setDoc failed) —
+      // nothing for the user to retry.
+      if (replyDelivered) return;
+
+      const status = err instanceof SendError ? err.status : undefined;
+      if (status === 402) {
+        setShowCreditsNotice(true);
+      } else if (status === 401) {
+        setShowAuthModal(true);
       }
-      if (status === 402) setShowCreditsNotice(true);
-      if (status === 401) setShowAuthModal(true);
-      if (!user) {
-        const aiMsg: Message = {
-          id: (Date.now() + 1).toString(),
-          role: "assistant",
-          content: errorMessage,
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, aiMsg]);
+
+      // Only our own short, plain messages are shown; anything else (network
+      // errors, gateway pages) becomes the calm default.
+      const message =
+        status === 429
+          ? "The sky needs a breath — please try again in a moment."
+          : err instanceof StreamError || err instanceof SendError
+            ? err.message
+            : QUIET_SKY_MESSAGE;
+
+      // Inline calm state + Retry (not for 401/402, which have their own flows).
+      if (status !== 401 && status !== 402) {
+        setSendFailure({
+          content: userMsgContent,
+          clientId: userMsgClientId,
+          persisted: userPersisted,
+          chatId,
+          message,
+        });
       }
-      showError(sendFailureTitle(status), errorMessage);
+
+      // Give the user their words back — ONLY into an empty composer, never
+      // appended to text they typed while waiting. The restored text is
+      // selected so typing a new question replaces it rather than gluing the
+      // two together.
+      setInput((current) => {
+        if (current.trim()) return current;
+        restoredDraftRef.current = userMsgContent;
+        requestAnimationFrame(() => {
+          const composer = composerRef.current;
+          if (!composer || restoredDraftRef.current !== userMsgContent) return;
+          composer.focus();
+          const selection = window.getSelection();
+          if (!selection) return;
+          const range = document.createRange();
+          range.selectNodeContents(composer);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        });
+        return userMsgContent;
+      });
     } finally {
       sendingRef.current = false;
       if (sendAbortRef.current === controller) {
@@ -1308,6 +1560,26 @@ export default function Synthesis() {
       setIsSynthesizing(false);
     }
   };
+
+  const retryFailedSend = () => {
+    if (!sendFailure) return;
+    // The failure belongs to another chat now — just clear it.
+    if (sendFailure.chatId && sendFailure.chatId !== currentChatId) {
+      setSendFailure(null);
+      return;
+    }
+    void handleSend({ retryOf: sendFailure });
+  };
+
+  // A failure banner or check-in offer never follows the user into another chat.
+  useEffect(() => {
+    // Our own first send moving into the chat it just created is not a switch.
+    if (sendingRef.current && sendChatIdRef.current === currentChatId) return;
+    setSendFailure(null);
+    setCheckInOffer(null);
+    setCheckInScheduled(null);
+    setShowBreathOffer(false);
+  }, [currentChatId]);
 
   // Follow the conversation only while the reader is already near the bottom;
   // never yank them down while they are re-reading earlier messages.
@@ -1350,8 +1622,9 @@ export default function Synthesis() {
       {/* Prana Overlay - Triggers on Anxiety/Chaos */}
       <PranaOverlay
         isOpen={showPrana}
-        onClose={() => setShowPrana(false)}
-        initialMode={isChaotic ? "balance" : isReactive ? "calm" : "calm"}
+        onClose={closeBreathing}
+        onComplete={handleBreathingComplete}
+        initialMode={!pranaManual && isChaotic ? "balance" : "calm"}
       />
 
       {/* Routine Proposal Modal */}
@@ -1517,15 +1790,15 @@ export default function Synthesis() {
                       <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
                         <div className="max-w-[85%] rounded-2xl border border-gold/20 bg-gold/5 px-5 py-4">
                           <p className="mb-1 text-sm text-white/85">
-                            Your celestial minutes have concluded.
+                            You're out of credits.
                           </p>
                           <p className="mb-3 text-xs text-white/45">
-                            Add more to continue this conversation.
+                            Add credits to continue this conversation.
                           </p>
-                          <div className="flex items-center gap-3">
+                          <div className="flex flex-wrap items-center gap-3">
                             <button
                               type="button"
-                              onClick={() => handlePurchase(60, 499)}
+                              onClick={() => void handlePurchase()}
                               disabled={isPaying}
                               className="flex min-h-11 items-center gap-2 rounded-xl bg-gold/90 px-4 py-2 text-[0.65rem] font-bold uppercase tracking-[0.2em] text-black transition-colors hover:bg-gold disabled:cursor-not-allowed disabled:opacity-50"
                             >
@@ -1534,7 +1807,14 @@ export default function Synthesis() {
                               ) : (
                                 <Sparkles size={12} />
                               )}
-                              Buy credits
+                              Buy {purchasePack.label} · {purchasePrice}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => navigate("/wallet")}
+                              className="flex min-h-11 items-center px-2 text-xs text-gold/70 transition-colors hover:text-gold"
+                            >
+                              See all packs
                             </button>
                             <button
                               type="button"
@@ -1547,6 +1827,66 @@ export default function Synthesis() {
                         </div>
                       </div>
                     )}
+
+                    {/* Calm failure state — never the raw error body */}
+                    {sendFailure && !isSynthesizing && !hasStreamingContent && (
+                      <div
+                        role="alert"
+                        className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-300"
+                      >
+                        <div className="max-w-[85%] rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4">
+                          <p className="text-sm leading-6 text-white/75">
+                            {sendFailure.message}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={retryFailedSend}
+                            className="mt-3 flex min-h-11 items-center gap-2 rounded-xl border border-gold/30 bg-gold/10 px-4 py-2 text-[0.65rem] font-bold uppercase tracking-[0.2em] text-gold transition-colors hover:bg-gold/20"
+                          >
+                            <RotateCcw size={12} />
+                            Retry
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Gentle check-in offer after a heavy-hearted reply */}
+                    {user &&
+                      (checkInOffer || checkInScheduled) &&
+                      !isSynthesizing &&
+                      !hasStreamingContent && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="flex justify-start"
+                        >
+                          {checkInScheduled ? (
+                            <p className="flex items-center gap-2 rounded-full border border-gold/20 bg-gold/5 px-4 py-2 text-xs text-gold/80">
+                              <CalendarClock size={12} />
+                              I'll check in with you on {checkInScheduled}.
+                            </p>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => void scheduleCheckIn()}
+                                className="flex min-h-9 items-center gap-2 rounded-full border border-gold/25 bg-gold/5 px-4 py-2 text-xs text-gold/85 transition-colors hover:border-gold/40 hover:bg-gold/10"
+                              >
+                                <CalendarClock size={12} />
+                                Check in with me in 3 days
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setCheckInOffer(null)}
+                                className="flex h-9 w-9 items-center justify-center rounded-full text-white/30 transition-colors hover:text-white/60"
+                                aria-label="Dismiss check-in offer"
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
                   </div>
                 </div>
 
@@ -1565,12 +1905,75 @@ export default function Synthesis() {
 
               {/* ── Input ── */}
               <div className="bg-bg-app/92 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl md:px-6">
+                <AnimatePresence>
+                  {showBreathOffer && (
+                    <motion.div
+                      key="breath-offer"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 6 }}
+                      className="mx-auto mb-2 flex max-w-2xl items-center gap-1"
+                    >
+                      <button
+                        type="button"
+                        onClick={openBreathing}
+                        className="flex min-h-9 items-center gap-2 rounded-full border border-gold/25 bg-gold/5 px-4 py-2 text-xs text-gold/85 transition-colors hover:border-gold/40 hover:bg-gold/10"
+                      >
+                        <Wind size={12} />
+                        Take a slow breath with me first?
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowBreathOffer(false)}
+                        className="flex h-9 w-9 items-center justify-center rounded-full text-white/30 transition-colors hover:text-white/60"
+                        aria-label="Dismiss breathing offer"
+                      >
+                        <X size={12} />
+                      </button>
+                    </motion.div>
+                  )}
+                  {showMemoryNotice && user && (
+                    <motion.div
+                      key="memory-notice"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 6 }}
+                      className="mx-auto mb-2 flex max-w-2xl items-start gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3"
+                    >
+                      <BookHeart
+                        size={14}
+                        className="mt-0.5 shrink-0 text-gold/70"
+                      />
+                      <p className="flex-1 text-xs leading-5 text-white/55">
+                        I'll remember what matters to you so we can pick up
+                        where we left off. You can see, edit or pause this
+                        anytime in{" "}
+                        <button
+                          type="button"
+                          onClick={() => setShowMemoryPanel(true)}
+                          className="text-gold/80 underline-offset-2 hover:text-gold hover:underline"
+                        >
+                          What I remember
+                        </button>
+                        .
+                      </p>
+                      <button
+                        type="button"
+                        onClick={dismissMemoryNotice}
+                        className="-m-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white/30 transition-colors hover:text-white/60"
+                        aria-label="Dismiss memory notice"
+                      >
+                        <X size={12} />
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
                 <div className="mx-auto max-w-2xl">
                   <div className="flex items-end gap-2 rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2.5 transition-colors focus-within:border-gold/30 focus-within:bg-white/[0.05]">
                     <SynthesisComposerTextarea
                       composerRef={composerRef}
                       value={input}
-                      onValueChange={setInput}
+                      onValueChange={handleInputChange}
                       onKeyDown={(e) => {
                         if (
                           e.key === "Enter" &&
@@ -1578,17 +1981,26 @@ export default function Synthesis() {
                           !e.nativeEvent.isComposing
                         ) {
                           e.preventDefault();
-                          handleSend();
+                          void handleSend();
                         }
                       }}
                     />
+                    <button
+                      type="button"
+                      onClick={openBreathing}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-white/35 transition-colors hover:bg-white/5 hover:text-gold"
+                      title="Breathe"
+                      aria-label="Take a slow breath"
+                    >
+                      <Wind size={16} />
+                    </button>
                     <ComposerVoiceButton
                       isListening={isListening}
                       isSupported={isDictationSupported}
                       onToggle={toggleDictation}
                     />
                     <button
-                      onClick={handleSend}
+                      onClick={() => void handleSend()}
                       className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-colors ${
                         input.trim()
                           ? "bg-gold/90 text-black hover:bg-gold"
@@ -1681,6 +2093,23 @@ export default function Synthesis() {
                     }}
                     onDelete={async (id) => {
                       try {
+                        // Capture the provider conversation id before the
+                        // chat doc is gone, so the server can also purge the
+                        // stored conversation (covers chats created before
+                        // the server-side interaction log existed).
+                        let interactionIds: string[] = [];
+                        try {
+                          const chatSnap = await getDoc(
+                            doc(db, "users", user.uid, "chats", id),
+                          );
+                          const lastId = chatSnap.data()?.lastInteractionId;
+                          if (typeof lastId === "string" && lastId.trim()) {
+                            interactionIds = [lastId];
+                          }
+                        } catch {
+                          interactionIds = [];
+                        }
+
                         // Deleting a document does NOT delete its
                         // subcollections — remove the chat's messages first
                         // (batched under Firestore's 500-op limit) so they
@@ -1707,6 +2136,28 @@ export default function Synthesis() {
                           doc(db, "users", user.uid, "chats", id),
                         );
 
+                        // Forget the notes this conversation produced, so
+                        // "delete conversation" really removes what was
+                        // learned from it. The chat itself is already gone,
+                        // so a failure here only affects memory.
+                        try {
+                          const forgetRes = await postJson(
+                            "/api/memory/forget-chat",
+                            { chatId: id, interactionIds },
+                          );
+                          if (!forgetRes.ok)
+                            throw new Error(String(forgetRes.status));
+                        } catch (forgetErr) {
+                          console.error(
+                            "Failed to forget chat memory:",
+                            forgetErr,
+                          );
+                          showError(
+                            "Memory not cleared",
+                            "The conversation was deleted, but its notes could not be removed. Clear them in Settings → What I remember.",
+                          );
+                        }
+
                         // If we deleted the current chat, navigate to new chat
                         if (currentChatId === id) {
                           setCurrentChatId(null);
@@ -1721,6 +2172,19 @@ export default function Synthesis() {
                       }
                     }}
                   />
+                </div>
+                <div className="border-t border-white/5 p-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      closeConversations();
+                      setShowMemoryPanel(true);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-left text-sm text-white/60 transition-colors hover:bg-white/5 hover:text-gold"
+                  >
+                    <BookHeart size={16} className="shrink-0" />
+                    <span className="truncate">What I remember</span>
+                  </button>
                 </div>
               </aside>
             )}
@@ -1751,7 +2215,7 @@ export default function Synthesis() {
                       credits={credits}
                       isPaying={isPaying}
                       isOpen={showBlueprint}
-                      onAddCredits={() => handlePurchase(60, 499)}
+                      onAddCredits={() => void handlePurchase()}
                       onToggleBlueprint={toggleBlueprint}
                       toggleButtonRef={blueprintCloseRef}
                     />
@@ -1950,6 +2414,52 @@ export default function Synthesis() {
           />
         </Suspense>
       )}
+
+      <AnimatePresence>
+        {showMemoryPanel && user && (
+          <motion.div
+            key="memory-panel"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-stretch justify-end bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowMemoryPanel(false)}
+          >
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="synthesis-memory-title"
+              initial={{ x: 40, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: 40, opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              onClick={(event) => event.stopPropagation()}
+              className="flex h-full w-full max-w-md flex-col border-l border-white/10 bg-[#06060c]/95 backdrop-blur-2xl"
+            >
+              <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
+                <h2
+                  id="synthesis-memory-title"
+                  className="text-xs font-bold uppercase tracking-widest text-white/40"
+                >
+                  What I remember
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setShowMemoryPanel(false)}
+                  className="rounded-lg p-2 text-white/40 transition-colors hover:bg-white/5 hover:text-white/80"
+                  aria-label="Close what I remember"
+                  autoFocus
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
+                <MemoryManager compact />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <ChartShareModal
         isOpen={showShareModal}

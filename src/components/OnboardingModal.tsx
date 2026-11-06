@@ -51,6 +51,13 @@ interface OnboardingModalProps {
     birthTimeUnknown?: boolean;
     coordinates?: { lat: number; lng: number };
   } | null;
+  /**
+   * Open on the "Upload Kundali" step. Only the landing page's "I already
+   * have a chart" path sets this; everyone else starts at Personal Basis.
+   */
+  startWithUpload?: boolean;
+  /** Offer "Sign in instead" on the upload step. */
+  onSignIn?: () => void;
 }
 
 export default function OnboardingModal({
@@ -58,10 +65,17 @@ export default function OnboardingModal({
   onClose,
   onComplete,
   existingProfile,
+  startWithUpload = false,
+  onSignIn,
 }: OnboardingModalProps) {
   const { user } = useAuth();
   const showError = useErrorToast();
-  const [step, setStep] = useState<Step>("upload");
+  const [step, setStep] = useState<Step>("identity");
+  // The upload step is part of the flow only on the "I already have a chart" path.
+  const includeUpload = startWithUpload && !existingProfile?.dob;
+  const flowSteps: Step[] = includeUpload
+    ? ["upload", "identity", "temporal", "spatial", "present"]
+    : ["identity", "temporal", "spatial", "present"];
   const [isSaving, setIsSaving] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
 
@@ -131,6 +145,11 @@ export default function OnboardingModal({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, handleKeyDown]);
 
+  // Every open starts at the first step of the flow.
+  useEffect(() => {
+    if (isOpen) setStep(includeUpload ? "upload" : "identity");
+  }, [isOpen, includeUpload]);
+
   // Load existing data: prefer Firestore profile prop > localStorage
   useEffect(() => {
     if (isOpen) {
@@ -150,8 +169,6 @@ export default function OnboardingModal({
             existingProfile.coordinates?.lng,
           ),
         );
-        // If profile already exists, start at identity step (skip upload)
-        setStep("identity");
       } else {
         const saved = localStorage.getItem(STORAGE_KEYS.PROFILE);
         if (saved) {
@@ -345,12 +362,15 @@ export default function OnboardingModal({
     setStep("identity");
   };
 
-  const finalizeJourney = async () => {
+  const finalizeJourney = async (override?: typeof formData) => {
+    const draft = override ?? formData;
+    // Current location is optional and defaults to the birth place.
+    const data = draft.currentLocation.trim()
+      ? draft
+      : { ...draft, currentLocation: draft.pob };
     setIsSaving(true);
     const storedProfile = JSON.stringify(
-      birthCoordinates
-        ? { ...formData, coordinates: birthCoordinates }
-        : formData,
+      birthCoordinates ? { ...data, coordinates: birthCoordinates } : data,
     );
     try {
       if (user) {
@@ -369,14 +389,14 @@ export default function OnboardingModal({
         );
 
         const profilePayload: Record<string, any> = {
-          ...formData,
+          ...data,
           parsedChart: parsedChart, // Save reference to parsed chart if any
         };
         if (birthCoordinates) {
           profilePayload.coordinates = birthCoordinates;
         } else if (
           prevCoords &&
-          (prevProfile?.pob || "").trim() !== formData.pob.trim()
+          (prevProfile?.pob || "").trim() !== data.pob.trim()
         ) {
           // pob changed without picking a suggestion — the stored coordinates
           // belong to the old place and must not survive.
@@ -398,9 +418,9 @@ export default function OnboardingModal({
                 }
               : null,
             {
-              dob: formData.dob,
-              tob: formData.tob,
-              pob: formData.pob,
+              dob: data.dob,
+              tob: data.tob,
+              pob: data.pob,
               coordinates: birthCoordinates,
             },
           )
@@ -410,6 +430,11 @@ export default function OnboardingModal({
           updates.kundaliData = deleteField();
           updates.kundaliData_D9 = deleteField();
           updates.kundaliData_D10 = deleteField();
+          // The saved signs belong to the old chart too; useKundali
+          // re-derives them from the new D1 as soon as the dashboard loads it.
+          profilePayload.moonSign = deleteField();
+          profilePayload.sunSign = deleteField();
+          profilePayload.moonNakshatra = deleteField();
         }
 
         await setDoc(userRef, updates, { merge: true });
@@ -454,15 +479,28 @@ export default function OnboardingModal({
         );
         return;
       }
+      // Default the (optional) current location to the birth place.
+      if (!formData.currentLocation.trim()) {
+        setFormData({ ...formData, currentLocation: formData.pob });
+      }
       setStep("present");
     } else {
       finalizeJourney();
     }
   };
 
+  /** Skip the optional current-location step: use the birth place. */
+  const skipCurrentLocation = () => {
+    if (isSaving) return;
+    setFormData((prev) => ({ ...prev, currentLocation: prev.pob }));
+    void finalizeJourney({ ...formData, currentLocation: formData.pob });
+  };
+
   const prevStep = () => {
-    if (step === "identity") setStep("upload");
-    else if (step === "temporal") setStep("identity");
+    if (step === "identity") {
+      if (includeUpload) setStep("upload");
+      else onClose();
+    } else if (step === "temporal") setStep("identity");
     else if (step === "spatial") setStep("temporal");
     else if (step === "present") setStep("spatial");
     else onClose();
@@ -501,7 +539,7 @@ export default function OnboardingModal({
             {/* Header */}
             <div className="p-6 border-b border-white/5 flex justify-between items-center">
               <div className="flex items-center gap-4">
-                {step !== "identity" && (
+                {step !== flowSteps[0] && (
                   <button
                     onClick={prevStep}
                     className="p-2 -ml-2 text-white/40 hover:text-white transition-colors"
@@ -538,23 +576,12 @@ export default function OnboardingModal({
               role="progressbar"
               aria-label="Profile setup progress"
               aria-valuemin={1}
-              aria-valuemax={5}
-              aria-valuenow={
-                ["upload", "identity", "temporal", "spatial", "present"].indexOf(
-                  step,
-                ) + 1
-              }
+              aria-valuemax={flowSteps.length}
+              aria-valuenow={flowSteps.indexOf(step) + 1}
             >
-              {["upload", "identity", "temporal", "spatial", "present"].map(
+              {flowSteps.map(
                 (s, i) => {
-                  const steps = [
-                    "upload",
-                    "identity",
-                    "temporal",
-                    "spatial",
-                    "present",
-                  ];
-                  const currentIndex = steps.indexOf(step);
+                  const currentIndex = flowSteps.indexOf(step);
                   return (
                     <div
                       key={s}
@@ -714,10 +741,18 @@ export default function OnboardingModal({
 
                       <button
                         onClick={() => setStep("identity")}
-                        className="w-full mt-4 text-xs text-white/20 hover:text-white/40 transition-colors uppercase tracking-widest"
+                        className="w-full mt-4 py-3 rounded-xl border border-white/10 text-xs text-white/60 hover:text-white hover:border-gold/30 transition-colors uppercase tracking-widest"
                       >
-                        Skip — I'll Enter Details Manually
+                        Enter my birth details instead
                       </button>
+                      {onSignIn && (
+                        <button
+                          onClick={onSignIn}
+                          className="w-full mt-3 text-xs text-gold/80 hover:text-gold transition-colors uppercase tracking-widest"
+                        >
+                          Already saved your chart? Sign in
+                        </button>
+                      )}
                     </div>
                   )}
                   {/* Step 1: Identity */}
@@ -902,8 +937,12 @@ export default function OnboardingModal({
                   {/* Step 4: Present */}
                   {step === "present" && (
                     <div>
-                      <p className="text-sm text-white/50 mb-4">
-                        Finally, where are you seeking guidance from today?
+                      <p className="text-sm text-white/50 mb-1">
+                        Where do you live now? (optional)
+                      </p>
+                      <p className="text-xs text-white/40 mb-4">
+                        Used for your local Panchang and Rahu Kaal — you can
+                        skip.
                       </p>
                       <div className="space-y-4">
                         <div className="space-y-4">
@@ -963,8 +1002,7 @@ export default function OnboardingModal({
                   (step === "identity" &&
                     (!formData.name || !formData.gender)) ||
                   (step === "temporal" && (!formData.dob || !formData.tob)) ||
-                  (step === "spatial" && !formData.pob) ||
-                  (step === "present" && !formData.currentLocation)
+                  (step === "spatial" && !formData.pob)
                 }
                 className="btn btn-primary w-full py-3 rounded-xl font-bold tracking-widest uppercase flex items-center justify-center gap-2 group disabled:opacity-30 disabled:grayscale transition-[color,background-color,border-color,transform,opacity] hover:scale-[1.02] active:scale-[0.98]"
               >
@@ -979,6 +1017,15 @@ export default function OnboardingModal({
                   </>
                 )}
               </button>
+              {step === "present" && (
+                <button
+                  onClick={skipCurrentLocation}
+                  disabled={isSaving}
+                  className="w-full mt-3 text-xs text-white/40 hover:text-white/70 transition-colors uppercase tracking-widest disabled:opacity-30"
+                >
+                  Skip — use my birth place
+                </button>
+              )}
               {step === "upload" && (
                 <p className="text-center mt-4 text-[10px] text-white/20 uppercase tracking-[0.2em]">
                   Secure • Encrypted • Private

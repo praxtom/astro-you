@@ -62,15 +62,20 @@ export const MemoryPanel: React.FC<MemoryPanelProps> = ({
     return earned;
   }, [atmanState, hasBirthData]);
 
+  // How much AstroYou knows about you — independent of mood, so a calm
+  // ("stable") user isn't told they're less "attuned".
   const completion = useMemo(() => {
-    let done = 0;
-    const total = 4;
-    if (hasBirthData) done++;
-    if (atmanState?.routines?.length) done++;
-    if (atmanState?.keyRelationships?.length) done++;
-    if (atmanState?.emotionalState && atmanState.emotionalState !== "stable")
-      done++;
-    return Math.round((done / total) * 100);
+    const signals = [
+      hasBirthData,
+      Boolean(atmanState?.knownPatterns?.length),
+      Boolean(atmanState?.keyRelationships?.length),
+      Boolean(atmanState?.routines?.length),
+      Boolean(
+        atmanState?.activeEvents?.length || atmanState?.lifeEvents?.length,
+      ),
+    ];
+    const done = signals.filter(Boolean).length;
+    return Math.round((done / signals.length) * 100);
   }, [atmanState, hasBirthData]);
 
   return (
@@ -85,7 +90,8 @@ export const MemoryPanel: React.FC<MemoryPanelProps> = ({
           </h3>
         </div>
         <button
-          onClick={() => navigate("/settings")}
+          onClick={() => navigate("/settings#memory")}
+          aria-label="Manage what AstroYou remembers"
           className="shrink-0 text-[0.65rem] font-bold uppercase tracking-[0.15em] text-white/40 hover:text-gold transition-colors"
         >
           Manage
@@ -114,8 +120,11 @@ export const MemoryPanel: React.FC<MemoryPanelProps> = ({
             style={{ width: `${completion}%` }}
           />
         </div>
-        <span className="text-[0.6rem] text-white/30 uppercase tracking-[0.25em]">
-          {completion}% attuned
+        <span
+          className="text-[0.6rem] text-white/30 uppercase tracking-[0.25em]"
+          title="How much of your profile AstroYou has to work with: chart, patterns, people, routines and life events"
+        >
+          {completion}% known
         </span>
       </div>
 

@@ -8,7 +8,17 @@ interface AskJyotishBridgeProps {
   question: string;
   /** Short label above the question, e.g. "Take this further". */
   eyebrow?: string;
+  /**
+   * Optional reading context handed to the chat alongside the question.
+   * Written to sessionStorage under `storageKey` as
+   * `{ summary, createdAt }`; the chat client forwards it to the server.
+   */
+  context?: { storageKey: string; summary: string };
 }
+
+/** sessionStorage key the chat client reads for a just-run compatibility match. */
+export const COMPATIBILITY_CONTEXT_KEY = "astroyou.compatibilityContext";
+const MAX_CONTEXT_CHARS = 1500;
 
 /**
  * The loop-closer. Placed at the end of a reading so the user can carry what
@@ -18,11 +28,25 @@ interface AskJyotishBridgeProps {
 export const AskJyotishBridge: React.FC<AskJyotishBridgeProps> = ({
   question,
   eyebrow = "Take this further",
+  context,
 }) => {
   const navigate = useNavigate();
 
   const ask = () => {
-    sessionStorage.setItem(STORAGE_KEYS.SYNTHESIS_DRAFT, question);
+    try {
+      sessionStorage.setItem(STORAGE_KEYS.SYNTHESIS_DRAFT, question);
+      if (context?.summary) {
+        sessionStorage.setItem(
+          context.storageKey,
+          JSON.stringify({
+            summary: context.summary.slice(0, MAX_CONTEXT_CHARS),
+            createdAt: Date.now(),
+          }),
+        );
+      }
+    } catch {
+      // Storage can be unavailable (private mode, quota); the chat still opens.
+    }
     navigate("/synthesis");
   };
 

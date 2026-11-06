@@ -158,11 +158,14 @@ test("blueprint panel clearly labels credits and places the collapse control aft
   );
 
   assert.match(html, />Credits</);
-  assert.match(html, />82 min</);
+  // The balance is credits, not minutes — the bare number sits beside the
+  // "Credits" label and must never be suffixed with "min".
+  assert.match(html, />82</);
+  assert.doesNotMatch(html, /\bmin(ute)?s?\b/i);
   assert.match(html, />Add</);
   assert.match(html, /aria-label="Collapse right sidebar"/);
   assert.match(html, /lucide-panel-right-close/);
-  assert.ok(html.indexOf("82 min") < html.indexOf("Collapse right sidebar"));
+  assert.ok(html.indexOf(">82<") < html.indexOf("Collapse right sidebar"));
   assert.doesNotMatch(html, /The Circle/);
 });
 
