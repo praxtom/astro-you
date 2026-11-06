@@ -7,9 +7,12 @@
  * collection CHART_CACHE_COLLECTION (no client rule matches it, so Firestore
  * denies all client access) keyed by a hash of the calculation inputs.
  *
- * The subject name is deliberately NOT part of the key: astro-api.ts never
- * sends the real name upstream (buildSubject uses a fixed placeholder), so the
- * response cannot depend on — or leak — it.
+ * The subject name is NOT part of the key for chart types computed from the
+ * birth moment alone: buildSubject sends a fixed placeholder name upstream, so
+ * those responses cannot depend on — or leak — it. Numerology is the exception
+ * (buildNumerologyBody sends the real name and the result is derived from it):
+ * NAME_DEPENDENT_CHART_TYPES add the normalized name to the hashed key so two
+ * people sharing a birth moment never receive each other's reading.
  *
  * Pure module (no Firebase import) so it can be unit-tested.
  */
@@ -62,6 +65,18 @@ const NATAL_CHART_TYPES = new Set([
   "LOCATION_ANALYSIS",
   "VARSHAPHAL",
 ]);
+
+/** Chart types whose upstream request includes (and whose result depends on) the person's name. */
+export const NAME_DEPENDENT_CHART_TYPES = new Set([
+  "NUMEROLOGY",
+  "CORE_NUMBERS",
+]);
+
+/** Normalized name for cache keys: case/space-insensitive, matching the upstream "Anonymous" default. */
+export function normalizeSubjectName(name: unknown): string {
+  const trimmed = typeof name === "string" ? name.trim() : "";
+  return (trimmed || "Anonymous").toLowerCase().replace(/\s+/g, " ");
+}
 
 const TRANSIT_CHART_TYPES = new Set(["SADE_SATI", "ECLIPSE_IMPACT"]);
 

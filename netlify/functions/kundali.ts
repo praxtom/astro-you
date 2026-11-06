@@ -77,6 +77,8 @@ import {
   chartCacheTtlHours,
   isDailyChartType,
   isGuestChartType,
+  NAME_DEPENDENT_CHART_TYPES,
+  normalizeSubjectName,
   refreshDashaCurrentFlags,
 } from "./shared/chart-cache";
 import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit";
@@ -411,6 +413,11 @@ export default async (req: Request, _context: Context) => {
             birthTimeUnknown,
             variant: {
               remedyType: type === "REMEDIES" ? remedyType : undefined,
+              // Numerology is derived from the name: key on it (hashed with
+              // the rest of the key, never stored in clear).
+              subject: NAME_DEPENDENT_CHART_TYPES.has(type)
+                ? normalizeSubjectName(bd.name)
+                : undefined,
               year: type === "VARSHAPHAL" ? body.year : undefined,
               targetLat:
                 type === "LOCATION_ANALYSIS" ? body.targetLat : undefined,
@@ -422,7 +429,9 @@ export default async (req: Request, _context: Context) => {
               // The lunar phase is cast for "today" at the viewer's location.
               sky:
                 type === "LUNAR_PHASES"
-                  ? [body.city, body.lat, body.lng].map((v) => v ?? "").join("|")
+                  ? [body.city, body.lat, body.lng]
+                      .map((v) => v ?? "")
+                      .join("|")
                   : undefined,
             },
           });
@@ -539,12 +548,16 @@ export default async (req: Request, _context: Context) => {
         if (!body.targetLat || !body.targetLng)
           return json({ error: "Missing targetLat/targetLng" }, 400);
         return json({
-          data: await cached(() => getLocationAnalysis(bd, body.targetLat, body.targetLng)),
+          data: await cached(() =>
+            getLocationAnalysis(bd, body.targetLat, body.targetLng),
+          ),
         });
       }
       case "BIORHYTHMS": {
         return json({
-          data: await cached(() => getBiorhythms(bd, requestedDateKey(body.localDate))),
+          data: await cached(() =>
+            getBiorhythms(bd, requestedDateKey(body.localDate)),
+          ),
         });
       }
       case "WELLNESS_SCORE": {
@@ -587,7 +600,10 @@ export default async (req: Request, _context: Context) => {
       }
     }
   } catch (error: any) {
-    if (error instanceof GuestBudgetError || error?.name === "GuestBudgetError") {
+    if (
+      error instanceof GuestBudgetError ||
+      error?.name === "GuestBudgetError"
+    ) {
       return json(
         {
           error:

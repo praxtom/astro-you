@@ -9,6 +9,8 @@ import {
   chartCacheKey,
   chartCacheTtlHours,
   isGuestChartType,
+  NAME_DEPENDENT_CHART_TYPES,
+  normalizeSubjectName,
   refreshDashaCurrentFlags,
 } from "../shared/chart-cache.js";
 
@@ -156,4 +158,28 @@ test("cached dasha periods get their current flags recomputed", () => {
   assert.equal(refreshed[1].subPeriods?.[1].isCurrent, true);
   // Unparseable dates keep the cached flag.
   assert.equal(refreshed[2].isCurrent, true);
+});
+
+test("numerology cache keys include the subject name so readings never cross people", () => {
+  const birth = { dob: "1995-08-14", tob: "06:30", lat: 26.85, lng: 80.95 };
+  const key = (type: string, name: string) =>
+    chartCacheKey({
+      ...birth,
+      chartType: type,
+      variant: {
+        subject: NAME_DEPENDENT_CHART_TYPES.has(type)
+          ? normalizeSubjectName(name)
+          : undefined,
+      },
+    });
+  for (const type of ["NUMEROLOGY", "CORE_NUMBERS"]) {
+    assert.notEqual(key(type, "Meera Test"), key(type, "Asha Rao"));
+    // Case/space differences are the same person.
+    assert.equal(key(type, "Meera Test"), key(type, "  meera   test "));
+    // The name is hashed, never present in the doc id.
+    assert.ok(!key(type, "Meera Test").toLowerCase().includes("meera"));
+  }
+  // Birth-moment-only charts are unaffected by the name.
+  assert.equal(key("D1", "Meera Test"), key("D1", "Asha Rao"));
+  assert.equal(normalizeSubjectName(""), "anonymous");
 });
