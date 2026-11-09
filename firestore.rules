@@ -150,9 +150,11 @@ service cloud.firestore {
     }
 
     // ── Shared astronomical data — authenticated read, server-only write ─
+    // Server-only: entries are computed for a requester's current location,
+    // and only the kundali function (Admin SDK) ever reads them. A client
+    // read would let any signed-in user list the collection.
     match /panchang/{docId} {
-      allow read: if request.auth != null;
-      allow write: if false; // Admin SDK only
+      allow read, write: if false; // Admin SDK only
     }
 
     // Transit report cache — served exclusively by the transit function via

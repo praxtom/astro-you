@@ -354,6 +354,48 @@ export function stripEchoedBirthInputs<T>(payload: T, depth = 0): T {
   return out as T;
 }
 
+/**
+ * Keys under which a panchang response can echo the place it was computed
+ * for. The requester's place is their CURRENT location (to ~110 m), so it
+ * must never be stored in, or served from, the shared panchang cache.
+ */
+const PANCHANG_LOCATION_KEYS = new Set([
+  "location",
+  "place",
+  "city",
+  "coordinates",
+  "coords",
+  "geo",
+  "lat",
+  "lng",
+  "lon",
+  "long",
+  "latitude",
+  "longitude",
+]);
+
+/** A shared-cache-safe copy of a panchang payload: no echoed inputs or place. */
+export function stripPanchangLocation<T>(payload: T, depth = 0): T {
+  const base = depth === 0 ? stripEchoedBirthInputs(payload) : payload;
+  if (
+    depth > MAX_SANITIZE_DEPTH ||
+    base === null ||
+    typeof base !== "object"
+  ) {
+    return base;
+  }
+  if (Array.isArray(base)) {
+    return base.map((item) => stripPanchangLocation(item, depth + 1)) as T;
+  }
+  if (Object.getPrototypeOf(base) !== Object.prototype) return base;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(base as Record<string, unknown>)) {
+    if (PANCHANG_LOCATION_KEYS.has(key.toLowerCase())) continue;
+    out[key] = stripPanchangLocation(value, depth + 1);
+  }
+  return out as T;
+}
+
 interface DatedPeriod {
   planet?: string;
   startDate?: string;

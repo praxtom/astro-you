@@ -4,6 +4,7 @@ import {
   clampedTodayKey,
   panchangCacheDocId as placePanchangCacheDocId,
   resolvePanchangPlace,
+  stripPanchangLocation,
 } from "./chart-cache.js";
 import { canonicalNakshatraName, canonicalSignName } from "./vedic-names.js";
 import {
@@ -337,9 +338,14 @@ async function loadDailyPanchang(input: {
   const { dateKey, location } = input;
   const place = resolvePanchangPlace(location ?? {});
   const raw = await withTimeout(
-    getCachedOrFetch("panchang", placePanchangCacheDocId(dateKey, place), () =>
-      getPanchang(dateKey, place.city, place.lat, place.lng),
-    ),
+    getCachedOrFetch(
+      "panchang",
+      placePanchangCacheDocId(dateKey, place),
+      async () =>
+        stripPanchangLocation(
+          await getPanchang(dateKey, place.city, place.lat, place.lng),
+        ),
+    ).then(stripPanchangLocation),
     5000,
     null,
   );

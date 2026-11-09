@@ -85,6 +85,7 @@ import {
   resolvePanchangPlace,
   serverDateKey,
   stripEchoedBirthInputs,
+  stripPanchangLocation,
 } from "./shared/chart-cache";
 import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit";
 import { verifyToken, AuthError } from "./shared/require-auth";
@@ -285,10 +286,17 @@ export default async (req: Request, _context: Context) => {
         ? date
         : clampedTodayKey(body.localDate);
       const place = resolvePanchangPlace({ city, lat, lng });
-      const data = await getCachedOrFetch(
-        "panchang",
-        panchangCacheDocId(dateKey, place),
-        () => getPanchang(dateKey, place.city, place.lat, place.lng),
+      // Sanitized on write AND on read: entries cached before the
+      // sanitizer existed may still carry the requester's location.
+      const data = stripPanchangLocation(
+        await getCachedOrFetch(
+          "panchang",
+          panchangCacheDocId(dateKey, place),
+          async () =>
+            stripPanchangLocation(
+              await getPanchang(dateKey, place.city, place.lat, place.lng),
+            ),
+        ),
       );
       return json({ data });
     }
