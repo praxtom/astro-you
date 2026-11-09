@@ -1,0 +1,1290 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AstroYou — Home, a moment not a dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --night: #06060d;
+        --raise: #11111d;
+        --raise-2: #161627;
+        --text: rgba(255, 255, 255, 0.93);
+        --muted: rgba(255, 255, 255, 0.68);
+        --faint: rgba(255, 255, 255, 0.48);
+        --line: rgba(255, 255, 255, 0.09);
+        --gold: #ffcd6a;
+        --rose: #f09bb0;
+        --sage: #95d1b2;
+        --display: "Cormorant Garamond", Georgia, serif;
+        --body: "Plus Jakarta Sans", -apple-system, system-ui, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        background: #020205;
+        color: var(--text);
+        font-family: var(--body);
+        font-size: 17px;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        background: none;
+        border: 0;
+        cursor: pointer;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      :focus-visible {
+        outline: 2px solid var(--gold);
+        outline-offset: 3px;
+        border-radius: 10px;
+      }
+
+      /* Mockup controls (not part of the design) */
+      .controls {
+        position: sticky;
+        top: 0;
+        z-index: 60;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px 22px;
+        align-items: center;
+        justify-content: center;
+        padding: 10px 14px;
+        background: rgba(2, 2, 5, 0.94);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        font-size: 14px;
+      }
+      .controls .grp {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--faint);
+      }
+      .controls .seg {
+        display: inline-flex;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 99px;
+        padding: 3px;
+      }
+      .controls .seg button {
+        padding: 6px 12px;
+        border-radius: 99px;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      .controls .seg button.on {
+        background: rgba(255, 205, 106, 0.16);
+        color: var(--gold);
+      }
+
+      /* Device frame */
+      .stage {
+        display: flex;
+        justify-content: center;
+        padding: 0;
+      }
+      .app {
+        width: 100%;
+        min-height: 100vh;
+        background:
+          radial-gradient(900px 520px at 50% -8%, #1a1838 0%, transparent 70%),
+          var(--night);
+        position: relative;
+      }
+      .phone .stage {
+        padding: 28px 0 60px;
+      }
+      .phone .app {
+        width: 390px;
+        min-height: 844px;
+        border-radius: 44px;
+        overflow: hidden;
+        box-shadow:
+          0 0 0 10px #15151c,
+          0 30px 80px rgba(0, 0, 0, 0.6);
+      }
+      .app.evening {
+        background:
+          radial-gradient(900px 520px at 50% -8%, #10122a 0%, transparent 70%),
+          #04040a;
+      }
+
+      /* Top bar (desktop) / bottom tabs (phone) */
+      .top {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 18px 24px;
+        display: flex;
+        align-items: center;
+        gap: 26px;
+      }
+      .brand {
+        font-family: var(--display);
+        font-size: 25px;
+      }
+      .top nav {
+        display: flex;
+        gap: 22px;
+        font-size: 15px;
+        color: var(--muted);
+      }
+      .top nav span.on {
+        color: var(--text);
+      }
+      .top .me {
+        margin-left: auto;
+        width: 34px;
+        height: 34px;
+        border-radius: 99px;
+        display: grid;
+        place-items: center;
+        background: var(--raise-2);
+        color: var(--gold);
+        font-weight: 600;
+        font-size: 14px;
+      }
+      .tabs {
+        display: none;
+      }
+      .phone .top nav {
+        display: none;
+      }
+      .phone .tabs {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 10px 8px 26px;
+        background: rgba(8, 8, 16, 0.92);
+        backdrop-filter: blur(14px);
+        border-top: 1px solid var(--line);
+      }
+      .tabs button {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--faint);
+      }
+      .tabs button svg {
+        width: 22px;
+        height: 22px;
+      }
+      .tabs button.on {
+        color: var(--gold);
+      }
+
+      main {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 4px 24px 90px;
+      }
+      .phone main {
+        padding: 0 20px 130px;
+      }
+
+      /* ===== Tier 1: Now ===== */
+      .now {
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.035),
+          rgba(255, 255, 255, 0.012)
+        );
+        border-radius: 32px;
+        padding: 26px 28px 30px;
+      }
+      .phone .now {
+        border-radius: 28px;
+        padding: 20px 18px 24px;
+        margin-top: 4px;
+      }
+      .now .greet {
+        font-size: 15px;
+        color: var(--muted);
+      }
+      .arc-wrap {
+        position: relative;
+        margin: 10px 0 6px;
+      }
+      .arc {
+        width: 100%;
+        height: auto;
+        display: block;
+        overflow: visible;
+      }
+      .arc .horizon {
+        stroke: rgba(255, 255, 255, 0.12);
+      }
+      .arc .path {
+        fill: none;
+        stroke: rgba(255, 255, 255, 0.14);
+        stroke-width: 2;
+        stroke-dasharray: 1 7;
+        stroke-linecap: round;
+      }
+      .arc .done {
+        fill: none;
+        stroke: rgba(255, 205, 106, 0.75);
+        stroke-width: 2.5;
+        stroke-linecap: round;
+      }
+      .arc .seg {
+        fill: none;
+        stroke-width: 10;
+        stroke-linecap: round;
+      }
+      .arc .seg.rahu {
+        stroke: rgba(240, 155, 176, 0.75);
+      }
+      .arc .seg.abhijit {
+        stroke: rgba(149, 209, 178, 0.75);
+      }
+      .arc .seg.soft {
+        stroke: rgba(255, 255, 255, 0.12);
+      }
+      .arc .lbl {
+        fill: var(--faint);
+        font-family: var(--body);
+        font-size: 13px;
+      }
+      .arc .seglbl {
+        fill: var(--muted);
+        font-family: var(--body);
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .arc .sun-halo {
+        fill: rgba(255, 205, 106, 0.18);
+      }
+      .arc .sun {
+        fill: var(--gold);
+      }
+      .evening .arc .sun {
+        fill: rgba(255, 205, 106, 0.35);
+      }
+      .evening .arc .sun-halo {
+        fill: transparent;
+      }
+      .moon-chip {
+        position: absolute;
+        right: 0;
+        top: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        color: var(--muted);
+        text-align: right;
+      }
+      .moon-chip svg {
+        width: 40px;
+        height: 40px;
+      }
+      .phone .moon-chip svg {
+        width: 32px;
+        height: 32px;
+      }
+      .moon-chip .dark {
+        fill: #161830;
+      }
+      .moon-chip .lit {
+        fill: #f3ead6;
+      }
+      .moon-chip .rim {
+        fill: none;
+        stroke: rgba(255, 255, 255, 0.2);
+      }
+
+      .status {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 6px;
+      }
+      .pill {
+        font-size: 14px;
+        padding: 6px 12px;
+        border-radius: 99px;
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--muted);
+      }
+      .pill.rose {
+        background: rgba(240, 155, 176, 0.14);
+        color: #f7c3cf;
+      }
+      .pill.sage {
+        background: rgba(149, 209, 178, 0.13);
+        color: #c5ead7;
+      }
+      .pill.gold {
+        background: rgba(255, 205, 106, 0.13);
+        color: #ffe2a6;
+      }
+
+      .hero {
+        font-family: var(--display);
+        font-weight: 500;
+        font-size: clamp(36px, 4.6vw, 52px);
+        line-height: 1.08;
+        letter-spacing: -0.005em;
+        margin-top: 22px;
+        max-width: 20ch;
+      }
+      .phone .hero {
+        font-size: 33px;
+      }
+      .why {
+        font-size: 18px;
+        color: var(--muted);
+        margin-top: 12px;
+        max-width: 46ch;
+      }
+      .phone .why {
+        font-size: 16.5px;
+      }
+      .actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 24px;
+        flex-wrap: wrap;
+      }
+      .btn {
+        padding: 14px 22px;
+        border-radius: 99px;
+        font-size: 16px;
+        font-weight: 600;
+      }
+      .btn.primary {
+        background: var(--gold);
+        color: #1c1506;
+      }
+      .btn.quiet {
+        background: rgba(149, 209, 178, 0.13);
+        color: var(--sage);
+      }
+
+      /* ===== Below: two columns on desktop ===== */
+      .below {
+        display: grid;
+        gap: 54px;
+        margin-top: 46px;
+      }
+      @media (min-width: 900px) {
+        body:not(.phone) .below {
+          grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+          gap: 64px;
+        }
+      }
+      .phone .below {
+        gap: 44px;
+        margin-top: 34px;
+      }
+      .col > * + * {
+        margin-top: 48px;
+      }
+      .phone .col > * + * {
+        margin-top: 44px;
+      }
+      .h {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--faint);
+        margin-bottom: 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+      }
+      .h a {
+        font-size: 14px;
+        color: var(--gold);
+        text-decoration: none;
+        font-weight: 600;
+      }
+
+      /* Tier 2: Picking up — the only other raised surface */
+      .pick {
+        background: var(--raise);
+        border-radius: 24px;
+        padding: 20px 22px;
+        display: flex;
+        gap: 16px;
+        align-items: center;
+      }
+      .pick .dot {
+        width: 44px;
+        height: 44px;
+        border-radius: 99px;
+        background: rgba(255, 205, 106, 0.12);
+        display: grid;
+        place-items: center;
+        flex: none;
+        color: var(--gold);
+      }
+      .pick .dot svg {
+        width: 20px;
+        height: 20px;
+      }
+      .pick b {
+        display: block;
+        font-family: var(--display);
+        font-size: 24px;
+        font-weight: 500;
+        line-height: 1.2;
+      }
+      .pick span {
+        font-size: 16px;
+        color: var(--muted);
+      }
+      .pick .go {
+        margin-left: auto;
+        color: var(--faint);
+        font-size: 22px;
+      }
+
+      .strand {
+        width: 100%;
+        height: auto;
+        display: block;
+        overflow: visible;
+      }
+      .strand .base {
+        stroke: rgba(255, 255, 255, 0.08);
+        stroke-width: 2;
+      }
+      .strand .md {
+        stroke: rgba(255, 255, 255, 0.22);
+        stroke-width: 8;
+        stroke-linecap: round;
+      }
+      .strand .md.now {
+        stroke: var(--gold);
+      }
+      .strand .name {
+        fill: var(--muted);
+        font-family: var(--display);
+        font-size: 17px;
+      }
+      .strand .name.now {
+        fill: var(--gold);
+      }
+      .strand .yr {
+        fill: var(--faint);
+        font-family: var(--body);
+        font-size: 12.5px;
+      }
+      .strand .ss {
+        stroke: rgba(240, 155, 176, 0.35);
+        stroke-width: 4;
+        stroke-linecap: round;
+      }
+      .strand .ss.peak {
+        stroke: rgba(240, 155, 176, 0.85);
+      }
+      .strand .nowline {
+        stroke: #fff;
+        stroke-width: 1.5;
+      }
+      .strand .nowlbl {
+        fill: #fff;
+        font-family: var(--body);
+        font-size: 12.5px;
+        font-weight: 600;
+      }
+      .season-notes {
+        margin-top: 14px;
+        display: grid;
+        gap: 6px;
+        font-size: 16px;
+        color: var(--muted);
+      }
+      .season-notes b {
+        color: var(--text);
+        font-weight: 600;
+      }
+      .season-notes .k {
+        display: inline-block;
+        width: 10px;
+        height: 4px;
+        border-radius: 4px;
+        margin-right: 8px;
+        vertical-align: 4px;
+      }
+
+      .you {
+        display: grid;
+        gap: 14px;
+      }
+      .you div {
+        display: grid;
+        grid-template-columns: 92px 1fr;
+        gap: 12px;
+        align-items: baseline;
+      }
+      .you dt {
+        font-size: 15px;
+        color: var(--faint);
+      }
+      .you dd {
+        margin: 0;
+      }
+      .you dd b {
+        font-family: var(--display);
+        font-weight: 500;
+        font-size: 23px;
+      }
+      .you dd span {
+        display: block;
+        font-size: 15.5px;
+        color: var(--muted);
+      }
+
+      .practice b {
+        display: block;
+        font-family: var(--display);
+        font-weight: 500;
+        font-size: 26px;
+        line-height: 1.2;
+      }
+      .practice p {
+        font-size: 16px;
+        color: var(--muted);
+        margin-top: 6px;
+      }
+      .also {
+        margin-top: 18px;
+        display: grid;
+        gap: 10px;
+        font-size: 15.5px;
+        color: var(--muted);
+      }
+      .also span {
+        color: var(--faint);
+      }
+
+      .almanac {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px 20px;
+      }
+      .almanac div dt {
+        font-size: 14px;
+        color: var(--faint);
+      }
+      .almanac div dd {
+        margin: 0;
+        font-size: 17px;
+      }
+      .almanac .rose dd {
+        color: #f7c3cf;
+      }
+      .fest {
+        display: grid;
+        gap: 10px;
+      }
+      .fest div {
+        display: grid;
+        grid-template-columns: 74px 1fr;
+        gap: 12px;
+        font-size: 16px;
+      }
+      .fest div span:first-child {
+        color: var(--faint);
+        font-size: 15px;
+      }
+      .fest b {
+        font-weight: 500;
+      }
+      .fest small {
+        display: block;
+        color: var(--faint);
+        font-size: 14px;
+      }
+      .keep {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .keep button {
+        font-size: 15px;
+        padding: 9px 14px;
+        border-radius: 99px;
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--muted);
+      }
+      /* Phone: drawings scale down, so their text is set larger to stay >= 12px on screen. */
+  .phone .arc .lbl, .phone .arc .seglbl { font-size: 23px; }
+  .phone .strand .name { font-size: 25px; }
+  .phone .strand .yr, .phone .strand .nowlbl { font-size: 21px; }
+  .phone .arc-wrap { display: flex; flex-direction: column; }
+  .phone .moon-chip { position: static; order: -1; justify-content: flex-end; margin: 0 0 4px; }
+  .phone .note { display: none; }
+  .note {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 0 24px 40px;
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.35);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="controls">
+      <div class="grp">
+        Time of day
+        <div class="seg" id="timeSeg">
+          <button data-t="morning" class="on">Morning 08:10</button
+          ><button data-t="rahu">Rahu Kaal 09:40</button
+          ><button data-t="evening">Evening 19:30</button>
+        </div>
+      </div>
+      <div class="grp">
+        Language
+        <div class="seg" id="langSeg">
+          <button data-l="en" class="on">English</button
+          ><button data-l="hi">Hinglish</button>
+        </div>
+      </div>
+      <div class="grp">
+        View
+        <div class="seg" id="viewSeg">
+          <button data-d="desktop" class="on">Desktop</button
+          ><button data-d="phone">Phone</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="app" id="app">
+        <header class="top">
+          <div class="brand">AstroYou</div>
+          <nav>
+            <span class="on">Home</span><span>Today</span><span>Talk</span
+            ><span>Chart</span><span>Bonds</span>
+          </nav>
+          <div class="me" aria-label="Your profile">M</div>
+        </header>
+
+        <main>
+          <!-- Tier 1: Now -->
+          <section class="now" aria-labelledby="hero">
+            <p class="greet" id="greet"></p>
+            <div class="arc-wrap">
+              <svg
+                class="arc"
+                id="arc"
+                viewBox="0 0 640 168"
+                role="img"
+                aria-label="Today's sun path with Rahu Kaal and Abhijit marked"
+              ></svg>
+              <div class="moon-chip">
+                <span>6% lit<br />waning</span
+                ><svg viewBox="-52 -52 104 104" id="moon"></svg>
+              </div>
+            </div>
+            <div class="status" id="status"></div>
+            <h1 class="hero" id="hero"></h1>
+            <p class="why" id="why"></p>
+            <div class="actions" id="actions"></div>
+          </section>
+
+          <div class="below">
+            <div class="col">
+              <section aria-labelledby="pickH">
+                <p class="h" id="pickH"></p>
+                <button
+                  class="pick"
+                  id="pick"
+                  style="width: 100%; text-align: left"
+                ></button>
+              </section>
+
+              <section aria-labelledby="seasonH">
+                <p class="h" id="seasonH">
+                  Your season <a href="#">Full timeline</a>
+                </p>
+                <svg
+                  class="strand"
+                  id="strand"
+                  viewBox="0 0 520 124"
+                  role="img"
+                  aria-label="Dasha periods from birth; now in Ketu. Sade Sati from 2023 to 2029, peak until mid-2027."
+                ></svg>
+                <div class="season-notes">
+                  <p>
+                    <span class="k" style="background: var(--gold)"></span
+                    ><b>Ketu</b> mahadasha until July 2029,
+                    <b>Jupiter</b> sub-period until mid-2027.
+                  </p>
+                  <p>
+                    <span class="k" style="background: var(--rose)"></span
+                    >Saturn is crossing your Moon:
+                    <b>Sade Sati, peak phase</b> until mid-2027. A season for
+                    patience, not punishment.
+                  </p>
+                </div>
+              </section>
+
+              <section aria-labelledby="youH">
+                <p class="h" id="youH">You <a href="#">See full chart</a></p>
+                <dl class="you">
+                  <div>
+                    <dt>Moon</dt>
+                    <dd>
+                      <b>Pisces</b
+                      ><span
+                        >Uttara Bhadrapada. Sensitive and intuitive; you absorb
+                        the mood around you.</span
+                      >
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Rising</dt>
+                    <dd><b>Leo</b><span>You meet life with presence.</span></dd>
+                  </div>
+                  <div>
+                    <dt>Yoga</dt>
+                    <dd>
+                      <b>Sasa yoga</b
+                      ><span
+                        >Saturn strong in its own sign: endurance, quiet
+                        authority.</span
+                      >
+                    </dd>
+                  </div>
+                </dl>
+              </section>
+            </div>
+
+            <div class="col">
+              <section aria-labelledby="pracH" class="practice">
+                <p class="h" id="pracH">Today's practice</p>
+                <b id="pracTitle"></b>
+                <p id="pracBody"></p>
+                <div class="also" id="also"></div>
+              </section>
+
+              <section aria-labelledby="almH">
+                <p class="h" id="almH">Almanac, Lucknow</p>
+                <dl class="almanac">
+                  <div>
+                    <dt>Tithi</dt>
+                    <dd>Krishna Trayodashi</dd>
+                  </div>
+                  <div>
+                    <dt>Nakshatra</dt>
+                    <dd>Chitra</dd>
+                  </div>
+                  <div>
+                    <dt>Yoga</dt>
+                    <dd>Priti</dd>
+                  </div>
+                  <div>
+                    <dt>Karana</dt>
+                    <dd>Vanija</dd>
+                  </div>
+                  <div class="rose">
+                    <dt>Rahu Kaal</dt>
+                    <dd>09:04–10:26</dd>
+                  </div>
+                  <div>
+                    <dt>Abhijit</dt>
+                    <dd>11:25–12:13</dd>
+                  </div>
+                  <div>
+                    <dt>Yamaganda</dt>
+                    <dd>13:11–14:34</dd>
+                  </div>
+                  <div>
+                    <dt>Gulika</dt>
+                    <dd>06:19–07:41</dd>
+                  </div>
+                  <div>
+                    <dt>Sunrise</dt>
+                    <dd>06:19</dd>
+                  </div>
+                  <div>
+                    <dt>Sunset</dt>
+                    <dd>17:19</dd>
+                  </div>
+                  <div>
+                    <dt>Moon sign</dt>
+                    <dd>Virgo</dd>
+                  </div>
+                  <div>
+                    <dt>Moon</dt>
+                    <dd>6%, waning</dd>
+                  </div>
+                </dl>
+              </section>
+
+              <section aria-labelledby="festH">
+                <p class="h" id="festH">Coming up</p>
+                <div class="fest">
+                  <div>
+                    <span>Today</span
+                    ><span
+                      ><b>Dhanteras</b
+                      ><small>Worship of Dhanvantari</small></span
+                    >
+                  </div>
+                  <div>
+                    <span>Sun 8</span
+                    ><span
+                      ><b>Diwali</b
+                      ><small>Festival of lights, new moon</small></span
+                    >
+                  </div>
+                  <div>
+                    <span>Tue 10</span
+                    ><span
+                      ><b>Govardhan Puja</b
+                      ><small>Krishna lifted Govardhan</small></span
+                    >
+                  </div>
+                  <div>
+                    <span>Wed 11</span
+                    ><span
+                      ><b>Bhai Dooj</b
+                      ><small>Sister applies tilak to brother</small></span
+                    >
+                  </div>
+                </div>
+              </section>
+
+              <section aria-label="Keep and share">
+                <div class="keep">
+                  <button>Update birth details</button
+                  ><button>Natal report PDF, 75 credits</button
+                  ><button>Share my chart</button>
+                </div>
+              </section>
+            </div>
+          </div>
+        </main>
+        <p class="note">
+          Mockup. Sky values for Lucknow, Saturday 7 November 2026; Meera's
+          chart and dasha from the in-house engine.
+        </p>
+
+        <nav class="tabs" aria-label="Main">
+          <button class="on">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+            >
+              <path d="M3 11l9-7 9 7v9H3z" /></svg
+            >Home
+          </button>
+          <button>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+            >
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v3M12 19v3M2 12h3M19 12h3" /></svg
+            >Today
+          </button>
+          <button>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+            >
+              <path d="M4 5h16v11H8l-4 4z" /></svg
+            >Talk
+          </button>
+          <button>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+            >
+              <rect x="4" y="4" width="16" height="16" />
+              <path d="M12 4l8 8-8 8-8-8z" /></svg
+            >Chart
+          </button>
+          <button>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+            >
+              <path
+                d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"
+              /></svg
+            >Bonds
+          </button>
+        </nav>
+      </div>
+    </div>
+
+    <script>
+      const NS = "http://www.w3.org/2000/svg";
+      const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const el = (tag, attrs, parent) => {
+        const e = document.createElementNS(NS, tag);
+        for (const k in attrs) e.setAttribute(k, attrs[k]);
+        parent && parent.appendChild(e);
+        return e;
+      };
+      const toMin = (t) => {
+        const [h, m] = t.split(":").map(Number);
+        return h * 60 + m;
+      };
+      const fmt = (m) =>
+        `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(Math.round(m % 60)).padStart(2, "0")}`;
+
+      const DAY = {
+        rise: "06:19",
+        set: "17:19",
+        segs: [
+          { k: "soft", a: "06:19", b: "07:41" },
+          { k: "rahu", a: "09:04", b: "10:26", label: "Rahu Kaal" },
+          { k: "abhijit", a: "11:25", b: "12:13", label: "Abhijit" },
+          { k: "soft", a: "13:11", b: "14:34" },
+        ],
+      };
+
+      const STATES = {
+        morning: {
+          now: "08:10",
+          greet: "Good morning, Meera. Saturday, Dhanteras.",
+          status: [
+            ["rose", "Rahu Kaal 09:04–10:26"],
+            ["sage", "Best window 11:25–12:13"],
+          ],
+          en: {
+            hero: "A steady day for repair, not big decisions.",
+            why: "The Moon is in Virgo, the 7th sign from your Moon, so people close to you are on your mind.",
+          },
+          hi: {
+            hero: "Aaj jodne ka din hai, bade faislon ka nahi.",
+            why: "Chandrama aaj Kanya mein hai, aapke Chandra se saatvein. Apne log mann mein rahenge.",
+          },
+          actions: {
+            en: ["Talk about it", "Breathe"],
+            hi: ["Baat karein", "Ek saans"],
+          },
+          pickH: "Picking up",
+          pick: {
+            title: "Things with Rahul",
+            body: "Yesterday you planned to tell him you've felt some distance. Want to talk it through first?",
+          },
+          practice: 0,
+        },
+        rahu: {
+          now: "09:40",
+          greet: "Saturday morning, Meera.",
+          status: [
+            ["rose", "Rahu Kaal now, ends 10:26"],
+            ["sage", "Best window 11:25–12:13"],
+          ],
+          en: {
+            hero: "Rahu Kaal now. Hold big decisions for 46 minutes.",
+            why: "Good for small tasks, a short walk, or one slow breath before you reply to anyone.",
+          },
+          hi: {
+            hero: "Abhi Rahu Kaal hai. Bade faisle 46 minute ruk kar.",
+            why: "Chhote kaam, thodi sair, ya jawab dene se pehle ek gehri saans.",
+          },
+          actions: {
+            en: ["Breathe for a minute", "Talk about it"],
+            hi: ["Ek minute saans", "Baat karein"],
+          },
+          pickH: "Picking up",
+          pick: {
+            title: "Things with Rahul",
+            body: "Yesterday you planned to tell him you've felt some distance. After 10:26 is a better time to start.",
+          },
+          practice: 1,
+        },
+        evening: {
+          now: "19:30",
+          greet: "Good evening, Meera.",
+          status: [
+            ["gold", "Tomorrow: Diwali, new moon"],
+            ["", "Sunset was 17:19"],
+          ],
+          en: {
+            hero: "How did the talk with Rahul go?",
+            why: "Tell me in a line or two. I'll remember it, and we can pick it up whenever you like.",
+          },
+          hi: {
+            hero: "Rahul se baat kaisi rahi?",
+            why: "Ek-do line mein bataiye. Main yaad rakhungi, jab chahein wahin se aage baat karenge.",
+          },
+          actions: {
+            en: ["Tell me how it went", "Breathe"],
+            hi: ["Bataiye kaisa raha", "Ek saans"],
+          },
+          pickH: "Tomorrow",
+          pick: {
+            title: "Sunday, Diwali",
+            body: "Amavasya, the new moon: a natural time to clear out and begin again. Rahu Kaal 15:57–17:19.",
+          },
+          practice: 2,
+        },
+      };
+      const PRACTICES = [
+        {
+          t: "One focused mantra cycle",
+          b: "Ten minutes. Choose one short mantra and repeat it with a steady breath.",
+        },
+        {
+          t: "One slow breath cycle",
+          b: "One minute: in for four, hold for two, out for six. Good while Rahu Kaal passes.",
+        },
+        {
+          t: "Light a diya at dusk",
+          b: "Sit quietly for two minutes and name one thing you're ready to release.",
+        },
+      ];
+      const ALSO = [
+        "Mantra: one focused cycle",
+        "Ritual: evening light",
+        "Seva: one small kindness",
+      ];
+
+      let state = "morning",
+        lang = "en";
+
+      // Sun arc
+      const W = 640,
+        cx = W / 2,
+        cy = 140,
+        rx = W / 2 - 46,
+        ry = 100;
+      const t0 = toMin(DAY.rise),
+        t1 = toMin(DAY.set);
+      const at = (m) => {
+        const f = Math.max(0, Math.min(1, (m - t0) / (t1 - t0)));
+        const a = Math.PI * (1 - f);
+        return [cx + rx * Math.cos(a), cy - ry * Math.sin(a)];
+      };
+      const path = (a, b) => {
+        const out = [];
+        for (let i = 0; i <= 48; i++) out.push(at(a + (i / 48) * (b - a)));
+        return (
+          "M" + out.map((p) => p.map((v) => v.toFixed(1)).join(" ")).join(" L")
+        );
+      };
+      const arc = document.getElementById("arc");
+      el("line", { x1: 18, y1: cy, x2: W - 18, y2: cy, class: "horizon" }, arc);
+      el("path", { d: path(t0, t1), class: "path" }, arc);
+      DAY.segs.forEach((s) => {
+        el(
+          "path",
+          { d: path(toMin(s.a), toMin(s.b)), class: `seg ${s.k}` },
+          arc,
+        );
+        if (s.label) {
+          const [x, y] = at((toMin(s.a) + toMin(s.b)) / 2);
+          const t = el(
+            "text",
+            { x, y: y + 26, "text-anchor": "middle", class: "seglbl" },
+            arc,
+          );
+          t.textContent = s.label;
+        }
+      });
+      const done = el("path", { d: "", class: "done" }, arc);
+      [
+        ["Sunrise " + DAY.rise, 18, "start"],
+        ["Sunset " + DAY.set, W - 18, "end"],
+      ].forEach(([txt, x, an]) => {
+        const t = el(
+          "text",
+          { x, y: cy + 20, "text-anchor": an, class: "lbl" },
+          arc,
+        );
+        t.textContent = txt;
+      });
+      const sunG = el("g", {}, arc);
+      el("circle", { r: 20, class: "sun-halo" }, sunG);
+      el("circle", { r: 10, class: "sun" }, sunG);
+      let raf;
+      function placeSun(m) {
+        const [x, y] = at(m);
+        sunG.setAttribute(
+          "transform",
+          `translate(${x.toFixed(1)} ${y.toFixed(1)})`,
+        );
+        done.setAttribute("d", path(t0, Math.min(Math.max(m, t0), t1)));
+      }
+      function animateSun(target) {
+        cancelAnimationFrame(raf);
+        const end = Math.min(toMin(target), t1);
+        if (reduce) return placeSun(end);
+        const start = t0,
+          dur = 1300,
+          s0 = performance.now();
+        const step = (now) => {
+          const p = Math.min(1, (now - s0) / dur);
+          const e = 1 - Math.pow(1 - p, 3);
+          placeSun(start + (end - start) * e);
+          if (p < 1) raf = requestAnimationFrame(step);
+        };
+        raf = requestAnimationFrame(step);
+      }
+
+      // Moon (waning crescent, 6%)
+      (function () {
+        const R = 48,
+          f = 0.06,
+          rxm = Math.abs(1 - 2 * f) * R;
+        const svg = document.getElementById("moon");
+        el("circle", { r: R, class: "dark" }, svg);
+        el(
+          "path",
+          {
+            d: `M0 ${-R} A${R} ${R} 0 0 0 0 ${R} A${rxm} ${R} 0 0 1 0 ${-R} Z`,
+            class: "lit",
+          },
+          svg,
+        );
+        el("circle", { r: R, class: "rim" }, svg);
+      })();
+
+      // Season strand
+      (function () {
+        const s = document.getElementById("strand"),
+          a = 1995.6,
+          b = 2055,
+          x = (y) => 12 + ((y - a) / (b - a)) * (520 - 24);
+        const MD = [
+          ["Saturn", 1995.6, 2005.4],
+          ["Mercury", 2005.4, 2022.5],
+          ["Ketu", 2022.5, 2029.5, 1],
+          ["Venus", 2029.5, 2049.5],
+          ["Sun", 2049.5, 2055],
+        ];
+        el("line", { x1: 12, y1: 46, x2: 508, y2: 46, class: "base" }, s);
+        MD.forEach(([n, f, t, now]) => {
+          el(
+            "line",
+            {
+              x1: x(f) + 4,
+              y1: 46,
+              x2: x(t) - 4,
+              y2: 46,
+              class: "md" + (now ? " now" : ""),
+            },
+            s,
+          );
+          const tn = el(
+            "text",
+            { x: x(f) + 2, y: 30, class: "name" + (now ? " now" : "") },
+            s,
+          );
+          tn.textContent = n;
+          const ty = el("text", { x: x(f) + 2, y: 74, class: "yr" }, s);
+          ty.textContent = Math.floor(f);
+        });
+        el(
+          "line",
+          { x1: x(2023.05), y1: 92, x2: x(2029.6), y2: 92, class: "ss" },
+          s,
+        );
+        el(
+          "line",
+          { x1: x(2025.25), y1: 92, x2: x(2027.45), y2: 92, class: "ss peak" },
+          s,
+        );
+        const st = el("text", { x: x(2029.6) + 8, y: 96, class: "yr" }, s);
+        st.textContent = "Sade Sati";
+        el(
+          "line",
+          { x1: x(2026.85), y1: 12, x2: x(2026.85), y2: 104, class: "nowline" },
+          s,
+        );
+        const nl = el(
+          "text",
+          { x: x(2026.85), y: 118, "text-anchor": "middle", class: "nowlbl" },
+          s,
+        );
+        nl.textContent = "You, now";
+      })();
+
+      function render() {
+        const S = STATES[state],
+          L = S[lang];
+        document
+          .getElementById("app")
+          .classList.toggle("evening", state === "evening");
+        document.getElementById("greet").textContent = S.greet;
+        document.getElementById("status").innerHTML = S.status
+          .map(([c, t]) => `<span class="pill ${c}">${t}</span>`)
+          .join("");
+        document.getElementById("hero").textContent = L.hero;
+        document.getElementById("why").textContent = L.why;
+        const [a1, a2] = S.actions[lang];
+        document.getElementById("actions").innerHTML =
+          `<button class="btn primary">${a1}</button><button class="btn quiet">${a2}</button>`;
+        document.getElementById("pickH").textContent = S.pickH;
+        document.getElementById("pick").innerHTML =
+          `<span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg></span><span><b>${S.pick.title}</b><span>${S.pick.body}</span></span><span class="go">›</span>`;
+        const P = PRACTICES[S.practice];
+        document.getElementById("pracTitle").textContent = P.t;
+        document.getElementById("pracBody").textContent = P.b;
+        document.getElementById("also").innerHTML =
+          "<span>Also today</span>" +
+          ALSO.filter((_, i) => i !== [0, -1, 1][S.practice])
+            .map((x) => `<p>${x}</p>`)
+            .join("");
+        animateSun(S.now);
+      }
+
+      const bind = (id, attr, fn) =>
+        document.querySelectorAll(`#${id} button`).forEach((b) =>
+          b.addEventListener("click", () => {
+            document
+              .querySelectorAll(`#${id} button`)
+              .forEach((x) => x.classList.toggle("on", x === b));
+            fn(b.dataset[attr]);
+          }),
+        );
+      bind("timeSeg", "t", (v) => {
+        state = v;
+        render();
+      });
+      bind("langSeg", "l", (v) => {
+        lang = v;
+        render();
+      });
+      bind("viewSeg", "d", (v) => {
+        document.body.classList.toggle("phone", v === "phone");
+      });
+      render();
+    </script>
+  </body>
+</html>

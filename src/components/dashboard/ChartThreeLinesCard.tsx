@@ -1,10 +1,15 @@
-import { motion } from "framer-motion";
-import { Sparkles } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import type { ReactNode } from "react";
 import { buildChartThreeLines, type ChartLike } from "../../lib/chart-summary";
 import type { DashaPeriodSummary } from "../../hooks/useDashaPeriods";
 import { PersonalCardNotice } from "./PersonalCardNotice";
 import type { PersonalDataErrorKind } from "../../lib/personal-data-error";
+import {
+  DashSection,
+  Fact,
+  FactSkeleton,
+  Ledger,
+  TextAction,
+} from "./primitives";
 
 interface ChartThreeLinesCardProps {
   kundali: ChartLike | null;
@@ -16,12 +21,20 @@ interface ChartThreeLinesCardProps {
   onRetry?: () => void;
   /** Link to the full chart page (off when already on it). */
   showFullChartLink?: boolean;
+  /** Render only the ledger, for use inside a larger dashboard section. */
+  bare?: boolean;
+  /** Show only these lines (default: all three). */
+  include?: Array<"Moon" | "Lagna" | "Mahadasha">;
+  /** Extra detail rendered under the Moon line (e.g. the birth star's deity and ruler). */
+  moonDetail?: ReactNode;
+  /** Extra ledger cells appended after the lines (e.g. yogas). */
+  extraCells?: ReactNode[];
 }
 
 /**
  * First personal insight on the dashboard: Moon + nakshatra, Lagna and the
- * running Mahadasha, one plain-language line each. Built only from data the
- * dashboard already loads (D1, NAKSHATRA, DASHAS) — no extra API call.
+ * running Mahadasha, one plain-language line each, as a three-cell ledger.
+ * Built only from data the dashboard already loads (D1, NAKSHATRA, DASHAS).
  */
 export function ChartThreeLinesCard({
   kundali,
@@ -32,69 +45,62 @@ export function ChartThreeLinesCard({
   errorKind,
   onRetry,
   showFullChartLink = true,
+  bare = false,
+  include,
+  moonDetail,
+  extraCells = [],
 }: ChartThreeLinesCardProps) {
-  const navigate = useNavigate();
-  const lines = buildChartThreeLines({ kundali, nakshatra, dashaPeriods });
-  const stillLoading = (kundaliLoading || dashaLoading) && lines.length < 3;
+  const lines = buildChartThreeLines({ kundali, nakshatra, dashaPeriods }).filter(
+    (line) => !include || include.includes(line.label as "Moon" | "Lagna" | "Mahadasha"),
+  );
+  const expected = include ? include.length : 3;
+  const stillLoading = (kundaliLoading || dashaLoading) && lines.length < expected;
 
-  return (
-    <motion.section
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="relative bg-white/5 border border-white/10 rounded-[2rem] p-6 md:p-7"
-      aria-labelledby="chart-three-lines-title"
-    >
-      <div className="flex items-center gap-2 mb-5">
-        <Sparkles size={16} className="text-gold" />
-        <h2
-          id="chart-three-lines-title"
-          className="text-white/40 text-xs uppercase tracking-widest font-bold"
-        >
-          Your chart in three lines
-        </h2>
-      </div>
-
-      {lines.length > 0 && (
-        <ol className="space-y-4">
+  const content = (
+    <>
+      {lines.length > 0 || stillLoading || extraCells.length > 0 ? (
+        <Ledger cols={3}>
           {lines.map((line) => (
-            <li key={line.label} className="grid gap-1 md:grid-cols-[7.5rem_1fr] md:gap-4">
-              <span className="text-[0.65rem] uppercase tracking-[0.3em] font-bold text-gold/80 md:pt-1">
-                {line.label}
-              </span>
-              <p className="text-white/80 leading-relaxed">
-                <span className="font-display text-lg text-white">{line.value}</span>
-                <span className="text-white/40"> — </span>
-                {line.meaning}
-              </p>
-            </li>
+            <Fact
+              key={line.label}
+              label={line.label}
+              value={line.value}
+              note={line.meaning}
+            >
+              {line.label === "Moon" && moonDetail}
+            </Fact>
           ))}
-        </ol>
-      )}
-
-      {stillLoading && (
-        <div className="mt-4 space-y-2" aria-hidden="true">
-          <div className="h-3 bg-white/5 rounded w-2/3 animate-pulse" />
-          <div className="h-3 bg-white/5 rounded w-1/2 animate-pulse" />
+          {stillLoading &&
+            Array.from({ length: Math.max(0, expected - lines.length) }, (_, i) => (
+              <FactSkeleton key={`s${i}`} />
+            ))}
+          {extraCells}
+        </Ledger>
+      ) : (
+        <div>
+          <PersonalCardNotice
+            kind={errorKind ?? "unavailable"}
+            thing="chart summary"
+            onRetry={onRetry}
+          />
         </div>
       )}
+    </>
+  );
 
-      {!stillLoading && lines.length === 0 && (
-        <PersonalCardNotice
-          kind={errorKind ?? "unavailable"}
-          thing="chart summary"
-          onRetry={onRetry}
-        />
-      )}
+  if (bare) return content;
 
-      {showFullChartLink && lines.length > 0 && (
-        <button
-          type="button"
-          onClick={() => navigate("/reports")}
-          className="mt-5 text-xs uppercase tracking-[0.2em] font-bold text-gold hover:text-white transition-colors"
-        >
-          See my full chart →
-        </button>
-      )}
-    </motion.section>
+  return (
+    <DashSection
+      id="chart-three-lines-title"
+      title="Your chart in three lines"
+      aside={
+        showFullChartLink && lines.length > 0 ? (
+          <TextAction to="/reports">See my full chart</TextAction>
+        ) : undefined
+      }
+    >
+      {content}
+    </DashSection>
   );
 }

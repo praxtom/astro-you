@@ -1,0 +1,750 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AstroYou — Concept 2: Morning ritual</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Tiro+Devanagari+Hindi:ital@0;1&family=Mukta:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* Tokens — morning light on a cool mist ground; marigold for the sun, tulsi for calm. */
+      :root {
+        --mist: #eef2f1;
+        --paper: #f7f9f8;
+        --ink: #18212b;
+        --soft: #4a5560;
+        --quiet: #8a949c;
+        --line: #d9e0de;
+        --marigold: #e09a2d;
+        --marigold-soft: #f6dfb4;
+        --tulsi: #3e7658;
+        --tulsi-soft: #d6e6dc;
+        --lilac: #8f7fc0;
+        --rahu: #b0566f;
+        --serif: "Tiro Devanagari Hindi", Georgia, serif;
+        --sans: "Mukta", -apple-system, system-ui, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--mist);
+        color: var(--ink);
+        font-family: var(--sans);
+        font-size: 17px;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+      body {
+        background: linear-gradient(180deg, #e9eef4 0%, var(--mist) 40%);
+        min-height: 100vh;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        background: none;
+        border: 0;
+        cursor: pointer;
+      }
+      :focus-visible {
+        outline: 2px solid var(--marigold);
+        outline-offset: 3px;
+        border-radius: 8px;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      header {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 18px 20px;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+      }
+      .brand {
+        font-family: var(--serif);
+        font-size: 24px;
+      }
+      nav {
+        display: none;
+        gap: 20px;
+        font-size: 15px;
+        color: var(--soft);
+      }
+      nav a {
+        color: inherit;
+        text-decoration: none;
+      }
+      nav a[aria-current] {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .who {
+        margin-left: auto;
+        font-size: 14px;
+        color: var(--soft);
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+      .who b {
+        width: 32px;
+        height: 32px;
+        border-radius: 99px;
+        display: grid;
+        place-items: center;
+        background: var(--marigold-soft);
+        color: #7a4c06;
+        font-weight: 600;
+      }
+      @media (min-width: 900px) {
+        nav {
+          display: flex;
+        }
+      }
+
+      main {
+        max-width: 680px;
+        margin: 0 auto;
+        padding: 0 20px 140px;
+      }
+
+      /* Sun arc — the hero primitive */
+      .sky {
+        margin-top: 8px;
+      }
+      .sun-arc {
+        width: 100%;
+        height: auto;
+        overflow: visible;
+      }
+      .horizon {
+        stroke: var(--line);
+        stroke-width: 1.5;
+      }
+      .sun-path {
+        fill: none;
+        stroke: #d3dad8;
+        stroke-width: 2;
+        stroke-dasharray: 2 6;
+        stroke-linecap: round;
+      }
+      .sun-elapsed {
+        fill: none;
+        stroke: var(--marigold);
+        stroke-width: 3;
+        stroke-linecap: round;
+      }
+      .sun-period {
+        fill: none;
+        stroke-width: 9;
+        stroke-linecap: round;
+        opacity: 0.85;
+      }
+      .sun-period.avoid {
+        stroke: rgba(176, 86, 111, 0.55);
+      }
+      .sun-period.good {
+        stroke: rgba(62, 118, 88, 0.5);
+      }
+      .sun-period.soft {
+        stroke: rgba(138, 148, 156, 0.22);
+      }
+      .sun-halo {
+        fill: rgba(224, 154, 45, 0.18);
+      }
+      .sun-core {
+        fill: var(--marigold);
+      }
+      .sun-label {
+        fill: var(--quiet);
+        font-size: 13px;
+        font-family: var(--sans);
+      }
+      .arc-key {
+        display: flex;
+        justify-content: center;
+        gap: 18px;
+        font-size: 14px;
+        color: var(--soft);
+        margin-top: -4px;
+        flex-wrap: wrap;
+      }
+      .arc-key span::before {
+        content: "";
+        display: inline-block;
+        width: 14px;
+        height: 6px;
+        border-radius: 6px;
+        margin-right: 7px;
+        vertical-align: 2px;
+      }
+      .arc-key .avoid::before {
+        background: rgba(176, 86, 111, 0.55);
+      }
+      .arc-key .good::before {
+        background: rgba(62, 118, 88, 0.5);
+      }
+
+      .greeting {
+        text-align: center;
+        margin-top: 18px;
+      }
+      .greeting .date {
+        font-size: 15px;
+        color: var(--soft);
+      }
+      .greeting .date span {
+        font-family: var(--serif);
+      }
+      .greeting h1 {
+        font-family: var(--serif);
+        font-weight: 400;
+        font-size: clamp(40px, 8vw, 58px);
+        line-height: 1.05;
+        margin-top: 6px;
+      }
+      .line {
+        font-family: var(--serif);
+        font-size: clamp(22px, 4.2vw, 28px);
+        line-height: 1.38;
+        text-align: center;
+        margin: 22px auto 0;
+        max-width: 26ch;
+        color: #24303b;
+      }
+      .now-note {
+        text-align: center;
+        margin-top: 14px;
+        font-size: 15px;
+        color: var(--soft);
+      }
+      .now-note b {
+        color: var(--rahu);
+        font-weight: 600;
+      }
+
+      /* Breath — begins only when tapped */
+      .breath {
+        display: grid;
+        place-items: center;
+        margin: 34px 0 6px;
+      }
+      .orb-btn {
+        position: relative;
+        width: 168px;
+        height: 168px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+      }
+      .orb {
+        position: absolute;
+        inset: 0;
+        border-radius: 999px;
+        background: radial-gradient(
+          circle at 50% 45%,
+          #ffffff 0%,
+          var(--tulsi-soft) 55%,
+          rgba(62, 118, 88, 0.18) 100%
+        );
+        box-shadow: 0 20px 50px rgba(62, 118, 88, 0.18);
+        transform: scale(0.82);
+      }
+      .orb-ring {
+        position: absolute;
+        inset: -10px;
+        border-radius: 999px;
+        border: 1px solid rgba(62, 118, 88, 0.25);
+      }
+      .orb-text {
+        position: relative;
+        font-size: 16px;
+        color: var(--tulsi);
+        font-weight: 500;
+        text-align: center;
+        line-height: 1.25;
+      }
+      .orb-text small {
+        display: block;
+        font-size: 13px;
+        color: var(--soft);
+        font-weight: 400;
+      }
+
+      .block {
+        margin-top: 54px;
+      }
+      .block h2 {
+        font-family: var(--serif);
+        font-weight: 400;
+        font-size: 28px;
+        line-height: 1.2;
+      }
+      .block h2 span {
+        display: block;
+        font-size: 18px;
+        color: var(--quiet);
+      }
+      .block .lede {
+        color: var(--soft);
+        margin-top: 6px;
+        font-size: 16px;
+      }
+
+      /* Three for today — a stacked rhythm with marigold thread */
+      .three {
+        list-style: none;
+        margin: 20px 0 0;
+        padding: 0 0 0 22px;
+        border-left: 2px solid var(--marigold-soft);
+      }
+      .three li {
+        position: relative;
+        padding: 4px 0 18px 10px;
+      }
+      .three li::before {
+        content: "";
+        position: absolute;
+        left: -29px;
+        top: 11px;
+        width: 12px;
+        height: 12px;
+        border-radius: 99px;
+        background: var(--paper);
+        border: 2px solid var(--marigold);
+      }
+      .three b {
+        display: block;
+        font-weight: 600;
+        font-size: 15px;
+        color: var(--marigold);
+      }
+      .three p {
+        font-size: 18px;
+        color: var(--ink);
+      }
+
+      /* Mala */
+      .tithi-mala {
+        width: 100%;
+        height: auto;
+        overflow: visible;
+        margin-top: 10px;
+      }
+      .mala-thread {
+        fill: none;
+        stroke: #c9d1cf;
+        stroke-width: 1.5;
+      }
+      .bead {
+        stroke-width: 1.5;
+      }
+      .bead.past {
+        fill: #c6cfcc;
+        stroke: none;
+      }
+      .bead.future {
+        fill: var(--paper);
+        stroke: #b7c1be;
+      }
+      .bead.today {
+        fill: var(--lilac);
+        stroke: none;
+        filter: drop-shadow(0 0 6px rgba(143, 127, 192, 0.6));
+      }
+      .bead.purnima {
+        fill: #fff;
+        stroke: var(--marigold);
+        stroke-width: 2;
+      }
+      .bead.amavasya {
+        fill: var(--ink);
+        stroke: var(--ink);
+      }
+      .mala-legend {
+        display: flex;
+        justify-content: space-between;
+        font-size: 13px;
+        color: var(--quiet);
+        margin-top: -4px;
+      }
+
+      /* You in three — plain sentences */
+      .you {
+        margin-top: 18px;
+        display: grid;
+        gap: 14px;
+      }
+      .you div {
+        display: grid;
+        grid-template-columns: 96px 1fr;
+        gap: 14px;
+        align-items: baseline;
+        padding-bottom: 14px;
+        border-bottom: 1px solid var(--line);
+      }
+      .you div:last-child {
+        border-bottom: 0;
+      }
+      .you dt {
+        font-size: 15px;
+        color: var(--quiet);
+      }
+      .you dd {
+        margin: 0;
+      }
+      .you dd strong {
+        font-family: var(--serif);
+        font-weight: 400;
+        font-size: 23px;
+        display: block;
+        line-height: 1.2;
+      }
+      .you dd span {
+        color: var(--soft);
+        font-size: 16px;
+      }
+
+      /* Season thread */
+      .season-strand {
+        width: 100%;
+        height: auto;
+        overflow: visible;
+        margin-top: 14px;
+      }
+      .strand-base {
+        stroke: var(--line);
+        stroke-width: 2;
+      }
+      .strand-seg {
+        stroke: #b9c4c1;
+        stroke-width: 7;
+        stroke-linecap: round;
+      }
+      .strand-seg.now {
+        stroke: var(--marigold);
+      }
+      .strand-label {
+        fill: var(--soft);
+        font-size: 15px;
+        font-family: var(--serif);
+      }
+      .strand-label.now {
+        fill: #9a6210;
+      }
+      .strand-year {
+        fill: var(--quiet);
+        font-size: 12px;
+        font-family: var(--sans);
+      }
+      .strand-sub {
+        stroke: #d9cfb8;
+        stroke-width: 3;
+        stroke-linecap: round;
+      }
+      .strand-sub.now {
+        stroke: var(--lilac);
+      }
+      .strand-zoom {
+        stroke: #d6c8a8;
+        stroke-dasharray: 2 3;
+      }
+      .now-dot {
+        fill: var(--ink);
+      }
+      .now-label {
+        fill: var(--ink);
+        font-size: 13px;
+        font-family: var(--sans);
+      }
+
+      /* Places to go — soft chips */
+      .go {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 16px;
+      }
+      .go a {
+        text-decoration: none;
+        color: var(--ink);
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 99px;
+        padding: 10px 16px;
+        font-size: 16px;
+      }
+      .go a:hover {
+        border-color: var(--marigold);
+      }
+
+      /* Talk dock */
+      .dock {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
+        background: linear-gradient(
+          180deg,
+          rgba(238, 242, 241, 0),
+          var(--mist) 35%
+        );
+      }
+      .dock form {
+        max-width: 680px;
+        margin: 0 auto;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 6px 6px 6px 18px;
+        box-shadow: 0 12px 30px rgba(24, 33, 43, 0.08);
+      }
+      .dock input {
+        flex: 1;
+        min-width: 0;
+        border: 0;
+        outline: none;
+        background: none;
+        font: inherit;
+        color: var(--ink);
+        padding: 10px 0;
+      }
+      .dock input::placeholder {
+        color: var(--quiet);
+      }
+      .dock button {
+        background: var(--ink);
+        color: #fff;
+        border-radius: 13px;
+        padding: 10px 18px;
+        font-weight: 500;
+      }
+      .badge {
+        position: fixed;
+        right: 14px;
+        top: 14px;
+        font-size: 13px;
+        color: var(--soft);
+        background: rgba(247, 249, 248, 0.9);
+        border: 1px solid var(--line);
+        padding: 5px 11px;
+        border-radius: 99px;
+      }
+      .badge a {
+        color: #9a6210;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="brand">AstroYou</div>
+      <nav aria-label="Main">
+        <a href="#" aria-current="page">Home</a><a href="#">Today</a
+        ><a href="#">Guidance</a><a href="#">My chart</a><a href="#">Bonds</a
+        ><a href="#">Path</a>
+      </nav>
+      <div class="who"><span>42 credits</span><b>M</b></div>
+    </header>
+
+    <main>
+      <section class="sky" aria-label="Today's sun">
+        <div id="sun"></div>
+        <div class="arc-key">
+          <span class="avoid">Rahu Kaal</span
+          ><span class="good">Abhijit, a good window</span>
+        </div>
+      </section>
+
+      <section class="greeting">
+        <p class="date">Saturday, 7 November <span>शनिवार, धनतेरस</span></p>
+        <h1>Good morning, Meera</h1>
+      </section>
+      <p class="line">
+        A quiet day for repair, not decisions. Say the one kind, true thing
+        you've been holding back.
+      </p>
+      <p class="now-note">
+        It's <b>Rahu Kaal until 10:27</b>. Start new things after 11:26.
+      </p>
+
+      <div class="breath">
+        <button
+          class="orb-btn"
+          id="orbBtn"
+          aria-label="Start a one-minute breath"
+        >
+          <span class="orb-ring"></span><span class="orb" id="orb"></span>
+          <span class="orb-text" id="orbText"
+            >Begin with<br />one breath<small>1 minute</small></span
+          >
+        </button>
+      </div>
+
+      <section class="block">
+        <h2>Three things for today<span>आज के लिए</span></h2>
+        <ul class="three">
+          <li>
+            <b>Energy</b>
+            <p>Steady and practical. Good for one honest conversation.</p>
+          </li>
+          <li>
+            <b>Do</b>
+            <p>Say the one thing you've been holding back, kindly.</p>
+          </li>
+          <li>
+            <b>Go easy</b>
+            <p>Keep big decisions for after Rahu Kaal.</p>
+          </li>
+        </ul>
+      </section>
+
+      <section class="block">
+        <h2>This lunar month<span>तिथि</span></h2>
+        <p class="lede">
+          Krishna Trayodashi. Two days to the new moon on Diwali, a natural time
+          to clear out and begin again.
+        </p>
+        <div id="mala"></div>
+        <div class="mala-legend">
+          <span>Shukla paksha</span><span>Purnima</span><span>Amavasya</span>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>You, in three lines</h2>
+        <dl class="you">
+          <div>
+            <dt>Moon</dt>
+            <dd>
+              <strong>Pisces, Uttara Bhadrapada</strong
+              ><span>You feel deeply and trust slowly.</span>
+            </dd>
+          </div>
+          <div>
+            <dt>Rising</dt>
+            <dd>
+              <strong>Leo</strong
+              ><span>You want to be seen for who you are.</span>
+            </dd>
+          </div>
+          <div>
+            <dt>Season</dt>
+            <dd>
+              <strong>Ketu, with Jupiter</strong
+              ><span
+                >Letting go, while being drawn to meaning. Until mid-2027.</span
+              >
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="block">
+        <h2>Your seasons<span>दशा</span></h2>
+        <div id="strand"></div>
+      </section>
+
+      <section class="block">
+        <h2>Where to next</h2>
+        <div class="go">
+          <a href="#">Today's forecast</a><a href="#">Talk it through</a
+          ><a href="#">My chart</a><a href="#">Bonds</a
+          ><a href="#">Practices</a>
+        </div>
+      </section>
+    </main>
+
+    <div class="dock">
+      <form onsubmit="return false;">
+        <input
+          aria-label="Talk to your guide"
+          placeholder="What's on your mind? हिंदी में भी लिख सकते हैं"
+        /><button type="submit">Talk</button>
+      </form>
+    </div>
+    <div class="badge">
+      Concept 2 of 3 · <a href="index.html">all concepts</a>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt" crossorigin="anonymous"></script>
+    <script src="primitives.js"></script>
+    <script>
+      const { sunArc, tithiMala, seasonStrand, hasGsap } = window.AY;
+      sunArc(document.getElementById("sun"), { delay: 0.2 });
+      tithiMala(document.getElementById("mala"), {
+        mode: "arc",
+        width: 640,
+        height: 150,
+        delay: 0.6,
+      });
+      seasonStrand(document.getElementById("strand"), { delay: 0.3 });
+
+      if (hasGsap()) {
+        gsap.from([".greeting", ".line", ".now-note", ".breath"], {
+          opacity: 0,
+          y: 12,
+          duration: 0.9,
+          ease: "power2.out",
+          stagger: 0.12,
+          delay: 0.9,
+        });
+      }
+
+      // Breath: motion answers the tap. 4 in, 2 hold, 6 out, for one minute.
+      const btn = document.getElementById("orbBtn"),
+        orb = document.getElementById("orb"),
+        txt = document.getElementById("orbText");
+      let tl = null;
+      btn.addEventListener("click", () => {
+        if (tl) {
+          tl.kill();
+          tl = null;
+          orb.style.transform = "scale(.82)";
+          txt.innerHTML = "Begin with<br/>one breath<small>1 minute</small>";
+          btn.setAttribute("aria-label", "Start a one-minute breath");
+          return;
+        }
+        btn.setAttribute("aria-label", "Stop breathing exercise");
+        if (!hasGsap()) {
+          txt.textContent = "Breathe in for 4, out for 6";
+          return;
+        }
+        tl = gsap.timeline({
+          repeat: 4,
+          onComplete: () => {
+            tl = null;
+            txt.innerHTML = "Well done<small>Tap to go again</small>";
+          },
+        });
+        tl.call(() => {
+          txt.innerHTML = "Breathe in";
+        })
+          .to(orb, { scale: 1.12, duration: 4, ease: "sine.inOut" })
+          .call(() => {
+            txt.innerHTML = "Hold";
+          })
+          .to(orb, { scale: 1.12, duration: 2 })
+          .call(() => {
+            txt.innerHTML = "Breathe out";
+          })
+          .to(orb, { scale: 0.82, duration: 6, ease: "sine.inOut" });
+      });
+    </script>
+  </body>
+</html>

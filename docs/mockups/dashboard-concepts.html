@@ -1,0 +1,1100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AstroYou — Dashboard design concepts</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* ============ Shared base (same content in every concept) ============ */
+      :root {
+        --bg: #04040a;
+        --text: rgba(255, 255, 255, 0.92);
+        --muted: rgba(255, 255, 255, 0.58);
+        --faint: rgba(255, 255, 255, 0.36);
+        --hair: rgba(255, 255, 255, 0.07);
+        --gold: #ffcd6a;
+        --rose: #f2a9b5;
+        --display: "Cormorant Garamond", Georgia, serif;
+        --body: "Plus Jakarta Sans", -apple-system, system-ui, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--body);
+        font-size: 15px;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+      body {
+        background:
+          radial-gradient(
+            1100px 520px at 78% -14%,
+            rgba(255, 205, 106, 0.06),
+            transparent 60%
+          ),
+          var(--bg);
+        min-height: 100vh;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        background: none;
+        border: 0;
+        cursor: pointer;
+        text-align: left;
+      }
+      h1,
+      h2,
+      h3 {
+        font-family: var(--display);
+        font-weight: 500;
+        margin: 0;
+      }
+      p {
+        margin: 0;
+      }
+      .label {
+        font-size: 10.5px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--faint);
+        font-weight: 700;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .faint {
+        color: var(--faint);
+      }
+      .gold {
+        color: var(--gold);
+      }
+      .serif {
+        font-family: var(--display);
+      }
+
+      /* Concept switcher */
+      .switcher {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 50;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        justify-content: center;
+        padding: 10px 12px;
+        background: rgba(4, 4, 10, 0.92);
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid var(--hair);
+      }
+      .switcher .seg {
+        display: inline-flex;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 99px;
+        padding: 3px;
+      }
+      .switcher .seg button {
+        padding: 7px 14px;
+        border-radius: 99px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      .switcher .seg button.on {
+        background: rgba(255, 205, 106, 0.14);
+        color: var(--gold);
+      }
+      .switcher .desc {
+        font-size: 12px;
+        color: var(--faint);
+        max-width: 520px;
+      }
+
+      header.app {
+        max-width: 1160px;
+        margin: 0 auto;
+        padding: 78px 20px 0;
+        display: flex;
+        align-items: center;
+        gap: 22px;
+      }
+      .brand {
+        font-family: var(--display);
+        font-size: 22px;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+      }
+      .brand i {
+        width: 8px;
+        height: 8px;
+        border-radius: 99px;
+        background: var(--gold);
+        box-shadow: 0 0 12px var(--gold);
+      }
+      header.app nav {
+        display: none;
+        gap: 2px;
+      }
+      header.app nav span {
+        font-size: 13px;
+        padding: 6px 11px;
+        border-radius: 99px;
+        color: var(--muted);
+      }
+      header.app nav span.on {
+        color: var(--gold);
+      }
+      header.app .right {
+        margin-left: auto;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      @media (min-width: 900px) {
+        header.app nav {
+          display: flex;
+        }
+      }
+
+      main {
+        max-width: 1160px;
+        margin: 0 auto;
+        padding: 28px 20px 80px;
+      }
+
+      /* Hero */
+      .hero-top {
+        display: grid;
+        gap: 20px;
+        align-items: center;
+      }
+      @media (min-width: 820px) {
+        .hero-top {
+          grid-template-columns: 1fr auto;
+        }
+      }
+      .hero h1 {
+        font-size: clamp(40px, 6vw, 60px);
+        line-height: 1.02;
+        letter-spacing: -0.01em;
+      }
+      .hero h1 em {
+        color: var(--gold);
+      }
+      .hero .line {
+        margin-top: 10px;
+        color: var(--muted);
+        max-width: 520px;
+      }
+      .moon {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .moon svg {
+        width: 92px;
+        height: 92px;
+        flex: none;
+      }
+      .moon .meta b {
+        display: block;
+        font-family: var(--display);
+        font-size: 22px;
+        font-weight: 500;
+      }
+      .moon .meta span {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .almanac {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        margin-top: 26px;
+      }
+      @media (min-width: 820px) {
+        .almanac {
+          grid-template-columns: repeat(6, 1fr);
+        }
+      }
+      .almanac div {
+        padding: 12px 0;
+      }
+      .almanac dt {
+        font-size: 10.5px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--faint);
+        font-weight: 700;
+      }
+      .almanac dd {
+        margin: 3px 0 0;
+        font-family: var(--display);
+        font-size: 20px;
+      }
+      .almanac .warn dd {
+        color: var(--rose);
+      }
+
+      /* Ask */
+      .ask {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        width: 100%;
+        padding: 15px 18px;
+        color: var(--faint);
+      }
+      .ask .go {
+        margin-left: auto;
+        color: var(--gold);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      /* Three lines */
+      .three {
+        display: grid;
+        gap: 0;
+      }
+      @media (min-width: 820px) {
+        .three {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+      .three > div {
+        padding: 16px 0;
+      }
+      .three b {
+        display: block;
+        font-family: var(--display);
+        font-size: 23px;
+        font-weight: 500;
+        line-height: 1.2;
+        margin-top: 4px;
+      }
+      .three span.d {
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      /* Explore */
+      .explore {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+      }
+      @media (min-width: 900px) {
+        .explore {
+          grid-template-columns: repeat(5, 1fr);
+        }
+      }
+      .explore button {
+        padding: 16px 0;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+      .explore .n {
+        font-size: 11px;
+        color: var(--faint);
+        font-weight: 700;
+        letter-spacing: 0.1em;
+      }
+      .explore b {
+        font-family: var(--display);
+        font-size: 22px;
+        font-weight: 500;
+      }
+      .explore span.d {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .explore button:hover b {
+        color: var(--gold);
+      }
+
+      /* Body */
+      .body {
+        display: grid;
+        gap: 40px;
+      }
+      @media (min-width: 1000px) {
+        .body {
+          grid-template-columns: minmax(0, 1fr) 320px;
+        }
+      }
+      .triptych {
+        display: grid;
+      }
+      @media (min-width: 700px) {
+        .triptych {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+      .triptych > div {
+        padding: 16px 0;
+      }
+      .triptych .k {
+        font-size: 10.5px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--gold);
+        font-weight: 700;
+      }
+      .triptych p {
+        margin-top: 5px;
+      }
+      .why {
+        font-size: 12px;
+        color: var(--faint);
+        margin-top: 10px;
+      }
+      .facts {
+        display: grid;
+      }
+      @media (min-width: 700px) {
+        .facts {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+      .facts > div {
+        padding: 16px 0;
+      }
+      .facts b {
+        display: block;
+        font-family: var(--display);
+        font-size: 21px;
+        font-weight: 500;
+        margin-top: 4px;
+      }
+      .facts p {
+        font-size: 13px;
+        color: var(--muted);
+        margin-top: 4px;
+      }
+      .timeline .bar {
+        display: flex;
+        height: 6px;
+        border-radius: 99px;
+        overflow: hidden;
+        margin-top: 14px;
+        gap: 3px;
+      }
+      .timeline .bar div {
+        border-radius: 99px;
+      }
+      .timeline .names {
+        display: flex;
+        margin-top: 8px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .timeline .names span {
+        text-align: left;
+      }
+      .timeline .now {
+        color: var(--gold);
+        font-weight: 600;
+      }
+      .aside > section {
+        padding: 16px 0;
+      }
+      .aside .word {
+        font-family: var(--display);
+        font-style: italic;
+        font-size: 20px;
+        line-height: 1.4;
+        color: rgba(255, 255, 255, 0.82);
+        margin-top: 6px;
+      }
+      .aside ul {
+        list-style: none;
+        margin: 8px 0 0;
+        padding: 0;
+      }
+      .aside li {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 7px 0;
+        font-size: 14px;
+      }
+      .aside li span:last-child {
+        color: var(--faint);
+        font-size: 12px;
+        white-space: nowrap;
+      }
+      .link {
+        margin-top: 10px;
+        display: inline-block;
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        font-weight: 700;
+        color: var(--gold);
+      }
+      .block-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .stack-lg > * + * {
+        margin-top: 0;
+      }
+
+      /* =================== CONCEPT A — Editorial almanac =================== */
+      /* No cards at all. Hairline rules + whitespace + a margin label column. */
+      .A .blk {
+        display: grid;
+        gap: 10px;
+        padding: 34px 0;
+        border-top: 1px solid var(--hair);
+      }
+      @media (min-width: 900px) {
+        .A .blk {
+          grid-template-columns: 170px minmax(0, 1fr);
+          gap: 32px;
+        }
+      }
+      .A .blk > .label {
+        padding-top: 6px;
+      }
+      .A .hero {
+        padding: 6px 0 34px;
+      }
+      .A .almanac {
+        border-top: 1px solid var(--hair);
+        border-bottom: 1px solid var(--hair);
+      }
+      .A .almanac div + div {
+        border-left: 1px solid var(--hair);
+        padding-left: 16px;
+      }
+      .A .almanac div:nth-child(odd) {
+        border-left: 0;
+        padding-left: 0;
+      }
+      @media (min-width: 820px) {
+        .A .almanac div:nth-child(odd) {
+          border-left: 1px solid var(--hair);
+          padding-left: 16px;
+        }
+        .A .almanac div:first-child {
+          border-left: 0;
+          padding-left: 0;
+        }
+      }
+      .A .ask {
+        border-bottom: 1px solid rgba(255, 205, 106, 0.35);
+        padding-left: 0;
+        padding-right: 0;
+      }
+      .A .three > div + div,
+      .A .triptych > div + div,
+      .A .facts > div + div {
+        border-top: 1px solid var(--hair);
+      }
+      @media (min-width: 820px) {
+        .A .three > div + div,
+        .A .triptych > div + div,
+        .A .facts > div + div {
+          border-top: 0;
+          border-left: 1px solid var(--hair);
+          padding-left: 22px;
+        }
+      }
+      .A .explore button {
+        border-top: 1px solid var(--hair);
+      }
+      @media (min-width: 900px) {
+        .A .explore button {
+          border-top: 0;
+        }
+        .A .explore button + button {
+          border-left: 1px solid var(--hair);
+          padding-left: 18px;
+        }
+      }
+      .A .body {
+        border-top: 1px solid var(--hair);
+        padding-top: 34px;
+      }
+      .A .main-col > * + * {
+        margin-top: 34px;
+        padding-top: 30px;
+        border-top: 1px solid var(--hair);
+      }
+      .A .aside > section + section {
+        border-top: 1px solid var(--hair);
+      }
+      @media (min-width: 1000px) {
+        .A .aside {
+          border-left: 1px solid var(--hair);
+          padding-left: 30px;
+        }
+      }
+      .A .blk.body-wrap {
+        display: block;
+        padding: 0;
+        border: 0;
+      }
+
+      /* =================== CONCEPT B — Quiet surfaces =================== */
+      /* Panels exist but barely: 1.8% fill, 4% hairline, no blur, no shadow. Structure lives inside. */
+      .B .blk {
+        margin-top: 14px;
+        padding: 22px 24px;
+        background: rgba(255, 255, 255, 0.018);
+        border: 1px solid rgba(255, 255, 255, 0.045);
+        border-radius: 24px;
+      }
+      .B .blk > .label {
+        display: block;
+        margin-bottom: 6px;
+      }
+      .B .hero {
+        padding: 6px 0 22px;
+      }
+      .B .almanac {
+        margin-top: 22px;
+        padding: 4px 24px;
+        background: rgba(255, 255, 255, 0.018);
+        border: 1px solid rgba(255, 255, 255, 0.045);
+        border-radius: 18px;
+      }
+      .B .almanac div + div {
+        border-left: 1px solid rgba(255, 255, 255, 0.05);
+        padding-left: 16px;
+      }
+      .B .almanac div:nth-child(odd) {
+        border-left: 0;
+        padding-left: 0;
+      }
+      @media (min-width: 820px) {
+        .B .almanac div:nth-child(odd) {
+          border-left: 1px solid rgba(255, 255, 255, 0.05);
+          padding-left: 16px;
+        }
+        .B .almanac div:first-child {
+          border-left: 0;
+          padding-left: 0;
+        }
+      }
+      .B .blk.ask-wrap {
+        padding: 0;
+        border-color: rgba(255, 205, 106, 0.22);
+        background: rgba(255, 205, 106, 0.025);
+      }
+      .B .three > div + div,
+      .B .triptych > div + div,
+      .B .facts > div + div {
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+      }
+      @media (min-width: 820px) {
+        .B .three > div + div,
+        .B .triptych > div + div,
+        .B .facts > div + div {
+          border-top: 0;
+          border-left: 1px solid rgba(255, 255, 255, 0.05);
+          padding-left: 20px;
+        }
+      }
+      .B .explore {
+        gap: 10px;
+      }
+      .B .blk.explore-wrap {
+        background: none;
+        border: 0;
+        padding: 18px 0 0;
+      }
+      .B .explore button {
+        padding: 14px 16px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.018);
+        border: 1px solid rgba(255, 255, 255, 0.045);
+      }
+      .B .explore button:hover {
+        border-color: rgba(255, 205, 106, 0.25);
+      }
+      .B .blk.body-wrap {
+        background: none;
+        border: 0;
+        padding: 0;
+        margin-top: 14px;
+      }
+      .B .body {
+        gap: 14px;
+      }
+      .B .main-col > *,
+      .B .aside > section {
+        padding: 22px 24px;
+        background: rgba(255, 255, 255, 0.018);
+        border: 1px solid rgba(255, 255, 255, 0.045);
+        border-radius: 24px;
+      }
+      .B .main-col > * + *,
+      .B .aside > section + section {
+        margin-top: 14px;
+      }
+
+      /* =================== CONCEPT C — Instrument grid =================== */
+      /* One continuous hairline grid, like an observatory instrument. No floating boxes, no gaps. */
+      .C main {
+        padding-top: 22px;
+      }
+      .C .frame {
+        border: 1px solid var(--hair);
+        border-radius: 20px;
+        overflow: hidden;
+      }
+      .C .blk {
+        padding: 22px 24px;
+        border-top: 1px solid var(--hair);
+      }
+      .C .blk > .label {
+        display: block;
+        margin-bottom: 4px;
+      }
+      .C .hero {
+        padding: 26px 24px 0;
+      }
+      .C .almanac {
+        margin: 22px -24px 0;
+        border-top: 1px solid var(--hair);
+      }
+      .C .almanac div {
+        padding: 12px 24px;
+        border-left: 1px solid var(--hair);
+      }
+      .C .almanac div:nth-child(odd) {
+        border-left: 0;
+      }
+      @media (min-width: 820px) {
+        .C .almanac div:nth-child(odd) {
+          border-left: 1px solid var(--hair);
+        }
+        .C .almanac div:first-child {
+          border-left: 0;
+        }
+      }
+      .C .blk.ask-wrap {
+        padding: 0;
+        background: rgba(255, 205, 106, 0.03);
+      }
+      .C .ask {
+        padding: 16px 24px;
+      }
+      .C .three > div,
+      .C .triptych > div,
+      .C .facts > div {
+        padding: 14px 0;
+      }
+      .C .three > div + div,
+      .C .triptych > div + div,
+      .C .facts > div + div {
+        border-top: 1px solid var(--hair);
+      }
+      @media (min-width: 820px) {
+        .C .three > div + div,
+        .C .triptych > div + div,
+        .C .facts > div + div {
+          border-top: 0;
+          border-left: 1px solid var(--hair);
+          padding-left: 20px;
+        }
+      }
+      .C .blk.explore-wrap {
+        padding: 0;
+      }
+      .C .blk.explore-wrap > .label {
+        padding: 16px 24px 0;
+      }
+      .C .explore button {
+        padding: 14px 24px 18px;
+        border-top: 1px solid var(--hair);
+      }
+      @media (min-width: 900px) {
+        .C .explore button {
+          border-top: 0;
+        }
+        .C .explore button + button {
+          border-left: 1px solid var(--hair);
+        }
+      }
+      .C .explore button:hover {
+        background: rgba(255, 255, 255, 0.02);
+      }
+      .C .blk.body-wrap {
+        padding: 0;
+      }
+      .C .body {
+        gap: 0;
+      }
+      .C .main-col > * {
+        padding: 22px 24px;
+      }
+      .C .main-col > * + * {
+        border-top: 1px solid var(--hair);
+      }
+      .C .aside > section {
+        padding: 22px 24px;
+      }
+      .C .aside > section + section {
+        border-top: 1px solid var(--hair);
+      }
+      @media (min-width: 1000px) {
+        .C .aside {
+          border-left: 1px solid var(--hair);
+        }
+      }
+      @media (max-width: 999px) {
+        .C .aside {
+          border-top: 1px solid var(--hair);
+        }
+      }
+      .C .moon svg {
+        width: 104px;
+        height: 104px;
+      }
+
+      /* Labels inside blocks for B and C; A uses the margin column */
+      .inline-label {
+        display: none;
+      }
+      .B .inline-label,
+      .C .inline-label {
+        display: block;
+        margin-bottom: 4px;
+      }
+      .A .side-label {
+        display: block;
+      }
+      .B .side-label,
+      .C .side-label {
+        display: none;
+      }
+    </style>
+  </head>
+  <body class="A">
+    <div class="switcher">
+      <div class="seg" role="tablist">
+        <button class="on" data-c="A">A · Editorial almanac</button>
+        <button data-c="B">B · Quiet surfaces</button>
+        <button data-c="C">C · Instrument grid</button>
+      </div>
+      <div class="desc" id="desc">
+        No cards at all — hairline rules, generous whitespace, labels in a
+        margin column. Reads like a printed almanac.
+      </div>
+    </div>
+
+    <header class="app">
+      <div class="brand"><i></i>AstroYou</div>
+      <nav>
+        <span class="on">Home</span><span>Today</span><span>Guidance</span
+        ><span>My Chart</span><span>Bonds</span><span>Path</span>
+      </nav>
+      <div class="right">42 credits · M</div>
+    </header>
+
+    <main>
+      <div class="frame">
+        <!-- HERO with moon phase -->
+        <section class="hero">
+          <div class="hero-top">
+            <div>
+              <div class="label">Saturday · 7 November · Lucknow</div>
+              <h1 style="margin-top: 8px">Good evening, <em>Meera</em></h1>
+              <p class="line">
+                A steady, practical sky tonight — good for one honest
+                conversation rather than many anxious thoughts.
+              </p>
+            </div>
+            <div class="moon">
+              <svg viewBox="0 0 100 100" aria-label="Waxing gibbous moon">
+                <defs>
+                  <radialGradient id="mg" cx="40%" cy="38%" r="70%">
+                    <stop offset="0" stop-color="#fff6dc" />
+                    <stop offset=".6" stop-color="#e9d6a6" />
+                    <stop offset="1" stop-color="#a88d55" />
+                  </radialGradient>
+                  <mask id="mm">
+                    <rect width="100" height="100" fill="#fff" />
+                    <ellipse cx="34" cy="50" rx="20" ry="44" fill="#000" />
+                  </mask>
+                </defs>
+                <circle cx="50" cy="50" r="44" fill="rgba(255,255,255,.05)" />
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="44"
+                  fill="url(#mg)"
+                  mask="url(#mm)"
+                />
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="44"
+                  fill="none"
+                  stroke="rgba(255,205,106,.25)"
+                />
+              </svg>
+              <div class="meta">
+                <b>Waxing gibbous</b
+                ><span>86% lit · Shukla Dwadashi<br />Full moon in 3 days</span>
+              </div>
+            </div>
+          </div>
+          <dl class="almanac">
+            <div>
+              <dt>Tithi</dt>
+              <dd>Dwadashi</dd>
+            </div>
+            <div>
+              <dt>Nakshatra</dt>
+              <dd>Hasta</dd>
+            </div>
+            <div>
+              <dt>Yoga</dt>
+              <dd>Vishkumbha</dd>
+            </div>
+            <div>
+              <dt>Karana</dt>
+              <dd>Taitila</dd>
+            </div>
+            <div class="warn">
+              <dt>Rahu Kaal</dt>
+              <dd>10:27–11:50</dd>
+            </div>
+            <div>
+              <dt>Sun</dt>
+              <dd>06:19 – 17:20</dd>
+            </div>
+          </dl>
+        </section>
+
+        <!-- ASK -->
+        <section class="blk ask-wrap">
+          <span class="label side-label">Ask</span>
+          <button class="ask">
+            <span class="gold">✦</span> Ask your guide — "What does this week
+            ask of me?" <span class="go">Ask →</span>
+          </button>
+        </section>
+
+        <!-- THREE LINES -->
+        <section class="blk">
+          <span class="label side-label">Your chart</span>
+          <div>
+            <span class="label inline-label">Your chart in three lines</span>
+            <div class="three">
+              <div>
+                <span class="label">Moon</span><b>Pisces · Uttara Bhadrapada</b
+                ><span class="d"
+                  >Feels deeply, trusts slowly, loyal once you do.</span
+                >
+              </div>
+              <div>
+                <span class="label">Rising</span><b>Leo</b
+                ><span class="d"
+                  >Warm and visible — you want to be truly seen.</span
+                >
+              </div>
+              <div>
+                <span class="label">Season</span><b>Ketu · Jupiter</b
+                ><span class="d"
+                  >Letting go of what's outgrown, till Jun 2027.</span
+                >
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- EXPLORE -->
+        <section class="blk explore-wrap">
+          <span class="label side-label">Explore</span>
+          <div>
+            <span class="label inline-label">Explore</span>
+            <div class="explore">
+              <button>
+                <span class="n">01</span><b>Today</b
+                ><span class="d">What's the sky doing now?</span>
+              </button>
+              <button>
+                <span class="n">02</span><b>Guidance</b
+                ><span class="d">Talk it through</span>
+              </button>
+              <button>
+                <span class="n">03</span><b>My Chart</b
+                ><span class="d">Who am I?</span>
+              </button>
+              <button>
+                <span class="n">04</span><b>Bonds</b
+                ><span class="d">What about us?</span>
+              </button>
+              <button>
+                <span class="n">05</span><b>Path</b
+                ><span class="d">What do I practise?</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- BODY -->
+        <section class="blk body-wrap">
+          <div class="body">
+            <div class="main-col">
+              <div>
+                <div class="block-head">
+                  <span class="label">Today, for you</span
+                  ><span class="faint" style="font-size: 12px"
+                    >Moon in your 7th from the Moon</span
+                  >
+                </div>
+                <div class="triptych">
+                  <div>
+                    <span class="k">Energy</span>
+                    <p>
+                      Steady and practical. Good for one honest conversation.
+                    </p>
+                  </div>
+                  <div>
+                    <span class="k">Do</span>
+                    <p>Say the one thing you've been holding back — kindly.</p>
+                  </div>
+                  <div>
+                    <span class="k">Go easy</span>
+                    <p>Keep big decisions out of Rahu Kaal, 10:27–11:50.</p>
+                  </div>
+                </div>
+                <p class="why">
+                  Why this? Today's Moon falls in your 7th house from your natal
+                  Moon — relationships are in focus.
+                </p>
+              </div>
+
+              <div>
+                <span class="label">In your chart right now</span>
+                <div class="facts">
+                  <div>
+                    <span class="label">Yoga</span><b>Sasa Yoga</b>
+                    <p>
+                      Saturn strong in its own sign — endurance and quiet
+                      authority.
+                    </p>
+                  </div>
+                  <div>
+                    <span class="label">Birth star</span
+                    ><b>Uttara Bhadrapada</b>
+                    <p>Ruled by Saturn. Patient, private, deeply loyal.</p>
+                  </div>
+                  <div>
+                    <span class="label">Saturn</span><b>Sade Sati · peak phase</b>
+                    <p>Saturn is crossing your Moon until mid-2027 — a season for maturing and steadier choices, not punishment.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="timeline">
+                <div class="block-head">
+                  <span class="label">Your seasons</span
+                  ><span class="faint" style="font-size: 12px"
+                    >Vimshottari</span
+                  >
+                </div>
+                <div class="bar">
+                  <div
+                    style="flex: 11; background: rgba(157, 184, 255, 0.35)"
+                  ></div>
+                  <div
+                    style="flex: 17; background: rgba(159, 211, 184, 0.35)"
+                  ></div>
+                  <div style="flex: 7; background: var(--gold)"></div>
+                  <div
+                    style="flex: 20; background: rgba(242, 169, 181, 0.3)"
+                  ></div>
+                </div>
+                <div class="names">
+                  <span style="flex: 11">Saturn · 1995</span>
+                  <span style="flex: 17">Mercury · 2005</span>
+                  <span style="flex: 7" class="now">Ketu · now</span>
+                  <span style="flex: 20">Venus · 2029</span>
+                </div>
+              </div>
+            </div>
+
+            <aside class="aside">
+              <section>
+                <span class="label">Today's word</span>
+                <p class="word">
+                  Steady hands, soft voice. Let one true sentence do the work of
+                  many.
+                </p>
+                <a class="link">Open forecast →</a>
+              </section>
+              <section>
+                <span class="label">Current period</span>
+                <ul>
+                  <li>
+                    <span>Ketu Mahadasha</span><span>Jul 2022 – Jul 2029</span>
+                  </li>
+                  <li>
+                    <span>Jupiter Antardasha</span><span>till Jun 2027</span>
+                  </li>
+                </ul>
+              </section>
+              <section>
+                <span class="label">A practice for this season</span>
+                <p class="muted" style="font-size: 14px; margin-top: 6px">
+                  Light a diya at dusk; sit two minutes and name one thing
+                  you're ready to release.
+                </p>
+              </section>
+              <section>
+                <span class="label">Coming up</span>
+                <ul>
+                  <li><span>Diwali</span><span>Sun 8 Nov</span></li>
+                  <li><span>Full moon</span><span>Tue 10 Nov</span></li>
+                  <li><span>Bhai Dooj</span><span>Wed 11 Nov</span></li>
+                </ul>
+              </section>
+            </aside>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <script>
+      const desc = {
+        A: "No cards at all — hairline rules, generous whitespace, labels in a margin column. Reads like a printed almanac.",
+        B: "Panels exist but barely (≈2% fill, 4% hairline, no blur or shadow). Each panel is organised inside with columns and dividers.",
+        C: "One continuous hairline grid, like an observatory instrument. No floating boxes or gaps — every section is a cell.",
+      };
+      document.querySelectorAll("[data-c]").forEach((b) =>
+        b.addEventListener("click", () => {
+          document.body.className = b.dataset.c;
+          document
+            .querySelectorAll("[data-c]")
+            .forEach((x) => x.classList.toggle("on", x === b));
+          document.getElementById("desc").textContent = desc[b.dataset.c];
+        }),
+      );
+    </script>
+  </body>
+</html>

@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AstroYou dashboard: versions so far</title>
+    <style>
+      body {
+        margin: 0;
+        background: #0b0b10;
+        color: #ececf2;
+        font:
+          16px/1.5 -apple-system,
+          system-ui,
+          sans-serif;
+      }
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        background: rgba(11, 11, 16, 0.95);
+        border-bottom: 1px solid #22232c;
+        padding: 12px 16px;
+      }
+      .tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: center;
+      }
+      .tabs button {
+        font: inherit;
+        font-size: 15px;
+        font-weight: 600;
+        color: #a8aab8;
+        background: none;
+        border: 1px solid #2a2b36;
+        border-radius: 99px;
+        padding: 8px 14px;
+        cursor: pointer;
+      }
+      .tabs button.on {
+        background: rgba(255, 205, 106, 0.14);
+        color: #ffcd6a;
+        border-color: transparent;
+      }
+      .modes {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        margin-top: 8px;
+        font-size: 14px;
+        color: #8a8c9a;
+      }
+      .modes button {
+        font: inherit;
+        font-size: 14px;
+        color: #a8aab8;
+        background: none;
+        border: 0;
+        text-decoration: underline;
+        cursor: pointer;
+      }
+      .note {
+        max-width: 980px;
+        margin: 18px auto 0;
+        padding: 0 16px;
+        color: #a8aab8;
+      }
+      .note b {
+        color: #ececf2;
+      }
+      .single {
+        max-width: 1100px;
+        margin: 18px auto 60px;
+        padding: 0 16px;
+      }
+      .single img {
+        width: 100%;
+        border-radius: 12px;
+        border: 1px solid #22232c;
+      }
+      .grid {
+        display: none;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 12px;
+        padding: 18px 16px 60px;
+      }
+      .grid figure {
+        margin: 0;
+      }
+      .grid img {
+        width: 100%;
+        border-radius: 8px;
+        border: 1px solid #22232c;
+      }
+      .grid figcaption {
+        font-size: 14px;
+        color: #a8aab8;
+        margin-bottom: 6px;
+      }
+      body.compare .grid {
+        display: grid;
+      }
+      body.compare .single,
+      body.compare .note {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="tabs" id="tabs"></div>
+      <div class="modes">
+        <button id="toggle">Compare all side by side</button>
+      </div>
+    </header>
+    <p class="note" id="note"></p>
+    <div class="single"><img id="shot" alt="" /></div>
+    <div class="grid" id="grid"></div>
+    <script>
+      const V = [
+        [
+          "1-original.jpg",
+          "1. Original app",
+          'As it was this morning: gold greeting, almanac strip with thin dividers, framed Explore grid and triptych, rounded cards with borders, a side column. (Guest data was broken at the time: cards said "pending".)',
+        ],
+        [
+          "2-thin-lines.jpg",
+          "2. Thin lines",
+          "Cards removed; hairline dividers between cells (almanac, three lines, yoga / Sade Sati / nakshatra); side column of notes.",
+        ],
+        [
+          "3-no-lines.jpg",
+          "3. No lines",
+          "Every line and box removed; structure only from spacing. This is the one that read like a newspaper.",
+        ],
+        [
+          "4-sections.jpg",
+          "4. Sections",
+          "Big section headings (Today, Your chart, Practice and calendar, Explore) with full-width dividers, content flat.",
+        ],
+        [
+          "5-tiles.jpg",
+          "5. Tiles (current)",
+          "Apple Weather structure: centred hero with moon, one grid of soft tiles, drawn day bar and dasha timeline.",
+        ],
+      ];
+      const tabs = document.getElementById("tabs"),
+        shot = document.getElementById("shot"),
+        note = document.getElementById("note"),
+        grid = document.getElementById("grid");
+      function show(i) {
+        shot.src = V[i][0];
+        shot.alt = V[i][1];
+        note.innerHTML = `<b>${V[i][1]}.</b> ${V[i][2]}`;
+        [...tabs.children].forEach((b, j) => b.classList.toggle("on", i === j));
+        document.body.classList.remove("compare");
+        document.getElementById("toggle").textContent =
+          "Compare all side by side";
+      }
+      V.forEach(([f, t], i) => {
+        const b = document.createElement("button");
+        b.textContent = t;
+        b.onclick = () => show(i);
+        tabs.appendChild(b);
+        grid.insertAdjacentHTML(
+          "beforeend",
+          `<figure><figcaption>${t}</figcaption><img src="${f}" alt="${t}"></figure>`,
+        );
+      });
+      document.getElementById("toggle").onclick = (e) => {
+        const on = document.body.classList.toggle("compare");
+        e.target.textContent = on
+          ? "Back to one at a time"
+          : "Compare all side by side";
+      };
+      show(0);
+    </script>
+  </body>
+</html>

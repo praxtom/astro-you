@@ -9,8 +9,13 @@ interface HeroAlmanacProps {
   meditationStreak?: number;
   panchang: PanchangData | null;
   panchangLoading: boolean;
-  lunar: LunarPhaseData | null;
+  lunar:
+    | (Pick<LunarPhaseData, "phase" | "illumination"> & { emoji?: string })
+    | null;
   onShareSign: () => void;
+  /** The day's reading, shown once, under the greeting. */
+  reading?: string;
+  readingLoading?: boolean;
 }
 
 /** Render-safe string: the astrology API sometimes returns objects where strings are expected. */
@@ -174,6 +179,8 @@ export const HeroAlmanac: React.FC<HeroAlmanacProps> = ({
   panchangLoading,
   lunar,
   onShareSign,
+  reading,
+  readingLoading,
 }) => {
   const today = useMemo(() => {
     const now = new Date();
@@ -188,7 +195,12 @@ export const HeroAlmanac: React.FC<HeroAlmanacProps> = ({
     };
   }, []);
 
-  const bandCells = useMemo(() => {
+  const bandCells = useMemo((): Array<{
+    label: string;
+    value?: string;
+    sub?: string;
+    caution?: boolean;
+  }> => {
     return [
       {
         label: "Tithi",
@@ -202,11 +214,10 @@ export const HeroAlmanac: React.FC<HeroAlmanacProps> = ({
       },
       { label: "Yoga", value: asText(panchang?.yoga) },
       { label: "Karana", value: asText(panchang?.karana) },
-      { label: "Rahu Kaal", value: asText(panchang?.rahu_kaal), caution: true },
       {
         label: "Moon",
         value: lunar
-          ? `${lunar.emoji} ${lunar.phase}`
+          ? `${lunar.emoji ? `${lunar.emoji} ` : ""}${lunar.phase}`
           : asText(panchang?.moonSign),
         sub: lunar ? `${Math.round(lunar.illumination)}% lit` : undefined,
       },
@@ -234,6 +245,12 @@ export const HeroAlmanac: React.FC<HeroAlmanacProps> = ({
               {name}
             </span>
           </h1>
+
+          {(reading || readingLoading) && (
+            <p className="mt-5 max-w-[34ch] font-display text-[1.45rem] md:text-[1.6rem] leading-snug text-white/80">
+              {readingLoading ? "Reading today's sky…" : reading}
+            </p>
+          )}
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
             {emotionalState && (
@@ -270,22 +287,22 @@ export const HeroAlmanac: React.FC<HeroAlmanacProps> = ({
       </div>
 
       {/* Almanac band */}
-      <div className="mt-8 border-y border-white/8">
+      <div className="mt-10 border-y border-white/8">
         <div className="flex overflow-x-auto snap-x scrollbar-none [&::-webkit-scrollbar]:hidden divide-x divide-white/8">
           {bandCells.map((cell) => (
             <div
               key={cell.label}
-              className="snap-start shrink-0 min-w-38 flex-1 px-5 py-4"
+              className="snap-start shrink-0 min-w-36 flex-1 px-5 py-4 first:pl-0"
             >
               <p
-                className={`text-[0.6rem] font-bold uppercase tracking-[0.3em] ${
+                className={`text-[0.7rem] font-bold uppercase tracking-[0.25em] ${
                   cell.caution ? "text-red-300/50" : "text-white/30"
                 }`}
               >
                 {cell.label}
               </p>
               <p
-                className={`mt-1.5 font-display text-lg leading-tight ${
+                className={`mt-1.5 font-display text-[1.35rem] leading-tight ${
                   cell.caution ? "text-red-200/80" : "text-white/85"
                 }`}
               >
@@ -296,9 +313,7 @@ export const HeroAlmanac: React.FC<HeroAlmanacProps> = ({
                 )}
               </p>
               {cell.sub && (
-                <p className="mt-0.5 text-[0.65rem] text-white/30">
-                  {cell.sub}
-                </p>
+                <p className="mt-0.5 text-xs text-white/45">{cell.sub}</p>
               )}
             </div>
           ))}

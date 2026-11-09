@@ -55,9 +55,12 @@ export const AskJyotishBar: React.FC<AskJyotishBarProps> = ({ lastChat }) => {
         }}
         className="group relative"
       >
-        <div className="absolute -inset-px rounded-2xl bg-linear-to-r from-gold/0 via-gold/25 to-gold/0 opacity-0 group-focus-within:opacity-100 transition-opacity duration-700 blur-sm pointer-events-none" />
-        <div className="relative flex items-center gap-3 rounded-2xl border border-white/10 bg-white/4 backdrop-blur-xl px-5 py-4 transition-colors group-focus-within:border-gold/40">
-          <Sparkles size={18} className="text-gold shrink-0" aria-hidden="true" />
+        <div className="relative flex items-center gap-3 rounded-full border border-white/[0.08] bg-white/[0.04] pl-5 pr-2 py-2 transition-colors group-focus-within:border-gold/35 group-focus-within:bg-white/[0.06]">
+          <Sparkles
+            size={18}
+            className="text-gold shrink-0"
+            aria-hidden="true"
+          />
           <input
             name="jyotish-question"
             autoComplete="off"
@@ -65,11 +68,11 @@ export const AskJyotishBar: React.FC<AskJyotishBarProps> = ({ lastChat }) => {
             onChange={(e) => setQuestion(e.target.value)}
             placeholder={`Ask Jyotish — “${SUGGESTIONS[suggestionIndex]}”`}
             aria-label="Ask Jyotish a question"
-            className="flex-1 min-w-0 bg-transparent outline-none text-white/85 placeholder:text-white/30 text-sm md:text-base"
+            className="flex-1 min-w-0 bg-transparent outline-none! focus-visible:outline-none! text-white/85 placeholder:text-white/30 text-sm md:text-base"
           />
           <button
             type="submit"
-            className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gold text-black text-xs font-bold uppercase tracking-[0.15em] hover:bg-gold/90 transition-colors"
+            className="shrink-0 inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-gold text-black text-xs font-bold uppercase tracking-[0.15em] hover:bg-gold/90 transition-colors"
           >
             Ask
             <ArrowUpRight size={13} aria-hidden="true" />
@@ -80,7 +83,7 @@ export const AskJyotishBar: React.FC<AskJyotishBarProps> = ({ lastChat }) => {
       {lastChat && (
         <button
           onClick={() => navigate(`/synthesis/${lastChat.chatId}`)}
-          className="mt-2.5 ml-1 text-xs text-white/35 hover:text-gold transition-colors inline-flex items-center gap-1.5"
+          className="mt-3 text-xs text-white/35 hover:text-gold transition-colors inline-flex items-center gap-1.5"
         >
           <span className="w-1 h-1 rounded-full bg-gold/60" />
           Continue “

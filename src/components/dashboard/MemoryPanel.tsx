@@ -79,7 +79,7 @@ export const MemoryPanel: React.FC<MemoryPanelProps> = ({
   }, [atmanState, hasBirthData]);
 
   return (
-    <section className="glass rounded-3xl p-6 animate-reveal-progressive">
+    <section>
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-gold/80 text-[0.6rem] font-bold uppercase tracking-[0.35em] mb-1.5">

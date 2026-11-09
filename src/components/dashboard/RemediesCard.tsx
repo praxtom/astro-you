@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Gem, Loader2, Moon, Flame, HandHeart, Plus, Check } from 'lucide-react';
+import { Gem, Moon, Flame, HandHeart, Plus, Check } from 'lucide-react';
+import { FactLabel, FactSkeleton } from './primitives';
 import { Link } from 'react-router-dom';
 import { useRemedies, type Remedy } from '../../hooks/useRemedies';
 import { PersonalCardNotice } from './PersonalCardNotice';
@@ -13,11 +14,11 @@ interface RemediesCardProps {
 }
 
 const categoryConfig: Record<string, { icon: React.ReactNode; color: string }> = {
-    Gemstone:  { icon: <Gem size={14} />,       color: 'bg-purple-500/20 text-purple-300' },
-    Mantra:    { icon: <Flame size={14} />,      color: 'bg-amber-500/20 text-amber-300' },
-    Fast:      { icon: <Moon size={14} />,       color: 'bg-sky-500/20 text-sky-300' },
-    Ritual:    { icon: <HandHeart size={14} />,  color: 'bg-emerald-500/20 text-emerald-300' },
-    Donation:  { icon: <HandHeart size={14} />,  color: 'bg-rose-500/20 text-rose-300' },
+    Gemstone:  { icon: <Gem size={11} />,       color: 'bg-purple-500/20 text-purple-300/75' },
+    Mantra:    { icon: <Flame size={11} />,      color: 'bg-amber-500/20 text-amber-300/75' },
+    Fast:      { icon: <Moon size={11} />,       color: 'bg-sky-500/20 text-sky-300/75' },
+    Ritual:    { icon: <HandHeart size={11} />,  color: 'bg-emerald-500/20 text-emerald-300/75' },
+    Donation:  { icon: <HandHeart size={11} />,  color: 'bg-rose-500/20 text-rose-300/75' },
 };
 
 const REMEDY_ROUTINE_MAP: Record<string, { type: 'morning' | 'evening' | 'habit'; durationMinutes: number }> = {
@@ -56,14 +57,14 @@ function RemedyItem({ remedy, onAddRoutine, addedRoutines, canAddRoutine }: Reme
     const isAdded = addedRoutines.has(remedy.name);
 
     return (
-        <div className="group flex items-start gap-3 py-2">
-            <span className={`mt-0.5 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${style.color}`}>
-                {style.icon}
-                {remedy.category}
-            </span>
+        <div className="group flex items-start gap-3">
             <div className="flex-1 min-w-0">
-                <p className="text-white/90 text-sm font-medium truncate">{remedy.name}</p>
-                <p className="text-white/50 text-xs leading-relaxed">{remedy.detail}</p>
+                <p className={`flex items-center gap-1.5 text-[0.7rem] font-bold uppercase tracking-[0.18em] ${style.color.split(' ').filter(c => c.startsWith('text-')).join(' ')}`}>
+                    {style.icon}
+                    {remedy.category}
+                </p>
+                <p className="mt-1 font-display text-[1.3rem] leading-snug text-white/90">{remedy.name}</p>
+                <p className="mt-0.5 text-white/50 text-[0.95rem] leading-relaxed">{remedy.detail}</p>
             </div>
             {showButton && (
                 <button
@@ -147,26 +148,16 @@ export const RemediesCard: React.FC<RemediesCardProps> = ({ birthData }) => {
     }
 
     return (
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-            <div className="flex items-center gap-2 mb-4">
-                <div className="p-2 rounded-lg bg-yellow-500/10">
-                    <Gem size={18} className="text-gold" />
-                </div>
-                <h3 className="text-gold text-xs font-bold tracking-wide uppercase">
-                    {showFoundation ? 'Daily Sadhana' : 'Your Remedies'}
-                </h3>
-            </div>
+        <div>
+            <FactLabel>{showFoundation ? 'Daily sadhana' : 'Your remedies'}</FactLabel>
 
             {loading && (
-                <div className="flex items-center justify-center py-5 gap-2 text-white/45 text-sm">
-                    <Loader2 size={16} className="animate-spin" />
-                    Preparing remedies...
-                </div>
+                <div className="mt-3"><FactSkeleton /></div>
             )}
 
             {showFoundation && (
                 <>
-                    <div className="divide-y divide-white/5">
+                    <div className="mt-3 space-y-4">
                         {foundationalRemedies.map((remedy) => (
                             <RemedyItem
                                 key={remedy.name}
@@ -190,16 +181,16 @@ export const RemediesCard: React.FC<RemediesCardProps> = ({ birthData }) => {
                     )}
                     <Link
                         to="/remedies"
-                        className="mt-3 flex w-full items-center justify-center rounded-xl border border-gold/20 bg-gold/10 px-3 py-2 text-xs font-bold uppercase text-gold hover:bg-gold/15"
+                        className="mt-4 inline-flex items-center gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.18em] text-gold hover:text-white transition-colors"
                     >
-                        Open Remedy Studio
+                        Open remedy studio
                     </Link>
                 </>
             )}
 
             {!loading && displayedRemedies.length > 0 && (
                 <>
-                    <div className="divide-y divide-white/5">
+                    <div className="mt-3 space-y-4">
                         {displayedRemedies.map((remedy, i) => (
                             <RemedyItem
                                 key={i}
@@ -213,16 +204,16 @@ export const RemediesCard: React.FC<RemediesCardProps> = ({ birthData }) => {
                     {allRemedies.length > 3 && (
                         <button
                             onClick={() => setExpanded(!expanded)}
-                            className="w-full mt-3 py-2 text-[10px] text-white/30 hover:text-gold uppercase tracking-widest transition-colors"
+                            className="mt-3 block text-[0.75rem] font-bold uppercase tracking-[0.18em] text-white/45 hover:text-gold transition-colors"
                         >
                             {expanded ? 'Show less' : `View all ${allRemedies.length} remedies`}
                         </button>
                     )}
                     <Link
                         to="/remedies"
-                        className="mt-2 flex w-full items-center justify-center rounded-xl border border-gold/20 bg-gold/10 px-3 py-2 text-xs font-bold uppercase text-gold hover:bg-gold/15"
+                        className="mt-4 inline-flex items-center gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.18em] text-gold hover:text-white transition-colors"
                     >
-                        Open Remedy Studio
+                        Open remedy studio
                     </Link>
                 </>
             )}

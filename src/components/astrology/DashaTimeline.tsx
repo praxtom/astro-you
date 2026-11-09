@@ -1,5 +1,4 @@
-import { useState, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { useMemo } from "react";
 
 interface DashaPeriod {
   planet: string;
@@ -13,120 +12,169 @@ interface DashaTimelineProps {
   periods: DashaPeriod[];
 }
 
-const PLANET_COLORS: Record<string, string> = {
-  Sun: '#F59E0B', Moon: '#E5E7EB', Mars: '#EF4444',
-  Mercury: '#10B981', Jupiter: '#EAB308', Venus: '#EC4899',
-  Saturn: '#6366F1', Rahu: '#8B5CF6', Ketu: '#78716C',
-};
-
 const PLANET_ABBR: Record<string, string> = {
-  Sun: 'Su', Moon: 'Mo', Mars: 'Ma', Mercury: 'Me',
-  Jupiter: 'Ju', Venus: 'Ve', Saturn: 'Sa', Rahu: 'Ra', Ketu: 'Ke',
+  Sun: "Su",
+  Moon: "Mo",
+  Mars: "Ma",
+  Mercury: "Me",
+  Jupiter: "Ju",
+  Venus: "Ve",
+  Saturn: "Sa",
+  Rahu: "Ra",
+  Ketu: "Ke",
 };
 
-function fmt(d: string) {
-  return new Date(d).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-}
+const monthYear = (d: string) =>
+  new Date(d).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+const year = (d: string) => new Date(d).getFullYear();
 
-function pct(start: string, end: string, totalMs: number, originMs: number) {
+function span(start: string, end: string, originMs: number, totalMs: number) {
   const s = new Date(start).getTime() - originMs;
   const e = new Date(end).getTime() - originMs;
   return { left: (s / totalMs) * 100, width: ((e - s) / totalMs) * 100 };
 }
 
-export function DashaTimeline({ periods }: DashaTimelineProps) {
-  const [tooltip, setTooltip] = useState<{ text: string; x: number } | null>(null);
-
-  const { originMs, totalMs, currentPeriod } = useMemo(() => {
-    if (!periods.length) return { originMs: 0, totalMs: 1, currentPeriod: null };
-    const o = new Date(periods[0].startDate).getTime();
-    const t = new Date(periods[periods.length - 1].endDate).getTime() - o;
-    return { originMs: o, totalMs: t, currentPeriod: periods.find(p => p.isCurrent) || null };
-  }, [periods]);
-
-  if (!periods.length) return null;
-
-  const subPeriods = currentPeriod?.subPeriods || [];
-  const subOrigin = subPeriods.length ? new Date(subPeriods[0].startDate).getTime() : 0;
-  const subTotal = subPeriods.length
-    ? new Date(subPeriods[subPeriods.length - 1].endDate).getTime() - subOrigin
-    : 1;
-
-  const renderBar = (items: DashaPeriod[], oMs: number, tMs: number, height: string, label?: string) => (
-    <div className={`relative ${height} rounded-full overflow-hidden flex bg-white/5`}>
-      {items.map((p, i) => {
-        const { left, width } = pct(p.startDate, p.endDate, tMs, oMs);
-        const color = PLANET_COLORS[p.planet] || '#9CA3AF';
-        const abbr = label
-          ? `${PLANET_ABBR[label] || label}/${PLANET_ABBR[p.planet] || p.planet}`
-          : PLANET_ABBR[p.planet] || p.planet;
-        return (
-          <motion.div
-            key={`${p.planet}-${i}`}
-            className="absolute inset-y-0 flex items-center justify-center cursor-pointer select-none overflow-hidden"
-            style={{
-              left: `${left}%`, width: `${width}%`,
-              backgroundColor: color,
-              opacity: p.isCurrent ? 1 : 0.45,
-              boxShadow: p.isCurrent ? `0 0 16px ${color}66` : 'none',
-            }}
-            whileHover={{ opacity: 1, scale: 1.02 }}
-            onMouseEnter={(e) => {
-              const rect = (e.target as HTMLElement).getBoundingClientRect();
-              setTooltip({
-                text: `${p.planet}${label ? ` (in ${label})` : ''}: ${fmt(p.startDate)} – ${fmt(p.endDate)}`,
-                x: rect.left + rect.width / 2,
-              });
-            }}
-            onMouseLeave={() => setTooltip(null)}
-          >
-            {width > 4 && (
-              <span className="text-[10px] font-bold text-black/80 whitespace-nowrap">{abbr}</span>
-            )}
-            {p.isCurrent && (
-              <div className="absolute -top-4 left-1/2 -translate-x-1/2 flex flex-col items-center">
-                <span className="text-[9px] font-bold text-gold tracking-wide">NOW</span>
-                <span className="text-gold text-[10px] leading-none">▼</span>
-              </div>
-            )}
-          </motion.div>
-        );
-      })}
-    </div>
-  );
+/**
+ * One thin track per level: every segment labelled when there is room, the
+ * running period in gold, and a "now" rule at today's real position — so the
+ * whole sequence is readable without colour coding or tooltips.
+ */
+function Track({
+  items,
+  height,
+  showYears,
+  parent,
+}: {
+  items: DashaPeriod[];
+  height: string;
+  showYears: boolean;
+  parent?: string;
+}) {
+  const originMs = new Date(items[0].startDate).getTime();
+  const totalMs =
+    new Date(items[items.length - 1].endDate).getTime() - originMs || 1;
+  const nowPct = ((Date.now() - originMs) / totalMs) * 100;
+  const nowVisible = nowPct > 0 && nowPct < 100;
 
   return (
-    <div className="bg-white/5 border border-white/10 rounded-[2rem] p-6 relative">
-      <h4 className="text-sm font-bold uppercase tracking-widest text-gold mb-5">Dasha Timeline</h4>
-
-      {/* Tooltip */}
-      {tooltip && (
-        <div
-          className="fixed z-50 px-3 py-1.5 rounded-lg bg-black/90 border border-white/10 text-xs text-white/90 whitespace-nowrap pointer-events-none"
-          style={{ left: tooltip.x, top: 'auto', transform: 'translate(-50%, -2.5rem)' }}
-        >
-          {tooltip.text}
+    <div>
+      <div className="relative" style={{ paddingTop: nowVisible ? 18 : 0 }}>
+        <div className={`relative ${height}`}>
+          {items.map((p, i) => {
+            const { left, width } = span(
+              p.startDate,
+              p.endDate,
+              originMs,
+              totalMs,
+            );
+            const title = `${p.planet}${parent ? ` within ${parent}` : ""}: ${monthYear(p.startDate)} to ${monthYear(p.endDate)}`;
+            return (
+              <div
+                key={`${p.planet}-${i}`}
+                title={title}
+                aria-label={title}
+                role="img"
+                className={`absolute inset-y-0 rounded-full ${p.isCurrent ? "bg-gold" : "bg-white/15"}`}
+                style={{
+                  left: `calc(${left}% + 1.5px)`,
+                  width: `calc(${width}% - 3px)`,
+                }}
+              />
+            );
+          })}
         </div>
-      )}
-
-      {/* Mahadasha bar */}
-      <div className="pt-5">
-        {renderBar(periods, originMs, totalMs, 'h-8')}
-        <div className="flex justify-between mt-1.5 text-[10px] text-white/30">
-          <span>{fmt(periods[0].startDate)}</span>
-          <span>{fmt(periods[periods.length - 1].endDate)}</span>
-        </div>
+        {nowVisible && (
+          <div
+            className="absolute top-0 bottom-0 w-px bg-white/70"
+            style={{ left: `${nowPct}%` }}
+            aria-hidden="true"
+          >
+            <span className="absolute -top-0.5 left-1/2 -translate-x-1/2 text-[0.65rem] font-bold uppercase tracking-[0.2em] text-white/80">
+              Now
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* Antardasha sub-bar */}
-      {subPeriods.length > 0 && currentPeriod && (
-        <div className="mt-4 pt-3 border-t border-white/5">
-          <p className="text-[11px] text-white/40 mb-2 uppercase tracking-wider">
-            Antardashas in {currentPeriod.planet} Mahadasha
-          </p>
-          <div className="pt-4">
-            {renderBar(subPeriods, subOrigin, subTotal, 'h-4', currentPeriod.planet)}
+      <div className="relative mt-2 h-9">
+        {items.map((p, i) => {
+          const { left, width } = span(
+            p.startDate,
+            p.endDate,
+            originMs,
+            totalMs,
+          );
+          // Narrow periods go unlabelled (their title still names them), but the
+          // running period is always labelled.
+          if (width < 7 && !p.isCurrent) return null;
+          const name =
+            width < 12 ? PLANET_ABBR[p.planet] || p.planet : p.planet;
+          return (
+            <div
+              key={`l-${p.planet}-${i}`}
+              className="absolute top-0 overflow-hidden whitespace-nowrap"
+              style={{ left: `${left}%`, width: `${width}%` }}
+            >
+              <p
+                className={`font-display text-[1.1rem] leading-tight ${p.isCurrent ? "text-gold" : "text-white/60"}`}
+              >
+                {name}
+              </p>
+              {showYears && width >= 9 && (
+                <p className="text-[0.78rem] tabular-nums text-white/45">
+                  {year(p.startDate)}
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function DashaTimeline({ periods }: DashaTimelineProps) {
+  const current = useMemo(
+    () => periods.find((p) => p.isCurrent) || null,
+    [periods],
+  );
+  if (!periods.length) return null;
+  const subs = current?.subPeriods || [];
+  const currentSub = subs.find((s) => s.isCurrent) || null;
+
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-4 mb-2 text-[0.9rem] text-white/55">
+        <span>
+          Mahadashas, {monthYear(periods[0].startDate)} to{" "}
+          {monthYear(periods[periods.length - 1].endDate)}
+        </span>
+        {current && (
+          <span>
+            Now: <span className="text-gold">{current.planet}</span> until{" "}
+            {monthYear(current.endDate)}
+          </span>
+        )}
+      </div>
+      <Track items={periods} height="h-1.5" showYears />
+
+      {subs.length > 0 && current && (
+        <div className="mt-10">
+          <div className="flex items-baseline justify-between gap-4 mb-2 text-[0.9rem] text-white/55">
+            <span>Antardashas within {current.planet}</span>
+            {currentSub && (
+              <span>
+                Now: <span className="text-gold">{currentSub.planet}</span>{" "}
+                until {monthYear(currentSub.endDate)}
+              </span>
+            )}
           </div>
+          <Track
+            items={subs}
+            height="h-1"
+            showYears={false}
+            parent={current.planet}
+          />
         </div>
       )}
     </div>

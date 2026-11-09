@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { postJson } from "../../lib/apiFetch";
-import { motion } from 'framer-motion';
-import { Calendar, Loader2 } from 'lucide-react';
+import { FactLabel, FactSkeleton } from './primitives';
 import { viewerDateKey } from "../../lib/viewer-timezone";
 import { normalizeFestivalRegion, type FestivalRegion } from "../../lib/festival-regions";
 
@@ -64,51 +63,16 @@ export const FestivalCard: React.FC<FestivalCardProps> = ({ region }) => {
     // Hidden entirely when off — an empty festival card is worse than none.
     if (festivalRegion === "off") return null;
 
-    if (loading) {
-        return (
-            <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white/5 border border-white/10 rounded-[2rem] p-6 flex items-center justify-center min-h-[120px]"
-            >
-                <Loader2 size={20} className="text-gold animate-spin" />
-            </motion.div>
-        );
-    }
+    if (loading) return <FactSkeleton />;
 
     if (error || festivals.length === 0) {
         return (
-            <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white/5 border border-white/10 rounded-[2rem] p-6"
-            >
-                <div className="flex items-center gap-2 mb-4">
-                    <div className="p-2 rounded-xl bg-violet-500/10">
-                        <Calendar size={18} className="text-violet-400" />
-                    </div>
-                    <h3 className="text-sm font-semibold text-white/90 tracking-wide">
-                        Upcoming Festivals
-                    </h3>
-                </div>
-
-                <div className="space-y-3">
-                    <div className="flex items-start gap-3">
-                        <span className="text-xs text-white/40 font-medium min-w-[48px] pt-0.5">Today</span>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm text-white/80">Daily practice</p>
-                            <p className="text-[10px] text-white/30">Light a diya, offer gratitude, keep one clear intention.</p>
-                        </div>
-                    </div>
-                    <div className="flex items-start gap-3">
-                        <span className="text-xs text-white/40 font-medium min-w-[48px] pt-0.5">This week</span>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm text-white/80">Family gratitude</p>
-                            <p className="text-[10px] text-white/30">A small ritual with family is enough until the live calendar refreshes.</p>
-                        </div>
-                    </div>
-                </div>
-            </motion.div>
+            <div>
+                <FactLabel>Upcoming festivals</FactLabel>
+                <p className="mt-2 text-[0.98rem] leading-relaxed text-white/50">
+                    The festival calendar couldn't load right now. It will appear here once it does.
+                </p>
+            </div>
         );
     }
 
@@ -122,36 +86,24 @@ export const FestivalCard: React.FC<FestivalCardProps> = ({ region }) => {
     };
 
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white/5 border border-white/10 rounded-[2rem] p-6"
-        >
-            <div className="flex items-center gap-2 mb-4">
-                <div className="p-2 rounded-xl bg-violet-500/10">
-                    <Calendar size={18} className="text-violet-400" />
-                </div>
-                <h3 className="text-sm font-semibold text-white/90 tracking-wide">
-                    Upcoming Festivals
-                </h3>
-            </div>
-
-            <div className="space-y-3">
+        <div>
+            <FactLabel>Upcoming festivals</FactLabel>
+            <div className="mt-3 space-y-3">
                 {festivals.map((f, i) => (
-                    <div key={i} className="flex items-start gap-3">
-                        <span className="text-xs text-white/40 font-medium min-w-[48px] pt-0.5">
+                    <div key={i} className="flex items-baseline gap-4">
+                        <span className="text-[0.9rem] text-white/45 min-w-14 tabular-nums">
                             {formatDate(f.date)}
                         </span>
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm text-white/80 truncate">{f.name}</p>
+                            <p className="font-display text-[1.3rem] leading-snug text-white/85">{f.name}</p>
                             {f.significance && (
-                                <p className="text-[10px] text-white/30 truncate">{f.significance}</p>
+                                <p className="text-[0.92rem] leading-relaxed text-white/45">{f.significance}</p>
                             )}
                         </div>
                     </div>
                 ))}
             </div>
-        </motion.div>
+        </div>
     );
 };
 

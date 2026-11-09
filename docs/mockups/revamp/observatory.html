@@ -1,0 +1,922 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AstroYou — Concept 1: Observatory</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* Tokens — night instrument: ink, moonlight, brass. Boldness spent on the sky dial only. */
+      :root {
+        --night: #070a16;
+        --deep: #0c1124;
+        --moonlight: #e6e9f2;
+        --dim: rgba(230, 233, 242, 0.58);
+        --faint: rgba(230, 233, 242, 0.34);
+        --rule: rgba(205, 174, 110, 0.16);
+        --brass: #cdae6e;
+        --violet: #a39cf0;
+        --rahu: #c97a98;
+        --sage: #8fc7a8;
+        --serif: "Instrument Serif", Georgia, serif;
+        --sans: "Geist", -apple-system, system-ui, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--night);
+        color: var(--moonlight);
+        font-family: var(--sans);
+        font-size: 15px;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+      body {
+        background:
+          radial-gradient(900px 700px at 28% 22%, #121a3a 0%, transparent 62%),
+          var(--night);
+        min-height: 100vh;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        background: none;
+        border: 0;
+        cursor: pointer;
+      }
+      :focus-visible {
+        outline: 2px solid var(--brass);
+        outline-offset: 3px;
+        border-radius: 6px;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      .small {
+        font-size: 13px;
+        color: var(--dim);
+      }
+      .k {
+        font-size: 13px;
+        color: var(--faint);
+      }
+
+      header {
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 22px 24px;
+        display: flex;
+        align-items: center;
+        gap: 28px;
+      }
+      .brand {
+        font-family: var(--serif);
+        font-size: 26px;
+        letter-spacing: 0.01em;
+      }
+      nav {
+        display: none;
+        gap: 22px;
+        font-size: 14px;
+        color: var(--dim);
+      }
+      nav a {
+        color: inherit;
+        text-decoration: none;
+        padding: 4px 0;
+      }
+      nav a[aria-current] {
+        color: var(--moonlight);
+        box-shadow: inset 0 -1px 0 var(--brass);
+      }
+      .who {
+        margin-left: auto;
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        font-size: 13px;
+        color: var(--dim);
+      }
+      .who b {
+        width: 30px;
+        height: 30px;
+        border-radius: 99px;
+        display: grid;
+        place-items: center;
+        background: var(--deep);
+        border: 1px solid var(--rule);
+        color: var(--brass);
+        font-weight: 500;
+      }
+      @media (min-width: 960px) {
+        nav {
+          display: flex;
+        }
+      }
+
+      main {
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 0 24px 120px;
+      }
+
+      /* Hero: the instrument */
+      .observe {
+        display: grid;
+        gap: 28px;
+        align-items: center;
+        padding-top: 8px;
+      }
+      @media (min-width: 1000px) {
+        .observe {
+          grid-template-columns: minmax(0, 560px) minmax(0, 1fr);
+          gap: 56px;
+        }
+      }
+      .dial-wrap {
+        position: relative;
+        width: 100%;
+        max-width: 560px;
+        aspect-ratio: 1;
+        margin: 0 auto;
+      }
+      .sky-dial {
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+      }
+      .sky-dial .ring {
+        fill: none;
+        stroke: var(--rule);
+      }
+      .sky-dial .ring-0 {
+        stroke: rgba(205, 174, 110, 0.32);
+      }
+      .sky-dial .ring-3 {
+        stroke: rgba(230, 233, 242, 0.05);
+      }
+      .sky-dial .tick-major {
+        stroke: rgba(205, 174, 110, 0.45);
+      }
+      .sky-dial .tick-minor {
+        stroke: rgba(230, 233, 242, 0.18);
+      }
+      .sky-dial .sign {
+        fill: rgba(205, 174, 110, 0.75);
+        font-size: 15px;
+      }
+      .sky-dial .nak-today {
+        fill: none;
+        stroke: var(--violet);
+        stroke-width: 6;
+        stroke-linecap: round;
+        opacity: 0.9;
+      }
+      .sky-dial .transit-arc {
+        fill: none;
+        stroke: var(--brass);
+        stroke-width: 2;
+        stroke-dasharray: 2 4;
+      }
+      .sky-dial .natal-moon {
+        fill: var(--night);
+        stroke: var(--violet);
+        stroke-width: 2;
+      }
+      .sky-dial .planet .body {
+        fill: var(--deep);
+        stroke: rgba(230, 233, 242, 0.35);
+      }
+      .sky-dial .planet .glyph {
+        fill: var(--moonlight);
+        font-size: 10px;
+        font-family: var(--sans);
+        font-weight: 600;
+      }
+      .sky-dial .planet.p-Sa .body {
+        stroke: var(--brass);
+      }
+      .sky-dial .planet.is-moon .body {
+        fill: var(--violet);
+        stroke: none;
+        filter: drop-shadow(0 0 10px rgba(163, 156, 240, 0.8));
+      }
+      .sky-dial .planet.is-moon .glyph {
+        fill: #14112e;
+      }
+      .sky-dial .planet {
+        cursor: pointer;
+      }
+      .sky-dial .planet:hover .body,
+      .sky-dial .planet:focus .body {
+        stroke: var(--moonlight);
+        stroke-width: 2;
+      }
+      .dial-center {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        pointer-events: none;
+        text-align: center;
+      }
+      .dial-center .inner {
+        width: 38%;
+      }
+      .moon-disk {
+        width: 64px;
+        height: 64px;
+        display: block;
+        margin: 0 auto 10px;
+      }
+      .moon-dark {
+        fill: #10142a;
+      }
+      .moon-lit {
+        fill: #f1ecdc;
+      }
+      .moon-rim {
+        fill: none;
+        stroke: rgba(230, 233, 242, 0.18);
+      }
+      .dial-center .tithi {
+        font-family: var(--serif);
+        font-size: 22px;
+        line-height: 1.1;
+      }
+      .dial-center .sub {
+        font-size: 12px;
+        color: var(--dim);
+        margin-top: 4px;
+      }
+      .dial-key {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 18px;
+        margin-top: 10px;
+        font-size: 12px;
+        color: var(--dim);
+      }
+      .dial-key span::before {
+        content: "";
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 99px;
+        margin-right: 7px;
+        vertical-align: -1px;
+      }
+      .dial-key .moon::before {
+        background: var(--violet);
+      }
+      .dial-key .natal::before {
+        border: 2px solid var(--violet);
+        width: 6px;
+        height: 6px;
+      }
+      .dial-key .nak::before {
+        background: var(--violet);
+        border-radius: 2px;
+        height: 4px;
+        vertical-align: 2px;
+      }
+      .caption {
+        min-height: 22px;
+        text-align: center;
+        font-size: 13px;
+        color: var(--brass);
+        margin-top: 6px;
+      }
+
+      .reading .date {
+        font-size: 14px;
+        color: var(--dim);
+      }
+      .reading h1 {
+        font-family: var(--serif);
+        font-weight: 400;
+        font-size: clamp(44px, 6vw, 76px);
+        line-height: 0.98;
+        letter-spacing: -0.01em;
+        margin-top: 10px;
+      }
+      .reading .line {
+        font-family: var(--serif);
+        font-size: clamp(24px, 2.6vw, 32px);
+        line-height: 1.22;
+        color: rgba(230, 233, 242, 0.9);
+        margin-top: 26px;
+        max-width: 30ch;
+      }
+      .why-btn {
+        margin-top: 18px;
+        font-size: 14px;
+        color: var(--brass);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .why-btn i {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 1px solid var(--brass);
+        border-radius: 99px;
+        position: relative;
+        transition: transform 0.3s;
+      }
+      .why-btn i::before,
+      .why-btn i::after {
+        content: "";
+        position: absolute;
+        left: 4px;
+        right: 4px;
+        top: 7px;
+        height: 1px;
+        background: var(--brass);
+      }
+      .why-btn i::after {
+        transform: rotate(90deg);
+      }
+      .why-btn[aria-expanded="true"] i {
+        transform: rotate(45deg);
+      }
+      .why {
+        overflow: hidden;
+        height: 0;
+      }
+      .why-inner {
+        padding-top: 14px;
+        max-width: 46ch;
+        color: var(--dim);
+        font-size: 14px;
+      }
+      .why-inner p + p {
+        margin-top: 8px;
+      }
+      .why-inner b {
+        color: var(--moonlight);
+        font-weight: 500;
+      }
+
+      .ask {
+        margin-top: 30px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 6px 6px 6px 18px;
+        border-radius: 16px;
+        background: rgba(12, 17, 36, 0.8);
+        border: 1px solid rgba(205, 174, 110, 0.28);
+        max-width: 520px;
+      }
+      .ask input {
+        flex: 1;
+        min-width: 0;
+        background: none;
+        border: 0;
+        outline: none;
+        color: var(--moonlight);
+        font: inherit;
+        font-size: 15px;
+        padding: 10px 0;
+      }
+      .ask input::placeholder {
+        color: var(--faint);
+      }
+      .ask button {
+        background: var(--brass);
+        color: #1b1407;
+        font-weight: 600;
+        font-size: 14px;
+        padding: 10px 16px;
+        border-radius: 12px;
+      }
+
+      /* Day band */
+      .section {
+        margin-top: 64px;
+      }
+      .section-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 18px;
+      }
+      .section-head h2 {
+        font-family: var(--serif);
+        font-weight: 400;
+        font-size: 30px;
+      }
+      .day-band {
+        position: relative;
+      }
+      .db-track {
+        position: relative;
+        height: 54px;
+        border-radius: 12px;
+        background: linear-gradient(90deg, #0b0f22, #0b0f22);
+        overflow: visible;
+      }
+      .db-day {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        border-radius: 12px;
+        background: linear-gradient(
+          180deg,
+          rgba(205, 174, 110, 0.1),
+          rgba(205, 174, 110, 0.03)
+        );
+      }
+      .db-seg {
+        position: absolute;
+        top: 8px;
+        bottom: 8px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        padding: 0 10px;
+        font-size: 12px;
+        overflow: hidden;
+        white-space: nowrap;
+      }
+      .db-seg.avoid {
+        background: rgba(201, 122, 152, 0.22);
+        color: #f2c2d3;
+        box-shadow: inset 0 0 0 1px rgba(201, 122, 152, 0.45);
+      }
+      .db-seg.soft {
+        background: rgba(230, 233, 242, 0.06);
+        color: var(--dim);
+      }
+      .db-seg.good {
+        background: rgba(143, 199, 168, 0.18);
+        color: #cfeadc;
+        box-shadow: inset 0 0 0 1px rgba(143, 199, 168, 0.4);
+      }
+      .db-now {
+        position: absolute;
+        top: -12px;
+        bottom: -12px;
+        width: 0;
+      }
+      .db-now i {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: -1px;
+        width: 2px;
+        background: var(--moonlight);
+        border-radius: 2px;
+        box-shadow: 0 0 12px rgba(230, 233, 242, 0.6);
+      }
+      .db-now b {
+        position: absolute;
+        top: -22px;
+        left: 0;
+        transform: translateX(-50%);
+        font-size: 12px;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+      .db-axis {
+        position: relative;
+        height: 26px;
+        margin-top: 10px;
+        font-size: 12px;
+        color: var(--faint);
+      }
+      .db-axis span {
+        position: absolute;
+        transform: translateX(-50%);
+        white-space: nowrap;
+      }
+      .band-note {
+        margin-top: 10px;
+        font-size: 14px;
+        color: var(--dim);
+      }
+      .band-note b {
+        color: #f2c2d3;
+        font-weight: 500;
+      }
+
+      /* You, in three — readouts, not cards */
+      .readouts {
+        display: grid;
+        gap: 26px;
+      }
+      @media (min-width: 860px) {
+        .readouts {
+          grid-template-columns: repeat(3, 1fr);
+          gap: 0;
+        }
+        .readouts > div + div {
+          padding-left: 32px;
+          box-shadow: inset 1px 0 0 var(--rule);
+        }
+        .readouts > div {
+          padding-right: 32px;
+        }
+      }
+      .readout .k {
+        display: block;
+        margin-bottom: 6px;
+      }
+      .readout .v {
+        font-family: var(--serif);
+        font-size: 34px;
+        line-height: 1.05;
+      }
+      .readout .v small {
+        display: block;
+        font-size: 20px;
+        color: var(--dim);
+        margin-top: 2px;
+      }
+      .readout p {
+        margin-top: 10px;
+        font-size: 14px;
+        color: var(--dim);
+        max-width: 32ch;
+      }
+
+      /* Season strand */
+      .season-strand {
+        width: 100%;
+        height: auto;
+        overflow: visible;
+      }
+      .strand-base {
+        stroke: rgba(230, 233, 242, 0.08);
+        stroke-width: 2;
+      }
+      .strand-seg {
+        stroke: rgba(230, 233, 242, 0.28);
+        stroke-width: 6;
+        stroke-linecap: round;
+      }
+      .strand-seg.now {
+        stroke: var(--brass);
+      }
+      .strand-label {
+        fill: var(--dim);
+        font-size: 14px;
+        font-family: var(--serif);
+      }
+      .strand-label.now {
+        fill: var(--brass);
+      }
+      .strand-year {
+        fill: var(--faint);
+        font-size: 11px;
+      }
+      .strand-sub {
+        stroke: rgba(205, 174, 110, 0.3);
+        stroke-width: 3;
+        stroke-linecap: round;
+      }
+      .strand-sub.now {
+        stroke: var(--violet);
+      }
+      .strand-zoom {
+        stroke: rgba(205, 174, 110, 0.25);
+        stroke-dasharray: 2 3;
+      }
+      .now-dot {
+        fill: var(--moonlight);
+      }
+      .now-label {
+        fill: var(--moonlight);
+        font-size: 12px;
+      }
+
+      /* Chart facts — three short notes */
+      .notes {
+        display: grid;
+        gap: 22px;
+      }
+      @media (min-width: 860px) {
+        .notes {
+          grid-template-columns: repeat(3, 1fr);
+          gap: 40px;
+        }
+      }
+      .note h3 {
+        font-family: var(--serif);
+        font-weight: 400;
+        font-size: 24px;
+      }
+      .note p {
+        margin-top: 6px;
+        font-size: 14px;
+        color: var(--dim);
+      }
+      .note .tag {
+        display: inline-block;
+        margin-bottom: 8px;
+        font-size: 12px;
+        color: var(--brass);
+      }
+
+      /* Explore — a quiet index, not tiles */
+      .explore {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 34px;
+        margin-top: 4px;
+      }
+      .explore a {
+        color: var(--moonlight);
+        text-decoration: none;
+        font-family: var(--serif);
+        font-size: 26px;
+      }
+      .explore a span {
+        display: block;
+        font-family: var(--sans);
+        font-size: 13px;
+        color: var(--faint);
+      }
+      .explore a:hover {
+        color: var(--brass);
+      }
+      footer {
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 0 24px 40px;
+        font-size: 12px;
+        color: var(--faint);
+      }
+      .badge {
+        position: fixed;
+        right: 14px;
+        bottom: 14px;
+        font-size: 12px;
+        color: var(--faint);
+        background: rgba(7, 10, 22, 0.85);
+        border: 1px solid var(--rule);
+        padding: 6px 10px;
+        border-radius: 99px;
+      }
+      .badge a {
+        color: var(--brass);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="brand">AstroYou</div>
+      <nav aria-label="Main">
+        <a href="#" aria-current="page">Home</a><a href="#">Today</a
+        ><a href="#">Guidance</a><a href="#">My chart</a><a href="#">Bonds</a
+        ><a href="#">Path</a>
+      </nav>
+      <div class="who"><span>42 credits</span><b>M</b></div>
+    </header>
+
+    <main>
+      <section class="observe">
+        <div>
+          <div class="dial-wrap" id="dial">
+            <div class="dial-center">
+              <div class="inner">
+                <div id="moon"></div>
+                <div class="tithi">Krishna Trayodashi</div>
+                <div class="sub">
+                  Moon in Chitra, 6% lit<br />New moon on Diwali
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="caption" id="caption" aria-live="polite">
+            Tap a planet to see where it is
+          </div>
+          <div class="dial-key">
+            <span class="moon">Moon today</span
+            ><span class="nak">Today's nakshatra</span
+            ><span class="natal">Your birth Moon</span>
+          </div>
+        </div>
+
+        <div class="reading">
+          <p class="date">Saturday, 7 November. Dhanteras.</p>
+          <h1>Good morning, Meera</h1>
+          <p class="line">
+            A quiet day for repair, not decisions. Say the one kind, true thing
+            you've been holding back.
+          </p>
+          <button
+            class="why-btn"
+            aria-expanded="false"
+            aria-controls="why"
+            id="whyBtn"
+          >
+            <i></i>Why this reading
+          </button>
+          <div class="why" id="why">
+            <div class="why-inner">
+              <p>
+                <b>The Moon is in Virgo today</b>, the 7th sign from your birth
+                Moon in Pisces. Days like this put relationships in the
+                foreground.
+              </p>
+              <p>
+                <b>Saturn is crossing your birth Moon</b> until mid-2027. It
+                asks for steadiness and patience, not big moves made from worry.
+              </p>
+            </div>
+          </div>
+          <form class="ask" onsubmit="return false;">
+            <input
+              aria-label="Ask your guide"
+              placeholder="Ask about today, a person, a choice"
+            />
+            <button type="submit">Ask</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="dayHead">
+        <div class="section-head">
+          <h2 id="dayHead">Your day, hour by hour</h2>
+          <span class="small">Lucknow</span>
+        </div>
+        <div id="band"></div>
+        <p class="band-note">
+          You're in <b>Rahu Kaal until 10:27</b>. Keep new beginnings for
+          Abhijit, 11:26 to 12:14.
+        </p>
+      </section>
+
+      <section class="section" aria-labelledby="youHead">
+        <div class="section-head">
+          <h2 id="youHead">You, in three lines</h2>
+          <a class="small" href="#" style="color: var(--brass)"
+            >Open full chart</a
+          >
+        </div>
+        <div class="readouts">
+          <div class="readout">
+            <span class="k">Moon</span>
+            <div class="v">Pisces<small>Uttara Bhadrapada</small></div>
+            <p>You feel deeply and trust slowly. Once you do, you stay.</p>
+          </div>
+          <div class="readout">
+            <span class="k">Rising</span>
+            <div class="v">Leo<small>7° in the 1st house</small></div>
+            <p>Warm and visible. You want to be seen for who you really are.</p>
+          </div>
+          <div class="readout">
+            <span class="k">Season</span>
+            <div class="v">Ketu<small>with Jupiter until mid-2027</small></div>
+            <p>
+              Letting go of what's outgrown, while being drawn toward meaning.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="seasonHead">
+        <div class="section-head">
+          <h2 id="seasonHead">Your seasons</h2>
+          <span class="small">Vimshottari dasha</span>
+        </div>
+        <div id="strand"></div>
+      </section>
+
+      <section class="section" aria-labelledby="notesHead">
+        <div class="section-head">
+          <h2 id="notesHead">In your chart right now</h2>
+        </div>
+        <div class="notes">
+          <div class="note">
+            <span class="tag">Yoga</span>
+            <h3>Sasa yoga</h3>
+            <p>
+              Saturn strong in its own sign. Endurance, and a quiet kind of
+              authority.
+            </p>
+          </div>
+          <div class="note">
+            <span class="tag">Birth star</span>
+            <h3>Uttara Bhadrapada</h3>
+            <p>
+              Ruled by Saturn. Patient, private, and loyal to the few who earn
+              it.
+            </p>
+          </div>
+          <div class="note">
+            <span class="tag">Saturn</span>
+            <h3>Sade Sati, peak phase</h3>
+            <p>
+              A season for maturing and steadier choices until mid-2027. Not a
+              punishment.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="exploreHead">
+        <div class="section-head"><h2 id="exploreHead">Go deeper</h2></div>
+        <div class="explore">
+          <a href="#">Today<span>Forecast and transits</span></a>
+          <a href="#">Guidance<span>Talk it through</span></a>
+          <a href="#">My chart<span>Kundali and reports</span></a>
+          <a href="#">Bonds<span>You and someone else</span></a>
+          <a href="#">Path<span>Practices and remedies</span></a>
+        </div>
+      </section>
+    </main>
+    <footer>Illustrative sky positions for a mockup. Cast for Lucknow.</footer>
+    <div class="badge">
+      Concept 1 of 3 · <a href="index.html">all concepts</a>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt" crossorigin="anonymous"></script>
+    <script src="primitives.js"></script>
+    <script>
+      const { skyDial, moonDisk, dayBand, seasonStrand, SIGNS, hasGsap } =
+        window.AY;
+      const dial = skyDial(document.getElementById("dial"));
+      document.getElementById("dial").prepend(dial.svg);
+      moonDisk(document.getElementById("moon"), { r: 30 });
+      dayBand(document.getElementById("band"), { delay: 1.2 });
+      seasonStrand(document.getElementById("strand"), { delay: 0.2 });
+
+      // Planet captions
+      const cap = document.getElementById("caption");
+      const notes = {
+        Sa: "Saturn in Pisces, crossing your birth Moon",
+        Mo: "Moon in Virgo, Chitra nakshatra",
+        Ju: "Jupiter in Gemini",
+        Ra: "Rahu in Aquarius",
+        Ke: "Ketu in Leo, over your rising sign",
+      };
+      dial.groups.forEach(({ g, p }) => {
+        const say = () => {
+          cap.textContent =
+            notes[p.id] || `${p.name} in ${SIGNS[Math.floor(p.lon / 30)]}`;
+        };
+        g.addEventListener("mouseenter", say);
+        g.addEventListener("focus", say);
+        g.addEventListener("click", say);
+      });
+
+      // Hero text: one orchestrated entrance after the dial settles
+      if (hasGsap()) {
+        gsap.from(".reading > *", {
+          opacity: 0,
+          y: 14,
+          duration: 0.9,
+          ease: "power2.out",
+          stagger: 0.1,
+          delay: 0.5,
+        });
+      }
+
+      // "Why this reading" — motion answers the tap
+      const btn = document.getElementById("whyBtn"),
+        why = document.getElementById("why");
+      btn.addEventListener("click", () => {
+        const open = btn.getAttribute("aria-expanded") === "true";
+        btn.setAttribute("aria-expanded", String(!open));
+        if (hasGsap()) {
+          gsap.to(why, {
+            height: open ? 0 : "auto",
+            duration: 0.45,
+            ease: "power2.inOut",
+          });
+          if (!open) {
+            gsap.fromTo(
+              ".why-inner p",
+              { opacity: 0, y: 6 },
+              { opacity: 1, y: 0, stagger: 0.08, duration: 0.4, delay: 0.1 },
+            );
+            gsap.fromTo(
+              ".nak-today, .natal-moon, .transit-arc",
+              { opacity: 0.2 },
+              { opacity: 1, duration: 0.3, repeat: 3, yoyo: true },
+            );
+          }
+        } else {
+          why.style.height = open ? "0" : "auto";
+        }
+      });
+    </script>
+  </body>
+</html>

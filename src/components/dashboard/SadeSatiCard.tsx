@@ -1,89 +1,78 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { AlertTriangle, Shield, Loader2 } from 'lucide-react';
-import { useSadeSati } from '../../hooks/useSadeSati';
-import { GlossaryTerm } from "../ui/GlossaryTerm";
-import { PersonalCardNotice } from './PersonalCardNotice';
+import React from "react";
+import { useSadeSati } from "../../hooks/useSadeSati";
+import { PersonalCardNotice } from "./PersonalCardNotice";
+import { FactLabel, FactSkeleton } from "./primitives";
 
 interface SadeSatiCardProps {
-    birthData: any;
+  birthData: any;
 }
 
+/** Sade Sati status as a ledger cell — stated calmly, with dates and the top remedy. */
 export const SadeSatiCard: React.FC<SadeSatiCardProps> = ({ birthData }) => {
-    const { sadeSati, loading, error, errorKind, retry } = useSadeSati(birthData);
+  const { sadeSati, loading, error, errorKind, retry } = useSadeSati(birthData);
 
-    if (loading) {
-        return (
-            <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white/5 border border-white/10 rounded-[2rem] p-6 flex items-center justify-center min-h-[140px]"
-            >
-                <Loader2 size={20} className="text-gold animate-spin" />
-            </motion.div>
-        );
-    }
+  const label = (
+    <FactLabel>Sade Sati</FactLabel>
+  );
 
-    if (error) {
-        return (
-            <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white/5 border border-white/10 rounded-[2rem] p-6"
-            >
-                <div className="flex items-center gap-2 mb-4">
-                    <div className="p-2 rounded-xl bg-emerald-500/10">
-                        <Shield size={18} className="text-emerald-400" />
-                    </div>
-                    <h3 className="text-sm font-semibold text-white/90 tracking-wide">Saturn Period Check</h3>
-                </div>
-                <PersonalCardNotice kind={errorKind ?? 'unavailable'} thing="Sade Sati timing" onRetry={retry} />
-            </motion.div>
-        );
-    }
+  if (loading) return <FactSkeleton />;
 
-    const isActive = sadeSati?.isActive ?? false;
-
+  if (error) {
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white/5 border border-white/10 rounded-[2rem] p-6"
-        >
-            <div className="flex items-center gap-2 mb-4">
-                <div className={`p-2 rounded-xl ${isActive ? 'bg-amber-500/10' : 'bg-emerald-500/10'}`}>
-                    {isActive
-                        ? <AlertTriangle size={18} className="text-amber-400" />
-                        : <Shield size={18} className="text-emerald-400" />
-                    }
-                </div>
-                <h3 className="text-sm font-semibold text-white/90 tracking-wide"><GlossaryTerm k="sade-sati">Sade Sati</GlossaryTerm></h3>
-            </div>
-
-            {isActive ? (
-                <div className="space-y-2">
-                    <p className="text-sm text-amber-400 font-medium capitalize">
-                        {sadeSati?.phase ? `${sadeSati.phase} Phase` : 'Active'}
-                    </p>
-                    {(sadeSati?.startDate || sadeSati?.endDate) && (
-                        <p className="text-xs text-white/40">
-                            {sadeSati.startDate && `From ${sadeSati.startDate}`}
-                            {sadeSati.startDate && sadeSati.endDate && ' — '}
-                            {sadeSati.endDate && `Until ${sadeSati.endDate}`}
-                        </p>
-                    )}
-                    {sadeSati?.remedies?.[0] && (
-                        <div className="mt-3 pt-3 border-t border-white/5">
-                            <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1">Top Remedy</p>
-                            <p className="text-sm text-white/70">{sadeSati.remedies[0]}</p>
-                        </div>
-                    )}
-                </div>
-            ) : (
-                <p className="text-sm text-emerald-400/80">No active Sade Sati period</p>
-            )}
-        </motion.div>
+      <div>
+        {label}
+        <div className="mt-3">
+          <PersonalCardNotice
+            kind={errorKind ?? "unavailable"}
+            thing="Sade Sati timing"
+            onRetry={retry}
+          />
+        </div>
+      </div>
     );
+  }
+
+  const isActive = sadeSati?.isActive ?? false;
+
+  return (
+    <div>
+      {label}
+      <p className="mt-1.5 font-display text-[1.6rem] leading-snug text-white/92">
+        {isActive ? (
+          <>
+            <span
+              className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-amber-300/80 align-middle"
+              aria-hidden="true"
+            />
+            <span className="capitalize">
+              {sadeSati?.phase ? `${sadeSati.phase} phase` : "Active"}
+            </span>
+          </>
+        ) : (
+          "Not active"
+        )}
+      </p>
+      {isActive && (sadeSati?.startDate || sadeSati?.endDate) && (
+        <p className="mt-1 text-[0.98rem] text-white/50">
+          {sadeSati?.startDate && `From ${sadeSati.startDate}`}
+          {sadeSati?.startDate && sadeSati?.endDate && " until "}
+          {!sadeSati?.startDate && sadeSati?.endDate && "Until "}
+          {sadeSati?.endDate}
+        </p>
+      )}
+      <p className="mt-1 text-[0.98rem] leading-relaxed text-white/50">
+        {isActive
+          ? "A season for steadier choices and patience — not a punishment."
+          : "Saturn is not crossing your Moon sign right now."}
+      </p>
+      {isActive && sadeSati?.remedies?.[0] && (
+        <p className="mt-3 text-[0.98rem] leading-relaxed text-white/65">
+          <span className="text-white/40">A helpful practice: </span>
+          {sadeSati.remedies[0]}
+        </p>
+      )}
+    </div>
+  );
 };
 
 export default SadeSatiCard;

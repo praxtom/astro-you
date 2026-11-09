@@ -23,13 +23,13 @@ export function PersonalCardNotice({ kind, thing, onRetry }: PersonalCardNoticeP
   if (kind === "signin") {
     return (
       <div className="flex flex-col items-start gap-3">
-        <p className="text-sm text-white/65 leading-relaxed">
+        <p className="text-[0.98rem] text-white/65 leading-relaxed">
           Sign in to see your {thing}. It's free, and your chart stays saved.
         </p>
         <button
           type="button"
           onClick={requestSignIn}
-          className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.2em] text-gold hover:text-white transition-colors"
+          className="inline-flex items-center gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.18em] text-gold hover:text-white transition-colors"
         >
           <Lock size={12} />
           Sign in
@@ -40,14 +40,14 @@ export function PersonalCardNotice({ kind, thing, onRetry }: PersonalCardNoticeP
 
   return (
     <div className="flex flex-col items-start gap-3">
-      <p className="text-sm text-white/55 leading-relaxed">
+      <p className="text-[0.98rem] text-white/60 leading-relaxed">
         Your {thing} {thing.endsWith("s") ? "are" : "is"} temporarily unavailable. Please try again in a little while.
       </p>
       {onRetry && (
         <button
           type="button"
           onClick={onRetry}
-          className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.2em] text-white/50 hover:text-gold transition-colors"
+          className="inline-flex items-center gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.18em] text-white/55 hover:text-gold transition-colors"
         >
           <RefreshCw size={12} />
           Try again

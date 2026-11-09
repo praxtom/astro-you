@@ -1,79 +1,71 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { Star, Loader2 } from 'lucide-react';
-import type { UseNakshatraResult } from '../../hooks/useNakshatra';
-import { GlossaryTerm } from "../ui/GlossaryTerm";
-import { PersonalCardNotice } from './PersonalCardNotice';
+import React from "react";
+import type { UseNakshatraResult } from "../../hooks/useNakshatra";
+import { PersonalCardNotice } from "./PersonalCardNotice";
+import { FactLabel, FactSkeleton } from "./primitives";
 
 interface NakshatraCardProps {
-    /** Shared result of the Dashboard's single useNakshatra call. */
-    state: UseNakshatraResult;
+  /** Shared result of the Dashboard's single useNakshatra call. */
+  state: UseNakshatraResult;
+  /** Birth star derived from the natal chart, used when the reading has no name. */
+  fallbackName?: string | null;
 }
 
-export const NakshatraCard: React.FC<NakshatraCardProps> = ({ state }) => {
-    const { nakshatra, loading, error, errorKind, retry } = state;
+const usable = (v?: string | null) =>
+  Boolean(v && v.trim() && v.trim().toLowerCase() !== "unknown");
 
-    if (loading) {
-        return (
-            <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white/5 border border-white/10 rounded-[2rem] p-6 flex items-center justify-center min-h-[140px]"
-            >
-                <Loader2 size={20} className="text-gold animate-spin" />
-            </motion.div>
-        );
-    }
+/** Birth nakshatra as a ledger cell: name, deity and ruler, and today's note. */
+export const NakshatraCard: React.FC<NakshatraCardProps> = ({
+  state,
+  fallbackName,
+}) => {
+  const { nakshatra, loading, error, errorKind, retry } = state;
+  const name = usable(nakshatra?.name)
+    ? nakshatra?.name
+    : usable(fallbackName)
+      ? fallbackName
+      : null;
 
-    if (error) {
-        return (
-            <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white/5 border border-white/10 rounded-[2rem] p-6"
-            >
-                <div className="flex items-center gap-2 mb-4">
-                    <div className="p-2 rounded-xl bg-gold/10">
-                        <Star size={18} className="text-gold" />
-                    </div>
-                    <h3 className="text-sm font-semibold text-gold tracking-wide">Birth <GlossaryTerm k="nakshatra">Nakshatra</GlossaryTerm></h3>
-                </div>
+  const label = (
+    <FactLabel>Birth nakshatra</FactLabel>
+  );
 
-                <PersonalCardNotice kind={errorKind ?? 'unavailable'} thing="birth star reading" onRetry={retry} />
-            </motion.div>
-        );
-    }
+  if (loading && !name) return <FactSkeleton />;
 
+  if (error && !name) {
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white/5 border border-white/10 rounded-[2rem] p-6"
-        >
-            <div className="flex items-center gap-2 mb-4">
-                <div className="p-2 rounded-xl bg-gold/10">
-                    <Star size={18} className="text-gold" />
-                </div>
-                <h3 className="text-sm font-semibold text-gold tracking-wide">Birth <GlossaryTerm k="nakshatra">Nakshatra</GlossaryTerm></h3>
-            </div>
-
-            <p className="text-lg text-white/90 font-display">{nakshatra?.name}</p>
-
-            {nakshatra?.deity && (
-                <p className="text-xs text-white/40 mt-1">
-                    Deity: <span className="text-white/60">{nakshatra.deity}</span>
-                    {nakshatra.ruler && <> &middot; Ruler: <span className="text-white/60">{nakshatra.ruler}</span></>}
-                </p>
-            )}
-
-            {nakshatra?.prediction && (
-                <div className="mt-3 pt-3 border-t border-white/5">
-                    <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1">Today</p>
-                    <p className="text-sm text-white/70 leading-relaxed line-clamp-3">{nakshatra.prediction}</p>
-                </div>
-            )}
-        </motion.div>
+      <div>
+        {label}
+        <div className="mt-3">
+          <PersonalCardNotice
+            kind={errorKind ?? "unavailable"}
+            thing="birth star reading"
+            onRetry={retry}
+          />
+        </div>
+      </div>
     );
+  }
+
+  return (
+    <div>
+      {label}
+      <p className="mt-1.5 font-display text-[1.6rem] leading-snug text-white/92">
+        {name ?? "—"}
+      </p>
+      {(nakshatra?.deity || nakshatra?.ruler) && (
+        <p className="mt-1 text-[0.98rem] text-white/50">
+          {nakshatra?.deity && <>Deity {nakshatra.deity}</>}
+          {nakshatra?.deity && nakshatra?.ruler && ", "}
+          {nakshatra?.ruler && <>ruled by {nakshatra.ruler}</>}
+        </p>
+      )}
+      {nakshatra?.prediction && (
+        <p className="mt-3 text-[0.98rem] leading-relaxed text-white/65">
+          {nakshatra.prediction}
+        </p>
+      )}
+    </div>
+  );
 };
 
 export default NakshatraCard;

@@ -25,7 +25,7 @@ export const SoulInsightCard: React.FC<SoulInsightCardProps> = ({
             <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 rounded-2xl border border-emerald-500/20 p-4"
+                className=""
             >
                 <div className="flex items-start gap-4">
                     <div className="p-2 rounded-xl bg-emerald-500/20">

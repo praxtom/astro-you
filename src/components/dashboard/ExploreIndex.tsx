@@ -29,13 +29,13 @@ export const ExploreIndex: React.FC = () => {
   return (
     <nav
       aria-label="Explore AstroYou"
-      className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 border-t border-l border-white/8 animate-reveal-progressive"
+      className="grid grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-6"
     >
       {SPACES.map((space, i) => (
         <button
           key={space.id}
           onClick={() => navigate(getSpacePrimaryPath(space))}
-          className="group relative text-left px-5 py-4 border-b border-r border-white/8 hover:bg-white/3.5 transition-colors duration-300"
+          className="group relative text-left transition-colors duration-300"
         >
           <div className="flex items-start justify-between gap-3">
             <span className="font-display italic text-white/40 text-sm group-hover:text-gold/70 transition-colors">
@@ -48,12 +48,12 @@ export const ExploreIndex: React.FC = () => {
           </div>
           <div className="mt-2 flex items-center gap-2 text-white/80 group-hover:text-white transition-colors">
             <span className="text-gold/70">{SPACE_ICONS[space.id]}</span>
-            <span className="text-sm font-medium">{space.label}</span>
+            <span className="text-base font-medium">{space.label}</span>
           </div>
-          <p className="mt-1 text-[0.8125rem] leading-snug text-white/55 italic font-display">
+          <p className="mt-1 text-[1.02rem] leading-snug text-white/60 italic font-display">
             {space.question}
           </p>
-          <p className="mt-2 text-[0.6875rem] uppercase tracking-[0.14em] text-white/50 truncate">
+          <p className="mt-2 text-[0.75rem] uppercase tracking-[0.12em] text-white/50 truncate">
             {space.pages.map((p) => p.label).join(" · ")}
           </p>
         </button>
@@ -62,7 +62,7 @@ export const ExploreIndex: React.FC = () => {
       {/* sixth cell: the wandering door */}
       <button
         onClick={() => navigate("/astromap")}
-        className="group relative text-left px-5 py-4 border-b border-r border-white/8 hover:bg-white/3.5 transition-colors duration-300"
+        className="group relative text-left transition-colors duration-300"
       >
         <div className="flex items-start justify-between gap-3">
           <span className="font-display italic text-white/40 text-sm group-hover:text-gold/70 transition-colors">
@@ -77,12 +77,12 @@ export const ExploreIndex: React.FC = () => {
           <span className="text-gold/70">
             <Compass size={15} />
           </span>
-          <span className="text-sm font-medium">Astro Map</span>
+          <span className="text-base font-medium">Astro Map</span>
         </div>
-        <p className="mt-1 text-[0.8125rem] leading-snug text-white/55 italic font-display">
+        <p className="mt-1 text-[1.02rem] leading-snug text-white/60 italic font-display">
           Where in the world favours you?
         </p>
-        <p className="mt-2 text-[0.6875rem] uppercase tracking-[0.14em] text-white/50">
+        <p className="mt-2 text-[0.75rem] uppercase tracking-[0.12em] text-white/50">
           Relocation lines
         </p>
       </button>

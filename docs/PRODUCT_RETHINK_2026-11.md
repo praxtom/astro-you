@@ -10,7 +10,9 @@ The shape is wrong. The app is built like AstroSage with a chat attached: about 
 
 ## Four architectural moves (in order)
 
-### 1. Make the guide the home screen
+### 1. Make the guide the home screen (REVISED 2026-11-07)
+
+**Decision:** keep the dashboard as home and improve it instead. See `docs/mockups/dashboard-v2.html`: personal check-in card, "chart in three lines", chart-based "Today, for you" with "Why this?", the five spaces, secondary items folded. The chat stays light: short bubbles in the user's language (Hinglish where they write it), one or two reply chips, the chart in a side drawer, and honest identity when asked. The original guide-first idea is kept below for reference (`docs/mockups/guide-home.html`).
 
 - One home: the conversation, opening with "Your chart in three lines" and today's sky.
 - Chart, dasha, compatibility, breathing and journal become things the guide shows or does inside the conversation (cards and actions), not pages to navigate to.

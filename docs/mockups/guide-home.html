@@ -1,0 +1,1791 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AstroYou — Guide-first mockup</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #05050c;
+        --bg-2: #0b0b16;
+        --card: rgba(255, 255, 255, 0.035);
+        --card-2: rgba(255, 255, 255, 0.06);
+        --line: rgba(255, 255, 255, 0.08);
+        --line-2: rgba(255, 255, 255, 0.14);
+        --text: rgba(255, 255, 255, 0.92);
+        --muted: rgba(255, 255, 255, 0.58);
+        --faint: rgba(255, 255, 255, 0.38);
+        --gold: #ffcd6a;
+        --gold-soft: rgba(255, 205, 106, 0.12);
+        --gold-line: rgba(255, 205, 106, 0.28);
+        --sage: #9fd3b8;
+        --rose: #f2a9b5;
+        --sky: #9db8ff;
+        --display: "Cormorant Garamond", Georgia, serif;
+        --body: "Plus Jakarta Sans", -apple-system, system-ui, sans-serif;
+        --r: 22px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--body);
+        font-size: 15px;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+      body {
+        background:
+          radial-gradient(
+            1200px 600px at 70% -10%,
+            rgba(255, 205, 106, 0.07),
+            transparent 60%
+          ),
+          radial-gradient(
+            900px 500px at -10% 110%,
+            rgba(157, 184, 255, 0.06),
+            transparent 60%
+          ),
+          var(--bg);
+        min-height: 100vh;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        background: none;
+        border: 0;
+        cursor: pointer;
+      }
+      .mock-banner {
+        position: fixed;
+        top: 10px;
+        right: 12px;
+        z-index: 50;
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--faint);
+        border: 1px solid var(--line);
+        border-radius: 99px;
+        padding: 5px 10px;
+        background: rgba(5, 5, 12, 0.7);
+        backdrop-filter: blur(8px);
+      }
+
+      /* ---------- App shell ---------- */
+      .app {
+        display: grid;
+        grid-template-columns: 1fr;
+        min-height: 100vh;
+      }
+      .rail {
+        display: none;
+      }
+      main {
+        padding: 22px 16px 110px;
+        max-width: 760px;
+        width: 100%;
+        margin: 0 auto;
+      }
+      .tabbar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 20;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
+        background: rgba(8, 8, 16, 0.86);
+        backdrop-filter: blur(16px);
+        border-top: 1px solid var(--line);
+      }
+      .tab {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        padding: 6px 0;
+        border-radius: 14px;
+        color: var(--faint);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      .tab svg {
+        width: 22px;
+        height: 22px;
+      }
+      .tab[aria-selected="true"] {
+        color: var(--gold);
+      }
+      .tab[aria-selected="true"] .dot {
+        opacity: 1;
+      }
+      .dot {
+        width: 4px;
+        height: 4px;
+        border-radius: 99px;
+        background: var(--gold);
+        opacity: 0;
+      }
+
+      @media (min-width: 960px) {
+        .app {
+          grid-template-columns: 232px 1fr;
+        }
+        .tabbar {
+          display: none;
+        }
+        .rail {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          position: sticky;
+          top: 0;
+          height: 100vh;
+          padding: 26px 16px;
+          border-right: 1px solid var(--line);
+          background: rgba(8, 8, 16, 0.5);
+        }
+        .brand {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 0 10px 22px;
+          font-family: var(--display);
+          font-size: 24px;
+        }
+        .brand i {
+          width: 10px;
+          height: 10px;
+          border-radius: 99px;
+          background: var(--gold);
+          box-shadow: 0 0 18px var(--gold);
+        }
+        .rail .tab {
+          flex-direction: row;
+          justify-content: flex-start;
+          gap: 12px;
+          padding: 11px 12px;
+          font-size: 14px;
+        }
+        .rail .tab[aria-selected="true"] {
+          background: var(--gold-soft);
+        }
+        .rail .dot {
+          display: none;
+        }
+        .rail .search {
+          margin-top: 14px;
+        }
+        .rail .foot {
+          margin-top: auto;
+          font-size: 12px;
+          color: var(--faint);
+          padding: 0 12px;
+        }
+        main {
+          padding: 36px 40px 60px;
+          max-width: 1180px;
+        }
+      }
+
+      /* ---------- Common ---------- */
+      .eyebrow {
+        font-size: 11px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--faint);
+        font-weight: 700;
+      }
+      h1,
+      h2,
+      h3 {
+        font-family: var(--display);
+        font-weight: 500;
+        margin: 0;
+        letter-spacing: 0.005em;
+      }
+      h1 {
+        font-size: 38px;
+        line-height: 1.1;
+      }
+      h1 em {
+        color: var(--gold);
+        font-style: italic;
+      }
+      h2 {
+        font-size: 26px;
+      }
+      h3 {
+        font-size: 20px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: var(--r);
+        padding: 18px;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 13px;
+        border-radius: 99px;
+        border: 1px solid var(--line-2);
+        color: var(--muted);
+        font-size: 13px;
+        background: rgba(255, 255, 255, 0.02);
+      }
+      .chip:hover {
+        border-color: var(--gold-line);
+        color: var(--text);
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .faint {
+        color: var(--faint);
+      }
+      .gold {
+        color: var(--gold);
+      }
+      .pill {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 3px 8px;
+        border-radius: 99px;
+      }
+      .stack > * + * {
+        margin-top: 14px;
+      }
+      .search {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        color: var(--faint);
+        font-size: 13px;
+      }
+      .search kbd {
+        margin-left: auto;
+        font-family: var(--body);
+        font-size: 11px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 1px 6px;
+      }
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 18px;
+      }
+      .icon-btn {
+        width: 38px;
+        height: 38px;
+        border-radius: 99px;
+        border: 1px solid var(--line);
+        display: grid;
+        place-items: center;
+        color: var(--muted);
+      }
+      .icon-btn svg {
+        width: 18px;
+        height: 18px;
+      }
+      @media (min-width: 960px) {
+        .topbar .icon-btn.mobile-only {
+          display: none;
+        }
+      }
+
+      .view {
+        display: none;
+        animation: fade 0.35s ease;
+      }
+      .view.active {
+        display: block;
+      }
+      @keyframes fade {
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      /* ---------- Guide ---------- */
+      .guide-grid {
+        display: grid;
+        gap: 18px;
+      }
+      @media (min-width: 1100px) {
+        .guide-grid {
+          grid-template-columns: minmax(0, 1fr) 330px;
+          align-items: start;
+        }
+      }
+
+      .sky {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        padding-bottom: 2px;
+        scrollbar-width: none;
+        margin: 16px 0 4px;
+      }
+      .sky::-webkit-scrollbar {
+        display: none;
+      }
+      .sky .chip {
+        white-space: nowrap;
+        font-size: 12px;
+        padding: 6px 11px;
+      }
+      .sky .chip b {
+        color: var(--text);
+        font-weight: 600;
+      }
+      .sky .warn {
+        border-color: rgba(242, 169, 181, 0.3);
+      }
+      .sky .warn b {
+        color: var(--rose);
+      }
+
+      .continue {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        border-color: var(--gold-line);
+        background: linear-gradient(
+          135deg,
+          rgba(255, 205, 106, 0.09),
+          rgba(255, 205, 106, 0.02)
+        );
+      }
+      .continue .ring {
+        flex: none;
+        width: 42px;
+        height: 42px;
+        border-radius: 99px;
+        border: 1px solid var(--gold-line);
+        display: grid;
+        place-items: center;
+        color: var(--gold);
+      }
+      .continue .ring svg {
+        width: 18px;
+        height: 18px;
+      }
+      .continue .go {
+        margin-left: auto;
+        color: var(--gold);
+        font-size: 13px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      .convo {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        margin-top: 6px;
+      }
+      .msg {
+        max-width: 92%;
+      }
+      .msg.me {
+        align-self: flex-end;
+        background: var(--card-2);
+        border: 1px solid var(--line);
+        border-radius: 18px 18px 4px 18px;
+        padding: 11px 14px;
+        color: var(--text);
+      }
+      .msg.guide {
+        align-self: flex-start;
+      }
+      .msg.guide .who {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--gold);
+        font-weight: 700;
+        margin-bottom: 6px;
+      }
+      .msg.guide .who i {
+        width: 7px;
+        height: 7px;
+        border-radius: 99px;
+        background: var(--gold);
+        box-shadow: 0 0 10px var(--gold);
+      }
+      .msg.guide p {
+        margin: 0 0 10px;
+        color: rgba(255, 255, 255, 0.86);
+      }
+      .msg.guide p .term {
+        border-bottom: 1px dotted var(--gold-line);
+      }
+      .step {
+        border-left: 2px solid var(--gold);
+        padding: 4px 0 4px 12px;
+        margin: 12px 0;
+        color: var(--text);
+      }
+      .step b {
+        display: block;
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--gold);
+        margin-bottom: 2px;
+      }
+      .links {
+        display: grid;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      @media (min-width: 640px) {
+        .links {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+      .link-card {
+        text-align: left;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 12px;
+        background: var(--card);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .link-card:hover {
+        border-color: var(--gold-line);
+        background: var(--card-2);
+      }
+      .link-card .k {
+        font-size: 11px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--faint);
+        font-weight: 700;
+      }
+      .link-card .t {
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .link-card .t span {
+        color: var(--gold);
+      }
+
+      .composer {
+        position: sticky;
+        bottom: 84px;
+        margin-top: 18px;
+        z-index: 5;
+      }
+      @media (min-width: 960px) {
+        .composer {
+          bottom: 20px;
+        }
+      }
+      .composer .box {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 8px 8px 16px;
+        border: 1px solid var(--line-2);
+        border-radius: 18px;
+        background: rgba(12, 12, 22, 0.92);
+        backdrop-filter: blur(14px);
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+      }
+      .composer input {
+        flex: 1;
+        background: none;
+        border: 0;
+        outline: none;
+        color: var(--text);
+        font: inherit;
+        font-size: 15px;
+        min-width: 0;
+      }
+      .composer input::placeholder {
+        color: var(--faint);
+      }
+      .send {
+        width: 40px;
+        height: 40px;
+        border-radius: 13px;
+        background: var(--gold);
+        color: #1a1405;
+        display: grid;
+        place-items: center;
+      }
+      .send svg {
+        width: 18px;
+        height: 18px;
+      }
+      .breathe {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 11px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        color: var(--sage);
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .breathe svg {
+        width: 16px;
+        height: 16px;
+      }
+      .suggest {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+      }
+
+      .side .three li {
+        list-style: none;
+        padding: 10px 0;
+        border-top: 1px solid var(--line);
+        display: grid;
+        grid-template-columns: 74px 1fr;
+        gap: 10px;
+      }
+      .side .three li:first-child {
+        border-top: 0;
+      }
+      .side .three {
+        margin: 8px 0 0;
+        padding: 0;
+      }
+      .side .three .k {
+        font-size: 11px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--faint);
+        font-weight: 700;
+        padding-top: 2px;
+      }
+      .side .three .v b {
+        font-family: var(--display);
+        font-size: 19px;
+        font-weight: 600;
+        display: block;
+        line-height: 1.2;
+      }
+      .side .three .v span {
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      /* ---------- My Story ---------- */
+      .threads {
+        display: grid;
+        gap: 12px;
+        margin-top: 16px;
+      }
+      @media (min-width: 760px) {
+        .threads {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      .thread {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .thread .top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .thread .meta {
+        display: grid;
+        gap: 6px;
+        font-size: 13px;
+      }
+      .thread .meta div {
+        display: grid;
+        grid-template-columns: 92px 1fr;
+        gap: 8px;
+      }
+      .thread .meta span:first-child {
+        color: var(--faint);
+      }
+      .due {
+        background: rgba(255, 205, 106, 0.12);
+        color: var(--gold);
+      }
+      .steady {
+        background: rgba(159, 211, 184, 0.12);
+        color: var(--sage);
+      }
+      .quiet {
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--muted);
+      }
+      .people {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 12px;
+      }
+      .person {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 14px 8px 8px;
+        border: 1px solid var(--line);
+        border-radius: 99px;
+        font-size: 13px;
+      }
+      .avatar {
+        width: 30px;
+        height: 30px;
+        border-radius: 99px;
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+        font-size: 12px;
+        color: #120f05;
+      }
+      .remember li {
+        padding: 10px 0;
+        border-top: 1px solid var(--line);
+        list-style: none;
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        font-size: 14px;
+      }
+      .remember {
+        margin: 6px 0 0;
+        padding: 0;
+      }
+      .remember li:first-child {
+        border-top: 0;
+      }
+      .remember .x {
+        margin-left: auto;
+        color: var(--faint);
+        font-size: 12px;
+        white-space: nowrap;
+      }
+      .switch {
+        width: 38px;
+        height: 22px;
+        border-radius: 99px;
+        background: var(--gold);
+        position: relative;
+        flex: none;
+      }
+      .switch::after {
+        content: "";
+        position: absolute;
+        top: 3px;
+        right: 3px;
+        width: 16px;
+        height: 16px;
+        border-radius: 99px;
+        background: #1a1405;
+      }
+      .switch.off {
+        background: rgba(255, 255, 255, 0.15);
+      }
+      .switch.off::after {
+        right: auto;
+        left: 3px;
+        background: rgba(255, 255, 255, 0.7);
+      }
+
+      /* ---------- Chart ---------- */
+      .chart-grid {
+        display: grid;
+        gap: 18px;
+        margin-top: 16px;
+      }
+      @media (min-width: 900px) {
+        .chart-grid {
+          grid-template-columns: 360px 1fr;
+          align-items: start;
+        }
+      }
+      .kundali svg {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+      .seg {
+        display: inline-flex;
+        border: 1px solid var(--line);
+        border-radius: 99px;
+        padding: 3px;
+        gap: 2px;
+      }
+      .seg button {
+        padding: 6px 12px;
+        border-radius: 99px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      .seg button.on {
+        background: var(--gold-soft);
+        color: var(--gold);
+      }
+      .dasha {
+        margin-top: 10px;
+      }
+      .bar {
+        display: flex;
+        height: 34px;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        margin-top: 10px;
+      }
+      .bar div {
+        display: grid;
+        place-items: center;
+        font-size: 11px;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.75);
+        border-right: 1px solid rgba(0, 0, 0, 0.35);
+      }
+      .bar .now {
+        background: linear-gradient(
+          180deg,
+          rgba(255, 205, 106, 0.35),
+          rgba(255, 205, 106, 0.18)
+        );
+        color: var(--gold);
+        position: relative;
+      }
+      .ticks {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+        color: var(--faint);
+        margin-top: 6px;
+      }
+      .tools {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        margin-top: 12px;
+      }
+      @media (min-width: 640px) {
+        .tools {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+      .tool {
+        text-align: left;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 14px;
+        background: var(--card);
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-height: 104px;
+      }
+      .tool:hover {
+        border-color: var(--gold-line);
+      }
+      .tool svg {
+        width: 20px;
+        height: 20px;
+        color: var(--gold);
+      }
+      .tool b {
+        font-size: 14px;
+      }
+      .tool span {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .more {
+        margin-top: 14px;
+      }
+      .more .chip {
+        font-size: 12px;
+      }
+
+      /* ---------- You ---------- */
+      .settings {
+        display: grid;
+        gap: 12px;
+        margin-top: 16px;
+      }
+      @media (min-width: 760px) {
+        .settings {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      .set-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 0;
+        border-top: 1px solid var(--line);
+        font-size: 14px;
+      }
+      .set-row:first-of-type {
+        border-top: 0;
+      }
+      .set-row .r {
+        margin-left: auto;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .plan {
+        border-color: var(--gold-line);
+        background: linear-gradient(
+          135deg,
+          rgba(255, 205, 106, 0.08),
+          transparent
+        );
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 11px 16px;
+        border-radius: 14px;
+        font-weight: 600;
+        font-size: 14px;
+      }
+      .btn.gold {
+        background: var(--gold);
+        color: #1a1405;
+      }
+      .btn.ghost {
+        border: 1px solid var(--line-2);
+        color: var(--text);
+      }
+
+      /* ---------- Breathe overlay ---------- */
+      .overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 60;
+        display: none;
+        place-items: center;
+        background: rgba(3, 3, 8, 0.88);
+        backdrop-filter: blur(10px);
+      }
+      .overlay.on {
+        display: grid;
+      }
+      .orb {
+        width: 180px;
+        height: 180px;
+        border-radius: 99px;
+        background: radial-gradient(
+          circle,
+          rgba(159, 211, 184, 0.55),
+          rgba(159, 211, 184, 0.05) 70%
+        );
+        animation: breathe 10s ease-in-out infinite;
+        margin: 0 auto 26px;
+      }
+      @keyframes breathe {
+        0%,
+        100% {
+          transform: scale(0.72);
+        }
+        40% {
+          transform: scale(1);
+        }
+        60% {
+          transform: scale(1);
+        }
+      }
+      .overlay p {
+        text-align: center;
+        color: var(--muted);
+      }
+
+      .toast {
+        position: fixed;
+        left: 50%;
+        bottom: 96px;
+        transform: translateX(-50%);
+        background: #14141f;
+        border: 1px solid var(--line-2);
+        padding: 10px 14px;
+        border-radius: 12px;
+        font-size: 13px;
+        opacity: 0;
+        transition: opacity 0.25s;
+        z-index: 70;
+        pointer-events: none;
+      }
+      .toast.on {
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="mock-banner">Mockup · not the live app</div>
+
+    <div class="app">
+      <!-- Desktop side rail -->
+      <nav class="rail" aria-label="Main">
+        <div class="brand"><i></i>AstroYou</div>
+        <button class="tab" data-tab="guide" aria-selected="true">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          >
+            <path
+              d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"
+            />
+            <path
+              d="M19 17l.7 1.8L21.5 19.5l-1.8.7L19 22l-.7-1.8-1.8-.7 1.8-.7z"
+            /></svg
+          >Guide
+        </button>
+        <button class="tab" data-tab="story" aria-selected="false">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          >
+            <path d="M5 4h10l4 4v12H5z" />
+            <path d="M9 11h6M9 15h6" /></svg
+          >My Story
+        </button>
+        <button class="tab" data-tab="chart" aria-selected="false">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          >
+            <rect x="4" y="4" width="16" height="16" rx="1" />
+            <path d="M4 4l16 16M20 4L4 20M12 4l8 8-8 8-8-8z" /></svg
+          >Chart
+        </button>
+        <button class="tab" data-tab="you" aria-selected="false">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          >
+            <circle cx="12" cy="8.5" r="3.5" />
+            <path d="M5 20c1.4-3.6 4-5 7-5s5.6 1.4 7 5" /></svg
+          >You
+        </button>
+        <div class="search">
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+          >
+            <circle cx="11" cy="11" r="6" />
+            <path d="M20 20l-4-4" /></svg
+          >Search anything<kbd>⌘K</kbd>
+        </div>
+        <div class="foot">
+          The sky describes the weather.<br />You still choose the path.
+        </div>
+      </nav>
+
+      <main>
+        <!-- ================= GUIDE ================= -->
+        <section class="view active" id="view-guide">
+          <div class="topbar">
+            <div class="eyebrow">Saturday · 7 November</div>
+            <div class="row">
+              <button class="icon-btn mobile-only" aria-label="Search">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                >
+                  <circle cx="11" cy="11" r="6" />
+                  <path d="M20 20l-4-4" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="guide-grid">
+            <div>
+              <h1>Good evening, <em>Meera.</em></h1>
+              <p class="muted" style="margin: 8px 0 0; max-width: 520px">
+                The Moon is in Hasta tonight — a steady, practical sky. A good
+                evening for one honest conversation rather than many anxious
+                thoughts.
+              </p>
+
+              <div class="sky" aria-label="Today's sky">
+                <span class="chip">Tithi <b>Dwadashi</b></span>
+                <span class="chip">Nakshatra <b>Hasta</b></span>
+                <span class="chip warn">Rahu Kaal <b>10:27–11:50</b></span>
+                <span class="chip">Sunset <b>17:20</b></span>
+                <span class="chip">Diwali <b>tomorrow</b></span>
+              </div>
+
+              <div class="stack" style="margin-top: 16px">
+                <button
+                  class="card continue"
+                  data-goto="story"
+                  style="width: 100%; text-align: left"
+                >
+                  <span class="ring"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.7"
+                    >
+                      <path
+                        d="M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.6-7 10-7 10z"
+                      /></svg
+                  ></span>
+                  <span>
+                    <span class="eyebrow" style="color: var(--gold)"
+                      >Check-in due today</span
+                    ><br />
+                    <span style="font-family: var(--display); font-size: 20px"
+                      >Things with Rahul</span
+                    ><br />
+                    <span class="muted" style="font-size: 13px"
+                      >Three days ago you planned to tell him you've felt the
+                      distance. How did it go?</span
+                    >
+                  </span>
+                  <span class="go">Continue →</span>
+                </button>
+
+                <div class="convo">
+                  <div class="msg me">
+                    He's been distant again and I keep thinking he'll leave.
+                    What does my chart actually say?
+                  </div>
+
+                  <div class="msg guide">
+                    <div class="who"><i></i>Your guide</div>
+                    <p>
+                      That fear is heavy, Meera, and it makes sense you want an
+                      answer. Let's look at what's actually there.
+                    </p>
+                    <p>
+                      You're in your
+                      <span class="term">Ketu Mahadasha</span> with a
+                      <span class="term">Jupiter sub-period</span> until
+                      mid-2027. Ketu years often make closeness feel uncertain —
+                      the mind reads distance as loss more quickly than usual.
+                      Your Saturn in the 7th house speaks to commitment that
+                      deepens slowly, through patience rather than reassurance.
+                    </p>
+                    <p>
+                      The chart can describe the season. It can't tell you what
+                      Rahul is feeling — only he can.
+                    </p>
+                    <div class="step">
+                      <b>One small step</b>Tonight, try: "I've felt some
+                      distance lately and I miss us. Is something on your mind?"
+                      Then listen more than you explain.
+                    </div>
+                    <div class="links">
+                      <button class="link-card" data-goto="chart">
+                        <span class="k">Bonds</span
+                        ><span class="t"
+                          >Run a match with Rahul <span>→</span></span
+                        >
+                      </button>
+                      <button class="link-card" data-breathe>
+                        <span class="k">Settle first</span
+                        ><span class="t"
+                          >Breathe with me · 2 min <span>→</span></span
+                        >
+                      </button>
+                      <button
+                        class="link-card"
+                        data-toast="I'll check in with you on Tuesday."
+                      >
+                        <span class="k">Later</span
+                        ><span class="t"
+                          >Check in with me in 3 days <span>→</span></span
+                        >
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="composer">
+                  <div class="box">
+                    <input
+                      placeholder="What's on your heart today?"
+                      aria-label="Message your guide"
+                    />
+                    <button class="breathe" data-breathe>
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                      >
+                        <path
+                          d="M3 8h11a3 3 0 1 0-3-3M3 12h15a3 3 0 1 1-3 3M3 16h8"
+                        /></svg
+                      >Breathe
+                    </button>
+                    <button class="send" aria-label="Send">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <path d="M5 12h14M13 6l6 6-6 6" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div class="suggest">
+                    <button class="chip">What does this week ask of me?</button>
+                    <button class="chip">
+                      Something about work is weighing on me
+                    </button>
+                    <button class="chip">
+                      Explain my current dasha simply
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <aside class="side stack">
+              <div class="card">
+                <div class="eyebrow">Your chart in three lines</div>
+                <ul class="three">
+                  <li>
+                    <span class="k">Moon</span
+                    ><span class="v"
+                      ><b>Pisces · Uttara Bhadrapada</b
+                      ><span
+                        >Deep feeling, slow to trust, loyal once you do.</span
+                      ></span
+                    >
+                  </li>
+                  <li>
+                    <span class="k">Rising</span
+                    ><span class="v"
+                      ><b>Leo</b
+                      ><span
+                        >Warm and visible; you want to be truly seen.</span
+                      ></span
+                    >
+                  </li>
+                  <li>
+                    <span class="k">Season</span
+                    ><span class="v"
+                      ><b>Ketu · Jupiter</b
+                      ><span
+                        >Letting go of what's outgrown, guided toward meaning.
+                        Until Jun 2027.</span
+                      ></span
+                    >
+                  </li>
+                </ul>
+                <button class="chip" data-goto="chart" style="margin-top: 10px">
+                  Open full chart →
+                </button>
+              </div>
+              <div class="card">
+                <div class="eyebrow">This week</div>
+                <p class="muted" style="margin: 8px 0 0; font-size: 14px">
+                  Venus moves into your 4th from the Moon on Tuesday — home and
+                  family feel softer. A kind week for repairing, not deciding.
+                </p>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <!-- ================= MY STORY ================= -->
+        <section class="view" id="view-story">
+          <div class="topbar"><div class="eyebrow">My Story</div></div>
+          <h1>What's <em>unfolding</em> for you</h1>
+          <p class="muted" style="margin: 8px 0 0; max-width: 560px">
+            Each thread holds what's happening, what the chart says, what you
+            chose to try, and when we'll talk again.
+          </p>
+
+          <div class="threads">
+            <div class="card thread">
+              <div class="top">
+                <h3>Things with Rahul</h3>
+                <span class="pill due">Check-in today</span>
+              </div>
+              <div class="meta">
+                <div>
+                  <span>Happening</span
+                  ><span
+                    >He's felt distant for two weeks; you're anxious he'll
+                    leave.</span
+                  >
+                </div>
+                <div>
+                  <span>The sky</span
+                  ><span
+                    >Ketu–Jupiter season; Saturn in your 7th — slow, real
+                    commitment.</span
+                  >
+                </div>
+                <div>
+                  <span>You chose</span
+                  ><span>Name the distance gently, then listen.</span>
+                </div>
+              </div>
+              <div class="row">
+                <button class="chip" data-goto="guide">
+                  Continue in Guide →</button
+                ><button class="chip" data-goto="chart">Match chart</button>
+              </div>
+            </div>
+            <div class="card thread">
+              <div class="top">
+                <h3>The job decision</h3>
+                <span class="pill steady">Steady</span>
+              </div>
+              <div class="meta">
+                <div>
+                  <span>Happening</span
+                  ><span>An offer in Pune; unsure about leaving family.</span>
+                </div>
+                <div>
+                  <span>The sky</span
+                  ><span>Jupiter sub-period favours learning and mentors.</span>
+                </div>
+                <div>
+                  <span>You chose</span
+                  ><span
+                    >Talk to Ma before deciding; list three
+                    non-negotiables.</span
+                  >
+                </div>
+              </div>
+              <div class="row">
+                <button class="chip" data-goto="guide">
+                  Continue in Guide →
+                </button>
+              </div>
+            </div>
+            <div class="card thread">
+              <div class="top">
+                <h3>Sleeping better</h3>
+                <span class="pill quiet">Quiet · 9 days</span>
+              </div>
+              <div class="meta">
+                <div>
+                  <span>Practice</span
+                  ><span
+                    >Two minutes of breath before bed — 4 of the last 7
+                    nights.</span
+                  >
+                </div>
+              </div>
+              <div class="row">
+                <button class="chip" data-breathe>Breathe now</button>
+              </div>
+            </div>
+            <button
+              class="card thread"
+              style="
+                border-style: dashed;
+                align-items: center;
+                justify-content: center;
+                color: var(--muted);
+                min-height: 150px;
+              "
+            >
+              + Start a new thread
+            </button>
+          </div>
+
+          <div class="settings" style="margin-top: 22px">
+            <div class="card">
+              <div class="eyebrow">People in your life</div>
+              <div class="people">
+                <span class="person"
+                  ><span class="avatar" style="background: var(--rose)">R</span
+                  >Rahul · partner</span
+                >
+                <span class="person"
+                  ><span class="avatar" style="background: var(--gold)">M</span
+                  >Ma · mother</span
+                >
+                <span class="person"
+                  ><span class="avatar" style="background: var(--sky)">A</span
+                  >Asha · friend</span
+                >
+                <span class="person" style="color: var(--faint)">+ Add</span>
+              </div>
+            </div>
+            <div class="card">
+              <div class="row" style="justify-content: space-between">
+                <div class="eyebrow">What I remember</div>
+                <div
+                  class="row"
+                  style="gap: 8px; font-size: 12px"
+                  class="muted"
+                >
+                  <span class="faint">Memory on</span
+                  ><span class="switch"></span>
+                </div>
+              </div>
+              <ul class="remember">
+                <li>
+                  You feel unseen when plans change last-minute.<span class="x"
+                    >Remove</span
+                  >
+                </li>
+                <li>
+                  Ma's opinion matters a lot in big decisions.<span class="x"
+                    >Remove</span
+                  >
+                </li>
+                <li>
+                  Breathing helps you most before sleep.<span class="x"
+                    >Remove</span
+                  >
+                </li>
+              </ul>
+              <button class="chip" style="margin-top: 6px">
+                See everything →
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= CHART ================= -->
+        <section class="view" id="view-chart">
+          <div class="topbar">
+            <div class="eyebrow">Chart</div>
+            <div class="seg">
+              <button class="on">Diamond</button><button>Wheel</button>
+            </div>
+          </div>
+          <h1>Your <em>sky</em> at birth</h1>
+          <p class="muted" style="margin: 8px 0 0">
+            14 Aug 1995 · 06:30 · Lucknow · Lahiri
+          </p>
+
+          <div class="chart-grid">
+            <div class="card kundali">
+              <svg viewBox="0 0 300 300" aria-label="North Indian birth chart">
+                <rect
+                  x="2"
+                  y="2"
+                  width="296"
+                  height="296"
+                  fill="none"
+                  stroke="rgba(255,205,106,.55)"
+                />
+                <path
+                  d="M2 2L298 298M298 2L2 298M150 2L298 150L150 298L2 150Z"
+                  fill="none"
+                  stroke="rgba(255,205,106,.4)"
+                />
+                <g
+                  font-family="Plus Jakarta Sans"
+                  font-size="11"
+                  text-anchor="middle"
+                  fill="rgba(255,255,255,.4)"
+                >
+                  <text x="150" y="128">5</text>
+                  <text x="75" y="58">6</text>
+                  <text x="54" y="80">7</text>
+                  <text x="128" y="150">8</text>
+                  <text x="54" y="222">9</text>
+                  <text x="75" y="244">10</text>
+                  <text x="150" y="176">11</text>
+                  <text x="225" y="244">12</text>
+                  <text x="246" y="222">1</text>
+                  <text x="172" y="150">2</text>
+                  <text x="246" y="80">3</text>
+                  <text x="225" y="58">4</text>
+                </g>
+                <g
+                  font-family="Plus Jakarta Sans"
+                  font-size="13"
+                  font-weight="600"
+                  text-anchor="middle"
+                  fill="#fff"
+                >
+                  <text x="150" y="80" fill="#ffcd6a">Lagna</text>
+                  <text x="150" y="96">Me 13°</text>
+                  <text x="75" y="34">Ma 20°</text>
+                  <text x="30" y="96">Ra 6°</text>
+                  <text x="75" y="160">Ju 11°</text>
+                  <text x="150" y="236">Sa 29° R</text>
+                  <text x="225" y="276">Mo 9°</text>
+                  <text x="274" y="206">Ke 6°</text>
+                  <text x="225" y="30">Su 27°</text>
+                  <text x="225" y="44">Ve 25°</text>
+                </g>
+              </svg>
+              <p class="faint" style="font-size: 12px; margin: 10px 0 0">
+                Tap any planet to read it, or ask about it in Guide.
+              </p>
+            </div>
+
+            <div class="stack">
+              <div class="card dasha">
+                <div class="row" style="justify-content: space-between">
+                  <div class="eyebrow">Your seasons (Vimshottari)</div>
+                  <span class="faint" style="font-size: 12px"
+                    >Now: Ketu · Jupiter</span
+                  >
+                </div>
+                <div class="bar">
+                  <div style="flex: 11; background: rgba(157, 184, 255, 0.12)">
+                    Saturn
+                  </div>
+                  <div style="flex: 17; background: rgba(159, 211, 184, 0.12)">
+                    Mercury
+                  </div>
+                  <div class="now" style="flex: 7">Ketu</div>
+                  <div style="flex: 20; background: rgba(242, 169, 181, 0.1)">
+                    Venus
+                  </div>
+                </div>
+                <div class="ticks">
+                  <span>1995</span><span>2005</span><span>2022</span
+                  ><span>2029</span><span>2049</span>
+                </div>
+              </div>
+
+              <div>
+                <div class="eyebrow">Explore</div>
+                <div class="tools">
+                  <button class="tool">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                    >
+                      <circle cx="12" cy="12" r="4" />
+                      <path
+                        d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"
+                      /></svg
+                    ><b>Forecast</b><span>Today, this week, this year</span>
+                  </button>
+                  <button class="tool">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                    >
+                      <rect x="4" y="5" width="16" height="15" rx="2" />
+                      <path d="M4 10h16M9 3v4M15 3v4" /></svg
+                    ><b>Panchang</b><span>Tithi, muhurat, Rahu Kaal</span>
+                  </button>
+                  <button class="tool">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                    >
+                      <path
+                        d="M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.6-7 10-7 10z"
+                      /></svg
+                    ><b>Bonds</b><span>Match with someone</span>
+                  </button>
+                  <button class="tool">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                    >
+                      <path
+                        d="M12 3c-4 4-4 8 0 12 4-4 4-8 0-12zM5 13c1 4 4 7 7 8 3-1 6-4 7-8"
+                      /></svg
+                    ><b>Remedies</b
+                    ><span>Gentle practices for hard seasons</span>
+                  </button>
+                  <button class="tool">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                    >
+                      <path d="M7 3h7l5 5v13H7z" />
+                      <path d="M14 3v5h5" /></svg
+                    ><b>Reports</b><span>PDFs · prices shown first</span>
+                  </button>
+                  <button class="tool">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                    >
+                      <circle cx="12" cy="12" r="8" />
+                      <path d="M12 4a8 8 0 0 1 0 16" /></svg
+                    ><b>Transits</b><span>Where today's sky touches yours</span>
+                  </button>
+                </div>
+                <div class="more">
+                  <span class="eyebrow" style="margin-right: 8px"
+                    >More tools</span
+                  >
+                  <button class="chip">Navamsa & divisional charts</button>
+                  <button class="chip">Numerology</button>
+                  <button class="chip">Tarot</button>
+                  <button class="chip">Astro map</button>
+                  <button class="chip">Human Design</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= YOU ================= -->
+        <section class="view" id="view-you">
+          <div class="topbar"><div class="eyebrow">You</div></div>
+          <h1>Meera <em>Test</em></h1>
+          <p class="muted" style="margin: 8px 0 0">
+            Born 14 Aug 1995, 06:30, Lucknow · living in Bengaluru
+          </p>
+
+          <div class="settings">
+            <div class="card plan">
+              <div class="eyebrow" style="color: var(--gold)">
+                Companion plan
+              </div>
+              <h2 style="margin-top: 6px">Talk whenever you need</h2>
+              <p class="muted" style="margin: 6px 0 14px; font-size: 14px">
+                One simple monthly plan — no per-message meter. Deep reports use
+                credits.
+              </p>
+              <div class="row">
+                <button class="btn gold">See plans</button
+                ><span class="faint" style="font-size: 13px"
+                  >42 report credits</span
+                >
+              </div>
+            </div>
+            <div class="card">
+              <div class="eyebrow">Birth details</div>
+              <div class="set-row">
+                Date & time<span class="r">14 Aug 1995 · 06:30</span>
+              </div>
+              <div class="set-row">
+                Place<span class="r">Lucknow, Uttar Pradesh</span>
+              </div>
+              <div class="set-row">Ayanamsa<span class="r">Lahiri</span></div>
+            </div>
+            <div class="card">
+              <div class="eyebrow">Privacy & memory</div>
+              <div class="set-row">
+                Remember our conversations<span class="r"
+                  ><span class="switch"></span
+                ></span>
+              </div>
+              <div class="set-row">
+                What I remember<span class="r">View & edit →</span>
+              </div>
+              <div class="set-row">
+                Export or delete my data<span class="r">→</span>
+              </div>
+            </div>
+            <div class="card">
+              <div class="eyebrow">Check-ins & language</div>
+              <div class="set-row">
+                Check-ins on WhatsApp<span class="r"
+                  ><span class="switch off"></span
+                ></span>
+              </div>
+              <div class="set-row">
+                Daily sky email<span class="r"
+                  ><span class="switch"></span
+                ></span>
+              </div>
+              <div class="set-row">
+                Language<span class="r">English · हिन्दी</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <!-- Mobile tab bar -->
+      <nav class="tabbar" aria-label="Main">
+        <button class="tab" data-tab="guide" aria-selected="true">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          >
+            <path
+              d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"
+            /></svg
+          >Guide<span class="dot"></span>
+        </button>
+        <button class="tab" data-tab="story" aria-selected="false">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          >
+            <path d="M5 4h10l4 4v12H5z" />
+            <path d="M9 11h6M9 15h6" /></svg
+          >My Story<span class="dot"></span>
+        </button>
+        <button class="tab" data-tab="chart" aria-selected="false">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          >
+            <rect x="4" y="4" width="16" height="16" rx="1" />
+            <path d="M12 4l8 8-8 8-8-8z" /></svg
+          >Chart<span class="dot"></span>
+        </button>
+        <button class="tab" data-tab="you" aria-selected="false">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          >
+            <circle cx="12" cy="8.5" r="3.5" />
+            <path d="M5 20c1.4-3.6 4-5 7-5s5.6 1.4 7 5" /></svg
+          >You<span class="dot"></span>
+        </button>
+      </nav>
+    </div>
+
+    <div
+      class="overlay"
+      id="breathe"
+      role="dialog"
+      aria-label="Breathing exercise"
+    >
+      <div>
+        <div class="orb"></div>
+        <h2 style="text-align: center" id="breathe-word">Breathe in…</h2>
+        <p>In for four, hold for two, out for six.</p>
+        <p>
+          <button class="btn ghost" id="breathe-close">I feel steadier</button>
+        </p>
+      </div>
+    </div>
+    <div class="toast" id="toast"></div>
+
+    <script>
+      const tabs = document.querySelectorAll("[data-tab]");
+      function show(name) {
+        document
+          .querySelectorAll(".view")
+          .forEach((v) =>
+            v.classList.toggle("active", v.id === "view-" + name),
+          );
+        tabs.forEach((t) =>
+          t.setAttribute("aria-selected", String(t.dataset.tab === name)),
+        );
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+      tabs.forEach((t) =>
+        t.addEventListener("click", () => show(t.dataset.tab)),
+      );
+      document
+        .querySelectorAll("[data-goto]")
+        .forEach((b) =>
+          b.addEventListener("click", () => show(b.dataset.goto)),
+        );
+
+      const overlay = document.getElementById("breathe");
+      const word = document.getElementById("breathe-word");
+      let timer;
+      document.querySelectorAll("[data-breathe]").forEach((b) =>
+        b.addEventListener("click", () => {
+          overlay.classList.add("on");
+          const phases = [
+            ["Breathe in…", 4000],
+            ["Hold…", 2000],
+            ["Breathe out…", 4000],
+          ];
+          let i = 0;
+          const step = () => {
+            word.textContent = phases[i][0];
+            timer = setTimeout(step, phases[i][1]);
+            i = (i + 1) % phases.length;
+          };
+          step();
+        }),
+      );
+      document.getElementById("breathe-close").addEventListener("click", () => {
+        overlay.classList.remove("on");
+        clearTimeout(timer);
+      });
+
+      const toast = document.getElementById("toast");
+      document.querySelectorAll("[data-toast]").forEach((b) =>
+        b.addEventListener("click", () => {
+          toast.textContent = b.dataset.toast;
+          toast.classList.add("on");
+          setTimeout(() => toast.classList.remove("on"), 2200);
+        }),
+      );
+    </script>
+  </body>
+</html>

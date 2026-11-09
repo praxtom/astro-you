@@ -1,0 +1,1293 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AstroYou — Dashboard v2 mockup</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #05050c;
+        --card: rgba(255, 255, 255, 0.035);
+        --card-2: rgba(255, 255, 255, 0.06);
+        --line: rgba(255, 255, 255, 0.08);
+        --line-2: rgba(255, 255, 255, 0.14);
+        --text: rgba(255, 255, 255, 0.92);
+        --muted: rgba(255, 255, 255, 0.6);
+        --faint: rgba(255, 255, 255, 0.4);
+        --gold: #ffcd6a;
+        --gold-soft: rgba(255, 205, 106, 0.12);
+        --gold-line: rgba(255, 205, 106, 0.3);
+        --sage: #9fd3b8;
+        --rose: #f2a9b5;
+        --sky: #9db8ff;
+        --display: "Cormorant Garamond", Georgia, serif;
+        --body: "Plus Jakarta Sans", -apple-system, system-ui, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--body);
+        font-size: 15px;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+      body {
+        background:
+          radial-gradient(
+            1100px 520px at 75% -12%,
+            rgba(255, 205, 106, 0.07),
+            transparent 60%
+          ),
+          radial-gradient(
+            800px 480px at -10% 105%,
+            rgba(157, 184, 255, 0.05),
+            transparent 60%
+          ),
+          var(--bg);
+        min-height: 100vh;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        background: none;
+        border: 0;
+        cursor: pointer;
+      }
+      h1,
+      h2,
+      h3 {
+        font-family: var(--display);
+        font-weight: 500;
+        margin: 0;
+      }
+      .eyebrow {
+        font-size: 11px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--faint);
+        font-weight: 700;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .faint {
+        color: var(--faint);
+      }
+      .gold {
+        color: var(--gold);
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        padding: 18px;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 12px;
+        border-radius: 99px;
+        border: 1px solid var(--line-2);
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .chip:hover {
+        border-color: var(--gold-line);
+        color: var(--text);
+      }
+      .mock-banner {
+        position: fixed;
+        bottom: 12px;
+        right: 12px;
+        z-index: 50;
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--faint);
+        border: 1px solid var(--line);
+        border-radius: 99px;
+        padding: 5px 10px;
+        background: rgba(5, 5, 12, 0.8);
+      }
+
+      /* Header — same five spaces as today */
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 30;
+        background: rgba(5, 5, 12, 0.82);
+        backdrop-filter: blur(14px);
+        border-bottom: 1px solid var(--line);
+      }
+      .hwrap {
+        max-width: 1120px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        padding: 12px 16px;
+      }
+      .brand {
+        font-family: var(--display);
+        font-size: 22px;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+      }
+      .brand i {
+        width: 9px;
+        height: 9px;
+        border-radius: 99px;
+        background: var(--gold);
+        box-shadow: 0 0 14px var(--gold);
+      }
+      nav.spaces {
+        display: none;
+        gap: 4px;
+        margin-left: 10px;
+      }
+      nav.spaces button {
+        padding: 7px 12px;
+        border-radius: 99px;
+        font-size: 13px;
+        color: var(--muted);
+        font-weight: 500;
+      }
+      nav.spaces button.on {
+        background: var(--gold-soft);
+        color: var(--gold);
+      }
+      .hright {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .credits {
+        font-size: 12px;
+        color: var(--muted);
+        border: 1px solid var(--line);
+        padding: 5px 10px;
+        border-radius: 99px;
+      }
+      .avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 99px;
+        background: var(--gold);
+        color: #1a1405;
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+        font-size: 13px;
+      }
+      @media (min-width: 900px) {
+        nav.spaces {
+          display: flex;
+        }
+      }
+      .tabbar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 30;
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        background: rgba(8, 8, 16, 0.9);
+        backdrop-filter: blur(14px);
+        border-top: 1px solid var(--line);
+        padding: 7px 6px calc(9px + env(safe-area-inset-bottom));
+      }
+      .tabbar button {
+        font-size: 11px;
+        color: var(--faint);
+        font-weight: 600;
+        padding: 6px 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+      }
+      .tabbar button b {
+        font-size: 17px;
+        font-weight: 400;
+      }
+      .tabbar button.on {
+        color: var(--gold);
+      }
+      @media (min-width: 900px) {
+        .tabbar {
+          display: none;
+        }
+      }
+
+      main {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 24px 16px 110px;
+      }
+      .view {
+        display: none;
+      }
+      .view.on {
+        display: block;
+        animation: fade 0.3s ease;
+      }
+      @keyframes fade {
+        from {
+          opacity: 0;
+          transform: translateY(5px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      /* ---------- Dashboard ---------- */
+      .hero {
+        display: grid;
+        gap: 14px;
+      }
+      .hero h1 {
+        font-size: 40px;
+        line-height: 1.1;
+      }
+      .hero h1 em {
+        color: var(--gold);
+      }
+      .almanac {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+      .almanac::-webkit-scrollbar {
+        display: none;
+      }
+      .almanac .chip {
+        white-space: nowrap;
+        font-size: 12px;
+        padding: 6px 11px;
+      }
+      .almanac b {
+        color: var(--text);
+        font-weight: 600;
+      }
+      .almanac .warn {
+        border-color: rgba(242, 169, 181, 0.35);
+      }
+      .almanac .warn b {
+        color: var(--rose);
+      }
+
+      .ask {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 8px 8px 16px;
+        border: 1px solid var(--gold-line);
+        border-radius: 18px;
+        background: rgba(255, 205, 106, 0.04);
+        margin-top: 18px;
+        cursor: text;
+      }
+      .ask span {
+        flex: 1;
+        color: var(--faint);
+      }
+      .ask .go {
+        background: var(--gold);
+        color: #1a1405;
+        padding: 9px 16px;
+        border-radius: 12px;
+        font-weight: 700;
+        font-size: 13px;
+      }
+
+      .grid {
+        display: grid;
+        gap: 14px;
+        margin-top: 18px;
+      }
+      @media (min-width: 900px) {
+        .grid.top {
+          grid-template-columns: 1.15fr 1fr;
+        }
+      }
+      .three li {
+        list-style: none;
+        display: grid;
+        grid-template-columns: 70px 1fr;
+        gap: 10px;
+        padding: 11px 0;
+        border-top: 1px solid var(--line);
+      }
+      .three li:first-child {
+        border-top: 0;
+      }
+      .three {
+        padding: 0;
+        margin: 8px 0 0;
+      }
+      .three .k {
+        font-size: 11px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--faint);
+        font-weight: 700;
+        padding-top: 3px;
+      }
+      .three b {
+        font-family: var(--display);
+        font-size: 20px;
+        font-weight: 600;
+        display: block;
+        line-height: 1.2;
+      }
+      .three span {
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .checkin {
+        border-color: var(--gold-line);
+        background: linear-gradient(
+          140deg,
+          rgba(255, 205, 106, 0.1),
+          rgba(255, 205, 106, 0.02)
+        );
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .checkin h3 {
+        font-size: 24px;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 15px;
+        border-radius: 13px;
+        font-weight: 600;
+        font-size: 14px;
+      }
+      .btn.gold {
+        background: var(--gold);
+        color: #1a1405;
+      }
+      .btn.ghost {
+        border: 1px solid var(--line-2);
+      }
+      .btn.sage {
+        border: 1px solid rgba(159, 211, 184, 0.35);
+        color: var(--sage);
+      }
+
+      .today {
+        display: grid;
+        gap: 10px;
+        margin-top: 10px;
+      }
+      @media (min-width: 700px) {
+        .today {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+      .today div {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 13px;
+        background: rgba(255, 255, 255, 0.02);
+      }
+      .today .k {
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--gold);
+        font-weight: 700;
+      }
+      .today p {
+        margin: 4px 0 0;
+        font-size: 14px;
+      }
+      .why {
+        font-size: 12px;
+        color: var(--faint);
+        margin-top: 10px;
+      }
+
+      .spaces-grid {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(2, 1fr);
+        margin-top: 10px;
+      }
+      @media (min-width: 900px) {
+        .spaces-grid {
+          grid-template-columns: repeat(5, 1fr);
+        }
+      }
+      .space {
+        text-align: left;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 14px;
+        background: var(--card);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-height: 108px;
+      }
+      .space:hover {
+        border-color: var(--gold-line);
+        background: var(--card-2);
+      }
+      .space .n {
+        font-size: 11px;
+        color: var(--faint);
+        font-weight: 700;
+        letter-spacing: 0.1em;
+      }
+      .space b {
+        font-family: var(--display);
+        font-size: 21px;
+        font-weight: 600;
+      }
+      .space span {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .bar {
+        display: flex;
+        height: 30px;
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        margin-top: 10px;
+      }
+      .bar div {
+        display: grid;
+        place-items: center;
+        font-size: 11px;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.7);
+        border-right: 1px solid rgba(0, 0, 0, 0.35);
+      }
+      .bar .now {
+        background: linear-gradient(
+          180deg,
+          rgba(255, 205, 106, 0.35),
+          rgba(255, 205, 106, 0.15)
+        );
+        color: var(--gold);
+      }
+      .ticks {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+        color: var(--faint);
+        margin-top: 6px;
+      }
+
+      .grid.bottom {
+        grid-template-columns: 1fr;
+      }
+      @media (min-width: 900px) {
+        .grid.bottom {
+          grid-template-columns: 1.4fr 1fr;
+        }
+      }
+      .list li {
+        list-style: none;
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 9px 0;
+        border-top: 1px solid var(--line);
+        font-size: 14px;
+      }
+      .list li:first-child {
+        border-top: 0;
+      }
+      .list {
+        padding: 0;
+        margin: 6px 0 0;
+      }
+      .list .d {
+        color: var(--faint);
+        font-size: 12px;
+        white-space: nowrap;
+      }
+      details summary {
+        cursor: pointer;
+        list-style: none;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      details summary::-webkit-details-marker {
+        display: none;
+      }
+      details[open] summary .plus {
+        transform: rotate(45deg);
+      }
+      .plus {
+        transition: transform 0.2s;
+        color: var(--faint);
+        font-size: 20px;
+      }
+
+      /* ---------- Chat ---------- */
+      .chat {
+        max-width: 720px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: calc(100vh - 160px);
+      }
+      .chat-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid var(--line);
+      }
+      .gmark {
+        width: 40px;
+        height: 40px;
+        border-radius: 99px;
+        background: radial-gradient(
+          circle at 35% 35%,
+          #fff3d4,
+          var(--gold) 45%,
+          #8a6418
+        );
+        box-shadow: 0 0 22px rgba(255, 205, 106, 0.35);
+        flex: none;
+      }
+      .chat-head .t b {
+        display: block;
+        font-family: var(--display);
+        font-size: 21px;
+        font-weight: 600;
+        line-height: 1.1;
+      }
+      .chat-head .t span {
+        font-size: 12px;
+        color: var(--faint);
+      }
+      .chart-pill {
+        margin-left: auto;
+      }
+      .msgs {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 18px 0;
+        flex: 1;
+      }
+      .m {
+        max-width: 84%;
+        padding: 10px 14px;
+        border-radius: 18px;
+        font-size: 15px;
+      }
+      .m.me {
+        align-self: flex-end;
+        background: rgba(255, 205, 106, 0.14);
+        border: 1px solid var(--gold-line);
+        border-bottom-right-radius: 5px;
+      }
+      .m.g {
+        align-self: flex-start;
+        background: var(--card-2);
+        border: 1px solid var(--line);
+        border-bottom-left-radius: 5px;
+      }
+      .m.g .term {
+        border-bottom: 1px dotted var(--gold-line);
+      }
+      .time {
+        font-size: 11px;
+        color: var(--faint);
+        margin-top: 3px;
+        text-align: right;
+      }
+      .step {
+        align-self: flex-start;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-left: 2px;
+      }
+      .daydiv {
+        align-self: center;
+        font-size: 11px;
+        color: var(--faint);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        margin: 6px 0;
+      }
+      .composer {
+        position: sticky;
+        bottom: 76px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 8px 8px 8px 14px;
+        border: 1px solid var(--line-2);
+        border-radius: 18px;
+        background: rgba(12, 12, 22, 0.95);
+        backdrop-filter: blur(12px);
+        box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
+      }
+      @media (min-width: 900px) {
+        .composer {
+          bottom: 18px;
+        }
+      }
+      .composer input {
+        flex: 1;
+        background: none;
+        border: 0;
+        outline: none;
+        color: var(--text);
+        font: inherit;
+        min-width: 0;
+      }
+      .composer input::placeholder {
+        color: var(--faint);
+      }
+      .ibtn {
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+        color: var(--sage);
+        border: 1px solid var(--line);
+      }
+      .send {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        background: var(--gold);
+        color: #1a1405;
+        display: grid;
+        place-items: center;
+        font-weight: 800;
+      }
+      .note {
+        font-size: 11px;
+        color: var(--faint);
+        text-align: center;
+        margin-top: 8px;
+      }
+
+      /* Chart drawer */
+      .drawer {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: min(380px, 92vw);
+        background: #0b0b15;
+        border-left: 1px solid var(--line-2);
+        z-index: 60;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+        padding: 20px;
+        overflow: auto;
+      }
+      .drawer.on {
+        transform: none;
+      }
+      .drawer svg {
+        width: 100%;
+        height: auto;
+      }
+
+      /* Compare panel */
+      .compare {
+        margin-top: 26px;
+      }
+      .cmp {
+        display: grid;
+        gap: 12px;
+        margin-top: 10px;
+      }
+      @media (min-width: 800px) {
+        .cmp {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      .cmp .card h3 {
+        font-size: 20px;
+        margin-bottom: 6px;
+      }
+      .cmp ul {
+        margin: 0;
+        padding-left: 18px;
+        font-size: 14px;
+      }
+      .cmp li {
+        margin: 5px 0;
+      }
+      .them {
+        border-color: rgba(242, 169, 181, 0.25);
+      }
+      .us {
+        border-color: rgba(159, 211, 184, 0.3);
+      }
+
+      .overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 70;
+        display: none;
+        place-items: center;
+        background: rgba(3, 3, 8, 0.9);
+        backdrop-filter: blur(10px);
+      }
+      .overlay.on {
+        display: grid;
+      }
+      .orb {
+        width: 170px;
+        height: 170px;
+        border-radius: 99px;
+        background: radial-gradient(
+          circle,
+          rgba(159, 211, 184, 0.55),
+          rgba(159, 211, 184, 0.05) 70%
+        );
+        animation: breathe 10s ease-in-out infinite;
+        margin: 0 auto 22px;
+      }
+      @keyframes breathe {
+        0%,
+        100% {
+          transform: scale(0.72);
+        }
+        40%,
+        60% {
+          transform: scale(1);
+        }
+      }
+      .toast {
+        position: fixed;
+        left: 50%;
+        bottom: 96px;
+        transform: translateX(-50%);
+        background: #14141f;
+        border: 1px solid var(--line-2);
+        padding: 10px 14px;
+        border-radius: 12px;
+        font-size: 13px;
+        opacity: 0;
+        transition: opacity 0.25s;
+        z-index: 80;
+        pointer-events: none;
+      }
+      .toast.on {
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="mock-banner">Mockup v2 · not the live app</div>
+
+    <header>
+      <div class="hwrap">
+        <div class="brand"><i></i>AstroYou</div>
+        <nav class="spaces">
+          <button class="on" data-view="home">Home</button>
+          <button data-toast="Today → forecast, transits, Panchang">
+            Today
+          </button>
+          <button data-view="chat">Guidance</button>
+          <button data-toast="My Chart → Kundali, dasha, reports">
+            My Chart
+          </button>
+          <button data-toast="Bonds → compatibility, your people">Bonds</button>
+          <button data-toast="Path → remedies, practices, journal">Path</button>
+        </nav>
+        <div class="hright">
+          <span class="credits">42 credits</span><span class="avatar">M</span>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <!-- ================= HOME (improved dashboard) ================= -->
+      <section class="view on" id="view-home">
+        <div class="hero">
+          <div class="eyebrow">Saturday · 7 November · Lucknow</div>
+          <h1>Good evening, <em>Meera</em></h1>
+          <div class="almanac">
+            <span class="chip">Tithi <b>Dwadashi</b></span>
+            <span class="chip">Nakshatra <b>Hasta</b></span>
+            <span class="chip">Yoga <b>Vishkumbha</b></span>
+            <span class="chip warn">Rahu Kaal <b>10:27–11:50</b></span>
+            <span class="chip">Sunrise <b>06:19</b> · Sunset <b>17:20</b></span>
+          </div>
+        </div>
+
+        <button class="ask" data-view="chat">
+          <span>Ask your guide — "What does this week ask of me?"</span
+          ><b class="go">Ask</b>
+        </button>
+
+        <div class="grid top">
+          <div class="card checkin">
+            <div class="eyebrow gold">Check-in · from 3 days ago</div>
+            <h3>How did the talk with Rahul go?</h3>
+            <p class="muted" style="margin: 0; font-size: 14px">
+              You planned to tell him you'd felt some distance. Want to talk it
+              through?
+            </p>
+            <div class="row">
+              <button class="btn gold" data-view="chat">Continue</button>
+              <button
+                class="btn ghost"
+                data-toast="Okay — I'll ask again on Tuesday."
+              >
+                Not now
+              </button>
+              <button class="btn sage" data-breathe>Breathe · 2 min</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="eyebrow">Your chart in three lines</div>
+            <ul class="three">
+              <li>
+                <span class="k">Moon</span
+                ><span
+                  ><b>Pisces · Uttara Bhadrapada</b
+                  ><span
+                    >Feels deeply, trusts slowly, loyal once you do.</span
+                  ></span
+                >
+              </li>
+              <li>
+                <span class="k">Rising</span
+                ><span
+                  ><b>Leo</b
+                  ><span
+                    >Warm and visible — you want to be truly seen.</span
+                  ></span
+                >
+              </li>
+              <li>
+                <span class="k">Season</span
+                ><span
+                  ><b>Ketu · Jupiter, till Jun 2027</b
+                  ><span
+                    >Letting go of what's outgrown; drawn toward meaning.</span
+                  ></span
+                >
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 14px">
+          <div class="row" style="justify-content: space-between">
+            <div class="eyebrow">Today, for you</div>
+            <span class="faint" style="font-size: 12px"
+              >Moon in Hasta · your 7th from the Moon</span
+            >
+          </div>
+          <div class="today">
+            <div>
+              <span class="k">Energy</span>
+              <p>Steady and practical. Good for one honest conversation.</p>
+            </div>
+            <div>
+              <span class="k">Do</span>
+              <p>Say the one thing you've been holding back — kindly.</p>
+            </div>
+            <div>
+              <span class="k">Go easy</span>
+              <p>Avoid big decisions during Rahu Kaal (10:27–11:50).</p>
+            </div>
+          </div>
+          <div class="why">
+            Why this? Today's Moon falls in your 7th house from your natal Moon
+            — relationships are in focus.
+          </div>
+        </div>
+
+        <div style="margin-top: 22px">
+          <div class="eyebrow">Explore</div>
+          <div class="spaces-grid">
+            <button
+              class="space"
+              data-toast="Today → forecast, transits, eclipses"
+            >
+              <span class="n">01</span><b>Today</b
+              ><span>What's the sky doing now?</span>
+            </button>
+            <button class="space" data-view="chat">
+              <span class="n">02</span><b>Guidance</b
+              ><span>Talk it through</span>
+            </button>
+            <button
+              class="space"
+              data-toast="My Chart → Kundali, dasha, reports"
+            >
+              <span class="n">03</span><b>My Chart</b><span>Who am I?</span>
+            </button>
+            <button
+              class="space"
+              data-toast="Bonds → compatibility, your people"
+            >
+              <span class="n">04</span><b>Bonds</b><span>What about us?</span>
+            </button>
+            <button
+              class="space"
+              data-toast="Path → remedies, practices, journal"
+            >
+              <span class="n">05</span><b>Path</b
+              ><span>What do I practise?</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="grid bottom">
+          <div class="card">
+            <div class="row" style="justify-content: space-between">
+              <div class="eyebrow">Your seasons</div>
+              <span class="faint" style="font-size: 12px"
+                >Now · Ketu → Jupiter</span
+              >
+            </div>
+            <div class="bar">
+              <div style="flex: 11; background: rgba(157, 184, 255, 0.12)">
+                Saturn
+              </div>
+              <div style="flex: 17; background: rgba(159, 211, 184, 0.12)">
+                Mercury
+              </div>
+              <div class="now" style="flex: 7">Ketu</div>
+              <div style="flex: 20; background: rgba(242, 169, 181, 0.1)">
+                Venus
+              </div>
+            </div>
+            <div class="ticks">
+              <span>1995</span><span>2005</span><span>2022</span
+              ><span>2029</span><span>2049</span>
+            </div>
+          </div>
+          <div class="card">
+            <details>
+              <summary>
+                <span class="eyebrow">Coming up</span
+                ><span class="plus">+</span>
+              </summary>
+              <ul class="list">
+                <li>Diwali (Deepavali)<span class="d">Sun 8 Nov</span></li>
+                <li>
+                  Venus enters your 4th from the Moon<span class="d"
+                    >Tue 10 Nov</span
+                  >
+                </li>
+                <li>Bhai Dooj<span class="d">Wed 11 Nov</span></li>
+              </ul>
+            </details>
+            <details
+              style="
+                margin-top: 12px;
+                border-top: 1px solid var(--line);
+                padding-top: 12px;
+              "
+            >
+              <summary>
+                <span class="eyebrow">Today's practice</span
+                ><span class="plus">+</span>
+              </summary>
+              <p class="muted" style="font-size: 14px; margin: 8px 0 0">
+                Light a diya at dusk, sit quietly for two minutes, and name one
+                thing you're ready to release.
+              </p>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= CHAT (lighter) ================= -->
+      <section class="view" id="view-chat">
+        <div class="chat">
+          <div class="chat-head">
+            <button class="chip" data-view="home" aria-label="Back">←</button>
+            <span class="gmark"></span>
+            <div class="t">
+              <b>Your Jyotish guide</b
+              ><span>Knows your chart · remembers what you share</span>
+            </div>
+            <button class="chip chart-pill" data-drawer>Your chart</button>
+          </div>
+
+          <div class="msgs">
+            <div class="daydiv">Today</div>
+            <div class="m me">
+              Rahul phir se distant hai. Dar lag raha hai woh chala jayega. Meri
+              kundli kya kehti hai?
+            </div>
+            <div class="m g">
+              Yeh dar bahut bhaari lagta hai, Meera — samajh sakti hoon.
+            </div>
+            <div class="m g">
+              Aap abhi <span class="term">Ketu ki dasha</span> mein ho. Is samay
+              doori zyada mehsoos hoti hai — mann use jaldi "khona" samajh leta
+              hai.
+            </div>
+            <div class="m g">
+              Kundli season batati hai, Rahul ka mann nahi. Woh sirf wohi bata
+              sakta hai. Aaj ek kaam karein?
+            </div>
+            <div class="step">
+              <button
+                class="chip"
+                data-toast="Guide: Bas itna kahiye — 'Kuch dino se doori si lag rahi hai, main hamein miss karti hoon. Sab theek hai?' Phir sunna, samjhana nahi."
+              >
+                Haan, batao kya kahun
+              </button>
+              <button class="chip" data-breathe>Pehle saans lena hai</button>
+            </div>
+
+            <div class="m me">Ek baat batao — tum koi AI bot ho?</div>
+            <div class="m g">
+              Haan — main AstroYou ki Jyotish guide hoon, koi insaan astrologer
+              nahi. Main aapki asli kundli padhti hoon aur jo aap batate ho woh
+              yaad rakhti hoon. Aage baat karein?
+            </div>
+            <div class="step">
+              <button
+                class="chip"
+                data-toast="I'll check in with you on Tuesday."
+              >
+                Teen din baad poochna
+              </button>
+            </div>
+          </div>
+
+          <div class="composer">
+            <input
+              placeholder="Jo mann mein hai, likhiye…"
+              aria-label="Message"
+            />
+            <button class="ibtn" data-breathe title="Breathe">≋</button>
+            <button class="send" aria-label="Send">→</button>
+          </div>
+          <div class="note">
+            No per-minute meter · your guide never claims to be human · Delete
+            or pause memory anytime
+          </div>
+        </div>
+
+        <div
+          class="compare"
+          style="max-width: 720px; margin-left: auto; margin-right: auto"
+        >
+          <div class="eyebrow">
+            Design note — the same question, two answers
+          </div>
+          <div class="cmp">
+            <div class="card them">
+              <h3>Typical "astrologer" chat</h3>
+              <ul class="muted">
+                <li>Ignores "are you a bot?"</li>
+                <li>
+                  Promises: "shaadi late 2026", "paise ki kabhi kammi nahi"
+                </li>
+                <li>Fear: "logo ke rahu kharab hote hain"</li>
+                <li>Ends at 2 minutes with a ₹19/min upsell</li>
+              </ul>
+            </div>
+            <div class="card us">
+              <h3>AstroYou guide</h3>
+              <ul class="muted">
+                <li>Answers honestly when asked</li>
+                <li>Describes the season, never promises an outcome</li>
+                <li>Short messages, in your language</li>
+                <li>One small next step — talk, breathe, or check in later</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <nav class="tabbar">
+      <button class="on" data-view="home"><b>⌂</b>Home</button>
+      <button data-toast="Today"><b>☼</b>Today</button>
+      <button data-view="chat"><b>✦</b>Guidance</button>
+      <button data-toast="My Chart"><b>◇</b>Chart</button>
+      <button data-toast="Bonds"><b>♡</b>Bonds</button>
+    </nav>
+
+    <aside class="drawer" id="drawer">
+      <div class="row" style="justify-content: space-between">
+        <div class="eyebrow">Your chart</div>
+        <button class="chip" data-drawer>Close</button>
+      </div>
+      <p class="faint" style="font-size: 12px; margin: 6px 0 12px">
+        14 Aug 1995 · 06:30 · Lucknow · Lahiri
+      </p>
+      <svg viewBox="0 0 300 300" aria-label="North Indian birth chart">
+        <rect
+          x="2"
+          y="2"
+          width="296"
+          height="296"
+          fill="none"
+          stroke="rgba(255,205,106,.55)"
+        />
+        <path
+          d="M2 2L298 298M298 2L2 298M150 2L298 150L150 298L2 150Z"
+          fill="none"
+          stroke="rgba(255,205,106,.4)"
+        />
+        <g
+          font-family="Plus Jakarta Sans"
+          font-size="11"
+          text-anchor="middle"
+          fill="rgba(255,255,255,.4)"
+        >
+          <text x="150" y="128">5</text>
+          <text x="75" y="58">6</text>
+          <text x="54" y="80">7</text>
+          <text x="128" y="150">8</text>
+          <text x="54" y="222">9</text>
+          <text x="75" y="244">10</text>
+          <text x="150" y="176">11</text>
+          <text x="225" y="244">12</text>
+          <text x="246" y="222">1</text>
+          <text x="172" y="150">2</text>
+          <text x="246" y="80">3</text>
+          <text x="225" y="58">4</text>
+        </g>
+        <g
+          font-family="Plus Jakarta Sans"
+          font-size="13"
+          font-weight="600"
+          text-anchor="middle"
+          fill="#fff"
+        >
+          <text x="150" y="80" fill="#ffcd6a">Lagna</text>
+          <text x="150" y="96">Me 13°</text>
+          <text x="75" y="34">Ma 20°</text>
+          <text x="30" y="96">Ra 6°</text>
+          <text x="75" y="160">Ju 11°</text>
+          <text x="150" y="236">Sa 29° R</text>
+          <text x="225" y="276">Mo 9°</text>
+          <text x="274" y="206">Ke 6°</text>
+          <text x="225" y="30">Su 27°</text>
+          <text x="225" y="44">Ve 25°</text>
+        </g>
+      </svg>
+      <ul class="three" style="margin-top: 14px">
+        <li>
+          <span class="k">Moon</span
+          ><span><b>Pisces</b><span>Uttara Bhadrapada</span></span>
+        </li>
+        <li>
+          <span class="k">Season</span
+          ><span><b>Ketu · Jupiter</b><span>till Jun 2027</span></span>
+        </li>
+      </ul>
+    </aside>
+
+    <div class="overlay" id="breathe">
+      <div style="text-align: center">
+        <div class="orb"></div>
+        <h2 id="bw">Breathe in…</h2>
+        <p class="muted">In for four, hold for two, out for six.</p>
+        <button class="btn ghost" id="bclose" style="margin-top: 8px">
+          I feel steadier
+        </button>
+      </div>
+    </div>
+    <div class="toast" id="toast"></div>
+
+    <script>
+      const views = document.querySelectorAll(".view");
+      function show(v) {
+        views.forEach((x) => x.classList.toggle("on", x.id === "view-" + v));
+        document
+          .querySelectorAll("[data-view]")
+          .forEach((b) =>
+            b.classList.toggle("on", b.dataset.view === v && b.closest("nav")),
+          );
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+      document
+        .querySelectorAll("[data-view]")
+        .forEach((b) =>
+          b.addEventListener("click", () => show(b.dataset.view)),
+        );
+      const toast = document.getElementById("toast");
+      document.querySelectorAll("[data-toast]").forEach((b) =>
+        b.addEventListener("click", () => {
+          toast.textContent = b.dataset.toast;
+          toast.classList.add("on");
+          clearTimeout(toast._t);
+          toast._t = setTimeout(() => toast.classList.remove("on"), 2600);
+        }),
+      );
+      const drawer = document.getElementById("drawer");
+      document
+        .querySelectorAll("[data-drawer]")
+        .forEach((b) =>
+          b.addEventListener("click", () => drawer.classList.toggle("on")),
+        );
+      const ov = document.getElementById("breathe"),
+        bw = document.getElementById("bw");
+      let t;
+      document.querySelectorAll("[data-breathe]").forEach((b) =>
+        b.addEventListener("click", () => {
+          ov.classList.add("on");
+          const p = [
+            ["Breathe in…", 4000],
+            ["Hold…", 2000],
+            ["Breathe out…", 4000],
+          ];
+          let i = 0;
+          const step = () => {
+            bw.textContent = p[i][0];
+            t = setTimeout(step, p[i][1]);
+            i = (i + 1) % p.length;
+          };
+          step();
+        }),
+      );
+      document.getElementById("bclose").addEventListener("click", () => {
+        ov.classList.remove("on");
+        clearTimeout(t);
+      });
+    </script>
+  </body>
+</html>

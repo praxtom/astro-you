@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowUpRight, Sparkles } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 
 import { useAuth } from "../lib/useAuth";
 import {
@@ -17,7 +17,6 @@ import {
 } from "../hooks";
 import { useProactiveTriggers } from "../hooks/useProactiveTriggers";
 import AuthModal from "../components/AuthModal";
-import { ChartThreeLinesCard } from "../components/dashboard/ChartThreeLinesCard";
 import { OPEN_AUTH_EVENT } from "../components/dashboard/PersonalCardNotice";
 import { REPORT_PRICING } from "../lib/report-pricing";
 import { SIGNUP_BONUS_CREDITS } from "../lib/signup-offer";
@@ -33,24 +32,29 @@ import { DailyAltar } from "../components/sadhana/DailyAltar";
 import { DharmaList } from "../components/dharma/DharmaList";
 
 import { HeroAlmanac } from "../components/dashboard/HeroAlmanac";
+import {
+  DayTile,
+  FactTile,
+  TileHead,
+  TodayForYouTile,
+} from "../components/dashboard/WeatherTiles";
+import { approximateLunar } from "../lib/moon-phase";
 import { AskJyotishBar } from "../components/dashboard/AskJyotishBar";
 import { ExploreIndex } from "../components/dashboard/ExploreIndex";
-import { TodayTriptych } from "../components/dashboard/TodayTriptych";
 import { buildTodayGuide } from "../lib/todayGuide";
-import { deriveProfileSigns } from "../lib/chart-summary";
+import { buildChartThreeLines, deriveProfileSigns } from "../lib/chart-summary";
 import { normalizeZodiacMode } from "../lib/zodiac-mode";
 import { MemoryPanel } from "../components/dashboard/MemoryPanel";
 import { UtilityDock } from "../components/dashboard/UtilityDock";
 
-import { PanchangCard } from "../components/dashboard/PanchangCard";
 import { YogaCard } from "../components/dashboard/YogaCard";
 import { RemediesCard } from "../components/dashboard/RemediesCard";
 import { DashaCard } from "../components/dashboard/DashaCard";
 import { SadeSatiCard } from "../components/dashboard/SadeSatiCard";
-import { NakshatraCard } from "../components/dashboard/NakshatraCard";
 import { FestivalCard } from "../components/dashboard/FestivalCard";
 import { SoulInsightCard } from "../components/dashboard/SoulInsightCard";
 import { DashaTimeline } from "../components/astrology/DashaTimeline";
+import { TextAction, Tile } from "../components/dashboard/primitives";
 import { NightSky } from "../components/layout/NightSky";
 
 function DashboardSkeleton() {
@@ -136,7 +140,9 @@ export default function Dashboard() {
     profile?.coordinates?.lng,
     profile?.timezone,
   );
-  const { lunar } = useLunarPhase(userData);
+  const { lunar: lunarFromService } = useLunarPhase(userData);
+  // Never draw a blank or wrong moon: fall back to the date-based phase.
+  const lunar = lunarFromService ?? approximateLunar();
   const lastChat = useLastChat();
   // Each of these is ONE request shared by every card that needs it — dasha
   // periods feed DashaCard, DashaTimeline, the three-lines card and the dasha
@@ -144,7 +150,11 @@ export default function Dashboard() {
   const dasha = useDashaPeriods(userData);
   const dashaPeriods = dasha.periods;
   const nakshatraState = useNakshatra(userData);
-  const natal = useKundali(hasBirthData ? userData : null, "D1", profile?.zodiacMode);
+  const natal = useKundali(
+    hasBirthData ? userData : null,
+    "D1",
+    profile?.zodiacMode,
+  );
 
   // Proactive nudges (signed-in only; the hook no-ops for guests and keeps
   // persistent per-trigger cooldowns plus a daily cap).
@@ -160,15 +170,29 @@ export default function Dashboard() {
     error: predictionError,
   } = useDailyPrediction(userData);
 
-  const readingFallback = useMemo(() => {
-    const guide = buildTodayGuide(
-      atmanState,
-      panchang,
-      panchangError,
-      Boolean(user),
-    );
-    return `${guide.energy}. ${guide.action}`;
-  }, [atmanState, panchang, panchangError, user]);
+  const todayGuide = useMemo(
+    () => buildTodayGuide(atmanState, panchang, panchangError, Boolean(user)),
+    [atmanState, panchang, panchangError, user],
+  );
+  // The hero carries the day's reading once. Without a prediction it falls back
+  // to the day's nudge — never to Energy/Do, which the "Today for you" tile shows.
+  const readingFallback = todayGuide.nudge;
+
+  // Moon and Lagna lines for the "You" tiles (the Mahadasha lives in the season tile).
+  const chartLines = useMemo(
+    () =>
+      buildChartThreeLines({
+        kundali: natal.kundaliData,
+        nakshatra:
+          nakshatraState.nakshatra?.name ??
+          deriveProfileSigns(natal.kundaliData)?.moonNakshatra ??
+          null,
+        dashaPeriods,
+      }),
+    [natal.kundaliData, nakshatraState.nakshatra?.name, dashaPeriods],
+  );
+  const moonLine = chartLines.find((l) => l.label === "Moon");
+  const lagnaLine = chartLines.find((l) => l.label === "Lagna");
 
   const handleShareSign = () => {
     // Only ever the Moon sign — the Lagna is a different point and must never
@@ -265,138 +289,152 @@ export default function Dashboard() {
           panchangLoading={panchangLoading}
           lunar={lunar}
           onShareSign={handleShareSign}
+          reading={prediction || readingFallback}
+          readingLoading={
+            isPredictionLoading && !prediction && !predictionError
+          }
         />
 
-        {hasBirthData && (
-          <div className="mt-8">
-            <SectionErrorBoundary label="chart summary">
-              <ChartThreeLinesCard
-                kundali={natal.kundaliData}
-                kundaliLoading={natal.loading}
-                nakshatra={nakshatraState.nakshatra?.name}
-                dashaPeriods={dashaPeriods}
-                dashaLoading={dasha.loading}
-                errorKind={dasha.errorKind ?? nakshatraState.errorKind}
-                onRetry={() => {
-                  dasha.retry();
-                  nakshatraState.retry();
-                  void natal.refetch();
-                }}
-              />
-            </SectionErrorBoundary>
-          </div>
-        )}
-
-        <div className="mt-8">
+        <div className="mt-10">
           <AskJyotishBar lastChat={lastChat} />
         </div>
 
-        <div className="mt-10">
-          <ExploreIndex />
-        </div>
+        {/* One continuous grid of self-labelled tiles (Apple Weather structure):
+            today first, then you, then practice, calendar and links. */}
+        <SectionErrorBoundary label="dashboard tiles">
+          <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            {/* Today */}
+            <DayTile
+              panchang={panchang}
+              className="sm:col-span-2 lg:col-span-4"
+            />
+            <TodayForYouTile
+              guide={todayGuide}
+              showNudge={Boolean(prediction)}
+              onSaveIntention={() =>
+                user ? setShowDailyAltar(true) : navigate("/onboarding")
+              }
+            />
 
-        <div className="mt-12 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_22rem] gap-x-10 gap-y-12 items-start">
-          {/* ── The day, read closely ── */}
-          <SectionErrorBoundary label="daily panel">
-            <div className="space-y-10 min-w-0">
-              <TodayTriptych
-                atmanState={atmanState}
-                panchang={panchang}
-                panchangError={panchangError}
-                isSignedIn={Boolean(user)}
-                onSaveIntention={() =>
-                  user ? setShowDailyAltar(true) : navigate("/onboarding")
-                }
-              />
-
-              {user &&
-                atmanState?.routines &&
-                atmanState.routines.length > 0 && (
-                  <div className="glass rounded-3xl p-5 animate-reveal-progressive">
-                    <DharmaList
-                      routines={atmanState.routines}
-                      userId={user.uid}
-                      onComplete={refreshAtman}
-                    />
-                  </div>
-                )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-reveal-progressive">
-                <PanchangCard
-                  panchang={panchang}
-                  loading={panchangLoading}
-                  error={panchangError}
-                />
-                <YogaCard birthData={userData} />
-              </div>
-
-              {dashaPeriods.length > 0 && (
-                <DashaTimeline periods={dashaPeriods} />
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-reveal-progressive">
-                <SadeSatiCard birthData={userData} />
-                {hasBirthData && <NakshatraCard state={nakshatraState} />}
-              </div>
-            </div>
-          </SectionErrorBoundary>
-
-          {/* ── The margin notes ── */}
-          <SectionErrorBoundary label="side panel">
-            <aside className="space-y-6 min-w-0">
-              {/* Today's reading */}
-              <section className="relative glass rounded-3xl p-6 animate-reveal-progressive overflow-visible">
-                <span className="absolute -top-3 left-6 px-2 bg-bg-app text-gold/80 text-[0.6rem] font-bold uppercase tracking-[0.35em]">
-                  Today's Word
-                </span>
-                {isPredictionLoading && !prediction && !predictionError ? (
-                  <div className="flex items-center gap-2 text-sm text-white/45">
-                    <Sparkles size={14} className="text-gold" />
-                    Preparing today's guidance…
-                  </div>
-                ) : (
-                  <>
-                    <p className="font-display text-lg text-white/75 leading-relaxed italic">
-                      {prediction || readingFallback}
-                    </p>
-                    <button
-                      onClick={() => navigate("/forecast")}
-                      className="mt-4 text-xs uppercase tracking-[0.2em] font-bold text-gold hover:text-white transition-colors inline-flex items-center gap-1.5 group"
-                    >
-                      Open forecast
-                      <ArrowUpRight
-                        size={12}
-                        className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"
-                      />
-                    </button>
-                  </>
-                )}
-              </section>
-
-              {user && atmanState && (
+            {/* Your journey (signed in) */}
+            {user && atmanState && (
+              <Tile className="sm:col-span-2">
                 <SoulInsightCard
                   atmanState={atmanState}
                   onOpenSadhanaPath={() => setShowDailyAltar(true)}
                 />
-              )}
-
-              {user && (
+              </Tile>
+            )}
+            {user && (
+              <Tile className="sm:col-span-2">
                 <MemoryPanel
                   atmanState={atmanState}
                   hasBirthData={hasBirthData}
                 />
-              )}
+              </Tile>
+            )}
+            {user && atmanState?.routines && atmanState.routines.length > 0 && (
+              <Tile className="sm:col-span-2 lg:col-span-4">
+                <TileHead>Your daily practice</TileHead>
+                <DharmaList
+                  routines={atmanState.routines}
+                  userId={user.uid}
+                  onComplete={refreshAtman}
+                />
+              </Tile>
+            )}
 
-              <DashaCard
-                periods={dashaPeriods}
-                loading={dasha.loading}
-                errorKind={dasha.errorKind}
-                onRetry={dasha.retry}
-                hasBirthData={hasBirthData}
+            {/* You */}
+            {hasBirthData && moonLine && (
+              <FactTile
+                label="Moon sign"
+                value={moonLine.value.split(" · ")[0]}
+                note={
+                  <>
+                    {moonLine.value.split(" · ")[1] && (
+                      <span className="block text-white/80">
+                        {moonLine.value.split(" · ")[1]}
+                      </span>
+                    )}
+                    {moonLine.meaning}
+                  </>
+                }
+              >
+                {nakshatraState.nakshatra &&
+                  (nakshatraState.nakshatra.deity ||
+                    nakshatraState.nakshatra.ruler) && (
+                    <p className="mt-2 text-[0.9rem] text-white/50">
+                      Birth star
+                      {nakshatraState.nakshatra.deity &&
+                        `: deity ${nakshatraState.nakshatra.deity}`}
+                      {nakshatraState.nakshatra.ruler &&
+                        `, ruled by ${nakshatraState.nakshatra.ruler}`}
+                    </p>
+                  )}
+              </FactTile>
+            )}
+            {hasBirthData && lagnaLine && (
+              <FactTile
+                label="Rising"
+                value={lagnaLine.value}
+                note={lagnaLine.meaning}
               />
-              <RemediesCard birthData={userData} />
-              <FestivalCard region={profile?.festivalRegion} />
+            )}
+            {hasBirthData && (
+              <Tile className="sm:col-span-2">
+                <DashaCard
+                  periods={dashaPeriods}
+                  loading={dasha.loading}
+                  errorKind={dasha.errorKind}
+                  onRetry={dasha.retry}
+                  hasBirthData={hasBirthData}
+                />
+                {dashaPeriods.length > 0 && (
+                  <div className="mt-6">
+                    <DashaTimeline periods={dashaPeriods} />
+                  </div>
+                )}
+              </Tile>
+            )}
+            {hasBirthData && (
+              <Tile className="sm:col-span-2">
+                <SadeSatiCard birthData={userData} />
+              </Tile>
+            )}
+            {hasBirthData && (
+              <Tile className="sm:col-span-2">
+                <YogaCard birthData={userData} />
+                {nakshatraState.nakshatra?.prediction && (
+                  <div className="mt-6">
+                    <TileHead>Birth star today</TileHead>
+                    <p className="text-[0.98rem] leading-relaxed text-white/70">
+                      {nakshatraState.nakshatra.prediction}
+                    </p>
+                  </div>
+                )}
+              </Tile>
+            )}
 
+            {/* Practice and calendar */}
+            <Tile className="sm:col-span-2">
+              <RemediesCard birthData={userData} />
+            </Tile>
+            <Tile className="sm:col-span-2 self-start">
+              <FestivalCard region={profile?.festivalRegion} />
+              <div className="mt-4">
+                <TextAction to="/panchang">
+                  Full Panchang
+                  <ArrowUpRight size={12} />
+                </TextAction>
+              </div>
+            </Tile>
+
+            {/* Explore */}
+            <Tile className="sm:col-span-2 lg:col-span-3">
+              <TileHead>Explore</TileHead>
+              <ExploreIndex />
+            </Tile>
+            <Tile>
               <UtilityDock
                 profile={profile}
                 hasBirthData={hasBirthData}
@@ -407,9 +445,9 @@ export default function Dashboard() {
                 onOpenAltar={() => setShowDailyAltar(true)}
                 onShareChart={() => setShowChartShare(true)}
               />
-            </aside>
-          </SectionErrorBoundary>
-        </div>
+            </Tile>
+          </div>
+        </SectionErrorBoundary>
       </main>
 
       <footer className="container mx-auto max-w-6xl px-6 py-8 border-t border-white/5 relative z-10">

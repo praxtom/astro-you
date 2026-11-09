@@ -1,0 +1,1777 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AstroYou — Home style mockups</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* Brand tokens (same as the app). Minimum text size: 13px; labels 12px+. */
+      :root {
+        --bg: #05050b;
+        --text: rgba(255, 255, 255, 0.92);
+        --muted: rgba(255, 255, 255, 0.66);
+        --faint: rgba(255, 255, 255, 0.46);
+        --gold: #ffcd6a;
+        --gold-soft: rgba(255, 205, 106, 0.14);
+        --rose: #f2a3b4;
+        --sage: #9fd3b8;
+        --sky: #9fb6ff;
+        --display: "Cormorant Garamond", Georgia, serif;
+        --body: "Plus Jakarta Sans", -apple-system, system-ui, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--body);
+        font-size: 16px;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        background: none;
+        border: 0;
+        cursor: pointer;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      :focus-visible {
+        outline: 2px solid var(--gold);
+        outline-offset: 3px;
+        border-radius: 8px;
+      }
+
+      .switch {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        display: flex;
+        gap: 6px;
+        justify-content: center;
+        flex-wrap: wrap;
+        padding: 10px;
+        background: rgba(5, 5, 11, 0.92);
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .switch button {
+        padding: 8px 14px;
+        border-radius: 99px;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      .switch button.on {
+        background: var(--gold-soft);
+        color: var(--gold);
+      }
+      .view {
+        display: none;
+      }
+      .view.on {
+        display: block;
+      }
+
+      .appbar {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 18px 20px;
+        display: flex;
+        align-items: center;
+        gap: 24px;
+      }
+      .appbar .brand {
+        font-family: var(--display);
+        font-size: 25px;
+      }
+      .appbar nav {
+        display: none;
+        gap: 20px;
+        font-size: 15px;
+        color: var(--muted);
+      }
+      .appbar nav span:first-child {
+        color: var(--gold);
+      }
+      .appbar .me {
+        margin-left: auto;
+        font-size: 14px;
+        color: var(--muted);
+      }
+      @media (min-width: 900px) {
+        .appbar nav {
+          display: flex;
+        }
+      }
+
+      .moon-svg .dark {
+        fill: #121426;
+      }
+      .moon-svg .lit {
+        fill: #f3ead6;
+      }
+      .moon-svg .rim {
+        fill: none;
+        stroke: rgba(255, 255, 255, 0.18);
+      }
+
+      /* =============== A · Apple Weather =============== */
+      #A {
+        background:
+          radial-gradient(
+            1000px 600px at 50% -10%,
+            #1a1d3d 0%,
+            transparent 70%
+          ),
+          var(--bg);
+        min-height: 100vh;
+      }
+      .wx {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 8px 20px 120px;
+      }
+      .wx-hero {
+        text-align: center;
+        padding: 26px 0 34px;
+      }
+      .wx-hero .place {
+        font-size: 15px;
+        color: var(--muted);
+      }
+      .wx-hero h1 {
+        font-family: var(--display);
+        font-weight: 500;
+        font-size: clamp(44px, 7vw, 64px);
+        line-height: 1.05;
+        margin-top: 4px;
+      }
+      .wx-hero .moon-svg {
+        width: 96px;
+        height: 96px;
+        margin: 18px auto 6px;
+        display: block;
+        filter: drop-shadow(0 0 22px rgba(243, 234, 214, 0.25));
+      }
+      .wx-hero .tithi {
+        font-size: 20px;
+      }
+      .wx-hero .read {
+        font-family: var(--display);
+        font-size: 25px;
+        line-height: 1.35;
+        max-width: 30ch;
+        margin: 14px auto 0;
+        color: rgba(255, 255, 255, 0.88);
+      }
+      .tiles {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: repeat(2, 1fr);
+      }
+      @media (min-width: 900px) {
+        .tiles {
+          grid-template-columns: repeat(4, 1fr);
+        }
+      }
+      .tile {
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: 22px;
+        padding: 16px 18px 18px;
+        backdrop-filter: blur(20px);
+        min-width: 0;
+      }
+      .tile.w2 {
+        grid-column: span 2;
+      }
+      .tile.w4 {
+        grid-column: 1 / -1;
+      }
+      .tile .hd {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 12.5px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--faint);
+        margin-bottom: 10px;
+      }
+      .tile .hd svg {
+        width: 15px;
+        height: 15px;
+      }
+      .tile .big {
+        font-family: var(--display);
+        font-size: 30px;
+        line-height: 1.1;
+      }
+      .tile .sub {
+        font-size: 14.5px;
+        color: var(--muted);
+        margin-top: 6px;
+      }
+      .tile .kv {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 6px 14px;
+        font-size: 15px;
+      }
+      .tile .kv dt {
+        color: var(--faint);
+      }
+      .tile .kv dd {
+        margin: 0;
+        text-align: right;
+      }
+      .daybar {
+        position: relative;
+        height: 10px;
+        border-radius: 99px;
+        background: linear-gradient(
+          90deg,
+          rgba(255, 255, 255, 0.08),
+          rgba(255, 205, 106, 0.25),
+          rgba(255, 255, 255, 0.08)
+        );
+        margin: 16px 0 8px;
+      }
+      .daybar .rk {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        border-radius: 99px;
+        background: var(--rose);
+      }
+      .daybar .ab {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        border-radius: 99px;
+        background: var(--sage);
+      }
+      .daybar .now {
+        position: absolute;
+        top: -5px;
+        width: 20px;
+        height: 20px;
+        border-radius: 99px;
+        background: #fff;
+        border: 4px solid #1b1d38;
+        transform: translateX(-50%);
+      }
+      .dayscale {
+        display: flex;
+        justify-content: space-between;
+        font-size: 13px;
+        color: var(--faint);
+      }
+      .seasonbar {
+        display: flex;
+        gap: 3px;
+        height: 10px;
+        margin: 14px 0 8px;
+      }
+      .seasonbar i {
+        border-radius: 99px;
+        background: rgba(255, 255, 255, 0.14);
+      }
+      .seasonbar i.now {
+        background: var(--gold);
+      }
+      .ring {
+        width: 74px;
+        height: 74px;
+        float: right;
+        margin-left: 10px;
+      }
+      .tlist {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 10px;
+      }
+      .tlist li {
+        display: grid;
+        grid-template-columns: 62px 1fr;
+        gap: 10px;
+        font-size: 15px;
+      }
+      .tlist li b {
+        color: var(--faint);
+        font-weight: 500;
+        font-size: 14px;
+      }
+      .tlist small {
+        display: block;
+        color: var(--faint);
+        font-size: 13.5px;
+      }
+      .links {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px 18px;
+      }
+      @media (min-width: 900px) {
+        .links {
+          grid-template-columns: repeat(6, 1fr);
+        }
+      }
+      .links a {
+        font-size: 16px;
+      }
+      .links a small {
+        display: block;
+        font-size: 13.5px;
+        color: var(--faint);
+      }
+      .askdock {
+        position: fixed;
+        left: 50%;
+        bottom: 16px;
+        transform: translateX(-50%);
+        width: min(680px, calc(100% - 28px));
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        padding: 7px 7px 7px 20px;
+        border-radius: 99px;
+        background: rgba(28, 30, 58, 0.92);
+        backdrop-filter: blur(16px);
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+        z-index: 30;
+      }
+      .askdock input {
+        flex: 1;
+        min-width: 0;
+        background: none;
+        border: 0;
+        outline: none;
+        color: var(--text);
+        font: inherit;
+        font-size: 16px;
+      }
+      .askdock input::placeholder {
+        color: var(--faint);
+      }
+      .askdock button {
+        background: var(--gold);
+        color: #1a1405;
+        font-weight: 700;
+        padding: 11px 20px;
+        border-radius: 99px;
+        font-size: 15px;
+      }
+
+      /* =============== B · Calm =============== */
+      #B {
+        background:
+          radial-gradient(900px 700px at 50% 0%, #1d1830 0%, transparent 70%),
+          var(--bg);
+        min-height: 100vh;
+      }
+      .calm {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 10px 22px 100px;
+      }
+      .calm-hero {
+        text-align: center;
+        padding: 40px 0 28px;
+      }
+      .glow {
+        width: 190px;
+        height: 190px;
+        margin: 0 auto;
+        position: relative;
+        display: grid;
+        place-items: center;
+      }
+      .glow::before {
+        content: "";
+        position: absolute;
+        inset: -30px;
+        border-radius: 99px;
+        background: radial-gradient(
+          circle,
+          rgba(255, 205, 106, 0.16),
+          transparent 65%
+        );
+      }
+      .glow .moon-svg {
+        width: 150px;
+        height: 150px;
+        position: relative;
+      }
+      .calm-hero .when {
+        font-size: 16px;
+        color: var(--muted);
+        margin-top: 22px;
+      }
+      .calm-hero h1 {
+        font-family: var(--display);
+        font-weight: 500;
+        font-size: clamp(40px, 7vw, 56px);
+        margin-top: 4px;
+      }
+      .calm-hero .read {
+        font-family: var(--display);
+        font-size: 26px;
+        line-height: 1.4;
+        margin: 16px auto 0;
+        max-width: 26ch;
+        color: rgba(255, 255, 255, 0.88);
+      }
+      .calm-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        margin-top: 28px;
+        flex-wrap: wrap;
+      }
+      .pillbtn {
+        padding: 15px 26px;
+        border-radius: 99px;
+        font-size: 16px;
+        font-weight: 600;
+      }
+      .pillbtn.gold {
+        background: var(--gold);
+        color: #1a1405;
+      }
+      .pillbtn.soft {
+        background: rgba(159, 211, 184, 0.14);
+        color: var(--sage);
+      }
+      .calm-sec {
+        margin-top: 64px;
+      }
+      .calm-sec h2 {
+        font-family: var(--display);
+        font-weight: 500;
+        font-size: 30px;
+        text-align: center;
+      }
+      .calm-sec .lead {
+        text-align: center;
+        color: var(--muted);
+        font-size: 16px;
+        margin-top: 6px;
+      }
+      .soft-row {
+        display: grid;
+        gap: 12px;
+        margin-top: 22px;
+        grid-template-columns: repeat(2, 1fr);
+      }
+      @media (min-width: 700px) {
+        .soft-row.c3 {
+          grid-template-columns: repeat(3, 1fr);
+        }
+        .soft-row.c4 {
+          grid-template-columns: repeat(4, 1fr);
+        }
+      }
+      .soft {
+        background: rgba(255, 255, 255, 0.045);
+        border-radius: 26px;
+        padding: 20px;
+        text-align: center;
+      }
+      .soft .k {
+        font-size: 13.5px;
+        color: var(--faint);
+      }
+      .soft .v {
+        font-family: var(--display);
+        font-size: 24px;
+        margin-top: 4px;
+        line-height: 1.2;
+      }
+      .soft .n {
+        font-size: 14.5px;
+        color: var(--muted);
+        margin-top: 6px;
+      }
+      .soft.warn .v {
+        color: var(--rose);
+      }
+      .soft.left {
+        text-align: left;
+      }
+      .calm-list {
+        list-style: none;
+        padding: 0;
+        margin: 22px 0 0;
+        display: grid;
+        gap: 12px;
+      }
+      .calm-list li {
+        background: rgba(255, 255, 255, 0.045);
+        border-radius: 22px;
+        padding: 18px 20px;
+        display: flex;
+        gap: 16px;
+        align-items: center;
+      }
+      .calm-list .ic {
+        width: 46px;
+        height: 46px;
+        border-radius: 99px;
+        display: grid;
+        place-items: center;
+        flex: none;
+        font-size: 20px;
+      }
+      .calm-list b {
+        display: block;
+        font-family: var(--display);
+        font-size: 22px;
+        font-weight: 500;
+      }
+      .calm-list span {
+        font-size: 15px;
+        color: var(--muted);
+      }
+      .calm-icons {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 18px;
+        margin-top: 24px;
+        text-align: center;
+      }
+      @media (min-width: 700px) {
+        .calm-icons {
+          grid-template-columns: repeat(6, 1fr);
+        }
+      }
+      .calm-icons a .o {
+        width: 64px;
+        height: 64px;
+        margin: 0 auto 8px;
+        border-radius: 99px;
+        background: rgba(255, 255, 255, 0.06);
+        display: grid;
+        place-items: center;
+        font-size: 24px;
+      }
+      .calm-icons a {
+        font-size: 15px;
+      }
+
+      /* =============== C · Co-Star =============== */
+      #C {
+        background: #000;
+        min-height: 100vh;
+      }
+      .cs {
+        max-width: 820px;
+        margin: 0 auto;
+        padding: 18px 22px 120px;
+      }
+      .cs .date {
+        font-size: 14px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--faint);
+        margin-top: 30px;
+      }
+      .cs .line {
+        font-family: var(--display);
+        font-weight: 500;
+        font-size: clamp(48px, 8.5vw, 92px);
+        line-height: 1.02;
+        letter-spacing: -0.01em;
+        margin-top: 14px;
+      }
+      .cs .line em {
+        font-style: italic;
+        color: var(--gold);
+      }
+      .cs .why {
+        font-size: 17px;
+        color: var(--muted);
+        max-width: 52ch;
+        margin-top: 22px;
+      }
+      .dodont {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+        margin-top: 46px;
+      }
+      .dodont h3 {
+        font-size: 14px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--faint);
+        font-weight: 600;
+        margin-bottom: 10px;
+      }
+      .dodont p {
+        font-family: var(--display);
+        font-size: 27px;
+        line-height: 1.25;
+      }
+      .cs-sec {
+        margin-top: 72px;
+      }
+      .cs-sec h2 {
+        font-size: 14px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--faint);
+        font-weight: 600;
+      }
+      .cs-rows {
+        margin-top: 14px;
+      }
+      .cs-row {
+        display: grid;
+        grid-template-columns: 150px 1fr;
+        gap: 18px;
+        padding: 15px 0;
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+      }
+      .cs-row:last-child {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      }
+      .cs-row .k {
+        font-size: 15px;
+        color: var(--faint);
+        padding-top: 4px;
+      }
+      .cs-row .v {
+        font-family: var(--display);
+        font-size: 25px;
+        line-height: 1.2;
+      }
+      .cs-row .n {
+        font-size: 15.5px;
+        color: var(--muted);
+        margin-top: 4px;
+      }
+      .cs-row.warn .v {
+        color: var(--rose);
+      }
+      .cs-cta {
+        display: inline-block;
+        margin-top: 28px;
+        padding: 14px 24px;
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        border-radius: 99px;
+        font-size: 16px;
+      }
+      .cs-ask {
+        margin-top: 40px;
+        display: flex;
+        gap: 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+        padding-bottom: 10px;
+      }
+      .cs-ask input {
+        flex: 1;
+        background: none;
+        border: 0;
+        outline: none;
+        color: #fff;
+        font: inherit;
+        font-size: 20px;
+        font-family: var(--display);
+      }
+      .cs-ask input::placeholder {
+        color: rgba(255, 255, 255, 0.4);
+      }
+      .cs-ask button {
+        font-size: 16px;
+        color: var(--gold);
+        font-weight: 600;
+      }
+
+      /* =============== D · Rails =============== */
+      #D {
+        background: var(--bg);
+        min-height: 100vh;
+      }
+      .rails {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 8px 20px 110px;
+      }
+      .banner {
+        position: relative;
+        overflow: hidden;
+        border-radius: 28px;
+        padding: 34px 30px;
+        min-height: 280px;
+        background:
+          radial-gradient(
+            500px 300px at 85% 30%,
+            rgba(255, 205, 106, 0.28),
+            transparent 70%
+          ),
+          linear-gradient(135deg, #24204a 0%, #120f24 60%, #0b0a17 100%);
+        display: grid;
+        align-content: end;
+      }
+      .banner .moon-svg {
+        position: absolute;
+        right: 40px;
+        top: 34px;
+        width: 150px;
+        height: 150px;
+        filter: drop-shadow(0 0 30px rgba(243, 234, 214, 0.3));
+      }
+      .banner .k {
+        font-size: 15px;
+        color: rgba(255, 255, 255, 0.75);
+      }
+      .banner h1 {
+        font-family: var(--display);
+        font-weight: 500;
+        font-size: clamp(40px, 6vw, 58px);
+        line-height: 1.05;
+        margin-top: 4px;
+        max-width: 14ch;
+      }
+      .banner p {
+        font-size: 17px;
+        color: rgba(255, 255, 255, 0.82);
+        max-width: 46ch;
+        margin-top: 10px;
+      }
+      .banner .row {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+        flex-wrap: wrap;
+      }
+      .banner .row button {
+        padding: 12px 20px;
+        border-radius: 99px;
+        font-weight: 600;
+        font-size: 15px;
+      }
+      .banner .row .p {
+        background: var(--gold);
+        color: #1a1405;
+      }
+      .banner .row .s {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .rail {
+        margin-top: 38px;
+      }
+      .rail h2 {
+        font-family: var(--display);
+        font-weight: 500;
+        font-size: 28px;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+      }
+      .rail h2 small {
+        font-family: var(--body);
+        font-size: 14px;
+        color: var(--faint);
+      }
+      .track {
+        display: flex;
+        gap: 14px;
+        overflow-x: auto;
+        padding: 14px 2px 6px;
+        scroll-snap-type: x mandatory;
+        scrollbar-width: thin;
+      }
+      .rc {
+        flex: 0 0 236px;
+        scroll-snap-align: start;
+        border-radius: 22px;
+        padding: 18px;
+        min-height: 176px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      .rc .t {
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.7);
+      }
+      .rc .v {
+        font-family: var(--display);
+        font-size: 27px;
+        line-height: 1.12;
+        margin-top: 8px;
+      }
+      .rc .n {
+        font-size: 14.5px;
+        color: rgba(255, 255, 255, 0.75);
+        margin-top: 8px;
+      }
+      .g1 {
+        background: linear-gradient(160deg, #3a2a52, #191526);
+      }
+      .g2 {
+        background: linear-gradient(160deg, #1f3a45, #111d23);
+      }
+      .g3 {
+        background: linear-gradient(160deg, #4a3618, #1f170c);
+      }
+      .g4 {
+        background: linear-gradient(160deg, #4a1f2c, #200e14);
+      }
+      .g5 {
+        background: linear-gradient(160deg, #23304f, #10162a);
+      }
+      .g6 {
+        background: linear-gradient(160deg, #24402f, #0f1c15);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="switch" role="tablist">
+      <button class="on" data-v="A">Apple Weather</button>
+      <button data-v="B">Calm / Headspace</button>
+      <button data-v="C">Co-Star</button>
+      <button data-v="D">Spotify rails</button>
+    </div>
+
+    <!-- ================= A ================= -->
+    <section class="view on" id="A">
+      <header class="appbar">
+        <div class="brand">AstroYou</div>
+        <nav>
+          <span>Home</span><span>Today</span><span>Guidance</span
+          ><span>My Chart</span><span>Bonds</span><span>Path</span>
+        </nav>
+        <div class="me">Meera</div>
+      </header>
+      <div class="wx">
+        <div class="wx-hero">
+          <p class="place">Saturday, 7 November · Lucknow</p>
+          <h1>Good afternoon, Meera</h1>
+          <svg class="moon-svg moon" viewBox="-52 -52 104 104"></svg>
+          <p class="tithi">Krishna Trayodashi · Moon in Chitra</p>
+          <p class="read">
+            Chitra supports focused progress. Ask one concrete question and turn
+            the answer into one action.
+          </p>
+        </div>
+
+        <div class="tiles">
+          <div class="tile w2">
+            <div class="hd">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2M12 20v2M2 12h2M20 12h2" /></svg
+              >Your day
+            </div>
+            <div class="big">Rahu Kaal is over</div>
+            <p class="sub">
+              It ran 09:04–10:26. Abhijit, the best window for beginnings, was
+              11:25–12:13.
+            </p>
+            <div class="daybar">
+              <span class="rk" style="left: 25%; width: 12.5%"></span
+              ><span class="ab" style="left: 46.2%; width: 7.3%"></span
+              ><span class="now" style="left: 79%"></span>
+            </div>
+            <div class="dayscale">
+              <span>Sunrise 06:19</span><span>Now 15:10</span
+              ><span>Sunset 17:19</span>
+            </div>
+          </div>
+          <div class="tile">
+            <div class="hd">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M20 14A8 8 0 0 1 10 4a8 8 0 1 0 10 10z" /></svg
+              >Moon
+            </div>
+            <div class="big">6% lit</div>
+            <p class="sub">
+              Waning crescent in Virgo. New moon tomorrow, on Diwali.
+            </p>
+          </div>
+          <div class="tile">
+            <div class="hd">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="4" y="5" width="16" height="15" rx="2" />
+                <path d="M4 10h16" /></svg
+              >Panchang
+            </div>
+            <dl class="kv">
+              <dt>Tithi</dt>
+              <dd>Trayodashi</dd>
+              <dt>Nakshatra</dt>
+              <dd>Chitra</dd>
+              <dt>Yoga</dt>
+              <dd>Priti</dd>
+              <dt>Karana</dt>
+              <dd>Vanija</dd>
+            </dl>
+          </div>
+
+          <div class="tile w4">
+            <div class="hd">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z" /></svg
+              >Today for you
+            </div>
+            <div
+              class="tiles"
+              style="
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 18px;
+              "
+            >
+              <div>
+                <div class="big" style="font-size: 24px">Energy</div>
+                <p class="sub">Chitra supports focused progress.</p>
+              </div>
+              <div>
+                <div class="big" style="font-size: 24px">Do</div>
+                <p class="sub">
+                  Ask one concrete question and turn the answer into one action.
+                </p>
+              </div>
+              <div>
+                <div class="big" style="font-size: 24px">Take care</div>
+                <p class="sub">Keep important commitments out of Rahu Kaal.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="tile">
+            <div class="hd">Moon sign</div>
+            <div class="big">Pisces</div>
+            <p class="sub">
+              Uttara Bhadrapada. Sensitive and intuitive; you absorb the mood
+              around you.
+            </p>
+          </div>
+          <div class="tile">
+            <div class="hd">Rising</div>
+            <div class="big">Leo</div>
+            <p class="sub">You meet life with presence, as a natural centre.</p>
+          </div>
+          <div class="tile w2">
+            <div class="hd">Your season</div>
+            <div class="big">Ketu, until July 2029</div>
+            <div class="seasonbar">
+              <i style="flex: 10"></i><i style="flex: 17"></i
+              ><i class="now" style="flex: 7"></i><i style="flex: 20"></i
+              ><i style="flex: 6"></i>
+            </div>
+            <p class="sub">
+              Saturn 1995 · Mercury 2005 ·
+              <span style="color: var(--gold)">Ketu 2022</span> · Venus 2029 ·
+              Sun 2049. Jupiter sub-period until mid-2027.
+            </p>
+          </div>
+
+          <div class="tile w2">
+            <div class="hd">Saturn</div>
+            <svg class="ring" viewBox="0 0 40 40">
+              <circle
+                cx="20"
+                cy="20"
+                r="16"
+                fill="none"
+                stroke="rgba(255,255,255,.12)"
+                stroke-width="4"
+              />
+              <circle
+                cx="20"
+                cy="20"
+                r="16"
+                fill="none"
+                stroke="#ffcd6a"
+                stroke-width="4"
+                stroke-linecap="round"
+                stroke-dasharray="64 101"
+                transform="rotate(-90 20 20)"
+              />
+            </svg>
+            <div class="big">Sade Sati, peak phase</div>
+            <p class="sub">
+              Until mid-2027. A season for steadier choices and patience, not a
+              punishment.
+            </p>
+          </div>
+          <div class="tile">
+            <div class="hd">Yoga</div>
+            <div class="big">Sasa yoga</div>
+            <p class="sub">
+              Saturn strong in its own sign: endurance and quiet authority.
+            </p>
+          </div>
+          <div class="tile">
+            <div class="hd">Birth star</div>
+            <div class="big">Uttara Bhadrapada</div>
+            <p class="sub">Ruled by Saturn. Patient and private.</p>
+          </div>
+
+          <div class="tile w2">
+            <div class="hd">Daily sadhana</div>
+            <ul class="tlist">
+              <li>
+                <b>Mantra</b
+                ><span
+                  >One focused mantra cycle<small
+                    >Repeat one short mantra with steady breath for ten
+                    minutes.</small
+                  ></span
+                >
+              </li>
+              <li>
+                <b>Ritual</b
+                ><span
+                  >Evening light practice<small
+                    >Light a diya, sit quietly, and name one thing to
+                    release.</small
+                  ></span
+                >
+              </li>
+              <li>
+                <b>Seva</b
+                ><span
+                  >Small act of seva<small
+                    >Offer food, time or help without expecting anything
+                    back.</small
+                  ></span
+                >
+              </li>
+            </ul>
+          </div>
+          <div class="tile w2">
+            <div class="hd">Upcoming festivals</div>
+            <ul class="tlist">
+              <li>
+                <b>7 Nov</b
+                ><span>Dhanteras<small>Worship of Dhanvantari</small></span>
+              </li>
+              <li>
+                <b>8 Nov</b><span>Diwali<small>Festival of lights</small></span>
+              </li>
+              <li>
+                <b>10 Nov</b
+                ><span
+                  >Govardhan Puja<small>Krishna lifted Govardhan</small></span
+                >
+              </li>
+              <li>
+                <b>11 Nov</b
+                ><span
+                  >Bhai Dooj<small>Sister applies tilak to brother</small></span
+                >
+              </li>
+            </ul>
+          </div>
+
+          <div class="tile w4">
+            <div class="hd">Explore</div>
+            <div class="links">
+              <a href="#">Today<small>Forecast, transits</small></a
+              ><a href="#">Guidance<small>Talk it through</small></a
+              ><a href="#">My Chart<small>Reports, numerology</small></a
+              ><a href="#">Bonds<small>Compatibility</small></a
+              ><a href="#">Path<small>Remedies, wellness</small></a
+              ><a href="#">Astro Map<small>Relocation lines</small></a>
+            </div>
+            <p class="sub" style="margin-top: 16px">
+              Update birth data · Natal report PDF, 75 credits · Share my chart
+            </p>
+          </div>
+        </div>
+      </div>
+      <form class="askdock" onsubmit="return false;">
+        <input
+          placeholder="Ask Jyotish anything"
+          aria-label="Ask Jyotish"
+        /><button>Ask</button>
+      </form>
+    </section>
+
+    <!-- ================= B ================= -->
+    <section class="view" id="B">
+      <header class="appbar">
+        <div class="brand">AstroYou</div>
+        <nav>
+          <span>Home</span><span>Today</span><span>Guidance</span
+          ><span>My Chart</span><span>Bonds</span><span>Path</span>
+        </nav>
+        <div class="me">Meera</div>
+      </header>
+      <div class="calm">
+        <div class="calm-hero">
+          <div class="glow">
+            <svg class="moon-svg moon" viewBox="-52 -52 104 104"></svg>
+          </div>
+          <p class="when">Saturday afternoon · Krishna Trayodashi</p>
+          <h1>Good afternoon, Meera</h1>
+          <p class="read">
+            A steady day. Ask one clear question, and turn the answer into one
+            action.
+          </p>
+          <div class="calm-actions">
+            <button class="pillbtn gold">Talk to Jyotish</button
+            ><button class="pillbtn soft">Breathe for a minute</button>
+          </div>
+        </div>
+
+        <div class="calm-sec">
+          <h2>Today</h2>
+          <p class="lead">Rahu Kaal is over for today. Sunset is at 17:19.</p>
+          <div class="soft-row c4">
+            <div class="soft">
+              <p class="k">Tithi</p>
+              <p class="v">Trayodashi</p>
+            </div>
+            <div class="soft">
+              <p class="k">Nakshatra</p>
+              <p class="v">Chitra</p>
+            </div>
+            <div class="soft">
+              <p class="k">Yoga</p>
+              <p class="v">Priti</p>
+            </div>
+            <div class="soft">
+              <p class="k">Karana</p>
+              <p class="v">Vanija</p>
+            </div>
+            <div class="soft warn">
+              <p class="k">Rahu Kaal</p>
+              <p class="v">09:04–10:26</p>
+            </div>
+            <div class="soft">
+              <p class="k">Sun</p>
+              <p class="v">06:19–17:19</p>
+            </div>
+            <div class="soft">
+              <p class="k">Moon</p>
+              <p class="v">6% lit</p>
+              <p class="n">Diwali new moon tomorrow</p>
+            </div>
+            <div class="soft">
+              <p class="k">Moon sign</p>
+              <p class="v">Virgo</p>
+            </div>
+          </div>
+          <div class="soft-row c3">
+            <div class="soft left">
+              <p class="k">Energy</p>
+              <p class="n" style="font-size: 16px; color: var(--text)">
+                Chitra supports focused progress.
+              </p>
+            </div>
+            <div class="soft left">
+              <p class="k">Do</p>
+              <p class="n" style="font-size: 16px; color: var(--text)">
+                Ask one concrete question; act on it.
+              </p>
+            </div>
+            <div class="soft left">
+              <p class="k">Take care</p>
+              <p class="n" style="font-size: 16px; color: var(--text)">
+                No big commitments in Rahu Kaal.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="calm-sec">
+          <h2>You</h2>
+          <p class="lead">Your chart in three lines</p>
+          <div class="soft-row c3">
+            <div class="soft">
+              <p class="k">Moon</p>
+              <p class="v">Pisces</p>
+              <p class="n">Uttara Bhadrapada. Sensitive, intuitive.</p>
+            </div>
+            <div class="soft">
+              <p class="k">Rising</p>
+              <p class="v">Leo</p>
+              <p class="n">You meet life with presence.</p>
+            </div>
+            <div class="soft">
+              <p class="k">Season</p>
+              <p class="v">Ketu</p>
+              <p class="n">Letting go, until July 2029.</p>
+            </div>
+            <div class="soft">
+              <p class="k">Saturn</p>
+              <p class="v">Sade Sati, peak</p>
+              <p class="n">Until mid-2027. Patience, not punishment.</p>
+            </div>
+            <div class="soft">
+              <p class="k">Yoga</p>
+              <p class="v">Sasa yoga</p>
+              <p class="n">Endurance, quiet authority.</p>
+            </div>
+            <div class="soft">
+              <p class="k">Sub-period</p>
+              <p class="v">Jupiter</p>
+              <p class="n">Until mid-2027.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="calm-sec">
+          <h2>Practices for today</h2>
+          <ul class="calm-list">
+            <li>
+              <span class="ic" style="background: rgba(255, 205, 106, 0.14)"
+                >🔥</span
+              >
+              <div>
+                <b>One focused mantra cycle</b
+                ><span>Ten minutes, with steady breath.</span>
+              </div>
+            </li>
+            <li>
+              <span class="ic" style="background: rgba(159, 211, 184, 0.14)"
+                >🪔</span
+              >
+              <div>
+                <b>Evening light practice</b
+                ><span>Light a diya and name one thing to release.</span>
+              </div>
+            </li>
+            <li>
+              <span class="ic" style="background: rgba(242, 163, 180, 0.14)"
+                >🤲</span
+              >
+              <div>
+                <b>Small act of seva</b
+                ><span>Offer food, time or help, expecting nothing back.</span>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="calm-sec">
+          <h2>Coming up</h2>
+          <div class="soft-row c4">
+            <div class="soft">
+              <p class="k">Today</p>
+              <p class="v">Dhanteras</p>
+            </div>
+            <div class="soft">
+              <p class="k">Sun 8 Nov</p>
+              <p class="v">Diwali</p>
+            </div>
+            <div class="soft">
+              <p class="k">Tue 10 Nov</p>
+              <p class="v">Govardhan Puja</p>
+            </div>
+            <div class="soft">
+              <p class="k">Wed 11 Nov</p>
+              <p class="v">Bhai Dooj</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="calm-sec">
+          <h2>Go deeper</h2>
+          <div class="calm-icons">
+            <a href="#"><span class="o">☀️</span>Today</a
+            ><a href="#"><span class="o">✨</span>Guidance</a
+            ><a href="#"><span class="o">📜</span>My Chart</a
+            ><a href="#"><span class="o">💛</span>Bonds</a
+            ><a href="#"><span class="o">🌿</span>Path</a
+            ><a href="#"><span class="o">🧭</span>Astro Map</a>
+          </div>
+          <p class="lead" style="margin-top: 26px">
+            Update birth data · Natal report PDF, 75 credits · Share my chart
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= C ================= -->
+    <section class="view" id="C">
+      <header class="appbar">
+        <div class="brand">AstroYou</div>
+        <nav>
+          <span>Home</span><span>Today</span><span>Guidance</span
+          ><span>My Chart</span><span>Bonds</span><span>Path</span>
+        </nav>
+        <div class="me">Meera</div>
+      </header>
+      <div class="cs">
+        <p class="date">Saturday 7 November · Krishna Trayodashi</p>
+        <p class="line">
+          Ask one clear question. <em>Then act on the answer.</em>
+        </p>
+        <p class="why">
+          The Moon is in Chitra, the craftsman's star, in Virgo, your 7th from
+          the Moon. Focused progress comes easier today, especially with people
+          close to you.
+        </p>
+        <div class="dodont">
+          <div>
+            <h3>Do</h3>
+            <p>Repair. Listen. Finish one thing.</p>
+          </div>
+          <div>
+            <h3>Don't</h3>
+            <p>Start big commitments in Rahu Kaal, 09:04–10:26.</p>
+          </div>
+        </div>
+        <form class="cs-ask" onsubmit="return false;">
+          <input
+            placeholder="Ask Jyotish anything"
+            aria-label="Ask Jyotish"
+          /><button>Ask</button>
+        </form>
+
+        <div class="cs-sec">
+          <h2>Today's sky</h2>
+          <div class="cs-rows">
+            <div class="cs-row">
+              <span class="k">Tithi</span>
+              <div>
+                <p class="v">Trayodashi</p>
+                <p class="n">
+                  Waning moon, 6% lit. New moon tomorrow, on Diwali.
+                </p>
+              </div>
+            </div>
+            <div class="cs-row">
+              <span class="k">Nakshatra</span>
+              <div><p class="v">Chitra</p></div>
+            </div>
+            <div class="cs-row">
+              <span class="k">Yoga · Karana</span>
+              <div><p class="v">Priti · Vanija</p></div>
+            </div>
+            <div class="cs-row warn">
+              <span class="k">Rahu Kaal</span>
+              <div>
+                <p class="v">09:04–10:26</p>
+                <p class="n">Over for today.</p>
+              </div>
+            </div>
+            <div class="cs-row">
+              <span class="k">Sun</span>
+              <div><p class="v">06:19–17:19</p></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cs-sec">
+          <h2>You</h2>
+          <div class="cs-rows">
+            <div class="cs-row">
+              <span class="k">Moon</span>
+              <div>
+                <p class="v">Pisces, Uttara Bhadrapada</p>
+                <p class="n">
+                  Sensitive and intuitive; you absorb the mood around you.
+                </p>
+              </div>
+            </div>
+            <div class="cs-row">
+              <span class="k">Rising</span>
+              <div>
+                <p class="v">Leo</p>
+                <p class="n">You meet life with presence.</p>
+              </div>
+            </div>
+            <div class="cs-row">
+              <span class="k">Season</span>
+              <div>
+                <p class="v">Ketu, until July 2029</p>
+                <p class="n">
+                  Jupiter sub-period until mid-2027. Letting go of what's
+                  outgrown.
+                </p>
+              </div>
+            </div>
+            <div class="cs-row">
+              <span class="k">Saturn</span>
+              <div>
+                <p class="v">Sade Sati, peak phase</p>
+                <p class="n">Until mid-2027. Patience, not punishment.</p>
+              </div>
+            </div>
+            <div class="cs-row">
+              <span class="k">Yoga</span>
+              <div>
+                <p class="v">Sasa yoga</p>
+                <p class="n">Endurance and quiet authority.</p>
+              </div>
+            </div>
+          </div>
+          <a class="cs-cta" href="#">See my full chart</a>
+        </div>
+
+        <div class="cs-sec">
+          <h2>Practice</h2>
+          <div class="cs-rows">
+            <div class="cs-row">
+              <span class="k">Mantra</span>
+              <div>
+                <p class="v">One focused cycle</p>
+                <p class="n">Ten minutes, with steady breath.</p>
+              </div>
+            </div>
+            <div class="cs-row">
+              <span class="k">Ritual</span>
+              <div>
+                <p class="v">Evening light</p>
+                <p class="n">Light a diya and name one thing to release.</p>
+              </div>
+            </div>
+            <div class="cs-row">
+              <span class="k">Seva</span>
+              <div>
+                <p class="v">One small kindness</p>
+                <p class="n">
+                  Offer food, time or help, expecting nothing back.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cs-sec">
+          <h2>Coming up</h2>
+          <div class="cs-rows">
+            <div class="cs-row">
+              <span class="k">Today</span>
+              <div><p class="v">Dhanteras</p></div>
+            </div>
+            <div class="cs-row">
+              <span class="k">Sun 8 Nov</span>
+              <div><p class="v">Diwali</p></div>
+            </div>
+            <div class="cs-row">
+              <span class="k">Tue 10 Nov</span>
+              <div><p class="v">Govardhan Puja</p></div>
+            </div>
+            <div class="cs-row">
+              <span class="k">Wed 11 Nov</span>
+              <div><p class="v">Bhai Dooj</p></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cs-sec">
+          <h2>More</h2>
+          <div class="cs-rows">
+            <div class="cs-row">
+              <span class="k">Explore</span>
+              <div>
+                <p class="v">
+                  Today · Guidance · My Chart · Bonds · Path · Astro Map
+                </p>
+              </div>
+            </div>
+            <div class="cs-row">
+              <span class="k">Keep</span>
+              <div>
+                <p class="v">
+                  Update birth data · Natal report (75 credits) · Share my chart
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= D ================= -->
+    <section class="view" id="D">
+      <header class="appbar">
+        <div class="brand">AstroYou</div>
+        <nav>
+          <span>Home</span><span>Today</span><span>Guidance</span
+          ><span>My Chart</span><span>Bonds</span><span>Path</span>
+        </nav>
+        <div class="me">Meera</div>
+      </header>
+      <div class="rails">
+        <div class="banner">
+          <svg class="moon-svg moon" viewBox="-52 -52 104 104"></svg>
+          <p class="k">Saturday 7 November · Dhanteras</p>
+          <h1>Good afternoon, Meera</h1>
+          <p>
+            Chitra supports focused progress. Ask one concrete question and turn
+            the answer into one action.
+          </p>
+          <div class="row">
+            <button class="p">Talk to Jyotish</button
+            ><button class="s">Open today's forecast</button>
+          </div>
+        </div>
+
+        <div class="rail">
+          <h2>Today <small>Lucknow</small></h2>
+          <div class="track">
+            <div class="rc g4">
+              <span class="t">Rahu Kaal</span>
+              <div>
+                <p class="v">09:04–10:26</p>
+                <p class="n">Over for today</p>
+              </div>
+            </div>
+            <div class="rc g5">
+              <span class="t">Moon</span>
+              <div>
+                <p class="v">6% lit</p>
+                <p class="n">Waning in Virgo. New moon on Diwali</p>
+              </div>
+            </div>
+            <div class="rc g1">
+              <span class="t">Tithi · Nakshatra</span>
+              <div><p class="v">Trayodashi · Chitra</p></div>
+            </div>
+            <div class="rc g2">
+              <span class="t">Yoga · Karana</span>
+              <div><p class="v">Priti · Vanija</p></div>
+            </div>
+            <div class="rc g3">
+              <span class="t">Sun</span>
+              <div>
+                <p class="v">06:19–17:19</p>
+                <p class="n">Sunset in 2h 9m</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rail">
+          <h2>For you today</h2>
+          <div class="track">
+            <div class="rc g3">
+              <span class="t">Energy</span>
+              <div>
+                <p class="v">Focused progress</p>
+                <p class="n">Chitra supports it</p>
+              </div>
+            </div>
+            <div class="rc g6">
+              <span class="t">Do</span>
+              <div><p class="v">One question, one action</p></div>
+            </div>
+            <div class="rc g4">
+              <span class="t">Take care</span>
+              <div><p class="v">No big commitments in Rahu Kaal</p></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rail">
+          <h2>Your chart <small>See full chart</small></h2>
+          <div class="track">
+            <div class="rc g5">
+              <span class="t">Moon</span>
+              <div>
+                <p class="v">Pisces</p>
+                <p class="n">Uttara Bhadrapada. Sensitive, intuitive</p>
+              </div>
+            </div>
+            <div class="rc g3">
+              <span class="t">Rising</span>
+              <div>
+                <p class="v">Leo</p>
+                <p class="n">You meet life with presence</p>
+              </div>
+            </div>
+            <div class="rc g1">
+              <span class="t">Season</span>
+              <div>
+                <p class="v">Ketu until 2029</p>
+                <p class="n">Jupiter sub-period until mid-2027</p>
+              </div>
+            </div>
+            <div class="rc g2">
+              <span class="t">Saturn</span>
+              <div>
+                <p class="v">Sade Sati, peak</p>
+                <p class="n">Until mid-2027. Patience, not punishment</p>
+              </div>
+            </div>
+            <div class="rc g6">
+              <span class="t">Yoga</span>
+              <div>
+                <p class="v">Sasa yoga</p>
+                <p class="n">Endurance, quiet authority</p>
+              </div>
+            </div>
+            <div class="rc g4">
+              <span class="t">Birth star</span>
+              <div>
+                <p class="v">Uttara Bhadrapada</p>
+                <p class="n">Ruled by Saturn</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rail">
+          <h2>Practices</h2>
+          <div class="track">
+            <div class="rc g3">
+              <span class="t">Mantra</span>
+              <div>
+                <p class="v">One focused cycle</p>
+                <p class="n">Ten minutes, steady breath</p>
+              </div>
+            </div>
+            <div class="rc g6">
+              <span class="t">Ritual</span>
+              <div>
+                <p class="v">Evening light</p>
+                <p class="n">Light a diya, release one thing</p>
+              </div>
+            </div>
+            <div class="rc g4">
+              <span class="t">Seva</span>
+              <div>
+                <p class="v">Small act of seva</p>
+                <p class="n">Help without expecting back</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rail">
+          <h2>Festivals</h2>
+          <div class="track">
+            <div class="rc g3">
+              <span class="t">Today</span>
+              <div>
+                <p class="v">Dhanteras</p>
+                <p class="n">Worship of Dhanvantari</p>
+              </div>
+            </div>
+            <div class="rc g1">
+              <span class="t">Sun 8 Nov</span>
+              <div>
+                <p class="v">Diwali</p>
+                <p class="n">Festival of lights</p>
+              </div>
+            </div>
+            <div class="rc g6">
+              <span class="t">Tue 10 Nov</span>
+              <div><p class="v">Govardhan Puja</p></div>
+            </div>
+            <div class="rc g4">
+              <span class="t">Wed 11 Nov</span>
+              <div><p class="v">Bhai Dooj</p></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rail">
+          <h2>Explore</h2>
+          <div class="track">
+            <div class="rc g5">
+              <span class="t">Today</span>
+              <div><p class="v">Forecast & transits</p></div>
+            </div>
+            <div class="rc g1">
+              <span class="t">Guidance</span>
+              <div><p class="v">Talk it through</p></div>
+            </div>
+            <div class="rc g3">
+              <span class="t">My Chart</span>
+              <div><p class="v">Reports & numerology</p></div>
+            </div>
+            <div class="rc g4">
+              <span class="t">Bonds</span>
+              <div><p class="v">Compatibility</p></div>
+            </div>
+            <div class="rc g6">
+              <span class="t">Path</span>
+              <div><p class="v">Remedies & wellness</p></div>
+            </div>
+            <div class="rc g2">
+              <span class="t">Astro Map</span>
+              <div><p class="v">Relocation lines</p></div>
+            </div>
+            <div class="rc g5">
+              <span class="t">Keep</span>
+              <div>
+                <p class="v">Natal report PDF</p>
+                <p class="n">75 credits · Update birth data · Share chart</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <script>
+      // Waning crescent, 6% lit — terminator drawn correctly.
+      function moonPath(f, waxing, R) {
+        const rx = Math.abs(1 - 2 * f) * R,
+          cres = f < 0.5;
+        return waxing
+          ? `M0 ${-R} A${R} ${R} 0 0 1 0 ${R} A${rx} ${R} 0 0 ${cres ? 0 : 1} 0 ${-R} Z`
+          : `M0 ${-R} A${R} ${R} 0 0 0 0 ${R} A${rx} ${R} 0 0 ${cres ? 1 : 0} 0 ${-R} Z`;
+      }
+      document.querySelectorAll("svg.moon").forEach((svg) => {
+        svg.innerHTML = `<circle r="48" class="dark"/><path class="lit" d="${moonPath(0.06, false, 48)}"/><circle r="48" class="rim"/>`;
+      });
+      document.querySelectorAll("[data-v]").forEach((b) =>
+        b.addEventListener("click", () => {
+          document
+            .querySelectorAll(".view")
+            .forEach((v) => v.classList.toggle("on", v.id === b.dataset.v));
+          document
+            .querySelectorAll("[data-v]")
+            .forEach((x) => x.classList.toggle("on", x === b));
+          window.scrollTo(0, 0);
+        }),
+      );
+    </script>
+  </body>
+</html>

@@ -52,28 +52,28 @@ export const TodayTriptych: React.FC<TodayTriptychProps> = ({
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 border-t border-l border-white/8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 mt-2">
         {PANELS.map((panel) => (
           <div
             key={panel.key}
-            className="relative px-5 py-6 border-b border-r border-white/8"
+            className="relative rounded-[1.6rem] bg-white/[0.055] p-5 md:p-6"
           >
-            <span className="absolute top-3 right-4 font-display italic text-3xl text-white/[0.07] select-none">
+            <span className="absolute top-3 right-5 font-display italic text-3xl text-white/[0.08] select-none">
               {panel.numeral}
             </span>
-            <p className="text-[0.6rem] font-bold uppercase tracking-[0.3em] text-white/30 mb-3">
+            <p className="text-[0.7rem] font-bold uppercase tracking-[0.25em] text-white/45 mb-3">
               {panel.label}
             </p>
-            <p className="text-sm text-white/75 leading-relaxed">
+            <p className="text-[1.02rem] text-white/80 leading-relaxed">
               {guide[panel.key]}
             </p>
           </div>
         ))}
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 mt-3 px-1">
-        <p className="text-xs text-white/40 italic">{guide.nudge}</p>
-        <details className="text-xs text-white/30 sm:ml-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 mt-6">
+        <p className="text-sm text-white/55 italic">{guide.nudge}</p>
+        <details className="text-sm text-white/45 sm:ml-auto">
           <summary className="cursor-pointer hover:text-white/55 transition-colors select-none">
             Why am I seeing this?
           </summary>

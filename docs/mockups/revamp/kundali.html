@@ -1,0 +1,882 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AstroYou — Concept 3: Living kundali</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Eczar:wght@400;500;600&family=Hind:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* Tokens — peacock ground, turmeric for the chart, lotus for today's touches. */
+      :root {
+        --peacock: #0d2526;
+        --deep: #0a1c1d;
+        --raised: #10302f;
+        --ivory: #efe7d6;
+        --dim: rgba(239, 231, 214, 0.64);
+        --faint: rgba(239, 231, 214, 0.38);
+        --line: rgba(239, 231, 214, 0.12);
+        --turmeric: #e3b342;
+        --lotus: #e592a8;
+        --sea: #6fbcae;
+        --display: "Eczar", Georgia, serif;
+        --sans: "Hind", -apple-system, system-ui, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--peacock);
+        color: var(--ivory);
+        font-family: var(--sans);
+        font-size: 16px;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+      body {
+        background:
+          radial-gradient(1000px 640px at 20% 30%, #13393a 0%, transparent 65%),
+          var(--peacock);
+        min-height: 100vh;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        background: none;
+        border: 0;
+        cursor: pointer;
+      }
+      :focus-visible {
+        outline: 2px solid var(--turmeric);
+        outline-offset: 3px;
+        border-radius: 6px;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      header {
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 18px 24px;
+        display: flex;
+        align-items: center;
+        gap: 26px;
+      }
+      .brand {
+        font-family: var(--display);
+        font-size: 24px;
+        font-weight: 600;
+        color: var(--turmeric);
+      }
+      nav {
+        display: none;
+        gap: 20px;
+        font-size: 15px;
+        color: var(--dim);
+      }
+      nav a {
+        color: inherit;
+        text-decoration: none;
+      }
+      nav a[aria-current] {
+        color: var(--ivory);
+      }
+      .who {
+        margin-left: auto;
+        font-size: 14px;
+        color: var(--dim);
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+      .who b {
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        background: var(--raised);
+        color: var(--turmeric);
+      }
+      @media (min-width: 960px) {
+        nav {
+          display: flex;
+        }
+      }
+
+      main {
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 4px 24px 100px;
+      }
+
+      .top {
+        display: grid;
+        gap: 22px;
+        align-items: end;
+      }
+      @media (min-width: 900px) {
+        .top {
+          grid-template-columns: 1fr auto;
+        }
+      }
+      .top h1 {
+        font-family: var(--display);
+        font-weight: 500;
+        font-size: clamp(36px, 5vw, 56px);
+        line-height: 1.05;
+      }
+      .top p {
+        color: var(--dim);
+        margin-top: 8px;
+      }
+      .today-strip {
+        display: flex;
+        gap: 24px;
+        font-size: 14px;
+        color: var(--dim);
+        flex-wrap: wrap;
+      }
+      .today-strip b {
+        display: block;
+        color: var(--ivory);
+        font-family: var(--display);
+        font-weight: 500;
+        font-size: 20px;
+      }
+      .today-strip .warn b {
+        color: var(--lotus);
+      }
+
+      /* The chart is the interface */
+      .stage {
+        display: grid;
+        gap: 30px;
+        margin-top: 30px;
+      }
+      @media (min-width: 1000px) {
+        .stage {
+          grid-template-columns: minmax(0, 560px) minmax(0, 1fr);
+          gap: 48px;
+          align-items: start;
+        }
+      }
+      .chart-wrap {
+        position: relative;
+      }
+      .kundali {
+        width: 100%;
+        height: auto;
+        overflow: visible;
+        display: block;
+      }
+      .k-frame,
+      .k-lines {
+        fill: none;
+        stroke: var(--turmeric);
+        stroke-width: 1.4;
+      }
+      .house-shape {
+        fill: transparent;
+        transition: fill 0.35s;
+      }
+      .house.touched .house-shape {
+        fill: rgba(229, 146, 168, 0.07);
+      }
+      .house:hover .house-shape {
+        fill: rgba(227, 179, 66, 0.08);
+      }
+      .house.selected .house-shape {
+        fill: rgba(227, 179, 66, 0.16);
+      }
+      .house {
+        cursor: pointer;
+        outline: none;
+      }
+      .house:focus-visible .house-shape {
+        fill: rgba(227, 179, 66, 0.14);
+      }
+      .house-sign {
+        fill: var(--faint);
+        font-size: 9px;
+        font-family: var(--sans);
+      }
+      .house-natal {
+        fill: var(--ivory);
+        font-size: 11.5px;
+        font-family: var(--sans);
+        font-weight: 500;
+      }
+      .house-transit {
+        fill: var(--lotus);
+        font-size: 10px;
+        font-family: var(--sans);
+        font-weight: 500;
+      }
+      .chart-key {
+        display: flex;
+        gap: 18px;
+        font-size: 13px;
+        color: var(--dim);
+        margin-top: 12px;
+        flex-wrap: wrap;
+      }
+      .chart-key i {
+        display: inline-block;
+        width: 9px;
+        height: 9px;
+        border-radius: 3px;
+        margin-right: 6px;
+        vertical-align: 0;
+      }
+
+      /* House reading — morphs on selection */
+      .reading-pane {
+        min-height: 420px;
+      }
+      .pane-kicker {
+        font-size: 14px;
+        color: var(--turmeric);
+      }
+      .pane-title {
+        font-family: var(--display);
+        font-weight: 500;
+        font-size: clamp(30px, 3.4vw, 44px);
+        line-height: 1.08;
+        margin-top: 4px;
+      }
+      .pane-body {
+        margin-top: 16px;
+        font-size: 17px;
+        color: rgba(239, 231, 214, 0.86);
+        max-width: 48ch;
+      }
+      .facts {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0;
+        margin-top: 22px;
+        border-top: 1px solid var(--line);
+      }
+      .facts div {
+        padding: 12px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .facts div:nth-child(odd) {
+        padding-right: 16px;
+      }
+      .facts div:nth-child(even) {
+        padding-left: 16px;
+        box-shadow: inset 1px 0 0 var(--line);
+      }
+      .facts span {
+        display: block;
+        font-size: 13px;
+        color: var(--faint);
+      }
+      .facts b {
+        font-weight: 500;
+      }
+      .pane-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 22px;
+        flex-wrap: wrap;
+      }
+      .pill {
+        padding: 10px 16px;
+        border-radius: 12px;
+        font-size: 15px;
+      }
+      .pill.primary {
+        background: var(--turmeric);
+        color: #241a02;
+        font-weight: 600;
+      }
+      .pill.ghost {
+        box-shadow: inset 0 0 0 1px var(--line);
+        color: var(--ivory);
+      }
+      .lit-houses {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 26px;
+      }
+      .lit-houses button {
+        font-size: 13px;
+        padding: 6px 11px;
+        border-radius: 99px;
+        box-shadow: inset 0 0 0 1px rgba(229, 146, 168, 0.35);
+        color: var(--lotus);
+      }
+      .lit-houses button[aria-pressed="true"] {
+        background: rgba(229, 146, 168, 0.14);
+      }
+
+      /* Lower deck: lunar ring, day band, seasons */
+      .deck {
+        display: grid;
+        gap: 38px;
+        margin-top: 70px;
+      }
+      @media (min-width: 1000px) {
+        .deck {
+          grid-template-columns: 300px minmax(0, 1fr);
+          gap: 56px;
+        }
+      }
+      .deck h2 {
+        font-family: var(--display);
+        font-weight: 500;
+        font-size: 24px;
+      }
+      .deck .lede {
+        color: var(--dim);
+        font-size: 15px;
+        margin-top: 4px;
+      }
+      .ring-wrap {
+        position: relative;
+        width: 260px;
+        max-width: 100%;
+        margin-top: 16px;
+      }
+      .tithi-mala {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+      .mala-thread {
+        fill: none;
+        stroke: var(--line);
+      }
+      .bead.past {
+        fill: rgba(239, 231, 214, 0.25);
+      }
+      .bead.future {
+        fill: transparent;
+        stroke: rgba(239, 231, 214, 0.35);
+        stroke-width: 1.2;
+      }
+      .bead.today {
+        fill: var(--lotus);
+        filter: drop-shadow(0 0 6px rgba(229, 146, 168, 0.7));
+      }
+      .bead.purnima {
+        fill: var(--ivory);
+      }
+      .bead.amavasya {
+        fill: var(--deep);
+        stroke: var(--turmeric);
+        stroke-width: 1.5;
+      }
+      .ring-center {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        text-align: center;
+      }
+      .moon-disk {
+        width: 70px;
+        height: 70px;
+        display: block;
+        margin: 0 auto 6px;
+      }
+      .moon-dark {
+        fill: #0a1a1a;
+      }
+      .moon-lit {
+        fill: #f3ead6;
+      }
+      .moon-rim {
+        fill: none;
+        stroke: rgba(239, 231, 214, 0.2);
+      }
+      .ring-center b {
+        display: block;
+        font-family: var(--display);
+        font-weight: 500;
+        font-size: 17px;
+      }
+      .ring-center span {
+        font-size: 12px;
+        color: var(--dim);
+      }
+
+      .day-band {
+        position: relative;
+        margin-top: 30px;
+      }
+      .db-track {
+        position: relative;
+        height: 40px;
+        border-radius: 10px;
+        background: var(--deep);
+      }
+      .db-day {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        border-radius: 10px;
+        background: rgba(227, 179, 66, 0.07);
+      }
+      .db-seg {
+        position: absolute;
+        top: 6px;
+        bottom: 6px;
+        border-radius: 7px;
+        display: flex;
+        align-items: center;
+        padding: 0 8px;
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+      }
+      .db-seg.avoid {
+        background: rgba(229, 146, 168, 0.22);
+        color: #f6c9d5;
+      }
+      .db-seg.soft {
+        background: rgba(239, 231, 214, 0.06);
+        color: var(--dim);
+      }
+      .db-seg.good {
+        background: rgba(111, 188, 174, 0.22);
+        color: #c9ece5;
+      }
+      .db-now {
+        position: absolute;
+        top: -10px;
+        bottom: -10px;
+        width: 0;
+      }
+      .db-now i {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: -1px;
+        width: 2px;
+        background: var(--turmeric);
+        border-radius: 2px;
+      }
+      .db-now b {
+        position: absolute;
+        top: -20px;
+        left: 0;
+        transform: translateX(-50%);
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--turmeric);
+        white-space: nowrap;
+      }
+      .db-axis {
+        position: relative;
+        height: 22px;
+        margin-top: 8px;
+        font-size: 12px;
+        color: var(--faint);
+      }
+      .db-axis span {
+        position: absolute;
+        transform: translateX(-50%);
+        white-space: nowrap;
+      }
+
+      .season-strand {
+        width: 100%;
+        height: auto;
+        overflow: visible;
+        margin-top: 18px;
+      }
+      .strand-base {
+        stroke: var(--line);
+        stroke-width: 2;
+      }
+      .strand-seg {
+        stroke: rgba(239, 231, 214, 0.25);
+        stroke-width: 6;
+        stroke-linecap: round;
+      }
+      .strand-seg.now {
+        stroke: var(--turmeric);
+      }
+      .strand-label {
+        fill: var(--dim);
+        font-size: 14px;
+        font-family: var(--display);
+      }
+      .strand-label.now {
+        fill: var(--turmeric);
+      }
+      .strand-year {
+        fill: var(--faint);
+        font-size: 11px;
+        font-family: var(--sans);
+      }
+      .strand-sub {
+        stroke: rgba(227, 179, 66, 0.3);
+        stroke-width: 3;
+        stroke-linecap: round;
+      }
+      .strand-sub.now {
+        stroke: var(--lotus);
+      }
+      .strand-zoom {
+        stroke: rgba(227, 179, 66, 0.3);
+        stroke-dasharray: 2 3;
+      }
+      .now-dot {
+        fill: var(--ivory);
+      }
+      .now-label {
+        fill: var(--ivory);
+        font-size: 12px;
+        font-family: var(--sans);
+      }
+
+      .ask {
+        position: fixed;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: 18px;
+        width: min(640px, calc(100% - 32px));
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        padding: 6px 6px 6px 18px;
+        border-radius: 16px;
+        background: rgba(10, 28, 29, 0.94);
+        box-shadow:
+          inset 0 0 0 1px rgba(227, 179, 66, 0.3),
+          0 18px 40px rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(10px);
+      }
+      .ask input {
+        flex: 1;
+        min-width: 0;
+        background: none;
+        border: 0;
+        outline: none;
+        color: var(--ivory);
+        font: inherit;
+        padding: 10px 0;
+      }
+      .ask input::placeholder {
+        color: var(--faint);
+      }
+      .ask button {
+        background: var(--turmeric);
+        color: #241a02;
+        font-weight: 600;
+        border-radius: 11px;
+        padding: 10px 16px;
+      }
+      .badge {
+        position: fixed;
+        right: 14px;
+        top: 14px;
+        font-size: 12px;
+        color: var(--dim);
+        background: rgba(10, 28, 29, 0.9);
+        box-shadow: inset 0 0 0 1px var(--line);
+        padding: 5px 10px;
+        border-radius: 99px;
+      }
+      .badge a {
+        color: var(--turmeric);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="brand">AstroYou</div>
+      <nav aria-label="Main">
+        <a href="#" aria-current="page">Home</a><a href="#">Today</a
+        ><a href="#">Guidance</a><a href="#">My chart</a><a href="#">Bonds</a
+        ><a href="#">Path</a>
+      </nav>
+      <div class="who"><span>42 credits</span><b>M</b></div>
+    </header>
+
+    <main>
+      <section class="top">
+        <div>
+          <h1>Good morning, Meera</h1>
+          <p>
+            Today's planets are touching eight parts of your chart. Tap any house
+            to read it.
+          </p>
+        </div>
+        <div class="today-strip">
+          <div>Tithi<b>Krishna Trayodashi</b></div>
+          <div>Nakshatra<b>Chitra</b></div>
+          <div class="warn">Rahu Kaal<b>until 10:27</b></div>
+        </div>
+      </section>
+
+      <section class="stage">
+        <div class="chart-wrap">
+          <div id="chart"></div>
+          <div class="chart-key">
+            <span
+              ><i style="background: var(--ivory)"></i>Your birth planets</span
+            >
+            <span
+              ><i style="background: var(--lotus)"></i>Where today's planets
+              are</span
+            >
+            <span
+              ><i style="background: var(--turmeric)"></i>Selected house</span
+            >
+          </div>
+        </div>
+
+        <div class="reading-pane" aria-live="polite">
+          <div id="pane">
+            <p class="pane-kicker" id="kicker"></p>
+            <h2 class="pane-title" id="title"></h2>
+            <p class="pane-body" id="body"></p>
+            <div class="facts" id="facts"></div>
+            <div class="pane-actions">
+              <button class="pill primary" id="askHouse">
+                Talk about this
+              </button>
+              <button class="pill ghost">Read the full house</button>
+            </div>
+          </div>
+          <div
+            class="lit-houses"
+            id="lit"
+            aria-label="Houses touched today"
+          ></div>
+        </div>
+      </section>
+
+      <section class="deck">
+        <div>
+          <h2>This lunar month</h2>
+          <p class="lede">Two days to Amavasya, on Diwali.</p>
+          <div class="ring-wrap">
+            <div id="ring"></div>
+            <div class="ring-center">
+              <div>
+                <div id="moon"></div>
+                <b>Trayodashi</b><span>day 28 of 30</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <h2>Your day</h2>
+          <p class="lede">
+            Rahu Kaal now. Abhijit, the best window for beginnings, is 11:26 to
+            12:14.
+          </p>
+          <div id="band"></div>
+          <h2 style="margin-top: 46px">Your seasons</h2>
+          <p class="lede">Ketu, with Jupiter until mid-2027.</p>
+          <div id="strand"></div>
+        </div>
+      </section>
+    </main>
+
+    <form class="ask" onsubmit="return false;">
+      <input
+        id="askInput"
+        aria-label="Talk to your guide"
+        placeholder="Ask about any part of your chart"
+      /><button type="submit">Ask</button>
+    </form>
+    <div class="badge">
+      Concept 3 of 3 · <a href="index.html">all concepts</a>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt" crossorigin="anonymous"></script>
+    <script src="primitives.js"></script>
+    <script>
+      const { kundali, tithiMala, moonDisk, dayBand, seasonStrand, hasGsap } =
+        window.AY;
+      const AREA = {
+        1: ["You", "How you meet the world and how you look after yourself."],
+        2: [
+          "Money and family",
+          "What you value, your savings, and the voice you use at home.",
+        ],
+        3: [
+          "Courage and siblings",
+          "Effort, short journeys, and the nerve to speak up.",
+        ],
+        4: ["Home and mother", "Where you feel safe, and your emotional base."],
+        5: [
+          "Creativity and children",
+          "Joy, romance, study, and what you make.",
+        ],
+        6: [
+          "Health and daily work",
+          "Routines, stress, and the problems you solve.",
+        ],
+        7: [
+          "Partnership",
+          "Marriage, close partners, and how you meet another person.",
+        ],
+        8: [
+          "Change and the hidden",
+          "Endings, shared resources, and deep transformation.",
+        ],
+        9: ["Faith and teachers", "Belief, mentors, long journeys, and luck."],
+        10: ["Career", "Your work in the world and how you're seen for it."],
+        11: [
+          "Gains and friends",
+          "Income, wishes, and the circles you belong to.",
+        ],
+        12: ["Rest and letting go", "Sleep, solitude, spending, and release."],
+      };
+      const NAMES = {
+        Su: "Sun",
+        Mo: "Moon",
+        Ma: "Mars",
+        Me: "Mercury",
+        Ju: "Jupiter",
+        Ve: "Venus",
+        Sa: "Saturn",
+        Ra: "Rahu",
+        Ke: "Ketu",
+      };
+      const TODAY = {
+        2: "The Moon passes through here today. It's the 7th sign from your birth Moon, so people close to you are on your mind. A kind word lands well.",
+        7: "Rahu has been moving through your house of partnership, and your birth Saturn lives here. Commitment for you deepens slowly; restlessness now is a season, not a verdict.",
+        8: "Saturn is crossing your birth Moon here until mid-2027. This is the peak of Sade Sati: a time to mature and steady yourself, not to fear.",
+        3: "The Sun and Venus warm your house of courage. Good for an honest message you've been drafting in your head.",
+        11: "Jupiter supports your circle of friends. Ask for help; it's more available than it feels.",
+        12: "Mars stirs your house of rest. Protect your sleep and don't pick fights late at night.",
+        1: "Ketu sits on your rising sign, making you a little detached from how others see you.",
+        4: "Mercury moves through your home. Good for sorting family plans and paperwork.",
+      };
+      let selected = null;
+      const k = kundali(document.getElementById("chart"), {
+        onSelect: (h, info) => select(h, info),
+      });
+
+      function select(h, info, animate = true) {
+        if (selected) k.houses[selected].classList.remove("selected");
+        selected = h;
+        k.houses[h].classList.add("selected");
+        document
+          .querySelectorAll("#lit button")
+          .forEach((b) =>
+            b.setAttribute("aria-pressed", String(Number(b.dataset.h) === h)),
+          );
+        const [area, about] = AREA[h];
+        const write = () => {
+          document.getElementById("kicker").textContent =
+            `House ${h}, ${info.sign}`;
+          document.getElementById("title").textContent = area;
+          document.getElementById("body").textContent = TODAY[h] || about;
+          document.getElementById("facts").innerHTML = `
+        <div><span>What it covers</span><b>${about}</b></div>
+        <div><span>Sign</span><b>${info.sign}</b></div>
+        <div><span>Your birth planets here</span><b>${info.natal.length ? info.natal.map((x) => NAMES[x]).join(", ") : "None"}</b></div>
+        <div><span>Today's planets here</span><b>${info.transit.length ? info.transit.map((x) => NAMES[x]).join(", ") : "None"}</b></div>`;
+          document.getElementById("askInput").placeholder =
+            `Ask about ${area.toLowerCase()}`;
+        };
+        if (animate && hasGsap()) {
+          gsap
+            .timeline()
+            .to("#pane", {
+              opacity: 0,
+              x: 10,
+              duration: 0.18,
+              ease: "power1.in",
+            })
+            .call(write)
+            .to("#pane", {
+              opacity: 1,
+              x: 0,
+              duration: 0.35,
+              ease: "power2.out",
+            });
+          const shape = k.houses[h].querySelector(".house-shape");
+          gsap.fromTo(
+            shape,
+            { fill: "rgba(227,179,66,.38)" },
+            {
+              fill: "rgba(227,179,66,.16)",
+              duration: 0.8,
+              ease: "power2.out",
+              clearProps: "fill",
+            },
+          );
+        } else write();
+      }
+
+      // Chips for houses touched today
+      const lit = document.getElementById("lit");
+      Object.keys(k.transit)
+        .map(Number)
+        .sort((a, b) => a - b)
+        .forEach((h) => {
+          const b = document.createElement("button");
+          b.dataset.h = h;
+          b.setAttribute("aria-pressed", "false");
+          b.textContent = `${AREA[h][0]}`;
+          b.addEventListener("click", () =>
+            select(h, {
+              sign: window.AY.SIGNS[k.signOfHouse(h) - 1],
+              natal:
+                {
+                  1: ["Me"],
+                  2: ["Ma"],
+                  3: ["Ra"],
+                  4: ["Ju"],
+                  7: ["Sa"],
+                  8: ["Mo"],
+                  9: ["Ke"],
+                  12: ["Su", "Ve"],
+                }[h] || [],
+              transit: k.transit[h] || [],
+            }),
+          );
+          lit.appendChild(b);
+        });
+
+      select(
+        7,
+        { sign: "Aquarius", natal: ["Sa"], transit: k.transit[7] || [] },
+        false,
+      );
+
+      tithiMala(document.getElementById("ring"), {
+        mode: "ring",
+        width: 260,
+        delay: 1,
+      });
+      moonDisk(document.getElementById("moon"), { r: 30 });
+      dayBand(document.getElementById("band"), { delay: 1.1 });
+      seasonStrand(document.getElementById("strand"), { delay: 1.3 });
+
+      if (hasGsap()) {
+        gsap.from([".top", ".reading-pane"], {
+          opacity: 0,
+          y: 12,
+          duration: 0.9,
+          ease: "power2.out",
+          stagger: 0.15,
+          delay: 0.3,
+        });
+      }
+    </script>
+  </body>
+</html>
