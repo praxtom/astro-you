@@ -92,6 +92,8 @@ const {
   SEO_AUTHOR,
   SEO_PUBLISHER,
   SEO_CONTENT_REVIEWED,
+  SEO_GUIDE_REDIRECTS,
+  getMergedSeoGuide,
 } = seo;
 
 // ── Static page definitions ──────────────────────────────────────────────────
@@ -1257,7 +1259,6 @@ function panchangDatePage(date) {
     updated: today,
     links: [
       { label: "Today Panchang", href: "/panchang" },
-      { label: "Panchang Guide", href: "/panchang-today" },
       { label: "Muhurat Finder", href: "/muhurat" },
       { label: "Free Kundali", href: "/free-kundali" },
     ],
@@ -1504,7 +1505,7 @@ const muhuratCategoryPages = [
   links: [
     { label: "Muhurat Finder", href: "/muhurat" },
     { label: "Today Panchang", href: "/panchang" },
-    { label: `${label} Guide`, href: `/${guide}` },
+    ...(guide === "muhurat" ? [] : [{ label: `${label} Guide`, href: `/${guide}` }]),
     { label: "Free Kundali", href: "/free-kundali" },
   ],
   cta: "/muhurat",
@@ -1534,6 +1535,16 @@ const toolPages = publicSeo.PUBLIC_TOOL_PAGES.map(page => ({
   links: defaultSeoLinks, cta: page.path, ctaLabel: "Open the tool",
   faq: [{ question: `What can I find on this page?`, answer: page.description }],
 }));
+// Guides merged into a tool page (see MERGED_SEO_GUIDES): their text renders
+// on the tool page, and their own links to themselves are dropped.
+for (const page of [...toolPages, ...muhuratCategoryPages]) {
+  const guide = getMergedSeoGuide(page.path);
+  if (!guide) continue;
+  page.sections = [...(page.sections || []), ...guide.sections];
+  page.faq = [...(page.faq || []), ...getSeoContentFaqs(guide)];
+  page.links = (page.links || []).filter((link) => link.href !== guide.path);
+}
+
 const legalPages = [
   ["/refund-policy", "Refund Policy", legal.REFUND_SECTIONS],
   ["/disclaimer", "Astrology and AI Disclaimer", legal.DISCLAIMER_SECTIONS],
@@ -1962,10 +1973,10 @@ ${guides.map((page) => `- [${page.heading}](${baseUrl}${page.path}): ${page.desc
 
 ## Comparisons
 
-- [AI vs human astrologer](${baseUrl}/ai-astrologer-vs-human-astrologer)
+- [Astrology app vs human astrologer](${baseUrl}/astrology-app-vs-human-astrologer)
 - [AstroTalk alternatives](${baseUrl}/astrotalk-alternatives)
 - [AstroSage alternatives](${baseUrl}/astrosage-alternatives)
-- [Best AI astrology app](${baseUrl}/best-ai-astrology-app)
+- [Best astrology app](${baseUrl}/best-astrology-app)
 - [Free Kundali apps compared](${baseUrl}/free-kundali-apps-compared)
 
 ## Sitemap
@@ -2068,7 +2079,9 @@ const notFound = shell.replace(/<title>.*?<\/title>/, "<title>Page Not Found | A
   .replace('<div id="root"></div>', '<div id="root"><main><h1>Page not found</h1><p>This page does not exist.</p><a href="/">Return home</a></main></div>');
   const redirects = PRIVATE_ROUTES.flatMap(route => [
     `${route} /app-shell.html 200`, `${route}/* /app-shell.html 200`,
-  ]).join("\n") + "\n" + panchangShellRules() + "\n";
+  ]).join("\n") + "\n" +
+    SEO_GUIDE_REDIRECTS.map(({ from, to }) => `${from} ${to} 301`).join("\n") + "\n" +
+    panchangShellRules() + "\n";
   return { shell, notFound, redirects };
 };
 

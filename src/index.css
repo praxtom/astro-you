@@ -282,7 +282,8 @@ p {
   background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
     0 2px 4px -1px rgba(0, 0, 0, 0.06);
   border: 1px solid var(--stroke-subtle);
   transition: all 700ms;
@@ -569,6 +570,24 @@ p {
 
 .platform-field:focus {
   border-color: rgba(255, 205, 106, 0.42);
+}
+
+/* iOS Safari zooms the page when a focused field's text is under 16px. On
+   phones every typed field gets 16px, overriding text-sm/text-xs utilities
+   (unlayered CSS beats Tailwind's layers). Checkboxes, radios and ranges
+   have no text and are left alone. */
+@media (max-width: 639px) {
+  input:not(
+    [type="checkbox"],
+    [type="radio"],
+    [type="range"],
+    [type="color"],
+    [type="file"]
+  ),
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }
 
 /* Navigation */

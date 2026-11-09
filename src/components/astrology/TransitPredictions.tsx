@@ -1,5 +1,6 @@
 import React from "react";
 import { Sparkles, Info, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { StatusNotice } from "../ui/StatusNotice";
 
 interface TransitPredictionsProps {
   predictions: any[];
@@ -32,21 +33,7 @@ const TransitPredictions: React.FC<TransitPredictionsProps> = ({
 
   if (error) {
     return (
-      <div role="alert" className="p-4 rounded-3xl bg-red-500/5 border border-red-500/20 text-center">
-        <AlertTriangle className="mx-auto mb-3 text-red-300" size={28} />
-        <p className="text-white/75 text-sm font-sans mb-3">
-          {error}
-        </p>
-        {onRetry && (
-          <button
-            type="button"
-            onClick={onRetry}
-            className="inline-flex min-h-11 items-center rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white/80 hover:border-white/30 hover:text-white"
-          >
-            Retry
-          </button>
-        )}
-      </div>
+      <StatusNotice size="section" message={error} onRetry={onRetry} />
     );
   }
 

@@ -1658,7 +1658,7 @@ export default function Synthesis() {
         <NightSky />
 
         {/* Screen-reader announcement when a reply completes. Lives at the
-            page root: inside <main> it would go inert while a mobile drawer
+            page root: inside the conversation region it would go inert while a mobile drawer
             is open and announcements would be dropped. */}
         <div role="status" aria-live="polite" className="sr-only">
           {replyAnnouncement}
@@ -1676,7 +1676,9 @@ export default function Synthesis() {
               conversationsButtonRef={conversationsToggleRef}
               blueprintButtonRef={blueprintToggleRef}
             />
-            <main
+            {/* A region, not <main>: the Standalone wrapper is the page's main. */}
+            <section
+              aria-label="Conversation"
               className="flex-1 flex flex-col overflow-hidden min-w-0 lg:order-2"
               inert={!isDesktopViewport && (showConversations || showBlueprint)}
             >
@@ -2041,7 +2043,7 @@ export default function Synthesis() {
                   </div>
                 )}
               </div>
-            </main>
+            </section>
 
             {/* ── Drawer backdrop (mobile only) ── */}
             {(showConversations || showBlueprint) && (

@@ -17,7 +17,6 @@ import {
   Shield,
   Download,
   Share2,
-  RefreshCw,
   LogIn,
 } from "lucide-react";
 import { useSubscription, useUserProfile } from "../hooks";
@@ -25,7 +24,8 @@ import { useRequestBirthData } from "../hooks/useRequestBirthData";
 import { useAuth } from "../lib/useAuth";
 import AuthModal from "../components/AuthModal";
 import { REPORT_PRICING, type ReportType } from "../lib/report-pricing";
-import { FullPageSkeleton } from "../components/ui/Skeleton";
+import { CardSkeleton, FullPageSkeleton } from "../components/ui/Skeleton";
+import { StatusNotice } from "../components/ui/StatusNotice";
 import type { ForecastData } from "../types";
 import { postJson } from "../lib/apiFetch";
 import { viewerDateKey } from "../lib/viewer-timezone";
@@ -316,7 +316,11 @@ const DailyForecast: React.FC = () => {
     }
   };
 
-  if (profileLoading || loading) return <FullPageSkeleton />;
+  // Full-page skeleton only for the first load. Switching period keeps the
+  // tabs and title in place and skeletons just the reading below.
+  if (profileLoading || (loading && !forecast && !error)) {
+    return <FullPageSkeleton />;
+  }
 
   if (!birthData) {
     return (
@@ -444,7 +448,7 @@ const DailyForecast: React.FC = () => {
               <Calendar size={14} />
               {today}
             </div>
-            {h?.overall_rating && (
+            {!loading && h?.overall_rating && (
               <div className="flex items-center gap-2 non-italic font-sans text-xs font-bold bg-white/5 border border-white/10 px-3 py-1 rounded-full text-gold">
                 Overall Alignment: {h.overall_rating}/5
               </div>
@@ -471,52 +475,47 @@ const DailyForecast: React.FC = () => {
           </div>
         )}
 
-        {error ? (
-          <div className="glass p-6 rounded-2xl border border-white/10 text-center">
-            {errorKind === "auth" ? (
-              <>
-                <p className="text-white/80 mb-2 text-lg font-light">
-                  Sign in to see your personal forecast
-                </p>
-                <p className="text-white/60 text-sm mb-5">
-                  Your forecast is read from your own chart, so it needs your
-                  AstroYou account.
-                </p>
-                <button
-                  onClick={() => setShowAuthModal(true)}
-                  className="inline-flex items-center gap-2 rounded-xl bg-gold px-5 py-3 text-sm font-bold uppercase tracking-widest text-black transition hover:bg-gold/90"
-                >
-                  <LogIn size={14} />
-                  Sign in
-                </button>
-              </>
-            ) : errorKind === "credits" ? (
-              <>
-                <p className="text-amber-200 mb-4">{error}</p>
-                <button
-                  onClick={() => navigate("/wallet")}
-                  className="px-6 py-2 bg-white/5 hover:bg-white/10 rounded-full text-xs font-bold transition-all border border-white/10"
-                >
-                  Top up credits
-                </button>
-              </>
-            ) : (
-              <>
-                <p className="text-white/75 mb-2">{error}</p>
-                <p className="text-white/60 text-sm mb-5">
-                  Nothing is wrong with your chart — our forecast service is
-                  just busy.
-                </p>
-                <button
-                  onClick={() => setRetryNonce((n) => n + 1)}
-                  className="inline-flex items-center gap-2 px-6 py-2 bg-white/5 hover:bg-white/10 rounded-full text-xs font-bold transition-all border border-white/10"
-                >
-                  <RefreshCw size={12} />
-                  Try again
-                </button>
-              </>
-            )}
+        {loading ? (
+          <div aria-busy="true" aria-live="polite" className="space-y-4">
+            <span className="sr-only">Loading your {period} forecast</span>
+            <CardSkeleton />
+            <CardSkeleton />
           </div>
+        ) : error ? (
+          errorKind === "auth" ? (
+            <StatusNotice
+              tone="info"
+              size="section"
+              title="Sign in to see your personal forecast"
+              message="Your forecast is read from your own chart, so it needs your AstroYou account."
+              action={{
+                label: "Sign in",
+                icon: LogIn,
+                onClick: () => setShowAuthModal(true),
+              }}
+            />
+          ) : errorKind === "credits" ? (
+            <StatusNotice
+              tone="info"
+              size="section"
+              message={error}
+              action={{ label: "Top up credits", to: "/wallet" }}
+            />
+          ) : (
+            <StatusNotice
+              size="section"
+              message={
+                <>
+                  <p>{error}</p>
+                  <p className="mt-1 text-white/60">
+                    Nothing is wrong with your chart — our forecast service is
+                    just busy.
+                  </p>
+                </>
+              }
+              onRetry={() => setRetryNonce((n) => n + 1)}
+            />
+          )
         ) : (
           <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-1000">
             {/* The Daily Pulse (Theme) */}

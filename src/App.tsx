@@ -9,7 +9,7 @@ import { trackAcquisitionEvent } from "./lib/acquisition";
 import SEO from "./components/SEO";
 import { PUBLIC_PAGE_META } from "./lib/seo-public";
 import { isPrivateRoute } from "./lib/seo-routing";
-import { SEO_CONTENT_PAGES } from "./lib/seo-content";
+import { SEO_CONTENT_PAGES, SEO_GUIDE_REDIRECTS } from "./lib/seo-content";
 
 // Lazy load pages for better performance
 const Landing = lazy(() => import("./pages/Landing"));
@@ -83,6 +83,10 @@ function App() {
               path={`/${space.id}`}
               element={<Navigate to={getSpacePrimaryPath(space)} replace />}
             />
+          ))}
+          {/* Guides merged into their tool page (the server 301s these). */}
+          {SEO_GUIDE_REDIRECTS.map(({ from, to }) => (
+            <Route key={from} path={from} element={<Navigate to={to} replace />} />
           ))}
           <Route path="/explore" element={<Explore />} />
           <Route path="/dashboard" element={<Dashboard />} />

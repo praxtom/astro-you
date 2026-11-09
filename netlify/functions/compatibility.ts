@@ -26,6 +26,63 @@ import {
   chargeKeyCoord,
 } from "./shared/charge-input.js";
 import { describeError } from "./shared/error-summary.js";
+import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit";
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+
+/**
+ * The public Free Kundali Matching tool: Ashtakoot (Guna Milan) only — one
+ * upstream call, no synastry, no narrative, no credits, no account. Budgeted
+ * per IP and fail-closed, same as guest charts in kundali.ts: the limiter's
+ * outage fallback reports `{ allowed: true, remaining: 0 }`, so denying
+ * `remaining <= 0` (with the limit one above the real budget) also denies
+ * during an outage. An unauthenticated paid-API path must never fail open.
+ */
+const FREE_MATCHES_PER_IP_PER_HOUR = 5;
+
+async function freeGunaMilan(
+  req: Request,
+  personA: Record<string, unknown>,
+  personB: Record<string, unknown>,
+): Promise<Response> {
+  const inputError =
+    birthInputError(personA, "Person 1") ?? birthInputError(personB, "Person 2");
+  if (inputError) return badInputResponse(inputError);
+
+  const budget = await checkRateLimit({
+    scope: "compatibility_free",
+    key: getRequestIdentifier(req),
+    limit: FREE_MATCHES_PER_IP_PER_HOUR + 1,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!budget.allowed || budget.remaining <= 0) {
+    return json(
+      {
+        error:
+          "You've run several free matches in the last hour. Please try again a little later.",
+        code: "free_match_limit",
+      },
+      429,
+    );
+  }
+
+  const vedicPair = orientVedicPair(personA as any, personB as any);
+  const vedicMatching = await getKundliMatching(
+    vedicPair.groom,
+    vedicPair.bride,
+  );
+  if (!vedicMatching || typeof vedicMatching !== "object") {
+    return json({ error: "Failed to fetch Guna Milan data" }, 502);
+  }
+  return json({
+    vedicMatching: attachPairManglik(vedicMatching, vedicPair.groomIs),
+    orientationAssumed: vedicPair.orientationAssumed,
+  });
+}
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
@@ -49,6 +106,10 @@ export default async (req: Request, _context: Context) => {
         }),
         { status: 400, headers: { "Content-Type": "application/json" } },
       );
+    }
+
+    if (payload.mode === "guna_milan") {
+      return await freeGunaMilan(req, personA, personB);
     }
 
     // Auth + rate limit: matching calls the paid astrology API + Gemini.

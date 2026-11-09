@@ -10,8 +10,6 @@ import {
   trackAcquisitionEvent,
 } from "../lib/acquisition";
 import { siteUrl } from "../lib/site-url";
-import { useAuth } from "../lib/useAuth";
-import AuthModal from "../components/AuthModal";
 
 interface PersonForm {
   name: string;
@@ -177,10 +175,8 @@ export default function FreeMatching() {
   const [result, setResult] = useState<MatchResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  // /api/compatibility needs an account (it spends paid upstream calls and
-  // credits), so guests are asked to sign in BEFORE anything is calculated.
-  const { user } = useAuth();
-  const [showAuth, setShowAuth] = useState(false);
+  // Free and account-free: mode "guna_milan" asks the server for the
+  // Ashtakoot score only — no credits, no narrative, budgeted per IP.
 
   const toPayload = (p: PersonForm) => ({
     name: p.name,
@@ -197,11 +193,6 @@ export default function FreeMatching() {
       );
       return;
     }
-    if (!user) {
-      setError("");
-      setShowAuth(true);
-      return;
-    }
     setError("");
     setLoading(true);
 
@@ -209,18 +200,15 @@ export default function FreeMatching() {
       const compatRes = await postJson("/api/compatibility", {
         personA: toPayload(person1),
         personB: toPayload(person2),
+        mode: "guna_milan",
       });
       const compatData = await compatRes.json().catch(() => null);
 
       if (!compatRes.ok) {
-        if (compatRes.status === 401) {
-          setShowAuth(true);
-        } else {
-          setError(
-            (typeof compatData?.error === "string" && compatData.error) ||
-              "We couldn't match these two charts just now. Check both birth dates, times and places, then try again in a minute.",
-          );
-        }
+        setError(
+          (typeof compatData?.error === "string" && compatData.error) ||
+            "We couldn't match these two charts just now. Check both birth dates, times and places, then try again in a minute.",
+        );
         return;
       }
 
@@ -322,12 +310,6 @@ export default function FreeMatching() {
               {error && (
                 <p className="text-red-400 text-sm text-center mt-5">{error}</p>
               )}
-              {!user && (
-                <p className="text-white/40 text-sm text-center mt-5">
-                  Sign in to run a free match — new accounts start with free
-                  credits.
-                </p>
-              )}
 
               <button
                 onClick={handleCheck}
@@ -342,7 +324,7 @@ export default function FreeMatching() {
                 ) : (
                   <>
                     <Heart className="w-5 h-5" />
-                    {user ? "Check Compatibility" : "Sign in to run a free match"}
+                    Check Compatibility
                   </>
                 )}
               </button>
@@ -498,13 +480,6 @@ export default function FreeMatching() {
           </motion.div>
         )}
       </div>
-      <AuthModal
-        isOpen={showAuth && !user}
-        onClose={() => setShowAuth(false)}
-        onSuccess={() => setShowAuth(false)}
-        title="Sign in to run a free match"
-        message="Your Guna Milan score is calculated from both birth charts. New accounts start with free credits."
-      />
     </div>
   );
 }

@@ -5,7 +5,7 @@ const toolLinks = [
   { label: "Kundali Matching", href: "/free-kundali-matching" },
   { label: "Moon Sign Calculator", href: "/moon-sign-calculator" },
   { label: "Nakshatra Finder", href: "/nakshatra-finder" },
-  { label: "Panchang Today", href: "/panchang-today" },
+  { label: "Panchang Today", href: "/panchang" },
   { label: "Dasha Calculator", href: "/dasha-calculator" },
 ];
 

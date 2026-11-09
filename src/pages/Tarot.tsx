@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { postJson } from "../lib/apiFetch";
-import { Sparkles, RotateCw, Send } from "lucide-react";
+import { Sparkles, RotateCw, RotateCcw, Send } from "lucide-react";
+import { StatusNotice } from "../components/ui/StatusNotice";
 import { PageShell } from "../components/layout/PageShell";
 
 interface TarotCard {
@@ -210,16 +211,10 @@ export default function Tarot() {
               <div className="h-4 bg-white/5 rounded animate-pulse w-64 mx-auto" />
             </div>
           ) : dailyError ? (
-            <div role="alert" className="glass rounded-2xl p-8 text-center">
-              <p className="text-white/75 mb-4">{dailyError}</p>
-              <button
-                type="button"
-                onClick={() => setDailyAttempt((n) => n + 1)}
-                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-sm font-semibold text-white/80 transition-colors hover:border-white/30 hover:text-white"
-              >
-                <RotateCw size={15} /> Retry
-              </button>
-            </div>
+            <StatusNotice
+              message={dailyError}
+              onRetry={() => setDailyAttempt((n) => n + 1)}
+            />
           ) : dailyCard ? (
             <div className="glass rounded-2xl p-10 text-center max-w-lg mx-auto">
               <div className="text-7xl mb-5">{getCardEmoji(dailyCard)}</div>
@@ -292,17 +287,16 @@ export default function Tarot() {
 
           {/* Reading error */}
           {readingError && (
-            <div role="alert" className="glass rounded-2xl p-6 mb-6 border border-red-500/20 text-center">
-              <p className="text-white/75 mb-4">{readingError}</p>
-              <button
-                type="button"
-                onClick={handleDrawThreeCards}
-                disabled={readingLoading}
-                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-sm font-semibold text-white/80 transition-colors hover:border-white/30 hover:text-white disabled:opacity-50"
-              >
-                <RotateCw size={15} /> Retry
-              </button>
-            </div>
+            <StatusNotice
+              className="mb-6"
+              message={readingError}
+              action={{
+                label: "Try again",
+                icon: RotateCcw,
+                onClick: handleDrawThreeCards,
+                disabled: readingLoading,
+              }}
+            />
           )}
 
           {/* Three cards display */}

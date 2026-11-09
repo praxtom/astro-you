@@ -4,6 +4,7 @@ import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
 import { AlertCircle, Download, FileText, Loader2, Wallet } from "lucide-react";
 import { PageShell } from "../components/layout/PageShell";
 import AuthModal from "../components/AuthModal";
+import { StatusNotice } from "../components/ui/StatusNotice";
 import { useAuth } from "../lib/useAuth";
 import { db } from "../lib/firebase";
 import {
@@ -296,17 +297,13 @@ export default function Reports() {
             Your birth chart
           </h1>
           {!hasChartBirthData ? (
-            <div className="platform-panel mt-4 p-4">
-              <p className="type-body text-white/70">
-                Add your birth date, time and place to see your chart.
-              </p>
-              <button
-                onClick={() => navigate("/onboarding")}
-                className="platform-button-primary mt-3"
-              >
-                Add birth details
-              </button>
-            </div>
+            <StatusNotice
+              tone="info"
+              size="section"
+              className="mt-4"
+              message="Add your birth date, time and place to see your chart."
+              action={{ label: "Add birth details", to: "/onboarding" }}
+            />
           ) : (
             <div className="mt-4 grid grid-cols-1 lg:grid-cols-[minmax(0,28rem)_1fr] gap-4 items-start">
               <div className="platform-panel p-3">
@@ -315,16 +312,11 @@ export default function Reports() {
                 ) : natal.loading ? (
                   <div className="aspect-square w-full rounded-xl bg-white/5 animate-pulse" />
                 ) : (
-                  <div className="p-4 text-sm text-white/55">
-                    Your chart is temporarily unavailable. Please try again in a
-                    little while.
-                    <button
-                      onClick={() => void natal.refetch()}
-                      className="platform-button-secondary mt-3"
-                    >
-                      Try again
-                    </button>
-                  </div>
+                  <StatusNotice
+                    size="section"
+                    message="Your chart is temporarily unavailable. Please try again in a little while."
+                    onRetry={() => void natal.refetch()}
+                  />
                 )}
               </div>
               <ChartThreeLinesCard
@@ -473,21 +465,12 @@ export default function Reports() {
                   ))}
                 </div>
               ) : libraryError ? (
-                <div role="alert" className="p-4 text-center">
-                  <AlertCircle
-                    className="mx-auto text-amber-300/60 mb-3"
-                    size={30}
+                <div className="p-4">
+                  <StatusNotice
+                    size="section"
+                    message={libraryError}
+                    onRetry={reloadLibrary}
                   />
-                  <p className="type-body text-white/75">
-                    {libraryError}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={reloadLibrary}
-                    className="platform-button-secondary mt-4"
-                  >
-                    Retry
-                  </button>
                 </div>
               ) : reports.length === 0 ? (
                 <div className="p-4 text-center">

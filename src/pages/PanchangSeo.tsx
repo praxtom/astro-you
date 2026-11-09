@@ -10,6 +10,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import SEO from "../components/SEO";
+import { MergedGuide } from "../components/seo/MergedGuide";
 import {
   captureAcquisitionSource,
   trackAcquisitionEvent,
@@ -249,6 +250,8 @@ function PanchangTool({ route }: { route: NonNullable<ReturnType<typeof panchang
             Ask For Today Guidance
           </Link>
         </section>
+
+        <MergedGuide toolPath={route.path} />
       </div>
     </div>
   );

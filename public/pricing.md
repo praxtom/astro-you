@@ -1,6 +1,6 @@
 # Pricing — AstroYou
 
-Last updated: 2026-11-06
+Last updated: 2026-11-09
 Currency: INR. All prices include applicable taxes unless stated otherwise.
 
 ## Subscription plans
@@ -9,7 +9,7 @@ Currency: INR. All prices include applicable taxes unless stated otherwise.
 - Price: ₹0 (free, no card required)
 - Monthly credits: 15
 - Consultation minutes per month: 3
-- AI Jyotish messages per day: 5
+- Jyotish messages per day: 5
 - PDF reports: No
 - Yearly forecast: No
 - Astrocartography: No
@@ -18,7 +18,7 @@ Currency: INR. All prices include applicable taxes unless stated otherwise.
 - Price: ₹499/month
 - Monthly credits: 700
 - Consultation minutes per month: 140
-- AI Jyotish messages per day: Unlimited
+- Jyotish messages per day: Unlimited
 - PDF reports: Yes
 - Yearly forecast: No
 - Astrocartography: No
@@ -27,7 +27,7 @@ Currency: INR. All prices include applicable taxes unless stated otherwise.
 - Price: ₹999/month
 - Monthly credits: 1600
 - Consultation minutes per month: 320
-- AI Jyotish messages per day: Unlimited
+- Jyotish messages per day: Unlimited
 - PDF reports: Yes
 - Yearly forecast: Yes
 - Astrocartography: Yes
@@ -42,7 +42,7 @@ Currency: INR. All prices include applicable taxes unless stated otherwise.
 ## What credits are spent on
 
 - Astrologer sitting: from 5 credits per minute
-- AI Jyotish chat: draws from the same balance
+- Jyotish chat: draws from the same balance
 - PDF natal report: draws from the same balance
 
 Purchased credits remain in the wallet. Subscription credits refresh monthly.

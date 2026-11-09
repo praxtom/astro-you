@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { postJson } from "../lib/apiFetch";
-import { Moon, Sun, Sparkles, AlertTriangle, RotateCcw } from "lucide-react";
+import { Moon, Sun, Sparkles } from "lucide-react";
+import { StatusNotice } from "../components/ui/StatusNotice";
 import { useUserProfile } from "../hooks";
 import { useRequestBirthData } from "../hooks/useRequestBirthData";
 import BirthProfileRequired from "../components/BirthProfileRequired";
@@ -38,18 +39,6 @@ function toLabelList(value: unknown): string[] {
 
 function toStr(value: unknown): string {
   return typeof value === "string" ? value : "";
-}
-
-function RetryButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-sm font-semibold text-white/80 transition-colors hover:border-white/30 hover:text-white"
-    >
-      <RotateCcw size={15} /> Retry
-    </button>
-  );
 }
 
 export default function Eclipses() {
@@ -258,14 +247,10 @@ export default function Eclipses() {
           </h2>
 
           {eclipseError ? (
-            <div role="alert" className="glass rounded-2xl p-8 text-center">
-              <AlertTriangle
-                size={24}
-                className="text-amber-400 mx-auto mb-3"
-              />
-              <p className="text-white/75 mb-4">{eclipseError}</p>
-              <RetryButton onClick={() => setEclipseAttempt((n) => n + 1)} />
-            </div>
+            <StatusNotice
+              message={eclipseError}
+              onRetry={() => setEclipseAttempt((n) => n + 1)}
+            />
           ) : eclipses.length === 0 ? (
             <div className="glass rounded-2xl p-8 text-center">
               <p className="text-white/60">
@@ -348,10 +333,10 @@ export default function Eclipses() {
               <div className="h-4 bg-white/5 rounded animate-pulse w-3/4" />
             </div>
           ) : impactError ? (
-            <div role="alert" className="glass rounded-2xl p-8 text-center">
-              <p className="text-white/75 mb-4">{impactError}</p>
-              <RetryButton onClick={() => setImpactAttempt((n) => n + 1)} />
-            </div>
+            <StatusNotice
+              message={impactError}
+              onRetry={() => setImpactAttempt((n) => n + 1)}
+            />
           ) : impact ? (
             <div className="glass rounded-2xl p-8">
               {/* Affected houses */}

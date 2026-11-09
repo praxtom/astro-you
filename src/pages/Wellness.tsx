@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { postJson } from "../lib/apiFetch";
 import { useUserProfile } from "../hooks";
 import { useRequestBirthData } from "../hooks/useRequestBirthData";
-import { Heart, Loader2, Activity, Zap, Brain, RotateCcw } from "lucide-react";
+import { Heart, Loader2, Activity, Zap, Brain } from "lucide-react";
+import { StatusNotice } from "../components/ui/StatusNotice";
 import { PageShell } from "../components/layout/PageShell";
 import BirthProfileRequired from "../components/BirthProfileRequired";
 
@@ -19,21 +20,6 @@ async function fetchChart(
   if (!res.ok) throw new Error(`${chartType} failed: ${res.status}`);
   const json = await res.json();
   return json?.data ?? null;
-}
-
-function SectionError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <div role="alert" className="rounded-xl border border-red-400/20 bg-red-500/[0.06] p-4 text-left">
-      <p className="text-sm text-white/75">{message}</p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-white/80 hover:border-white/30 hover:text-white"
-      >
-        <RotateCcw size={14} /> Retry
-      </button>
-    </div>
-  );
 }
 
 const SECTION_ERROR =
@@ -123,7 +109,7 @@ export default function Wellness() {
                 </h2>
               </div>
               {errors.bio ? (
-                <SectionError message={SECTION_ERROR} onRetry={retry} />
+                <StatusNotice size="section" className="text-left" message={SECTION_ERROR} onRetry={retry} />
               ) : biorhythms && typeof biorhythms === "object" ? (
                 <div className="space-y-4">
                   {[
@@ -186,7 +172,7 @@ export default function Wellness() {
                 Wellness Score
               </h2>
               {errors.score ? (
-                <SectionError message={SECTION_ERROR} onRetry={retry} />
+                <StatusNotice size="section" className="text-left" message={SECTION_ERROR} onRetry={retry} />
               ) : scoreValue ? (
                 <>
                   <div className="text-5xl font-display text-white mb-2">
@@ -214,7 +200,7 @@ export default function Wellness() {
                 </h2>
               </div>
               {errors.energy ? (
-                <SectionError message={SECTION_ERROR} onRetry={retry} />
+                <StatusNotice size="section" className="text-left" message={SECTION_ERROR} onRetry={retry} />
               ) : energyItems.length > 0 ? (
                 <div className="space-y-3">
                   {energyItems

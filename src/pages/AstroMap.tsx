@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useUserProfile } from "../hooks";
 import { useRequestBirthData } from "../hooks/useRequestBirthData";
-import { MapPin, Globe, Loader2, Star, RotateCcw } from "lucide-react";
+import { MapPin, Globe, Loader2, Star } from "lucide-react";
+import { StatusNotice } from "../components/ui/StatusNotice";
 import { PageShell } from "../components/layout/PageShell";
 import BirthProfileRequired from "../components/BirthProfileRequired";
 import { postJson } from "../lib/apiFetch";
@@ -182,19 +183,11 @@ export default function AstroMap() {
             )}
 
             {!loading && mapError && (
-              <div role="alert" className="mb-6 max-w-2xl rounded-2xl border border-red-400/20 bg-red-500/[0.06] p-5">
-                <p className="text-sm text-white/75">
-                  Your power zones and planetary lines couldn't be calculated. Check
-                  your connection and try again. City search above still works.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setAttempt((n) => n + 1)}
-                  className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-white/80 hover:border-white/30 hover:text-white"
-                >
-                  <RotateCcw size={14} /> Retry
-                </button>
-              </div>
+              <StatusNotice
+                className="mb-6"
+                message="Your power zones and planetary lines couldn't be calculated. Check your connection and try again. City search above still works."
+                onRetry={() => setAttempt((n) => n + 1)}
+              />
             )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X, Loader2, ArrowLeft, Mail } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -9,6 +9,7 @@ import {
 } from "firebase/auth";
 import { auth } from "../lib/firebase";
 import { STORAGE_KEYS } from "../lib/constants";
+import { useDialog } from "../hooks/useDialog";
 import { SIGNUP_BONUS_CREDITS } from "../lib/signup-offer";
 
 interface AuthModalProps {
@@ -74,66 +75,30 @@ export default function AuthModal({
   ];
   const modalRef = useRef<HTMLDivElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
-  const returnFocusRef = useRef<HTMLElement | null>(null);
 
-  // Focus trap for accessibility
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onClose();
-        return;
-      }
-      if (e.key !== "Tab" || !modalRef.current) return;
-
-      const focusable = Array.from(
-        modalRef.current.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-        ),
-      ).filter((el) => !el.hasAttribute("disabled"));
-      if (focusable.length === 0) return;
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    },
-    [onClose],
-  );
-
-  // Manage focus trap lifecycle. Focus lands on the email field rather than the
-  // close button — opening a dialog focused on its dismiss control both reads
-  // as "leave" to a screen reader and paints a focus ring over the header.
+  // Escape, Tab trapping and focus restore come from the shared dialog hook.
+  // Focus lands on the email field rather than the close button — opening a
+  // dialog focused on its dismiss control reads as "leave" to a screen reader.
+  // (useDialog only focuses the first control if focus isn't already inside.)
+  useDialog(modalRef, onClose, isOpen);
   useEffect(() => {
     if (!isOpen) return;
-    returnFocusRef.current = document.activeElement as HTMLElement | null;
-    document.addEventListener("keydown", handleKeyDown);
-    const timer = setTimeout(() => {
+    const frame = requestAnimationFrame(() => {
       const target =
         emailRef.current ??
         modalRef.current?.querySelector<HTMLElement>("input, button");
       target?.focus();
-    }, 100);
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isOpen, handleKeyDown]);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [isOpen]);
 
-  // Lock the page behind the dialog so the backdrop can't be scrolled away, and
-  // hand focus back to whatever opened it.
+  // Lock the page behind the dialog so the backdrop can't be scrolled away.
   useEffect(() => {
     if (!isOpen) return;
     const { overflow } = document.body.style;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = overflow;
-      returnFocusRef.current?.focus?.();
     };
   }, [isOpen]);
 

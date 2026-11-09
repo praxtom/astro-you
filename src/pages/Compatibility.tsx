@@ -263,6 +263,9 @@ export default function Compatibility() {
   const [isMatching, setIsMatching] = useState(false);
   const [isDownloadingReport, setIsDownloadingReport] = useState(false);
   const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
+  // Set when the seeker's birth time is unknown and noon was used: the Moon
+  // can change nakshatra within a day, and Ashtakoot is Moon-based.
+  const [timeAssumed, setTimeAssumed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { atmanState, refreshAtman } = useConsciousness();
   const [circleOpen, setCircleOpen] = useState(false);
@@ -374,6 +377,7 @@ export default function Compatibility() {
           `Compatibility failed: ${response.status} ${data?.error ?? ""}`,
         );
       }
+      setTimeAssumed(!birthData.tob);
       setMatchResult(data);
     } catch (err: any) {
       console.error("Compatibility match failed:", err);
@@ -846,6 +850,13 @@ export default function Compatibility() {
                 personA={matchResult.personA}
                 personB={matchResult.personB}
               />
+            )}
+            {timeAssumed && (
+              <p className="text-xs text-white/50 text-center -mt-2">
+                Your birth time isn&rsquo;t saved, so we used 12:00 noon. The
+                Moon can change nakshatra within a day, which can move the
+                Guna score. Add your birth time in Settings for an exact match.
+              </p>
             )}
             {matchResult.vedicMatching && matchResult.orientationAssumed && (
               <p className="text-xs text-white/40 text-center -mt-2">

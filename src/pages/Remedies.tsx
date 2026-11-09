@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  AlertCircle,
   CheckCircle2,
   Gem,
   HandHeart,
@@ -12,6 +11,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { PageShell } from "../components/layout/PageShell";
+import { StatusNotice } from "../components/ui/StatusNotice";
 import { useToast } from "../components/ui/toast-context";
 import { useAuth } from "../lib/useAuth";
 import { trackAcquisitionEvent } from "../lib/acquisition";
@@ -338,45 +338,27 @@ export default function Remedies() {
                   Reading remedy context
                 </div>
               ) : !hasBirthProfile ? (
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                  <AlertCircle className="mb-3 text-white/25" size={26} />
-                  <p className="type-body-sm text-white/60">
-                    Add your birth date and time to get remedy suggestions from
-                    your chart.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/onboarding")}
-                    className="platform-button-secondary mt-3"
-                  >
-                    Create birth profile
-                  </button>
-                </div>
+                <StatusNotice
+                  tone="info"
+                  size="section"
+                  message="Add your birth date and time to get remedy suggestions from your chart."
+                  action={{ label: "Create birth profile", to: "/onboarding" }}
+                />
               ) : remediesError ? (
-                <div role="alert" className="rounded-xl border border-red-400/20 bg-red-500/[0.06] p-4">
-                  <p className="type-body-sm text-white/75">
-                    {remediesErrorKind === "signin"
-                      ? "Sign in to see remedy suggestions from your chart."
-                      : "Remedy suggestions from your chart couldn't be loaded. Check your connection and try again."}
-                  </p>
-                  {remediesErrorKind === "signin" ? (
-                    <button
-                      type="button"
-                      onClick={() => navigate("/onboarding")}
-                      className="platform-button-secondary mt-3"
-                    >
-                      Sign in
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={retryRemedies}
-                      className="platform-button-secondary mt-3"
-                    >
-                      Retry
-                    </button>
-                  )}
-                </div>
+                remediesErrorKind === "signin" ? (
+                  <StatusNotice
+                    tone="info"
+                    size="section"
+                    message="Sign in to see remedy suggestions from your chart."
+                    action={{ label: "Sign in", to: "/onboarding" }}
+                  />
+                ) : (
+                  <StatusNotice
+                    size="section"
+                    message="Remedy suggestions from your chart couldn't be loaded. Check your connection and try again."
+                    onRetry={retryRemedies}
+                  />
+                )
               ) : suggestedRemedies.length > 0 ? (
                 <div className="space-y-3">
                   {suggestedRemedies.map((remedy) => (
@@ -404,16 +386,11 @@ export default function Remedies() {
             <section className="platform-panel p-4">
               <p className="platform-eyebrow mb-3">Recent requests</p>
               {requestsError ? (
-                <div role="alert">
-                  <p className="type-body-sm text-white/70">{requestsError}</p>
-                  <button
-                    type="button"
-                    onClick={() => void loadRequests()}
-                    className="mt-2 min-h-11 text-sm font-semibold text-gold hover:text-gold/80"
-                  >
-                    Retry
-                  </button>
-                </div>
+                <StatusNotice
+                  size="section"
+                  message={requestsError}
+                  onRetry={() => void loadRequests()}
+                />
               ) : requests.length === 0 ? (
                 <p className="type-body-sm text-white/55">
                   Guidance requests will appear here.

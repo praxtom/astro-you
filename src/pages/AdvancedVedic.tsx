@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { postJson } from "../lib/apiFetch";
 import { useUserProfile } from "../hooks";
 import { useRequestBirthData } from "../hooks/useRequestBirthData";
-import { Loader2, Gauge, Calendar, RotateCcw } from "lucide-react";
+import { Loader2, Gauge, Calendar } from "lucide-react";
+import { StatusNotice } from "../components/ui/StatusNotice";
 import { PageShell } from "../components/layout/PageShell";
 import BirthProfileRequired from "../components/BirthProfileRequired";
 
@@ -19,21 +20,6 @@ async function fetchChart(
   if (!res.ok) throw new Error(`${chartType} failed: ${res.status}`);
   const json = await res.json();
   return json?.data ?? null;
-}
-
-function SectionError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <div role="alert" className="rounded-xl border border-red-400/20 bg-red-500/[0.06] p-4">
-      <p className="text-sm text-white/75">{message}</p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-white/80 hover:border-white/30 hover:text-white"
-      >
-        <RotateCcw size={14} /> Retry
-      </button>
-    </div>
-  );
 }
 
 export default function AdvancedVedic() {
@@ -131,7 +117,7 @@ export default function AdvancedVedic() {
                 </h2>
               </div>
               {shadbalaError ? (
-                <SectionError
+                <StatusNotice size="section"
                   message="Planetary strength couldn't be calculated. Check your connection and try again."
                   onRetry={retry}
                 />
@@ -194,7 +180,7 @@ export default function AdvancedVedic() {
                 </h2>
               </div>
               {varshaphalError ? (
-                <SectionError
+                <StatusNotice size="section"
                   message="Your annual chart couldn't be calculated. Check your connection and try again."
                   onRetry={retry}
                 />

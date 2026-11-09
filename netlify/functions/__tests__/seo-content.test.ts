@@ -4,6 +4,9 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import {
   SEO_CONTENT_PAGES,
+  MERGED_SEO_GUIDES,
+  SEO_GUIDE_REDIRECTS,
+  getMergedSeoGuide,
   getSeoClusterPages,
   getSeoContentFaqs,
 } from "../../../src/lib/seo-content.js";
@@ -32,7 +35,6 @@ const REQUIRED_SEO_TOOL_PATHS = [
   "/sade-sati-calculator",
   "/manglik-dosha-checker",
   "/dasha-calculator",
-  "/panchang-today",
 ];
 
 test("SEO content includes programmatic astrology clusters", () => {
@@ -72,6 +74,30 @@ test("SEO includes priority free-tool landing pages", () => {
       true,
       `${requiredPath} should be indexable`,
     );
+  }
+});
+
+test("guides merged into a tool page are not standalone routes", () => {
+  const paths = new Set(SEO_CONTENT_PAGES.map((page) => page.path));
+  for (const [slug, toolPath] of Object.entries(MERGED_SEO_GUIDES)) {
+    assert.equal(paths.has(`/${slug}`), false, `/${slug} should 301`);
+    const guide = getMergedSeoGuide(toolPath);
+    assert.equal(guide?.slug, slug, `${toolPath} should carry /${slug}`);
+    assert.ok(guide && guide.sections.length > 0);
+  }
+  assert.deepEqual(
+    SEO_GUIDE_REDIRECTS.find((r) => r.from === "/panchang-today"),
+    { from: "/panchang-today", to: "/panchang" },
+  );
+  // No standalone guide may still link to a merged URL.
+  for (const page of SEO_CONTENT_PAGES) {
+    for (const cta of [page.primaryCta, page.secondaryCta]) {
+      assert.equal(
+        cta.to.slice(1) in MERGED_SEO_GUIDES,
+        false,
+        `${page.slug} links to merged ${cta.to}`,
+      );
+    }
   }
 });
 

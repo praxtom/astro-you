@@ -3,6 +3,7 @@ import { postJson } from "../lib/apiFetch";
 import { Link, useParams } from "react-router-dom";
 import { ArrowRight, Calendar, Loader2, MapPin, Sparkles } from "lucide-react";
 import SEO from "../components/SEO";
+import { MergedGuide } from "../components/seo/MergedGuide";
 import {
   captureAcquisitionSource,
   trackAcquisitionEvent,
@@ -259,6 +260,8 @@ function MuhuratTool({ route }: { route: NonNullable<ReturnType<typeof muhuratRo
             View Full Panchang
           </Link>
         </section>
+
+        <MergedGuide toolPath={route.path} />
       </div>
     </div>
   );

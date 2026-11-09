@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { postJson } from "../lib/apiFetch";
-import { Hash, Sparkles, Star, Heart, Target, RotateCcw } from "lucide-react";
+import { Hash, Sparkles, Star, Heart, Target } from "lucide-react";
+import { StatusNotice } from "../components/ui/StatusNotice";
 import { useUserProfile } from "../hooks";
 import { useRequestBirthData } from "../hooks/useRequestBirthData";
 import { PageShell } from "../components/layout/PageShell";
@@ -205,17 +206,11 @@ export default function Numerology() {
     return (
       <PageShell>
         {header}
-        <div role="alert" className="max-w-2xl rounded-2xl border border-red-400/20 bg-red-500/[0.06] p-6">
-          <h2 className="font-display text-xl text-white mb-2">Numerology unavailable</h2>
-          <p className="text-sm text-white/70 mb-5">{error}</p>
-          <button
-            type="button"
-            onClick={() => setAttempt((n) => n + 1)}
-            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-gold px-4 py-2.5 text-sm font-bold text-black hover:bg-gold/90"
-          >
-            <RotateCcw size={15} /> Retry
-          </button>
-        </div>
+        <StatusNotice
+          title="Numerology unavailable"
+          message={error}
+          onRetry={() => setAttempt((n) => n + 1)}
+        />
       </PageShell>
     );
   }

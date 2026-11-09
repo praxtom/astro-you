@@ -18,6 +18,7 @@ import {
   Wallet as WalletIcon,
 } from "lucide-react";
 import AuthModal from "../components/AuthModal";
+import { StatusNotice } from "../components/ui/StatusNotice";
 import { useAuth } from "../lib/useAuth";
 import { db } from "../lib/firebase";
 import { useSubscription } from "../hooks";
@@ -361,21 +362,13 @@ export default function Wallet() {
                     Loading activity
                   </div>
                 ) : sectionErrors.ledger ? (
-                  <div role="alert" className="p-4 text-center">
-                    <AlertCircle className="mx-auto text-amber-300/60 mb-3" size={30} />
-                    <p className="type-body text-white/75">
-                      Your credit history couldn't be loaded.
-                    </p>
-                    <p className="type-body-sm text-white/55 mt-1">
-                      Your balance above is still current. Check your connection and retry.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => void loadActivity()}
-                      className="platform-button-secondary mt-4"
-                    >
-                      Retry
-                    </button>
+                  <div className="p-4">
+                    <StatusNotice
+                      size="section"
+                      title="Your credit history couldn't be loaded."
+                      message="Your balance above is still current. Check your connection and try again."
+                      onRetry={() => void loadActivity()}
+                    />
                   </div>
                 ) : ledger.length === 0 ? (
                   <div className="p-4 text-center">
@@ -547,18 +540,7 @@ function MiniList({
 
   if (error) {
     return (
-      <div role="alert">
-        <p className="type-body-sm text-white/70">{error}</p>
-        {onRetry && (
-          <button
-            type="button"
-            onClick={onRetry}
-            className="mt-2 text-sm font-semibold text-gold hover:text-gold/80 min-h-11"
-          >
-            Retry
-          </button>
-        )}
-      </div>
+      <StatusNotice size="section" message={error} onRetry={onRetry} />
     );
   }
 

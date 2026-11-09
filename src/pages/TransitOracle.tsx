@@ -4,7 +4,6 @@ import {
   Compass,
   Clock,
   Calendar as CalendarIcon,
-  Info,
   Sparkles,
   Eye,
   Table2,
@@ -15,6 +14,7 @@ import TransitOverlay from "../components/astrology/TransitOverlay";
 import TransitPredictions from "../components/astrology/TransitPredictions";
 import TransitPositionsTable from "../components/astrology/TransitPositionsTable";
 import BirthProfileRequired from "../components/BirthProfileRequired";
+import { StatusNotice } from "../components/ui/StatusNotice";
 import { useTransit } from "../hooks/useTransit";
 import { PLANETS } from "../lib/astrology";
 
@@ -82,18 +82,6 @@ function extractPositions(data: any): any[] {
   });
 
   return (filtered.length > 0 ? filtered : positions).slice(0, 12);
-}
-
-function RetryButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex min-h-11 items-center rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white/80 hover:border-white/30 hover:text-white"
-    >
-      Retry
-    </button>
-  );
 }
 
 export default function TransitOracle() {
@@ -200,11 +188,7 @@ export default function TransitOracle() {
                     />
                   </div>
                 ) : error ? (
-                  <div role="alert" className="text-center py-6">
-                    <Info className="mx-auto mb-4 text-red-400" size={32} />
-                    <p className="text-white/75 text-sm mb-4">{error}</p>
-                    <RetryButton onClick={retry} />
-                  </div>
+                  <StatusNotice size="section" message={error} onRetry={retry} />
                 ) : (
                   (() => {
                     const positions = extractPositions(data);
@@ -318,14 +302,11 @@ export default function TransitOracle() {
                       </div>
                     ) : error ? (
                       <div className="aspect-square flex items-center justify-center text-center p-6">
-                        <div role="alert" className="p-5 rounded-2xl bg-red-500/5 border border-red-500/20">
-                          <Info
-                            className="mx-auto mb-4 text-red-400"
-                            size={32}
-                          />
-                          <p className="text-white/75 text-sm mb-4">{error}</p>
-                          <RetryButton onClick={retry} />
-                        </div>
+                        <StatusNotice
+                          size="section"
+                          message={error}
+                          onRetry={retry}
+                        />
                       </div>
                     ) : (
                       <TransitOverlay
@@ -416,7 +397,7 @@ export default function TransitOracle() {
                         className="text-sm text-white/70"
                       >
                         The summary couldn't be loaded because today's transits
-                        failed to load. Use Retry above to try again.
+                        failed to load. Use Try again above to reload them.
                       </motion.p>
                     ) : (
                       <motion.p
