@@ -26,7 +26,9 @@ import {
   chargeKeyCoord,
 } from "./shared/charge-input.js";
 import { describeError } from "./shared/error-summary.js";
+import { createHash } from "node:crypto";
 import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit";
+import { getCachedOrFetch } from "./shared/cache";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -43,6 +45,47 @@ const json = (body: unknown, status = 200) =>
  * during an outage. An unauthenticated paid-API path must never fail open.
  */
 const FREE_MATCHES_PER_IP_PER_HOUR = 5;
+/** Site-wide ceiling on upstream calls from the free tool, whatever the IPs. */
+const FREE_MATCHES_PER_DAY = 500;
+/** A repeated pair is served from cache and spends no budget. */
+const FREE_MATCH_CACHE_HOURS = 24;
+
+class FreeBudgetError extends Error {
+  constructor(readonly status: 429 | 503) {
+    super("Free match budget exhausted");
+  }
+}
+
+/**
+ * Rate-limit key for a client IP. IPv6 is grouped by /64 — one subscriber is
+ * usually handed a whole /64, so per-address keys would let them rotate.
+ */
+export function freeMatchClientKey(ip: string): string {
+  if (!ip.includes(":")) return ip;
+  const [head, tail = ""] = ip.split("%")[0].split("::");
+  const left = head ? head.split(":") : [];
+  const right = ip.includes("::") && tail ? tail.split(":") : [];
+  const groups = ip.includes("::")
+    ? [...left, ...Array(Math.max(0, 8 - left.length - right.length)).fill("0"), ...right]
+    : left;
+  return `${groups
+    .slice(0, 4)
+    .map((g) => (parseInt(g, 16) || 0).toString(16))
+    .join(":")}::/64`;
+}
+
+/** Fail-closed check: deny at `remaining <= 0` (see allowAnonRequest note). */
+async function withinBudget(scope: string, key: string, budget: number, windowMs: number) {
+  const result = await checkRateLimit({ scope, key, limit: budget + 1, windowMs });
+  return result.allowed && result.remaining > 0;
+}
+
+/** Cache id: a hash, so birth details are not readable in document ids. */
+function pairCacheId(a: Record<string, unknown>, b: Record<string, unknown>) {
+  const pick = (p: Record<string, unknown>) =>
+    [p.dob, p.tob, p.pob, p.lat, p.lng, p.gender].map((v) => String(v ?? "")).join("|");
+  return createHash("sha256").update(`${pick(a)}#${pick(b)}`).digest("hex");
+}
 
 async function freeGunaMilan(
   req: Request,
@@ -53,33 +96,60 @@ async function freeGunaMilan(
     birthInputError(personA, "Person 1") ?? birthInputError(personB, "Person 2");
   if (inputError) return badInputResponse(inputError);
 
-  const budget = await checkRateLimit({
-    scope: "compatibility_free",
-    key: getRequestIdentifier(req),
-    limit: FREE_MATCHES_PER_IP_PER_HOUR + 1,
-    windowMs: 60 * 60 * 1000,
-  });
-  if (!budget.allowed || budget.remaining <= 0) {
-    return json(
-      {
-        error:
-          "You've run several free matches in the last hour. Please try again a little later.",
-        code: "free_match_limit",
+  const vedicPair = orientVedicPair(personA, personB);
+  let vedicMatching: unknown;
+  try {
+    // Budgets are spent only on a cache miss, i.e. a real upstream call.
+    vedicMatching = await getCachedOrFetch(
+      "match_cache",
+      pairCacheId(personA, personB),
+      async () => {
+        const ipOk = await withinBudget(
+          "compatibility_free",
+          freeMatchClientKey(getRequestIdentifier(req)),
+          FREE_MATCHES_PER_IP_PER_HOUR,
+          60 * 60 * 1000,
+        );
+        if (!ipOk) throw new FreeBudgetError(429);
+        const siteOk = await withinBudget(
+          "compatibility_free_day",
+          "all",
+          FREE_MATCHES_PER_DAY,
+          24 * 60 * 60 * 1000,
+        );
+        if (!siteOk) throw new FreeBudgetError(503);
+        return getKundliMatching(vedicPair.groom as any, vedicPair.bride as any);
       },
-      429,
+      FREE_MATCH_CACHE_HOURS,
+      { serialize: true },
     );
+  } catch (err) {
+    if (err instanceof FreeBudgetError) {
+      return json(
+        err.status === 429
+          ? {
+              error:
+                "You've run several free matches in the last hour. Please try again a little later.",
+              code: "free_match_limit",
+            }
+          : {
+              error:
+                "Free matching is very busy today. Please try again tomorrow.",
+              code: "free_match_busy",
+            },
+        err.status,
+      );
+    }
+    throw err;
   }
-
-  const vedicPair = orientVedicPair(personA as any, personB as any);
-  const vedicMatching = await getKundliMatching(
-    vedicPair.groom,
-    vedicPair.bride,
-  );
   if (!vedicMatching || typeof vedicMatching !== "object") {
     return json({ error: "Failed to fetch Guna Milan data" }, 502);
   }
   return json({
-    vedicMatching: attachPairManglik(vedicMatching, vedicPair.groomIs),
+    vedicMatching: attachPairManglik(
+      vedicMatching as Record<string, unknown>,
+      vedicPair.groomIs,
+    ),
     orientationAssumed: vedicPair.orientationAssumed,
   });
 }

@@ -96,6 +96,12 @@
       "indexes": []
     },
     {
+      "collectionGroup": "match_cache",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
       "collectionGroup": "panchang",
       "fieldPath": "expiresAt",
       "ttl": true,
