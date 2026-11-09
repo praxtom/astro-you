@@ -171,7 +171,7 @@ export default function Support() {
       <div className="platform-main">
         <button
           onClick={() => navigate(-1)}
-          className="mb-4 inline-flex items-center gap-2 text-sm text-white/40 hover:text-white"
+          className="mb-4 inline-flex items-center gap-2 text-sm text-white/60 hover:text-white"
         >
           <ArrowLeft size={16} /> Back
         </button>
@@ -206,7 +206,7 @@ export default function Support() {
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <h2 className="type-section-title">Create ticket</h2>
-                <p className="type-body-sm text-white/40 mt-1">
+                <p className="type-body-sm text-white/60 mt-1">
                   Current category: {selectedCategoryLabel}
                 </p>
               </div>
@@ -232,7 +232,7 @@ export default function Support() {
 
             <div className="grid gap-3 md:grid-cols-2">
               <label>
-                <span className="type-meta text-white/40">Category</span>
+                <span className="type-meta text-white/60">Category</span>
                 <select
                   value={category}
                   onChange={(event) => setCategory(event.target.value)}
@@ -247,7 +247,7 @@ export default function Support() {
               </label>
 
               <label>
-                <span className="type-meta text-white/40">Priority</span>
+                <span className="type-meta text-white/60">Priority</span>
                 <select
                   value={priority}
                   onChange={(event) => setPriority(event.target.value)}
@@ -260,7 +260,7 @@ export default function Support() {
             </div>
 
             <label className="mt-3 block">
-              <span className="type-meta text-white/40">Subject</span>
+              <span className="type-meta text-white/60">Subject</span>
               <input
                 value={subject}
                 onChange={(event) => setSubject(event.target.value)}
@@ -270,7 +270,7 @@ export default function Support() {
             </label>
 
             <label className="mt-3 block">
-              <span className="type-meta text-white/40">Reference ID optional</span>
+              <span className="type-meta text-white/60">Reference ID optional</span>
               <input
                 value={referenceId}
                 onChange={(event) => setReferenceId(event.target.value)}
@@ -280,7 +280,7 @@ export default function Support() {
             </label>
 
             <label className="mt-3 block">
-              <span className="type-meta text-white/40">Details</span>
+              <span className="type-meta text-white/60">Details</span>
               <textarea
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
@@ -334,7 +334,7 @@ export default function Support() {
                 </button>
               </div>
             ) : loadingTickets ? (
-              <div className="py-8 text-center text-white/40">
+              <div className="py-8 text-center text-white/60">
                 <Loader2 className="mx-auto animate-spin mb-3" size={22} />
                 Loading tickets
               </div>
@@ -370,7 +370,7 @@ export default function Support() {
                         `· ${formatTicketDate(ticket.createdAt)}`}
                     </p>
                     {ticket.referenceId && (
-                      <p className="type-meta text-white/30 mt-1">
+                      <p className="type-meta text-white/55 mt-1">
                         Ref {ticket.referenceId}
                       </p>
                     )}

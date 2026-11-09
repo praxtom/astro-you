@@ -440,7 +440,7 @@ export default function Consult() {
                         <p className="text-sm text-white/85 group-hover:text-gold transition-colors">
                           {persona?.name || item.personaName || "Consultation"}
                         </p>
-                        <p className="text-xs text-white/35 mt-0.5">
+                        <p className="text-xs text-white/55 mt-0.5">
                           {Math.ceil((item.duration || 0) / 60)} min ·{" "}
                           {item.cost || 0} credits · read again
                         </p>
@@ -495,7 +495,7 @@ export default function Consult() {
 
       {/* Billing terms: real information, so readable, not a decorative footer. */}
       <p className="container mx-auto max-w-6xl px-6 pb-10 text-sm text-white/55">
-        Guidance is billed by the minute and charged only when the session
+        Guidance is billed by the minute and charged only when the sitting
         closes.
       </p>
     </div>
@@ -554,8 +554,8 @@ function GuideCard({
           <p className="font-display text-2xl text-gold leading-none">
             {persona.pricePerMin}
           </p>
-          <p className="text-[0.55rem] uppercase tracking-[0.2em] text-white/30 mt-1">
-            cr / min
+          <p className="text-xs uppercase tracking-[0.2em] text-white/55 mt-1">
+            credits / min
           </p>
         </div>
       </div>
@@ -588,7 +588,7 @@ function GuideCard({
           className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gold text-black text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors"
         >
           <Sparkles size={13} />
-          Begin session
+          Begin the sitting
         </button>
         <button
           onClick={onDossier}

@@ -38,7 +38,7 @@ export const SpaceTabs: React.FC = () => {
               <button
                 key={page.path}
                 onClick={() => navigate(page.path)}
-                className={`relative inline-flex min-h-11 items-center px-4 text-[0.65rem] font-bold uppercase tracking-[0.2em] whitespace-nowrap transition-colors ${
+                className={`relative inline-flex min-h-11 items-center px-4 text-[0.75rem] font-bold uppercase tracking-[0.2em] whitespace-nowrap transition-colors ${
                   active ? "text-gold" : "text-white/55 hover:text-white"
                 }`}
               >

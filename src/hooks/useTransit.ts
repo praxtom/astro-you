@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../lib/useAuth";
 import { NatalTransitData } from "../types/kundali";
 import { STORAGE_KEYS } from "../lib/constants";
@@ -12,6 +12,8 @@ interface TransitState {
   aiSummary: string | null;
   loading: boolean;
   error: string | null;
+  /** True when there is no saved birth profile to calculate transits against. */
+  needsProfile: boolean;
 }
 
 export function useTransit(transitDate?: string) {
@@ -22,7 +24,10 @@ export function useTransit(transitDate?: string) {
     aiSummary: null,
     loading: true,
     error: null,
+    needsProfile: false,
   });
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -36,13 +41,14 @@ export function useTransit(transitDate?: string) {
         setState((prev) => ({
           ...prev,
           loading: false,
-          error: "No profile found",
+          error: null,
+          needsProfile: true,
         }));
         return;
       }
 
       try {
-        setState((prev) => ({ ...prev, loading: true, error: null }));
+        setState((prev) => ({ ...prev, loading: true, error: null, needsProfile: false }));
 
         const response = await postJson(
           "/api/transit",
@@ -54,29 +60,34 @@ export function useTransit(transitDate?: string) {
           { signal: controller.signal },
         );
 
-        const result = await response.json();
+        const result = await response.json().catch(() => null);
 
-        if (result.success) {
+        if (response.ok && result?.success) {
           setState({
             data: result.data.positions,
             predictions: result.data.predictions,
             aiSummary: result.data.aiSummary,
             loading: false,
             error: null,
+            needsProfile: false,
           });
         } else {
-          throw new Error(result.error || "Failed to fetch transit data");
+          throw new Error(result?.error || `Transit request failed: ${response.status}`);
         }
       } catch (err: any) {
         if (err.name === "AbortError") return;
         console.error("Transit hook error:", err);
-        setState((prev) => ({ ...prev, loading: false, error: err.message }));
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          error: "We couldn't load today's transits. Check your connection and try again.",
+        }));
       }
     }
 
     fetchTransit();
     return () => controller.abort();
-  }, [user, transitDate]);
+  }, [user, transitDate, attempt]);
 
-  return state;
+  return { ...state, retry };
 }

@@ -36,7 +36,7 @@ export function TrustProofStrip({ className = "" }: { className?: string }) {
       </div>
       <Link
         to="/trust"
-        className="mt-3 inline-flex type-meta uppercase text-gold"
+        className="mt-1 inline-flex min-h-11 items-center type-meta uppercase text-gold"
       >
         View transparency
       </Link>

@@ -50,6 +50,7 @@ export default function Reports() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [libraryError, setLibraryError] = useState<string | null>(null);
+  const [libraryLoading, setLibraryLoading] = useState(true);
   const [success, setSuccess] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
 
@@ -100,18 +101,28 @@ export default function Reports() {
     setReports(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
   }, [user]);
 
+  const reloadLibrary = useCallback(() => {
+    setLibraryLoading(true);
+    loadReports()
+      .catch((err) => {
+        console.error("Failed to load reports:", err);
+        setLibraryError(
+          "Your saved reports couldn't be loaded. Check your connection and try again.",
+        );
+      })
+      .finally(() => setLibraryLoading(false));
+  }, [loadReports]);
+
   useEffect(() => {
     if (loading) return;
     if (!user) {
       setReports([]);
+      setLibraryLoading(false);
       return;
     }
 
-    loadReports().catch((err) => {
-      console.error("Failed to load reports:", err);
-      setLibraryError("Report library is unavailable right now.");
-    });
-  }, [loadReports, loading, navigate, user]);
+    reloadLibrary();
+  }, [reloadLibrary, loading, user]);
 
   const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -424,8 +435,12 @@ export default function Reports() {
             <div className="flex items-end justify-between gap-4 mb-3">
               <div>
                 <h2 className="type-section-title">Library</h2>
-                <p className="type-body-sm text-white/40">
-                  {reports.length} saved
+                <p className="type-body-sm text-white/55">
+                  {user && (loading || libraryLoading)
+                    ? "Loading…"
+                    : libraryError
+                      ? "Unavailable"
+                      : `${reports.length} saved`}
                 </p>
               </div>
             </div>
@@ -435,7 +450,7 @@ export default function Reports() {
                 <div className="p-4 text-center">
                   <FileText className="mx-auto text-white/20 mb-3" size={34} />
                   <p className="type-body text-white/70">Private library</p>
-                  <p className="type-body-sm text-white/35 mt-1">
+                  <p className="type-body-sm text-white/55 mt-1">
                     Sign in to generate reports and download saved PDFs.
                   </p>
                   <button
@@ -445,18 +460,34 @@ export default function Reports() {
                     Sign in
                   </button>
                 </div>
+              ) : loading || libraryLoading ? (
+                <div className="divide-y divide-white/10" aria-busy="true">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="flex items-center justify-between gap-4 p-4">
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 w-1/2 rounded bg-white/5 animate-pulse" />
+                        <div className="h-3 w-1/3 rounded bg-white/5 animate-pulse" />
+                      </div>
+                      <div className="h-9 w-24 rounded-lg bg-white/5 animate-pulse" />
+                    </div>
+                  ))}
+                </div>
               ) : libraryError ? (
-                <div className="p-4 text-center">
+                <div role="alert" className="p-4 text-center">
                   <AlertCircle
                     className="mx-auto text-amber-300/60 mb-3"
                     size={30}
                   />
-                  <p className="type-body text-white/70">
-                    Library unavailable.
-                  </p>
-                  <p className="type-body-sm text-white/35 mt-1">
+                  <p className="type-body text-white/75">
                     {libraryError}
                   </p>
+                  <button
+                    type="button"
+                    onClick={reloadLibrary}
+                    className="platform-button-secondary mt-4"
+                  >
+                    Retry
+                  </button>
                 </div>
               ) : reports.length === 0 ? (
                 <div className="p-4 text-center">
@@ -464,7 +495,7 @@ export default function Reports() {
                   <p className="type-body text-white/70">
                     No saved reports yet.
                   </p>
-                  <p className="type-body-sm text-white/35 mt-1">
+                  <p className="type-body-sm text-white/55 mt-1">
                     Generated PDFs appear here.
                   </p>
                 </div>

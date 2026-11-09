@@ -14,6 +14,7 @@ import { AskJyotishBridge } from "../components/layout/AskJyotishBridge";
 import TransitOverlay from "../components/astrology/TransitOverlay";
 import TransitPredictions from "../components/astrology/TransitPredictions";
 import TransitPositionsTable from "../components/astrology/TransitPositionsTable";
+import BirthProfileRequired from "../components/BirthProfileRequired";
 import { useTransit } from "../hooks/useTransit";
 import { PLANETS } from "../lib/astrology";
 
@@ -83,10 +84,23 @@ function extractPositions(data: any): any[] {
   return (filtered.length > 0 ? filtered : positions).slice(0, 12);
 }
 
+function RetryButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex min-h-11 items-center rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white/80 hover:border-white/30 hover:text-white"
+    >
+      Retry
+    </button>
+  );
+}
+
 export default function TransitOracle() {
   const [currentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<"visual" | "table">("visual");
-  const { data, predictions, aiSummary, loading, error } = useTransit();
+  const { data, predictions, aiSummary, loading, error, needsProfile, retry } =
+    useTransit();
 
   // Format date for display
   const formattedDate = currentDate.toLocaleDateString("en-US", {
@@ -118,19 +132,26 @@ export default function TransitOracle() {
           <div className="glass p-4 rounded-2xl border border-white/10 flex flex-col gap-1.5 min-w-55">
             <div className="flex items-center gap-2 text-gold">
               <CalendarIcon size={16} />
-              <span className="text-[10px] uppercase font-black tracking-widest">
+              <span className="text-xs uppercase font-black tracking-widest">
                 Current Insight Date
               </span>
             </div>
             <div className="text-lg font-display tracking-wide">
               {formattedDate}
             </div>
-            <div className="mt-1 text-[10px] text-white/30 uppercase tracking-[0.2em]">
+            <div className="mt-1 text-xs text-white/55 uppercase tracking-[0.2em]">
               Updates Automatically
             </div>
           </div>
         </div>
 
+        {needsProfile && !loading ? (
+          <BirthProfileRequired
+            title="Add your birth details"
+            description="Transits are read against your birth chart. Create your birth profile to see where today's planets fall in your houses."
+          />
+        ) : (
+        <>
         {/* View Mode Toggle */}
         <div className="flex gap-2 mb-4">
           <button
@@ -138,7 +159,7 @@ export default function TransitOracle() {
             className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border transition-all duration-300 ${
               viewMode === "visual"
                 ? "bg-gold/10 border-gold/50 text-gold"
-                : "bg-white/5 border-white/10 text-white/40 hover:text-white/60 hover:border-white/20"
+                : "bg-white/5 border-white/10 text-white/60 hover:text-white/80 hover:border-white/20"
             }`}
           >
             <Eye size={14} />
@@ -149,7 +170,7 @@ export default function TransitOracle() {
             className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border transition-all duration-300 ${
               viewMode === "table"
                 ? "bg-gold/10 border-gold/50 text-gold"
-                : "bg-white/5 border-white/10 text-white/40 hover:text-white/60 hover:border-white/20"
+                : "bg-white/5 border-white/10 text-white/60 hover:text-white/80 hover:border-white/20"
             }`}
           >
             <Table2 size={14} />
@@ -168,9 +189,9 @@ export default function TransitOracle() {
             {viewMode === "table" ? (
               /* ── Full Data Table View ── */
               <div className="glass rounded-2xl p-4 overflow-x-auto border border-white/10">
-                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gold/60 mb-5">
+                <h2 className="text-xs font-black uppercase tracking-[0.3em] text-gold/80 mb-5">
                   Planetary Positions
-                </h3>
+                </h2>
                 {loading ? (
                   <div className="flex items-center justify-center py-6">
                     <Compass
@@ -179,24 +200,25 @@ export default function TransitOracle() {
                     />
                   </div>
                 ) : error ? (
-                  <div className="text-center py-6">
+                  <div role="alert" className="text-center py-6">
                     <Info className="mx-auto mb-4 text-red-400" size={32} />
-                    <p className="text-red-400 text-sm">{error}</p>
+                    <p className="text-white/75 text-sm mb-4">{error}</p>
+                    <RetryButton onClick={retry} />
                   </div>
                 ) : (
                   (() => {
                     const positions = extractPositions(data);
                     if (positions.length === 0) {
                       return (
-                        <p className="text-white/40 text-sm text-center py-6">
-                          No transit position data available.
+                        <p className="text-white/60 text-sm text-center py-6">
+                          No transit positions were returned for today.
                         </p>
                       );
                     }
                     return (
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="text-white/40 text-xs uppercase tracking-widest border-b border-white/10">
+                          <tr className="text-white/55 text-xs uppercase tracking-widest border-b border-white/10">
                             <th className="text-left py-3 px-2">Planet</th>
                             <th className="text-left py-3 px-2">Sign</th>
                             <th className="text-right py-3 px-2">Degree</th>
@@ -253,7 +275,7 @@ export default function TransitOracle() {
                                     </span>
                                   )}
                                 </td>
-                                <td className="py-2.5 px-2 text-white/40 text-right font-mono text-xs">
+                                <td className="py-2.5 px-2 text-white/55 text-right font-mono text-xs">
                                   {typeof p.speed === "number"
                                     ? p.speed.toFixed(4)
                                     : "—"}
@@ -277,10 +299,10 @@ export default function TransitOracle() {
                 <div className="relative z-10">
                   <div className="flex items-center ml-4 mt-4 justify-between">
                     <div>
-                      <h3 className="text-sm font-black tracking-[0.3em] text-white/60 mb-1">
+                      <h2 className="text-sm font-black tracking-[0.3em] text-white/60 mb-1">
                         Spatial Distribution
-                      </h3>
-                      <p className="text-xs text-white/30 italic">
+                      </h2>
+                      <p className="text-xs text-white/55 italic">
                         Lagna-centric House Mapping
                       </p>
                     </div>
@@ -296,12 +318,13 @@ export default function TransitOracle() {
                       </div>
                     ) : error ? (
                       <div className="aspect-square flex items-center justify-center text-center p-6">
-                        <div className="p-5 rounded-2xl bg-red-500/5 border border-red-500/20">
+                        <div role="alert" className="p-5 rounded-2xl bg-red-500/5 border border-red-500/20">
                           <Info
                             className="mx-auto mb-4 text-red-400"
                             size={32}
                           />
-                          <p className="text-red-400 text-sm">{error}</p>
+                          <p className="text-white/75 text-sm mb-4">{error}</p>
+                          <RetryButton onClick={retry} />
                         </div>
                       </div>
                     ) : (
@@ -318,19 +341,19 @@ export default function TransitOracle() {
             {/* Educational Section */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="glass p-4 rounded-2xl border border-white/5 space-y-2">
-                <h4 className="text-sm font-black uppercase tracking-widest text-white/80">
+                <h3 className="text-sm font-black uppercase tracking-widest text-white/80">
                   House Transits
-                </h4>
-                <p className="text-xs text-white/40 leading-relaxed font-sans font-light">
+                </h3>
+                <p className="text-xs text-white/60 leading-relaxed font-sans font-light">
                   Planets entering a house illuminate specific areas of your
                   life—from identity in the 1st to career in the 10th.
                 </p>
               </div>
               <div className="glass p-4 rounded-2xl border border-white/5 space-y-2">
-                <h4 className="text-sm font-black uppercase tracking-widest text-white/80">
+                <h3 className="text-sm font-black uppercase tracking-widest text-white/80">
                   Aspect Geometry
-                </h4>
-                <p className="text-xs text-white/40 leading-relaxed font-sans font-light">
+                </h3>
+                <p className="text-xs text-white/60 leading-relaxed font-sans font-light">
                   The angles between moving planets and your natal points create
                   temporary energy flows that manifest as events.
                 </p>
@@ -342,9 +365,9 @@ export default function TransitOracle() {
           <div className="lg:col-span-5 space-y-4">
             {/* Gemini Summary Section */}
             <div className="flex flex-col gap-4">
-              <h3 className="text-sm font-black uppercase tracking-[0.3em] text-gold/60 mb-2 px-2 flex items-center gap-2">
+              <h2 className="text-sm font-black uppercase tracking-[0.3em] text-gold/80 mb-2 px-2 flex items-center gap-2">
                 <Sparkles size={14} className="text-gold" /> Cosmic Summary
-              </h3>
+              </h2>
 
               <div className="glass p-4 rounded-2xl border border-gold/20 bg-gold/5 relative overflow-hidden group">
                 {/* Background Decoration */}
@@ -379,20 +402,32 @@ export default function TransitOracle() {
                           <div className="w-6 h-6 rounded-full bg-gold/20 flex items-center justify-center">
                             <Sparkles size={12} className="text-gold" />
                           </div>
-                          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gold/60">
+                          <span className="text-xs font-black uppercase tracking-[0.2em] text-gold/80">
                             Oracle Insight
                           </span>
                         </div>
                       </motion.div>
-                    ) : (
+                    ) : error ? (
                       <motion.p
-                        key="fallback"
+                        key="error"
+                        role="alert"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        className="text-sm text-white/40 italic"
+                        className="text-sm text-white/70"
                       >
-                        The stars are aligning. Your summary will appear
-                        shortly.
+                        The summary couldn't be loaded because today's transits
+                        failed to load. Use Retry above to try again.
+                      </motion.p>
+                    ) : (
+                      <motion.p
+                        key="empty"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="text-sm text-white/60"
+                      >
+                        No written summary is available for today's transits.
+                        The positions and analysis on this page are still
+                        current.
                       </motion.p>
                     )}
                   </AnimatePresence>
@@ -401,20 +436,25 @@ export default function TransitOracle() {
             </div>
 
             <div className="flex flex-col gap-4">
-              <h3 className="text-sm font-black uppercase tracking-[0.3em] text-white/60 mb-2 px-2">
+              <h2 className="text-sm font-black uppercase tracking-[0.3em] text-white/60 mb-2 px-2">
                 Transit Analysis
-              </h3>
+              </h2>
 
               <div className="overflow-y-auto max-h-[755px] pr-2 custom-scrollbar">
                 <TransitPredictions
                   predictions={predictions || []}
                   fallbackAspects={data?.chart_data?.aspects}
                   loading={loading}
+                  error={error}
+                  onRetry={retry}
                 />
               </div>
             </div>
           </div>
         </div>
+
+        </>
+        )}
 
         <AskJyotishBridge
           eyebrow="Take this further"

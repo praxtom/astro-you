@@ -5,12 +5,17 @@ interface TransitPredictionsProps {
   predictions: any[];
   fallbackAspects?: any[];
   loading?: boolean;
+  /** When set, the predictions failed to load; show this instead of "nothing found". */
+  error?: string | null;
+  onRetry?: () => void;
 }
 
 const TransitPredictions: React.FC<TransitPredictionsProps> = ({
   predictions,
   fallbackAspects,
   loading,
+  error,
+  onRetry,
 }) => {
   if (loading) {
     return (
@@ -21,6 +26,26 @@ const TransitPredictions: React.FC<TransitPredictionsProps> = ({
             className="h-24 bg-white/5 rounded-2xl border border-white/5"
           />
         ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div role="alert" className="p-4 rounded-3xl bg-red-500/5 border border-red-500/20 text-center">
+        <AlertTriangle className="mx-auto mb-3 text-red-300" size={28} />
+        <p className="text-white/75 text-sm font-sans mb-3">
+          {error}
+        </p>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="inline-flex min-h-11 items-center rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white/80 hover:border-white/30 hover:text-white"
+          >
+            Retry
+          </button>
+        )}
       </div>
     );
   }
@@ -114,7 +139,7 @@ const TransitPredictions: React.FC<TransitPredictionsProps> = ({
     return (
       <div className="p-4 rounded-3xl bg-white/5 border border-white/10 text-center">
         <Info className="mx-auto mb-4 text-white/20" size={32} />
-        <p className="text-white/40 text-sm font-sans">
+        <p className="text-white/60 text-sm font-sans">
           No significant transit influences detected for today.
         </p>
       </div>
@@ -198,9 +223,9 @@ const TransitPredictions: React.FC<TransitPredictionsProps> = ({
 
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-display text-white tracking-wide uppercase">
+                  <h3 className="text-sm font-display text-white tracking-wide uppercase">
                     {title}
-                  </h4>
+                  </h3>
                   <span className="text-[9px] font-black uppercase tracking-tighter opacity-30">
                     Intensity: {Math.round(p.intensity || 0)}/10
                   </span>

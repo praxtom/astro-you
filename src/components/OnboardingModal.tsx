@@ -78,6 +78,7 @@ export default function OnboardingModal({
     : ["identity", "temporal", "spatial", "present"];
   const [isSaving, setIsSaving] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Chart upload state
   const [isUploading, setIsUploading] = useState(false);
@@ -217,10 +218,13 @@ export default function OnboardingModal({
 
   const getCurrentLocation = () => {
     if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser");
+      setFormError(
+        "This browser can't share your location. Type your current city instead.",
+      );
       return;
     }
 
+    setFormError(null);
     setIsLocating(true);
     navigator.geolocation.getCurrentPosition(
       async (position) => {
@@ -269,7 +273,9 @@ export default function OnboardingModal({
       },
       (error) => {
         console.error(error);
-        alert("Unable to retrieve your location");
+        setFormError(
+          "We couldn't get your location. Check location permission, or type your current city instead.",
+        );
         setIsLocating(false);
       },
     );
@@ -369,6 +375,7 @@ export default function OnboardingModal({
       ? draft
       : { ...draft, currentLocation: draft.pob };
     setIsSaving(true);
+    setFormError(null);
     const storedProfile = JSON.stringify(
       birthCoordinates ? { ...data, coordinates: birthCoordinates } : data,
     );
@@ -452,7 +459,7 @@ export default function OnboardingModal({
       onClose();
     } catch (err) {
       console.error("Error saving data:", err);
-      alert("We couldn't save your profile. Please try again.");
+      setFormError("We couldn't save your profile. Please try again.");
     } finally {
       setIsSaving(false);
     }
@@ -542,7 +549,7 @@ export default function OnboardingModal({
                 {step !== flowSteps[0] && (
                   <button
                     onClick={prevStep}
-                    className="p-2 -ml-2 text-white/40 hover:text-white transition-colors"
+                    className="p-2 -ml-2 text-white/60 hover:text-white transition-colors"
                     aria-label="Go back"
                   >
                     <ArrowLeft size={20} />
@@ -563,7 +570,7 @@ export default function OnboardingModal({
               </div>
               <button
                 onClick={onClose}
-                className="p-2 text-white/20 hover:text-white/60 transition-colors"
+                className="p-2 text-white/60 hover:text-white transition-colors"
                 aria-label="Close dialog"
               >
                 <X size={24} />
@@ -634,7 +641,7 @@ export default function OnboardingModal({
                           {isUploading ? (
                             <div className="flex flex-col items-center">
                               <Loader2 className="w-8 h-8 text-gold animate-spin mb-4" />
-                              <p className="text-xs text-white/40">
+                              <p className="text-xs text-white/60">
                                 Uploading…
                               </p>
                             </div>
@@ -646,7 +653,7 @@ export default function OnboardingModal({
                               <p className="text-sm text-white/80 font-medium mb-1">
                                 Click to upload chart
                               </p>
-                              <p className="text-[10px] text-white/30">
+                              <p className="text-[10px] text-white/55">
                                 JPG, PNG or WebP
                               </p>
                             </div>
@@ -677,7 +684,7 @@ export default function OnboardingModal({
                               aria-live="polite"
                             >
                               <Loader2 className="w-4 h-4 text-gold animate-spin" />
-                              <span className="text-xs text-white/40">
+                              <span className="text-xs text-white/60">
                                 Analyzing celestial patterns…
                               </span>
                             </div>
@@ -707,7 +714,7 @@ export default function OnboardingModal({
                                   </div>
                                   {parsedChart.birthDetails.dob && (
                                     <div>
-                                      <p className="text-[10px] text-white/30 uppercase">
+                                      <p className="text-[10px] text-white/55 uppercase">
                                         Date
                                       </p>
                                       <p className="text-sm">
@@ -717,7 +724,7 @@ export default function OnboardingModal({
                                   )}
                                   {parsedChart.birthDetails.tob && (
                                     <div>
-                                      <p className="text-[10px] text-white/30 uppercase">
+                                      <p className="text-[10px] text-white/55 uppercase">
                                         Time
                                       </p>
                                       <p className="text-sm">
@@ -766,7 +773,7 @@ export default function OnboardingModal({
                         <div>
                           <label
                             htmlFor="onboarding-name"
-                            className="block text-xs uppercase tracking-[0.2em] font-bold text-white/30 mb-2"
+                            className="block text-xs uppercase tracking-[0.2em] font-bold text-white/60 mb-2"
                           >
                             Full Name
                           </label>
@@ -787,7 +794,7 @@ export default function OnboardingModal({
                           />
                         </div>
                         <fieldset>
-                          <legend className="block text-xs uppercase tracking-[0.2em] font-bold text-white/30 mb-2">
+                          <legend className="block text-xs uppercase tracking-[0.2em] font-bold text-white/60 mb-2">
                             Gender
                           </legend>
                           <div className="grid grid-cols-3 gap-3">
@@ -802,7 +809,7 @@ export default function OnboardingModal({
                                 className={`py-3 rounded-xl border text-xs font-sans transition-colors font-bold tracking-widest uppercase ${
                                   formData.gender === g
                                     ? "bg-gold border-gold text-[#030308] shadow-[0_0_15px_rgba(229,185,106,0.2)]"
-                                    : "bg-white/5 border-white/10 text-white/40 hover:border-white/30 hover:bg-white/10"
+                                    : "bg-white/5 border-white/10 text-white/60 hover:border-white/30 hover:bg-white/10"
                                 }`}
                               >
                                 {g}
@@ -824,7 +831,7 @@ export default function OnboardingModal({
                         <div>
                           <label
                             htmlFor="onboarding-birth-date"
-                            className="block text-xs uppercase tracking-[0.2em] font-bold text-white/30 mb-2"
+                            className="block text-xs uppercase tracking-[0.2em] font-bold text-white/60 mb-2"
                           >
                             Birth Date
                           </label>
@@ -843,7 +850,7 @@ export default function OnboardingModal({
                         <div>
                           <label
                             htmlFor="onboarding-birth-time"
-                            className="block text-xs uppercase tracking-[0.2em] font-bold text-white/30 mb-2"
+                            className="block text-xs uppercase tracking-[0.2em] font-bold text-white/60 mb-2"
                           >
                             Birth Time
                           </label>
@@ -882,7 +889,7 @@ export default function OnboardingModal({
                           }
                           className="w-4 h-4 rounded border-white/20 bg-white/5 checked:bg-gold checked:border-gold appearance-none cursor-pointer transition-colors"
                         />
-                        <span className="text-xs text-white/40 group-hover:text-white/60 transition-colors">
+                        <span className="text-xs text-white/60 group-hover:text-white/80 transition-colors">
                           I don't know my exact birth time
                         </span>
                       </label>
@@ -940,7 +947,7 @@ export default function OnboardingModal({
                       <p className="text-sm text-white/50 mb-1">
                         Where do you live now? (optional)
                       </p>
-                      <p className="text-xs text-white/40 mb-4">
+                      <p className="text-xs text-white/60 mb-4">
                         Used for your local Panchang and Rahu Kaal — you can
                         skip.
                       </p>
@@ -964,7 +971,7 @@ export default function OnboardingModal({
 
                         <div className="flex items-center gap-4">
                           <div className="flex-1 h-px bg-white/5"></div>
-                          <span className="text-[10px] uppercase tracking-widest text-white/20 font-bold">
+                          <span className="text-[10px] uppercase tracking-widest text-white/55 font-bold">
                             or
                           </span>
                           <div className="flex-1 h-px bg-white/5"></div>
@@ -995,6 +1002,14 @@ export default function OnboardingModal({
 
             {/* Footer */}
             <div className="p-4 sm:p-5 border-t border-white/5 bg-black/20">
+              {formError && (
+                <p
+                  role="alert"
+                  className="mb-3 rounded-xl border border-red-400/25 bg-red-500/10 px-3 py-2 text-sm text-red-100"
+                >
+                  {formError}
+                </p>
+              )}
               <button
                 onClick={nextStep}
                 disabled={
@@ -1021,13 +1036,13 @@ export default function OnboardingModal({
                 <button
                   onClick={skipCurrentLocation}
                   disabled={isSaving}
-                  className="w-full mt-3 text-xs text-white/40 hover:text-white/70 transition-colors uppercase tracking-widest disabled:opacity-30"
+                  className="w-full mt-3 min-h-11 text-xs text-white/60 hover:text-white/80 transition-colors uppercase tracking-widest disabled:opacity-30"
                 >
                   Skip — use my birth place
                 </button>
               )}
               {step === "upload" && (
-                <p className="text-center mt-4 text-[10px] text-white/20 uppercase tracking-[0.2em]">
+                <p className="text-center mt-4 text-[10px] text-white/55 uppercase tracking-[0.2em]">
                   Secure • Encrypted • Private
                 </p>
               )}

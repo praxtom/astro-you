@@ -208,7 +208,7 @@ export function MemoryManager({ compact }: { compact?: boolean }) {
 
   if (!uid) {
     return (
-      <p className="text-xs text-white/40">
+      <p className="text-xs text-white/60">
         Sign in to see and manage what AstroYou remembers about you.
       </p>
     );
@@ -221,7 +221,15 @@ export function MemoryManager({ compact }: { compact?: boolean }) {
       await action();
     } catch (err) {
       console.error("[MemoryManager] action failed:", err);
-      setActionError("That didn't go through. Please try again.");
+      setActionError(
+        busyKey === "pause"
+          ? "We couldn't change the memory pause setting. Check your connection and try again."
+          : busyKey === "everything"
+            ? "We couldn't finish deleting your memories. Check your connection and try again — anything still listed is still saved."
+            : busyKey.endsWith(":all")
+              ? "We couldn't clear this section. Check your connection and try again — anything still listed is still saved."
+              : "We couldn't delete that note. Check your connection and try again.",
+      );
     } finally {
       setBusy(null);
     }
@@ -280,7 +288,7 @@ export function MemoryManager({ compact }: { compact?: boolean }) {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm text-white/80">Pause memory</p>
-            <p className="text-xs text-white/40 mt-0.5">
+            <p className="text-xs text-white/60 mt-0.5">
               {memoryPaused
                 ? "Paused — new conversations won't be added to memory."
                 : "On — AstroYou notes feelings, patterns, people and events from your chats."}
@@ -329,11 +337,11 @@ export function MemoryManager({ compact }: { compact?: boolean }) {
       )}
 
       {loading ? (
-        <div className="flex items-center gap-2 text-xs text-white/40">
+        <div className="flex items-center gap-2 text-xs text-white/60">
           <Loader2 size={12} className="animate-spin" /> Loading memory…
         </div>
       ) : totalItems === 0 ? (
-        <div className="flex items-center gap-2 text-xs text-white/40">
+        <div className="flex items-center gap-2 text-xs text-white/60">
           <Brain size={14} className="text-gold/60" />
           Nothing remembered yet.
         </div>
@@ -363,10 +371,10 @@ export function MemoryManager({ compact }: { compact?: boolean }) {
                       size={14}
                       className={`shrink-0 text-white/40 transition-transform ${isOpen ? "" : "-rotate-90"}`}
                     />
-                    <span className="text-white/40 text-xs uppercase tracking-widest font-bold truncate">
+                    <span className="text-white/60 text-xs uppercase tracking-widest font-bold truncate">
                       {group.title}
                     </span>
-                    <span className="text-xs text-white/30">
+                    <span className="text-xs text-white/55">
                       ({group.items.length})
                     </span>
                   </button>
@@ -374,7 +382,7 @@ export function MemoryManager({ compact }: { compact?: boolean }) {
                     type="button"
                     onClick={() => clearAll(group)}
                     disabled={busy !== null}
-                    className="shrink-0 text-[0.65rem] font-bold uppercase tracking-widest text-white/35 hover:text-red-300 disabled:opacity-30"
+                    className="shrink-0 min-h-11 text-[0.75rem] font-bold uppercase tracking-widest text-white/60 hover:text-red-300 disabled:opacity-30"
                   >
                     {busy === `${group.id}:all` ? (
                       <Loader2 size={12} className="animate-spin" />
@@ -386,7 +394,7 @@ export function MemoryManager({ compact }: { compact?: boolean }) {
                 {isOpen && (
                   <>
                     {!compact && (
-                      <p className="mt-1 text-xs text-white/30">{group.hint}</p>
+                      <p className="mt-1 text-xs text-white/55">{group.hint}</p>
                     )}
                     <ul className="mt-2 space-y-1.5">
                       {visible.map((item) => {
@@ -401,7 +409,7 @@ export function MemoryManager({ compact }: { compact?: boolean }) {
                                 {item.text}
                               </p>
                               {item.meta && (
-                                <p className="text-[0.7rem] text-white/35 mt-0.5">
+                                <p className="text-[0.7rem] text-white/55 mt-0.5">
                                   {item.meta}
                                 </p>
                               )}
@@ -412,7 +420,7 @@ export function MemoryManager({ compact }: { compact?: boolean }) {
                               disabled={busy !== null}
                               aria-label={`Forget: ${item.text.slice(0, 60)}`}
                               title="Forget this"
-                              className="shrink-0 p-1.5 rounded-lg text-white/30 hover:text-red-300 disabled:opacity-30"
+                              className="shrink-0 p-1.5 rounded-lg text-white/55 hover:text-red-300 disabled:opacity-30"
                             >
                               {itemBusy ? (
                                 <Loader2 size={12} className="animate-spin" />

@@ -2,54 +2,97 @@ import { useState, useEffect } from "react";
 import { postJson } from "../lib/apiFetch";
 import { useUserProfile } from "../hooks";
 import { useRequestBirthData } from "../hooks/useRequestBirthData";
-import { Loader2, Hexagon } from "lucide-react";
+import { Loader2, Hexagon, RotateCcw } from "lucide-react";
 import { PageShell } from "../components/layout/PageShell";
 import BirthProfileRequired from "../components/BirthProfileRequired";
 
+function txt(value: unknown): string {
+  return typeof value === "string" || typeof value === "number" ? String(value) : "";
+}
+
+async function fetchChart(
+  birthData: unknown,
+  chartType: string,
+  signal: AbortSignal,
+): Promise<any> {
+  const res = await postJson("/api/kundali", { birthData, chartType }, { signal });
+  if (!res.ok) throw new Error(`${chartType} failed: ${res.status}`);
+  const json = await res.json();
+  return json?.data ?? null;
+}
+
+function SectionError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div role="alert" className="rounded-xl border border-red-400/20 bg-red-500/[0.06] p-4">
+      <p className="text-sm text-white/75">{message}</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-white/80 hover:border-white/30 hover:text-white"
+      >
+        <RotateCcw size={14} /> Retry
+      </button>
+    </div>
+  );
+}
+
 export default function HumanDesign() {
-  const { birthData } = useUserProfile();
+  const { birthData, loading: profileLoading } = useUserProfile();
   const requestBirthData = useRequestBirthData(birthData);
   const [hdType, setHdType] = useState<any>(null);
   const [bodygraph, setBodygraph] = useState<any>(null);
+  const [typeError, setTypeError] = useState(false);
+  const [graphError, setGraphError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [attempt, setAttempt] = useState(0);
+  const retry = () => setAttempt((n) => n + 1);
 
   useEffect(() => {
+    if (profileLoading) return;
     if (!requestBirthData?.dob) {
       setLoading(false);
       return;
     }
 
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => setLoading(false), 3200);
     setLoading(true);
-    Promise.all([
-      postJson("/api/kundali", { birthData: requestBirthData, chartType: "HUMAN_DESIGN" }, { signal: controller.signal })
-        .then((r) => r.json())
-        .catch(() => null),
-      postJson("/api/kundali", { birthData: requestBirthData, chartType: "BODYGRAPH" }, { signal: controller.signal })
-        .then((r) => r.json())
-        .catch(() => null),
+    setTypeError(false);
+    setGraphError(false);
+    Promise.allSettled([
+      fetchChart(requestBirthData, "HUMAN_DESIGN", controller.signal),
+      fetchChart(requestBirthData, "BODYGRAPH", controller.signal),
     ]).then(([typeRes, graphRes]) => {
-      setHdType(typeRes?.data);
-      setBodygraph(graphRes?.data);
-      window.clearTimeout(timeoutId);
+      if (controller.signal.aborted) return;
+      if (typeRes.status === "fulfilled") setHdType(typeRes.value);
+      else {
+        console.error("Human Design type failed:", typeRes.reason);
+        setHdType(null);
+        setTypeError(true);
+      }
+      if (graphRes.status === "fulfilled") setBodygraph(graphRes.value);
+      else {
+        console.error("Bodygraph failed:", graphRes.reason);
+        setBodygraph(null);
+        setGraphError(true);
+      }
       setLoading(false);
     });
 
-    return () => {
-      window.clearTimeout(timeoutId);
-      controller.abort();
-    };
-  }, [requestBirthData]);
+    return () => controller.abort();
+  }, [requestBirthData, profileLoading, attempt]);
 
   return (
     <PageShell>
         <h1 className="type-page-title mb-2 flex items-center gap-3">
           <Hexagon size={28} className="text-gold" /> Human Design
         </h1>
-        <p className="text-white/50 mb-8">Discover your energetic blueprint</p>
+        <p className="text-white/60 mb-8">Discover your energetic blueprint</p>
 
-        {!requestBirthData?.dob ? (
+        {profileLoading ? (
+          <div className="flex items-center justify-center py-20" aria-busy="true">
+            <Loader2 size={32} className="animate-spin text-white/30" />
+          </div>
+        ) : !requestBirthData?.dob ? (
           <BirthProfileRequired
             title="Create your birth profile to see your Human Design."
             description="Your type, authority, profile, gates, and bodygraph need birth details before the system can calculate them."
@@ -65,62 +108,62 @@ export default function HumanDesign() {
               <h2 className="text-gold text-sm font-bold uppercase tracking-widest mb-4">
                 Your Type
               </h2>
-              {hdType ? (
+              {typeError ? (
+                <SectionError
+                  message="Your type, strategy and authority couldn't be calculated. Check your connection and try again."
+                  onRetry={retry}
+                />
+              ) : hdType && txt(hdType.type || hdType.human_design_type) ? (
                 <div className="space-y-4">
                   <div>
                     <span className="text-3xl font-display">
-                      {hdType.type || hdType.human_design_type || "—"}
+                      {txt(hdType.type || hdType.human_design_type)}
                     </span>
                   </div>
-                  {(hdType.strategy || hdType.authority || hdType.profile) && (
+                  {(txt(hdType.strategy) || txt(hdType.authority) || txt(hdType.profile)) && (
                     <div className="grid grid-cols-1 gap-3">
-                      {hdType.strategy && (
+                      {txt(hdType.strategy) && (
                         <div className="p-3 rounded-xl bg-white/5">
-                          <span className="text-[10px] text-white/30 uppercase tracking-widest">
+                          <span className="text-xs text-white/55 uppercase tracking-widest">
                             Strategy
                           </span>
                           <p className="text-sm text-white/80 mt-1">
-                            {hdType.strategy}
+                            {txt(hdType.strategy)}
                           </p>
                         </div>
                       )}
-                      {hdType.authority && (
+                      {txt(hdType.authority) && (
                         <div className="p-3 rounded-xl bg-white/5">
-                          <span className="text-[10px] text-white/30 uppercase tracking-widest">
+                          <span className="text-xs text-white/55 uppercase tracking-widest">
                             Authority
                           </span>
                           <p className="text-sm text-white/80 mt-1">
-                            {hdType.authority}
+                            {txt(hdType.authority)}
                           </p>
                         </div>
                       )}
-                      {hdType.profile && (
+                      {txt(hdType.profile) && (
                         <div className="p-3 rounded-xl bg-white/5">
-                          <span className="text-[10px] text-white/30 uppercase tracking-widest">
+                          <span className="text-xs text-white/55 uppercase tracking-widest">
                             Profile
                           </span>
                           <p className="text-sm text-white/80 mt-1">
-                            {hdType.profile}
+                            {txt(hdType.profile)}
                           </p>
                         </div>
                       )}
                     </div>
                   )}
-                  {hdType.description && (
-                    <p className="text-white/60 text-sm leading-relaxed">
-                      {hdType.description}
+                  {txt(hdType.description) && (
+                    <p className="text-white/65 text-sm leading-relaxed">
+                      {txt(hdType.description)}
                     </p>
                   )}
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {['Type', 'Strategy', 'Authority', 'Profile'].map((item) => (
-                    <div key={item} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                      <span className="text-[10px] uppercase tracking-widest text-white/30">{item}</span>
-                      <p className="mt-1 text-sm text-white/60">Live calculation refreshing from your birth profile.</p>
-                    </div>
-                  ))}
-                </div>
+                <p className="text-sm text-white/60">
+                  The calculation returned no Human Design type for your birth details.
+                </p>
               )}
             </div>
 
@@ -129,10 +172,15 @@ export default function HumanDesign() {
               <h2 className="text-gold text-sm font-bold uppercase tracking-widest mb-4">
                 Energy Centers
               </h2>
-              {bodygraph?.centers || bodygraph?.defined_centers ? (
+              {graphError ? (
+                <SectionError
+                  message="Your energy centers couldn't be calculated. Check your connection and try again."
+                  onRetry={retry}
+                />
+              ) : Array.isArray(bodygraph?.centers) || (bodygraph?.defined_centers && typeof bodygraph.defined_centers === "object") ? (
                 <div className="space-y-2">
                   {(
-                    bodygraph.centers ||
+                    (Array.isArray(bodygraph.centers) ? bodygraph.centers : null) ||
                     Object.entries(bodygraph.defined_centers || {}).map(
                       ([k, v]: any) => ({ name: k, defined: v }),
                     )
@@ -142,10 +190,10 @@ export default function HumanDesign() {
                       className="flex items-center justify-between p-3 rounded-xl bg-white/5"
                     >
                       <span className="text-sm text-white/80">
-                        {c.name || c.center}
+                        {txt(c?.name) || txt(c?.center)}
                       </span>
                       <span
-                        className={`text-xs px-2 py-0.5 rounded-full ${c.defined || c.is_defined ? "bg-gold/20 text-gold" : "bg-white/10 text-white/40"}`}
+                        className={`text-xs px-2 py-0.5 rounded-full ${c.defined || c.is_defined ? "bg-gold/20 text-gold" : "bg-white/10 text-white/60"}`}
                       >
                         {c.defined || c.is_defined ? "Defined" : "Open"}
                       </span>
@@ -153,14 +201,9 @@ export default function HumanDesign() {
                   ))}
                 </div>
               ) : (
-                <div className="grid gap-2">
-                  {['Head', 'Ajna', 'Throat', 'G Center', 'Sacral'].map((center) => (
-                    <div key={center} className="flex items-center justify-between rounded-xl bg-white/5 p-3">
-                      <span className="text-sm text-white/70">{center}</span>
-                      <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/40">Pending</span>
-                    </div>
-                  ))}
-                </div>
+                <p className="text-sm text-white/60">
+                  The calculation returned no energy center data for your birth details.
+                </p>
               )}
             </div>
           </div>

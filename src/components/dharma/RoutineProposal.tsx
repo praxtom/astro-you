@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sun, Moon, Check, X, Clock, Repeat } from 'lucide-react';
 import { UserRoutine } from '../../types/user';
 import { AtmanService } from '../../lib/atman';
+import { useDialog } from '../../hooks/useDialog';
 
 interface RoutineProposalProps {
     isOpen: boolean;
@@ -19,6 +20,9 @@ export const RoutineProposal: React.FC<RoutineProposalProps> = ({
     onClose,
     onAccepted
 }) => {
+    const dialogRef = useRef<HTMLDivElement>(null);
+    useDialog(dialogRef, onClose, isOpen && !!routine);
+
     if (!isOpen || !routine) return null;
 
     const handleAccept = async () => {
@@ -36,6 +40,10 @@ export const RoutineProposal: React.FC<RoutineProposalProps> = ({
                 className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
             >
                 <motion.div
+                    ref={dialogRef}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="routine-proposal-title"
                     initial={{ scale: 0.9, y: 20 }}
                     animate={{ scale: 1, y: 0 }}
                     exit={{ scale: 0.9, y: 20 }}
@@ -51,7 +59,7 @@ export const RoutineProposal: React.FC<RoutineProposalProps> = ({
                                     <Repeat size={32} />}
                         </div>
 
-                        <h2 className="text-2xl font-display text-gold mb-2">New Practice Suggested</h2>
+                        <h2 id="routine-proposal-title" className="text-2xl font-display text-gold mb-2">New Practice Suggested</h2>
                         <p className="text-white/60 text-sm mb-6">
                             Based on our conversation, the Guru suggests adding this to your daily Dharma.
                         </p>
@@ -71,7 +79,7 @@ export const RoutineProposal: React.FC<RoutineProposalProps> = ({
                                     ))}
                                 </div>
                             )}
-                            <div className="flex items-center gap-4 text-xs text-white/40 mt-3 pt-3 border-t border-white/5">
+                            <div className="flex items-center gap-4 text-xs text-white/60 mt-3 pt-3 border-t border-white/5">
                                 <span className="flex items-center gap-1">
                                     <Clock size={12} /> {routine.durationMinutes} mins
                                 </span>

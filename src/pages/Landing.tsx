@@ -137,7 +137,7 @@ function PlanetStoryNarrative({
         className={`mt-7 max-w-xl border-t pt-4 ${isSynthesis ? "lg:mx-auto lg:text-left" : ""}`}
         style={{ borderColor: `${chapter.accent}55` }}
       >
-        <span className="text-[9px] font-bold uppercase tracking-[0.3em] text-white/42">
+        <span className="text-xs font-bold uppercase tracking-[0.3em] text-white/55">
           In Jyotish
         </span>
         <p className="mt-2 text-sm leading-relaxed text-white/64 [text-shadow:0_2px_14px_rgba(0,0,0,0.95)]">
@@ -161,7 +161,7 @@ function PlanetStoryNarrative({
           }`}
         >
           <button className="btn btn-primary group px-8" onClick={onReveal}>
-            Reveal my birth sky
+            See my free Kundali
             <span className="ml-2 transition-transform group-hover:translate-x-1">
               →
             </span>
@@ -491,7 +491,7 @@ function Landing() {
 
               {index === 0 ? (
                 <div className="absolute bottom-5 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2 text-white/35 motion-safe:animate-bounce">
-                  <span className="text-[9px] font-bold uppercase tracking-[0.34em]">
+                  <span className="text-xs font-bold uppercase tracking-[0.34em]">
                     Descend
                   </span>
                   <div className="h-8 w-px bg-gradient-to-b from-gold/80 to-transparent" />

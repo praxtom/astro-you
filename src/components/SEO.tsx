@@ -130,8 +130,8 @@ export function SEO({
 export function LandingSEO() {
   return (
     <SEO
-      title="Free Kundali, Panchang & AI Jyotish"
-      description="Create your free Vedic Kundali, check compatibility and daily Panchang, and get AI Jyotish guidance that remembers your chart and questions."
+      title="Free Kundali, Panchang & Jyotish Guidance"
+      description="Create your free Vedic Kundali, check compatibility and daily Panchang, and get Jyotish guidance that remembers your chart and questions."
     />
   );
 }
@@ -148,7 +148,7 @@ export function OnboardingSEO() {
 export function SynthesisSEO() {
   return (
     <SEO
-      title="Synthesis"
+      title="Jyotish"
       description="Consult Jyotish. Get personalized astrological insights, predictions, and guidance based on your unique birth chart."
     />
   );

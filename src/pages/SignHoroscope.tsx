@@ -154,7 +154,7 @@ function HoroscopeReading({ sign, period = "daily", route }: {
       <div className="max-w-2xl mx-auto px-4 pt-28 pb-16">
         <Link
           to="/free-kundali"
-          className="flex items-center gap-2 text-white/40 hover:text-white mb-8 text-sm"
+          className="flex items-center gap-2 text-white/60 hover:text-white mb-8 text-sm"
         >
           <ArrowLeft size={16} /> Free Kundali
         </Link>
@@ -164,7 +164,7 @@ function HoroscopeReading({ sign, period = "daily", route }: {
           <h1 className="type-page-title mt-4">
             {route.title}
           </h1>
-          <p className="text-white/40 text-sm mt-2">
+          <p className="text-white/60 text-sm mt-2">
             {new Date().toLocaleDateString("en-US", {
               weekday: "long",
               year: "numeric",
@@ -180,10 +180,10 @@ function HoroscopeReading({ sign, period = "daily", route }: {
             <Link
               key={p.slug}
               to={`/horoscope/${normalizedSign}/${p.slug}`}
-              className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
+              className={`inline-flex min-h-11 items-center px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
                 normalizedPeriod === p.slug
                   ? "bg-gold/10 border-gold/50 text-gold border"
-                  : "bg-white/5 border-white/10 text-white/40 border hover:border-white/30"
+                  : "bg-white/5 border-white/10 text-white/60 border hover:border-white/30"
               }`}
             >
               {p.name}
@@ -192,7 +192,7 @@ function HoroscopeReading({ sign, period = "daily", route }: {
         </div>
 
         <div className="glass rounded-[2rem] p-8">
-          <div className="mb-4 flex items-center gap-2 text-xs uppercase tracking-widest text-white/35">
+          <div className="mb-4 flex items-center gap-2 text-xs uppercase tracking-widest text-white/55">
             {loading && <Loader2 size={14} className="animate-spin" />}
             <span>
               {loading ? "Refreshing live reading" : "Current guidance"}
@@ -221,7 +221,7 @@ function HoroscopeReading({ sign, period = "daily", route }: {
 
         {/* Other signs */}
         <div className="mt-12">
-          <h2 className="text-xs text-white/30 uppercase tracking-widest text-center mb-4">
+          <h2 className="text-xs text-white/55 uppercase tracking-widest text-center mb-4">
             Other Signs
           </h2>
           <div className="flex flex-wrap gap-2 justify-center">
@@ -229,7 +229,7 @@ function HoroscopeReading({ sign, period = "daily", route }: {
               <Link
                 key={s.slug}
                 to={`/horoscope/${s.slug}/${normalizedPeriod}`}
-                className="px-3 py-1.5 rounded-lg bg-white/5 text-white/40 text-xs hover:text-gold hover:border-gold/30 border border-white/10 transition-all"
+                className="inline-flex min-h-11 items-center px-3 py-1.5 rounded-lg bg-white/5 text-white/60 text-xs hover:text-gold hover:border-gold/30 border border-white/10 transition-all"
               >
                 {s.symbol} {s.name}
               </Link>
@@ -255,7 +255,7 @@ function HoroscopeReading({ sign, period = "daily", route }: {
 
         {/* CTA */}
         <div className="mt-12 text-center">
-          <p className="text-white/40 text-sm mb-4">
+          <p className="text-white/60 text-sm mb-4">
             Want personalized predictions based on YOUR birth chart?
           </p>
           <Link

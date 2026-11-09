@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Sun, Moon, PenTool, Heart, Sparkles, Brain } from 'lucide-react';
 import { AtmanData } from '../../types/user';
@@ -6,6 +6,7 @@ import { AtmanService } from '../../lib/atman';
 import { DharmaList } from '../dharma/DharmaList';
 import { KarmicJournal } from './KarmicJournal';
 import { viewerDateKey } from "../../lib/viewer-timezone";
+import { useDialog } from "../../hooks/useDialog";
 
 interface DailyAltarProps {
     isOpen: boolean;
@@ -66,6 +67,9 @@ export const DailyAltar: React.FC<DailyAltarProps> = ({
         onRefresh();
     };
 
+    const dialogRef = useRef<HTMLDivElement>(null);
+    useDialog(dialogRef, onClose, isOpen);
+
     if (!isOpen) return null;
 
     return (
@@ -77,6 +81,10 @@ export const DailyAltar: React.FC<DailyAltarProps> = ({
                 className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
             >
                 <motion.div
+                    ref={dialogRef}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="daily-altar-title"
                     initial={{ scale: 0.95, y: 20 }}
                     animate={{ scale: 1, y: 0 }}
                     exit={{ scale: 0.95, y: 20 }}
@@ -91,18 +99,22 @@ export const DailyAltar: React.FC<DailyAltarProps> = ({
                     {/* Header */}
                     <div className="flex items-center justify-between p-6 border-b border-white/5 relative z-10">
                         <div className="flex items-center gap-4">
-                            <h2 className="text-2xl font-display text-gold tracking-wide">Daily Altar</h2>
+                            <h2 id="daily-altar-title" className="text-2xl font-display text-gold tracking-wide">Daily Altar</h2>
                             {/* Time of Day Toggle */}
                             <div className="flex p-1 bg-white/5 rounded-lg">
                                 <button
                                     onClick={() => setActiveTab('morning')}
-                                    className={`p-2 rounded-md transition-all ${activeTab === 'morning' ? 'bg-gold/20 text-gold' : 'text-white/40 hover:text-white'}`}
+                                    aria-label="Morning"
+                                    aria-pressed={activeTab === 'morning'}
+                                    className={`p-2 rounded-md transition-all ${activeTab === 'morning' ? 'bg-gold/20 text-gold' : 'text-white/60 hover:text-white'}`}
                                 >
                                     <Sun size={18} />
                                 </button>
                                 <button
                                     onClick={() => setActiveTab('evening')}
-                                    className={`p-2 rounded-md transition-all ${activeTab === 'evening' ? 'bg-indigo-500/20 text-indigo-300' : 'text-white/40 hover:text-white'}`}
+                                    aria-label="Evening"
+                                    aria-pressed={activeTab === 'evening'}
+                                    className={`p-2 rounded-md transition-all ${activeTab === 'evening' ? 'bg-indigo-500/20 text-indigo-300' : 'text-white/60 hover:text-white'}`}
                                 >
                                     <Moon size={18} />
                                 </button>
@@ -110,6 +122,7 @@ export const DailyAltar: React.FC<DailyAltarProps> = ({
                         </div>
                         <button 
                             onClick={onClose}
+                            aria-label="Close"
                             className="p-2 rounded-full hover:bg-white/10 text-white/50 hover:text-white transition-colors"
                         >
                             <X size={24} />
@@ -120,14 +133,14 @@ export const DailyAltar: React.FC<DailyAltarProps> = ({
                     <div className="flex border-b border-white/5 relative z-10">
                         <button
                             onClick={() => setActiveSection('practice')}
-                            className={`flex-1 p-3 text-sm font-medium transition-all ${activeSection === 'practice' ? 'text-gold border-b-2 border-gold' : 'text-white/40 hover:text-white'}`}
+                            className={`flex-1 p-3 text-sm font-medium transition-all ${activeSection === 'practice' ? 'text-gold border-b-2 border-gold' : 'text-white/60 hover:text-white'}`}
                         >
                             <Sparkles size={14} className="inline mr-2" />
                             Practice
                         </button>
                         <button
                             onClick={() => setActiveSection('journal')}
-                            className={`flex-1 p-3 text-sm font-medium transition-all ${activeSection === 'journal' ? 'text-violet-400 border-b-2 border-violet-400' : 'text-white/40 hover:text-white'}`}
+                            className={`flex-1 p-3 text-sm font-medium transition-all ${activeSection === 'journal' ? 'text-violet-400 border-b-2 border-violet-400' : 'text-white/60 hover:text-white'}`}
                         >
                             <Brain size={14} className="inline mr-2" />
                             Karmic Journal
@@ -143,15 +156,16 @@ export const DailyAltar: React.FC<DailyAltarProps> = ({
                                 <section>
                                     <div className="flex items-center gap-2 mb-4 text-gold/80">
                                         <Sparkles size={18} />
-                                        <h3 className="font-display uppercase tracking-widest text-sm">Sankalpa (Intention)</h3>
+                                        <h3 id="altar-intention-label" className="font-display uppercase tracking-widest text-sm">Sankalpa (Intention)</h3>
                                     </div>
                                     <div className="relative group">
                                         <textarea
+                                            aria-labelledby="altar-intention-label"
                                             value={intention}
                                             onChange={(e) => setIntention(e.target.value)}
                                             onBlur={handleSaveIntention}
                                             placeholder="Today, I align with..."
-                                            className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-lg font-serif italic text-white/90 focus:outline-none focus:border-gold/30 focus:bg-white/10 transition-all resize-none min-h-[100px] placeholder:text-white/20"
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-lg font-serif italic text-white/90 focus:outline-none focus:border-gold/30 focus:bg-white/10 transition-all resize-none min-h-[100px] placeholder:text-white/45"
                                         />
                                         <div className="absolute bottom-3 right-3 text-white/20">
                                             <PenTool size={14} />
@@ -172,16 +186,17 @@ export const DailyAltar: React.FC<DailyAltarProps> = ({
                                 <section className={`transition-opacity duration-500 ${activeTab === 'morning' ? 'opacity-50 grayscale' : 'opacity-100'}`}>
                                     <div className="flex items-center gap-2 mb-4 text-indigo-300/80">
                                         <Heart size={18} />
-                                        <h3 className="font-display uppercase tracking-widest text-sm">Gratitude Log</h3>
+                                        <h3 id="altar-gratitude-label" className="font-display uppercase tracking-widest text-sm">Gratitude Log</h3>
                                     </div>
                                     <div className="relative">
                                         <textarea
+                                            aria-labelledby="altar-gratitude-label"
                                             value={gratitude}
                                             onChange={(e) => setGratitude(e.target.value)}
                                             onBlur={handleSaveGratitude}
                                             disabled={activeTab === 'morning'}
                                             placeholder={activeTab === 'morning' ? "Unlock this in the evening..." : "I am grateful for..."}
-                                            className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-lg font-serif italic text-white/90 focus:outline-none focus:border-indigo-500/30 focus:bg-white/10 transition-all resize-none min-h-[100px] placeholder:text-white/20 disabled:cursor-not-allowed"
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-lg font-serif italic text-white/90 focus:outline-none focus:border-indigo-500/30 focus:bg-white/10 transition-all resize-none min-h-[100px] placeholder:text-white/45 disabled:cursor-not-allowed"
                                         />
                                     </div>
                                 </section>

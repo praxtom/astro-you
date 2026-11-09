@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useDialog } from "../hooks/useDialog";
 import { postJson } from "../lib/apiFetch";
 import { captureChartImage } from "../lib/chartStorage";
 import { createChartShareFile } from "../lib/chart-share";
@@ -60,6 +61,9 @@ export default function ChartShareModal({
     };
   }, [isOpen, birthData, chartElementId]);
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialog(dialogRef, onClose, isOpen);
+
   if (!isOpen) return null;
 
   const handleDownload = () => {
@@ -105,8 +109,8 @@ export default function ChartShareModal({
 
   return (
     <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-labelledby="chart-share-title" className="bg-[#0a0a0f] border border-white/10 rounded-[2rem] p-6 w-full max-w-md mx-4 relative shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <button onClick={onClose} aria-label="Close share dialog" className="absolute top-4 right-4 text-white/40 hover:text-white transition-colors">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="chart-share-title" className="bg-[#0a0a0f] border border-white/10 rounded-[2rem] p-6 w-full max-w-md mx-4 relative shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <button onClick={onClose} aria-label="Close share dialog" className="absolute top-4 right-4 p-2 -m-2 text-white/60 hover:text-white transition-colors">
           <X size={20} />
         </button>
         <h3 id="chart-share-title" className="text-xl font-display text-white mb-4">Share Your Chart</h3>
@@ -118,7 +122,7 @@ export default function ChartShareModal({
         ) : chartUrl ? (
           <img src={chartUrl} alt="Natal Chart" className="w-full rounded-xl mb-4 border border-white/5" />
         ) : (
-          <div className="h-48 flex items-center justify-center px-6 text-center text-white/40 text-sm">{error || "Chart unavailable"}</div>
+          <div className="h-48 flex items-center justify-center px-6 text-center text-white/60 text-sm">{error || "Chart unavailable"}</div>
         )}
 
         <div className="flex gap-3">

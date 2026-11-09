@@ -1,87 +1,123 @@
 import { useState, useEffect } from "react";
 import { useUserProfile } from "../hooks";
 import { useRequestBirthData } from "../hooks/useRequestBirthData";
-import { MapPin, Globe, Loader2, Star } from "lucide-react";
+import { MapPin, Globe, Loader2, Star, RotateCcw } from "lucide-react";
 import { PageShell } from "../components/layout/PageShell";
 import BirthProfileRequired from "../components/BirthProfileRequired";
 import { postJson } from "../lib/apiFetch";
 
+function txt(value: unknown): string {
+  return typeof value === "string" || typeof value === "number" ? String(value) : "";
+}
+
+function arr(value: unknown): any[] {
+  return Array.isArray(value) ? value : [];
+}
+
+async function fetchChart(
+  birthData: unknown,
+  chartType: string,
+  signal: AbortSignal,
+): Promise<any> {
+  const res = await postJson("/api/kundali", { birthData, chartType }, { signal });
+  if (!res.ok) throw new Error(`${chartType} failed: ${res.status}`);
+  const json = await res.json();
+  return json?.data ?? null;
+}
+
 export default function AstroMap() {
-  const { birthData } = useUserProfile();
+  const { birthData, loading: profileLoading } = useUserProfile();
   const requestBirthData = useRequestBirthData(birthData);
   const [powerZones, setPowerZones] = useState<any>(null);
   const [lines, setLines] = useState<any>(null);
+  const [mapError, setMapError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [attempt, setAttempt] = useState(0);
   const [locationQuery, setLocationQuery] = useState("");
   const [locationAnalysis, setLocationAnalysis] = useState<any>(null);
   const [analyzingLocation, setAnalyzingLocation] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   // Fetch power zones + lines on mount
   useEffect(() => {
+    if (profileLoading) return;
     if (!requestBirthData?.dob) {
       setLoading(false);
       return;
     }
 
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => setLoading(false), 3200);
-    const fetchData = async () => {
-      setLoading(true);
-      const [zonesRes, linesRes] = await Promise.all([
-        postJson(
-          "/api/kundali",
-          { birthData: requestBirthData, chartType: "POWER_ZONES" },
-          { signal: controller.signal },
-        )
-          .then((r) => r.json())
-          .catch(() => null),
-        postJson(
-          "/api/kundali",
-          { birthData: requestBirthData, chartType: "ASTRO_LINES" },
-          { signal: controller.signal },
-        )
-          .then((r) => r.json())
-          .catch(() => null),
-      ]);
-      setPowerZones(zonesRes?.data);
-      setLines(linesRes?.data);
-      window.clearTimeout(timeoutId);
+    setLoading(true);
+    setMapError(false);
+    Promise.allSettled([
+      fetchChart(requestBirthData, "POWER_ZONES", controller.signal),
+      fetchChart(requestBirthData, "ASTRO_LINES", controller.signal),
+    ]).then(([zonesRes, linesRes]) => {
+      if (controller.signal.aborted) return;
+      for (const r of [zonesRes, linesRes]) {
+        if (r.status === "rejected") console.error("Astro map fetch failed:", r.reason);
+      }
+      setPowerZones(zonesRes.status === "fulfilled" ? zonesRes.value : null);
+      setLines(linesRes.status === "fulfilled" ? linesRes.value : null);
+      setMapError(zonesRes.status === "rejected" && linesRes.status === "rejected");
       setLoading(false);
-    };
-    fetchData();
-    return () => {
-      window.clearTimeout(timeoutId);
-      controller.abort();
-    };
-  }, [requestBirthData]);
+    });
+    return () => controller.abort();
+  }, [requestBirthData, profileLoading, attempt]);
 
-  const analyzeLocation = async () => {
-    if (!locationQuery.trim() || !requestBirthData) return;
+  const analyzeLocation = async (queryOverride?: string) => {
+    const query = (queryOverride ?? locationQuery).trim();
+    if (!query || !requestBirthData) return;
     setAnalyzingLocation(true);
-    // Use Nominatim to geocode, then analyze
+    setLocationError(null);
+    setLocationAnalysis(null);
+    let geo: { lat: string; lon: string } | undefined;
     try {
       const geoRes = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationQuery)}&limit=1`,
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`,
       );
-      const [geo] = await geoRes.json();
-      if (!geo) {
-        setAnalyzingLocation(false);
-        return;
-      }
+      if (!geoRes.ok) throw new Error(`Geocode failed: ${geoRes.status}`);
+      const results = await geoRes.json();
+      geo = Array.isArray(results) ? results[0] : undefined;
+    } catch (error) {
+      console.error("Location geocode failed:", error);
+      setLocationError(
+        "We couldn't look up that city. Check your connection and try again.",
+      );
+      setAnalyzingLocation(false);
+      return;
+    }
 
+    if (!geo) {
+      setLocationError(
+        `We couldn't find "${query}". Try the full city name, or add the country.`,
+      );
+      setAnalyzingLocation(false);
+      return;
+    }
+
+    try {
       const res = await postJson("/api/kundali", {
         birthData: requestBirthData,
         chartType: "LOCATION_ANALYSIS",
         targetLat: parseFloat(geo.lat),
         targetLng: parseFloat(geo.lon),
       });
+      if (!res.ok) throw new Error(`Location analysis failed: ${res.status}`);
       const data = await res.json();
-      setLocationAnalysis({ city: locationQuery, ...data.data });
+      setLocationAnalysis({ ...(data?.data ?? {}), city: query });
     } catch (error) {
       console.error("Location analysis failed:", error);
+      setLocationError(
+        `We found ${query} but couldn't compare it with your chart. Try again in a moment.`,
+      );
     }
     setAnalyzingLocation(false);
   };
+
+  const zones = arr(powerZones?.zones ?? powerZones?.power_zones);
+  const lineItems = arr(lines?.lines);
+  const influences = arr(locationAnalysis?.influences ?? locationAnalysis?.aspects);
 
   return (
     <PageShell>
@@ -89,11 +125,15 @@ export default function AstroMap() {
         <h1 className="type-page-title mb-2">
           Astrocartography
         </h1>
-        <p className="text-white/50 mb-8">
+        <p className="text-white/60 mb-8">
           Discover where on Earth your stars shine brightest
         </p>
 
-        {!requestBirthData?.dob ? (
+        {profileLoading ? (
+          <div className="flex items-center justify-center py-20" aria-busy="true">
+            <Loader2 size={32} className="animate-spin text-white/30" />
+          </div>
+        ) : !requestBirthData?.dob ? (
           <BirthProfileRequired
             title="Create your birth profile to map your strongest places."
             description="Astrocartography needs your exact birth details before it can compare your chart against cities and planetary lines."
@@ -101,18 +141,24 @@ export default function AstroMap() {
         ) : (
           <>
             {/* Location Search */}
-            <div className="flex gap-3 mb-8 max-w-lg">
+            <label htmlFor="astromap-city" className="block text-sm text-white/60 mb-2">
+              Compare a city with your chart
+            </label>
+            <div className="flex gap-3 mb-3 max-w-lg">
               <input
+                id="astromap-city"
                 value={locationQuery}
                 onChange={(e) => setLocationQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && analyzeLocation()}
                 placeholder="Search a city (e.g., London, Tokyo, New York)"
-                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-gold/50"
+                className="flex-1 min-w-0 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-base md:text-sm outline-none focus:border-gold/50"
               />
               <button
-                onClick={analyzeLocation}
+                type="button"
+                onClick={() => analyzeLocation()}
                 disabled={analyzingLocation}
-                className="px-5 py-3 rounded-xl bg-gold text-black font-bold text-sm disabled:opacity-50"
+                aria-label="Analyze city"
+                className="px-5 py-3 min-h-11 rounded-xl bg-gold text-black font-bold text-sm disabled:opacity-50"
               >
                 {analyzingLocation ? (
                   <Loader2 size={16} className="animate-spin" />
@@ -122,15 +168,38 @@ export default function AstroMap() {
               </button>
             </div>
 
+            {locationError && (
+              <p role="alert" className="mb-6 max-w-lg text-sm text-red-200">
+                {locationError}
+              </p>
+            )}
+            <div className="mb-8" />
+
             {loading && (
-              <div className="flex items-center justify-center py-20">
+              <div className="flex items-center justify-center py-20" aria-busy="true">
                 <Loader2 size={32} className="animate-spin text-white/30" />
+              </div>
+            )}
+
+            {!loading && mapError && (
+              <div role="alert" className="mb-6 max-w-2xl rounded-2xl border border-red-400/20 bg-red-500/[0.06] p-5">
+                <p className="text-sm text-white/75">
+                  Your power zones and planetary lines couldn't be calculated. Check
+                  your connection and try again. City search above still works.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setAttempt((n) => n + 1)}
+                  className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-white/80 hover:border-white/30 hover:text-white"
+                >
+                  <RotateCcw size={14} /> Retry
+                </button>
               </div>
             )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Power Zones */}
-              {powerZones && (
+              {!loading && zones.length > 0 && (
                 <div className="glass rounded-[2rem] p-6">
                   <div className="flex items-center gap-2 mb-4">
                     <Star size={18} className="text-gold" />
@@ -139,7 +208,7 @@ export default function AstroMap() {
                     </h2>
                   </div>
                   <div className="space-y-3">
-                    {(powerZones.zones || powerZones.power_zones || [])
+                    {zones
                       .slice(0, 8)
                       .map((zone: any, i: number) => (
                         <div
@@ -148,24 +217,24 @@ export default function AstroMap() {
                         >
                           <div className="flex items-center justify-between">
                             <span className="text-white/90 text-sm font-medium">
-                              {zone.location || zone.city || zone.name}
+                              {txt(zone?.location) || txt(zone?.city) || txt(zone?.name)}
                             </span>
-                            {zone.score && (
+                            {txt(zone?.score) && (
                               <span className="text-gold text-xs font-bold">
-                                {zone.score}%
+                                {txt(zone.score)}%
                               </span>
                             )}
                           </div>
-                          {zone.description && (
-                            <p className="text-white/50 text-xs mt-1">
-                              {zone.description}
+                          {txt(zone?.description) && (
+                            <p className="text-white/60 text-xs mt-1">
+                              {txt(zone.description)}
                             </p>
                           )}
-                          {zone.themes && (
-                            <p className="text-white/30 text-[10px] mt-1">
+                          {zone?.themes && (
+                            <p className="text-white/55 text-xs mt-1">
                               {Array.isArray(zone.themes)
-                                ? zone.themes.join(" · ")
-                                : zone.themes}
+                                ? zone.themes.map(txt).filter(Boolean).join(" · ")
+                                : txt(zone.themes)}
                             </p>
                           )}
                         </div>
@@ -175,7 +244,7 @@ export default function AstroMap() {
               )}
 
               {/* Planetary Lines */}
-              {lines && (
+              {!loading && lineItems.length > 0 && (
                 <div className="glass rounded-[2rem] p-6">
                   <div className="flex items-center gap-2 mb-4">
                     <Globe size={18} className="text-gold" />
@@ -184,7 +253,7 @@ export default function AstroMap() {
                     </h2>
                   </div>
                   <div className="space-y-2">
-                    {(lines.lines || [])
+                    {lineItems
                       .slice(0, 10)
                       .map((line: any, i: number) => (
                         <div
@@ -192,13 +261,13 @@ export default function AstroMap() {
                           className="flex items-start gap-3 py-2 border-b border-white/5 last:border-0"
                         >
                           <span className="text-amber-400 text-sm font-medium min-w-[80px]">
-                            {line.planet}
+                            {txt(line?.planet)}
                           </span>
-                          <span className="text-white/40 text-xs min-w-[30px]">
-                            {line.type || line.angle}
+                          <span className="text-white/60 text-xs min-w-[30px]">
+                            {txt(line?.type) || txt(line?.angle)}
                           </span>
-                          <p className="text-white/60 text-xs flex-1">
-                            {line.meaning || line.description || ""}
+                          <p className="text-white/65 text-xs flex-1">
+                            {txt(line?.meaning) || txt(line?.description)}
                           </p>
                         </div>
                       ))}
@@ -207,24 +276,29 @@ export default function AstroMap() {
               )}
             </div>
 
-            {!loading && !powerZones && !lines && (
+            {!loading && !mapError && zones.length === 0 && lineItems.length === 0 && (
               <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="glass rounded-2xl p-5">
                   <h2 className="text-gold text-sm font-bold uppercase tracking-widest mb-3">
                     Where to start
                   </h2>
                   <p className="text-white/55 text-sm leading-relaxed">
-                    Search a city above to compare it against your birth
-                    profile. The live map engine checks planetary lines,
-                    relocation themes, and practical fit.
+                    No power zones or planetary lines were returned for your
+                    chart. Search a city above to compare it against your
+                    birth profile directly.
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {["Mumbai", "London", "Singapore", "New York"].map(
                       (city) => (
                         <button
                           key={city}
-                          onClick={() => setLocationQuery(city)}
-                          className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-white/55 hover:border-gold/30 hover:text-gold"
+                          type="button"
+                          onClick={() => {
+                            setLocationQuery(city);
+                            void analyzeLocation(city);
+                          }}
+                          disabled={analyzingLocation}
+                          className="min-h-11 rounded-full border border-white/10 px-4 py-2 text-sm text-white/65 hover:border-gold/30 hover:text-gold disabled:opacity-50"
                         >
                           {city}
                         </button>
@@ -262,24 +336,25 @@ export default function AstroMap() {
                   Analysis: {locationAnalysis.city}
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {(
-                    locationAnalysis.influences ||
-                    locationAnalysis.aspects ||
-                    []
-                  ).map((inf: any, i: number) => (
+                  {influences.map((inf: any, i: number) => (
                     <div key={i} className="p-3 rounded-xl bg-white/5">
                       <p className="text-white/90 text-sm font-medium">
-                        {inf.planet || inf.name}
+                        {txt(inf?.planet) || txt(inf?.name)}
                       </p>
-                      <p className="text-white/50 text-xs mt-1">
-                        {inf.interpretation || inf.description}
+                      <p className="text-white/60 text-xs mt-1">
+                        {txt(inf?.interpretation) || txt(inf?.description)}
                       </p>
                     </div>
                   ))}
                 </div>
-                {locationAnalysis.overall && (
-                  <p className="text-white/60 text-sm mt-4 italic">
-                    {locationAnalysis.overall}
+                {txt(locationAnalysis.overall) && (
+                  <p className="text-white/65 text-sm mt-4 italic">
+                    {txt(locationAnalysis.overall)}
+                  </p>
+                )}
+                {influences.length === 0 && !txt(locationAnalysis.overall) && (
+                  <p className="text-white/60 text-sm">
+                    No notable planetary influences were found for this city.
                   </p>
                 )}
               </div>

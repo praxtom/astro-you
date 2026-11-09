@@ -68,7 +68,7 @@ export function useYogas(birthData: BirthData | null): UseYogasResult {
                 setError(err.message);
                 setErrorKind(errorKindOf(err));
             } finally {
-                setLoading(false);
+                if (!controller.signal.aborted) setLoading(false);
             }
         };
 

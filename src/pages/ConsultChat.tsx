@@ -372,7 +372,7 @@ export default function ConsultChat() {
           setBillingError(
             rawMsg.startsWith("Insufficient credits")
               ? INSUFFICIENT_CREDITS_MSG
-              : rawMsg,
+              : "We couldn't open this sitting just now. Please try again in a moment.",
           );
           setSessionActive(false);
           return null;
@@ -486,7 +486,7 @@ export default function ConsultChat() {
           setBillingError((prev) =>
             prev === TIME_UP_MSG
               ? prev
-              : err.message || "Could not finalize billing for this session.",
+              : "We couldn't close the bill for this sitting just now. Check Wallet in a minute, or contact support if the charge looks wrong.",
           );
         }
       }
@@ -996,7 +996,7 @@ export default function ConsultChat() {
                 }
               }}
               className="min-h-11 min-w-11 p-2.5 flex items-center justify-center rounded-lg text-white/35 hover:text-gold transition-colors"
-              aria-label="Leave session"
+              aria-label="Leave the sitting"
             >
               <ArrowLeft size={16} />
             </button>
@@ -1076,8 +1076,8 @@ export default function ConsultChat() {
               style={{ borderColor: `${accent}55` }}
             >
               <p className="font-display italic text-base text-white/70 leading-relaxed">
-                Namaste. I am {persona.name}. Your chart is open in front of me,
-                and I have all the time you need. We will speak in{" "}
+                Namaste. I am {persona.name}. I have read your chart, and I
+                will keep what we discuss for our next sitting. We will speak in{" "}
                 {preferredLanguage}. What shall we look at today?
               </p>
             </div>
@@ -1229,7 +1229,7 @@ export default function ConsultChat() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-white/40">Rate</span>
-                  <span>{pricePerMin} cr / min</span>
+                  <span>{pricePerMin} credits / min</span>
                 </div>
                 <div className="flex justify-between border-t border-white/10 pt-2">
                   <span className="text-white/60 font-medium">Total</span>
@@ -1313,8 +1313,9 @@ export default function ConsultChat() {
                     sendMessage();
                   }
                 }}
+                aria-label={`Message ${persona.name}`}
                 placeholder={`Write to ${persona.name.split(" ")[0]}…`}
-                className="flex-1 min-w-0 bg-transparent outline-none text-sm text-white/85 placeholder:text-white/30"
+                className="flex-1 min-w-0 bg-transparent outline-none text-base sm:text-sm text-white/85 placeholder:text-white/30"
                 disabled={isStreaming || !canCompose}
               />
               <button
@@ -1393,6 +1394,7 @@ export default function ConsultChat() {
             <textarea
               value={reviewText}
               onChange={(event) => setReviewText(event.target.value)}
+              aria-label="Your review (optional)"
               placeholder="What felt useful? Optional."
               className="w-full min-h-24 mb-4 rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm outline-none focus:border-gold/40 resize-none placeholder:text-white/25"
             />
@@ -1444,7 +1446,9 @@ export default function ConsultChat() {
                     });
                   } catch (err: any) {
                     console.error("Failed to save rating:", err);
-                    setReviewError(err.message || "Could not save review.");
+                    setReviewError(
+                      "We couldn't save your review just now. Please try again, or tap Done to skip it.",
+                    );
                     setReviewSubmitting(false);
                     return;
                   }

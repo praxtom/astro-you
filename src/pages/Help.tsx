@@ -5,8 +5,8 @@ import { ChevronDown, HelpCircle, LifeBuoy } from "lucide-react";
 
 const FAQS = [
   {
-    q: "How accurate is the AI astrologer?",
-    a: "AstroYou uses Vedic chart calculations, dasha timing, panchang, transits, and AI interpretation. It is guidance, not certainty, and should not replace professional medical, legal, financial, or mental health advice.",
+    q: "How accurate are the readings?",
+    a: "AstroYou uses Vedic chart calculations, dasha timing, panchang, and transits, then interprets them for your question. It is guidance, not certainty, and should not replace professional medical, legal, financial, or mental health advice.",
   },
   {
     q: "How is my data stored?",
@@ -14,7 +14,7 @@ const FAQS = [
   },
   {
     q: "How do credits work?",
-    a: "Credits are prepaid. AI astrologer sessions are billed per minute, PDF reports have fixed credit costs, and purchases or charges appear in Wallet activity.",
+    a: "Credits are prepaid. Sittings in The Circle are billed per minute, PDF reports have fixed credit costs, and purchases or charges appear in Wallet activity.",
   },
   {
     q: "Where can I see my purchases and charges?",
@@ -29,8 +29,8 @@ const FAQS = [
     a: "Yes! Click 'Update Birth Data' in your Dashboard settings to modify your birth details.",
   },
   {
-    q: "What's the difference between Synthesis and Consult?",
-    a: "Synthesis is your personal AI Jyotish companion with full consciousness tracking. Consult lets you chat with specialized AI astrologers (career, love, health, etc.) at per-minute rates.",
+    q: "What's the difference between Jyotish and The Circle?",
+    a: "Jyotish is your personal guide that remembers your chart, your conversations, and what you share over time. The Circle lets you sit with specialised guides (career, love, health, and more) at per-minute rates. Both are software guides, not human astrologers.",
   },
   {
     q: "Can real astrologers apply to join?",

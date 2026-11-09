@@ -1,42 +1,95 @@
 import { useState, useEffect } from "react";
 import { postJson } from "../lib/apiFetch";
-import { useNavigate } from "react-router-dom";
-import { Hash, Sparkles, Star, Heart, Target } from "lucide-react";
+import { Hash, Sparkles, Star, Heart, Target, RotateCcw } from "lucide-react";
 import { useUserProfile } from "../hooks";
+import { useRequestBirthData } from "../hooks/useRequestBirthData";
 import { PageShell } from "../components/layout/PageShell";
 import { AskJyotishBridge } from "../components/layout/AskJyotishBridge";
+import BirthProfileRequired from "../components/BirthProfileRequired";
 
 interface CoreNumber {
   name: string;
-  number: number;
+  number: number | string;
   meaning: string;
 }
 
+function toDisplayNumber(value: unknown): number | string | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    return toDisplayNumber(obj.number ?? obj.value);
+  }
+  return null;
+}
+
+function toText(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function parseCoreNumbers(raw: Record<string, any>): CoreNumber[] {
+  const defs: { name: string; keys: string[]; meaningKeys: string[] }[] = [
+    { name: "Life Path", keys: ["life_path", "lifePath", "life_path_number"], meaningKeys: ["life_path_meaning"] },
+    { name: "Destiny", keys: ["destiny", "expression", "destiny_number", "expression_number"], meaningKeys: ["destiny_meaning", "expression_meaning"] },
+    { name: "Soul Urge", keys: ["soul_urge", "soulUrge", "heart_desire", "soul_urge_number"], meaningKeys: ["soul_urge_meaning"] },
+  ];
+  const out: CoreNumber[] = [];
+  for (const def of defs) {
+    const key = def.keys.find((k) => raw[k] !== undefined && raw[k] !== null);
+    if (!key) continue;
+    const value = raw[key];
+    const number = toDisplayNumber(value);
+    if (number === null) continue;
+    const meaning =
+      (typeof value === "object" ? toText(value?.meaning) : "") ||
+      def.meaningKeys.map((k) => toText(raw[k])).find(Boolean) ||
+      "";
+    out.push({ name: def.name, number, meaning });
+  }
+  return out;
+}
+
+function parseReading(rd: unknown): string | null {
+  if (typeof rd === "string") return rd.trim() || null;
+  if (!rd || typeof rd !== "object") return null;
+  const obj = rd as Record<string, unknown>;
+  const text = [obj.reading, obj.interpretation, obj.text, obj.summary].find(
+    (v) => typeof v === "string" && v.trim(),
+  );
+  return typeof text === "string" ? text : null;
+}
+
+const ERROR_MESSAGE =
+  "We couldn't calculate your numerology right now. Check your connection and try again.";
+
 export default function Numerology() {
-  const navigate = useNavigate();
-  const { birthData, loading: profileLoading } = useUserProfile();
+  const { birthData: profileBirthData, loading: profileLoading } = useUserProfile();
+  const birthData = useRequestBirthData(profileBirthData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [coreNumbers, setCoreNumbers] = useState<CoreNumber[]>([]);
   const [reading, setReading] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (profileLoading) return;
     if (!birthData?.dob) {
       setLoading(false);
-      setError("Birth data required. Please complete your profile first.");
       return;
     }
 
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 4200);
+    let timedOut = false;
+    const timeoutId = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 15000);
 
     const fetchNumerology = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        // Fetch core numbers and full reading in parallel
         const [coreRes, readingRes] = await Promise.all([
           postJson(
             "/api/kundali",
@@ -50,90 +103,25 @@ export default function Numerology() {
           ),
         ]);
 
+        if (!coreRes.ok) throw new Error(`Core numbers failed: ${coreRes.status}`);
         const coreData = await coreRes.json();
-        const readingData = await readingRes.json();
+        const readingData = readingRes.ok ? await readingRes.json().catch(() => null) : null;
 
-        // Parse core numbers
-        const raw = coreData.data || coreData;
-        const numbers: CoreNumber[] = [];
-
-        if (raw.life_path || raw.lifePath) {
-          numbers.push({
-            name: "Life Path",
-            number: raw.life_path?.number ?? raw.lifePath ?? raw.life_path ?? 0,
-            meaning:
-              raw.life_path?.meaning ??
-              raw.life_path_meaning ??
-              "Your life's journey and purpose.",
-          });
-        }
-        if (raw.destiny || raw.expression) {
-          const d = raw.destiny || raw.expression;
-          numbers.push({
-            name: "Destiny",
-            number: typeof d === "object" ? (d.number ?? 0) : d,
-            meaning:
-              typeof d === "object"
-                ? (d.meaning ?? "")
-                : (raw.destiny_meaning ??
-                  "Your talents and how you express them."),
-          });
-        }
-        if (raw.soul_urge || raw.soulUrge || raw.heart_desire) {
-          const s = raw.soul_urge || raw.soulUrge || raw.heart_desire;
-          numbers.push({
-            name: "Soul Urge",
-            number: typeof s === "object" ? (s.number ?? 0) : s,
-            meaning:
-              typeof s === "object"
-                ? (s.meaning ?? "")
-                : (raw.soul_urge_meaning ?? "Your deepest inner desires."),
-          });
-        }
-
-        // Fallback if structure is flat
-        if (numbers.length === 0 && raw) {
-          numbers.push(
-            {
-              name: "Life Path",
-              number: raw.life_path_number ?? 0,
-              meaning:
-                raw.life_path_meaning ?? "Your life's journey and purpose.",
-            },
-            {
-              name: "Destiny",
-              number: raw.destiny_number ?? 0,
-              meaning:
-                raw.destiny_meaning ?? "Your talents and how you express them.",
-            },
-            {
-              name: "Soul Urge",
-              number: raw.soul_urge_number ?? 0,
-              meaning: raw.soul_urge_meaning ?? "Your deepest inner desires.",
-            },
-          );
-        }
+        const numbers = parseCoreNumbers((coreData?.data ?? coreData) || {});
+        const text = readingData ? parseReading(readingData.data ?? readingData) : null;
+        if (numbers.length === 0 && !text) throw new Error("Numerology response had no usable data");
 
         setCoreNumbers(numbers);
-
-        // Parse reading
-        const rd = readingData.data || readingData;
-        setReading(
-          rd.reading ??
-            rd.interpretation ??
-            rd.text ??
-            rd.summary ??
-            JSON.stringify(rd, null, 2),
-        );
+        setReading(text);
       } catch (err: any) {
+        if (err?.name === "AbortError" && !timedOut) return;
         console.error("Numerology fetch error:", err);
-        const fallbackName = birthData.name || "Your profile";
-        setCoreNumbers(buildFallbackCoreNumbers(fallbackName));
-        setReading(buildFallbackNumerologyReading(fallbackName));
-        setError(null);
+        setCoreNumbers([]);
+        setReading(null);
+        setError(ERROR_MESSAGE);
       } finally {
         window.clearTimeout(timeoutId);
-        setLoading(false);
+        if (!controller.signal.aborted || timedOut) setLoading(false);
       }
     };
 
@@ -142,7 +130,7 @@ export default function Numerology() {
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [birthData, profileLoading]);
+  }, [birthData, profileLoading, attempt]);
 
   const numberIcons = [
     <Target size={24} />,
@@ -156,12 +144,38 @@ export default function Numerology() {
     "from-rose-500/20 to-rose-900/10 border-rose-500/30 text-rose-300",
   ];
 
+  const header = (
+    <div className="flex items-center gap-4 mb-10">
+      <div className="p-3 rounded-2xl bg-gold/10 text-gold">
+        <Hash size={28} />
+      </div>
+      <div>
+        <h1 className="type-page-title">Your Numerology</h1>
+        <p className="text-white/55 text-sm mt-1">
+          The sacred mathematics of your soul
+        </p>
+      </div>
+    </div>
+  );
+
+  if (!profileLoading && !birthData?.dob) {
+    return (
+      <PageShell>
+        {header}
+        <BirthProfileRequired
+          title="Add your birth details"
+          description="Numerology is calculated from your name and date of birth. Create your birth profile to see your Life Path, Destiny and Soul Urge numbers."
+        />
+      </PageShell>
+    );
+  }
+
   // Loading skeleton
   if (loading || profileLoading) {
     return (
       <PageShell>
-        <div>
-          <div className="h-10 bg-white/5 rounded-lg animate-pulse w-64 mb-8" />
+        <div aria-busy="true">
+          {header}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             {[1, 2, 3].map((i) => (
               <div key={i} className="glass rounded-2xl p-8 space-y-4">
@@ -187,56 +201,32 @@ export default function Numerology() {
     );
   }
 
-  // Error state
-  if (error && coreNumbers.length === 0 && !reading) {
+  if (error) {
     return (
-      <div className="min-h-screen bg-bg-app text-white flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto px-6">
-          <div className="p-4 rounded-full bg-red-500/10 text-red-400 w-fit mx-auto mb-4">
-            <Hash size={32} />
-          </div>
-          <h2 className="text-xl font-display mb-2">
-            Unable to Load Numerology
-          </h2>
-          <p className="text-white/50 mb-6">{error}</p>
-          <div className="flex gap-3 justify-center">
-            <button
-              onClick={() => navigate("/dashboard")}
-              className="px-4 py-2.5 rounded-xl border border-white/10 text-white/70 hover:bg-white/5 transition-colors text-sm"
-            >
-              Back to Dashboard
-            </button>
-            <button
-              onClick={() => window.location.reload()}
-              className="px-4 py-2.5 rounded-xl bg-violet-600 text-white hover:bg-violet-500 transition-colors text-sm"
-            >
-              Try Again
-            </button>
-          </div>
+      <PageShell>
+        {header}
+        <div role="alert" className="max-w-2xl rounded-2xl border border-red-400/20 bg-red-500/[0.06] p-6">
+          <h2 className="font-display text-xl text-white mb-2">Numerology unavailable</h2>
+          <p className="text-sm text-white/70 mb-5">{error}</p>
+          <button
+            type="button"
+            onClick={() => setAttempt((n) => n + 1)}
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-gold px-4 py-2.5 text-sm font-bold text-black hover:bg-gold/90"
+          >
+            <RotateCcw size={15} /> Retry
+          </button>
         </div>
-      </div>
+      </PageShell>
     );
   }
 
   return (
     <PageShell>
       <div>
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-10">
-          <div className="p-3 rounded-2xl bg-violet-500/10 text-violet-400">
-            <Hash size={28} />
-          </div>
-          <div>
-            <h1 className="type-page-title">
-              Your Numerology
-            </h1>
-            <p className="text-white/40 text-sm mt-1">
-              The sacred mathematics of your soul
-            </p>
-          </div>
-        </div>
+        {header}
 
         {/* Core Numbers Grid */}
+        {coreNumbers.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
           {coreNumbers.map((cn, idx) => (
             <div
@@ -252,12 +242,15 @@ export default function Numerology() {
               <h3 className="text-lg font-display tracking-wider uppercase mb-3 text-white/80">
                 {cn.name}
               </h3>
-              <p className="text-sm text-white/50 leading-relaxed">
-                {cn.meaning}
-              </p>
+              {cn.meaning && (
+                <p className="text-sm text-white/65 leading-relaxed">
+                  {cn.meaning}
+                </p>
+              )}
             </div>
           ))}
         </div>
+        )}
 
         {/* Full Reading */}
         {reading && (
@@ -287,45 +280,4 @@ export default function Numerology() {
       </div>
     </PageShell>
   );
-}
-
-function buildFallbackCoreNumbers(name: string): CoreNumber[] {
-  const seed = Array.from(name).reduce(
-    (sum, char) => sum + char.charCodeAt(0),
-    0,
-  );
-  const toDigit = (value: number) => {
-    let next = value;
-    while (next > 9) {
-      next = String(next)
-        .split("")
-        .reduce((sum, digit) => sum + Number(digit), 0);
-    }
-    return next || 1;
-  };
-
-  return [
-    {
-      name: "Life Path",
-      number: toDigit(seed + 17),
-      meaning:
-        "Your path is best read through steady choices, not one dramatic turning point.",
-    },
-    {
-      name: "Destiny",
-      number: toDigit(seed + 29),
-      meaning:
-        "Your expression strengthens when your work and values are aligned.",
-    },
-    {
-      name: "Soul Urge",
-      number: toDigit(seed + 41),
-      meaning:
-        "Your inner compass asks for emotional honesty and simpler commitments.",
-    },
-  ];
-}
-
-function buildFallbackNumerologyReading(name: string) {
-  return `${name}, this numerology view is using a baseline reading while the live calculation refreshes. Use it as a reflective layer: notice where your decisions become simpler, where your energy leaks, and which commitments repeatedly ask for maturity.`;
 }

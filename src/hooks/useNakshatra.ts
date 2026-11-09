@@ -76,7 +76,7 @@ export function useNakshatra(birthData: any): UseNakshatraResult {
         setError(err.message);
         setErrorKind(errorKindOf(err));
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
 

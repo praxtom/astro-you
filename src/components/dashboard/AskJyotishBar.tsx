@@ -68,7 +68,7 @@ export const AskJyotishBar: React.FC<AskJyotishBarProps> = ({ lastChat }) => {
             onChange={(e) => setQuestion(e.target.value)}
             placeholder={`Ask Jyotish — “${SUGGESTIONS[suggestionIndex]}”`}
             aria-label="Ask Jyotish a question"
-            className="flex-1 min-w-0 bg-transparent outline-none! focus-visible:outline-none! text-white/85 placeholder:text-white/30 text-sm md:text-base"
+            className="flex-1 min-w-0 bg-transparent outline-none! focus-visible:outline-none! text-white/85 placeholder:text-white/50 text-base"
           />
           <button
             type="submit"

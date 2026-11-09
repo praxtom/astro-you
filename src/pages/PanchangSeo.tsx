@@ -99,10 +99,20 @@ function PanchangTool({ route }: { route: NonNullable<ReturnType<typeof panchang
     offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
   };
 
+  // Mirror the prerender: a dated page without real almanac values is noindex.
+  const hasValue = (value?: string) => Boolean(value) && value !== "-";
+  const dateDataMissing =
+    Boolean(route.date) &&
+    date === route.date &&
+    (error !== null ||
+      (panchang !== null &&
+        ![panchang.tithi, panchang.nakshatra, panchang.rahuKaal, panchang.sunrise, panchang.sunset].every(hasValue)));
+
   return (
     <div>
       <SEO
         title={route.title}
+        noindex={dateDataMissing}
         description={`Check ${route.date || "today’s"} Panchang: tithi, nakshatra, sunrise, sunset, Rahu Kaal and auspicious timings for your city.`}
         url={siteUrl(route.path)}
         canonical={siteUrl(route.path)}

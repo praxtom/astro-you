@@ -57,10 +57,10 @@ export function ComposerVoiceButton({
       type="button"
       onClick={onToggle}
       disabled={!isSupported}
-      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${
+      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${
         isListening
           ? "bg-red-500/15 text-red-300 hover:bg-red-500/25"
-          : "text-white/35 hover:bg-white/5 hover:text-gold"
+          : "text-white/60 hover:bg-white/5 hover:text-gold"
       }`}
       aria-label={label}
       title={label}
@@ -411,7 +411,7 @@ export function SynthesisPanelLaunchers({
             ref={conversationsButtonRef}
             type="button"
             onClick={onOpenConversations}
-            className="pointer-events-auto rounded-xl border border-white/8 bg-bg-app/85 p-2.5 text-white/40 backdrop-blur-xl transition-colors hover:text-gold"
+            className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-xl border border-white/8 bg-bg-app/85 text-white/60 backdrop-blur-xl transition-colors hover:text-gold"
             aria-label="Open conversations"
             aria-controls="synthesis-conversations-panel"
           >
@@ -424,7 +424,7 @@ export function SynthesisPanelLaunchers({
           ref={blueprintButtonRef}
           type="button"
           onClick={onOpenBlueprint}
-          className="pointer-events-auto rounded-xl border border-white/8 bg-bg-app/85 p-2.5 text-white/40 backdrop-blur-xl transition-colors hover:text-gold"
+          className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-xl border border-white/8 bg-bg-app/85 text-white/60 backdrop-blur-xl transition-colors hover:text-gold"
           aria-label="Open blueprint"
           aria-controls="synthesis-blueprint-panel"
         >
@@ -515,7 +515,7 @@ export function ConversationListView({
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const filteredChats = normalizedQuery
     ? chats.filter((chat) =>
-        (chat.title || "Untitled Synthesis")
+        (chat.title || "Untitled conversation")
           .toLowerCase()
           .includes(normalizedQuery),
       )
@@ -596,7 +596,7 @@ export function ConversationListView({
                     aria-current={isCurrent ? "page" : undefined}
                     className="min-w-0 flex-1 truncate px-3 py-2.5 pr-10 text-left text-sm text-white/72"
                   >
-                    {chat.title || "Untitled Synthesis"}
+                    {chat.title || "Untitled conversation"}
                   </button>
 
                   {isConfirming ? (

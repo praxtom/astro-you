@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertCircle,
@@ -60,7 +60,15 @@ export default function Remedies() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { birthData, loading: profileLoading } = useUserProfile();
-  const { remedies, loading: remediesLoading } = useRemedies(birthData);
+  const {
+    remedies,
+    loading: remediesLoading,
+    error: remediesError,
+    errorKind: remediesErrorKind,
+    retry: retryRemedies,
+  } = useRemedies(birthData);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const hasBirthProfile = Boolean(birthData?.dob && birthData?.tob);
   const { addToast } = useToast();
   const { currency } = useCurrency();
   const [activeCategory, setActiveCategory] = useState<
@@ -94,12 +102,13 @@ export default function Remedies() {
         body: JSON.stringify({ idToken }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Could not load requests");
+      if (!res.ok) throw new Error(data.error || `Requests failed: ${res.status}`);
       setRequests(Array.isArray(data.requests) ? data.requests : []);
       setRequestsError(null);
     } catch (error: any) {
+      console.error("Remedy request history failed:", error);
       setRequests([]);
-      setRequestsError(error.message || "Could not load requests");
+      setRequestsError("Your request history couldn't be loaded.");
     }
   }, [user]);
 
@@ -120,6 +129,44 @@ export default function Remedies() {
       return matchesCategory && matchesSearch;
     });
   }, [activeCategory, query]);
+
+  // Modal: close on Escape, focus the first control, and keep Tab inside.
+  useEffect(() => {
+    if (!selectedProduct) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef.current;
+    const focusables = () =>
+      Array.from(
+        dialog?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), textarea, input, select, a[href], [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      );
+    focusables()[0]?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setSelectedProduct(null);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = focusables();
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      previouslyFocused?.focus?.();
+    };
+  }, [selectedProduct]);
 
   async function requestGuidance(product: RemedyProduct) {
     if (!user) {
@@ -156,7 +203,7 @@ export default function Remedies() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || "Could not create remedy request");
+        throw new Error(`Remedy request failed: ${res.status} ${data?.error ?? ""}`);
       }
 
       addToast({
@@ -174,10 +221,12 @@ export default function Remedies() {
       setSelectedProduct(null);
       setNotes("");
     } catch (error: any) {
+      console.error("Remedy request failed:", error);
       addToast({
         type: "error",
-        title: "Request unavailable",
-        message: error.message || "Could not create remedy request.",
+        title: "Request not sent",
+        message:
+          "Your guidance request couldn't be saved. Check your connection and try again.",
       });
     } finally {
       setRequestingId(null);
@@ -204,7 +253,7 @@ export default function Remedies() {
               <ShieldCheck className="mt-0.5 text-gold" size={21} />
               <div>
                 <p className="type-card-title text-white">No fear selling</p>
-                <p className="type-body-sm mt-1 text-white/45">
+                <p className="type-body-sm mt-1 text-white/60">
                   Remedies are framed as support practices. Paid items require
                   review before purchase or booking.
                 </p>
@@ -213,13 +262,13 @@ export default function Remedies() {
           </aside>
         </section>
 
-        <section className="mt-5 grid gap-4 xl:grid-cols-[1fr_22rem]">
-          <div className="space-y-4">
+        <section className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
+          <div className="min-w-0 space-y-4">
             <section className="platform-panel p-4">
               <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <h2 className="type-section-title">Remedy catalog</h2>
-                  <p className="type-body-sm text-white/40">
+                  <p className="type-body-sm text-white/55">
                     Request guidance now; payment and fulfillment can be added
                     once partners are ready.
                   </p>
@@ -229,11 +278,16 @@ export default function Remedies() {
                     className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30"
                     size={16}
                   />
+                  <label htmlFor="remedy-search" className="sr-only">
+                    Search remedies
+                  </label>
                   <input
+                    id="remedy-search"
+                    type="search"
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
                     placeholder="Search remedies"
-                    className="platform-field h-10 pl-9 pr-3 text-sm"
+                    className="platform-field h-11 pl-9 pr-3 text-base md:text-sm"
                   />
                 </div>
               </div>
@@ -242,6 +296,8 @@ export default function Remedies() {
                 {REMEDY_CATEGORIES.map((category) => (
                   <button
                     key={category.id}
+                    type="button"
+                    aria-pressed={activeCategory === category.id}
                     onClick={() => setActiveCategory(category.id)}
                     className={`platform-chip shrink-0 ${
                       activeCategory === category.id
@@ -254,7 +310,13 @@ export default function Remedies() {
                 ))}
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {filteredProducts.length === 0 && (
+                  <p className="type-body-sm text-white/60 md:col-span-2">
+                    No remedies match "{query.trim()}". Try another word or pick
+                    a different category.
+                  </p>
+                )}
                 {filteredProducts.map((product) => (
                   <RemedyProductCard
                     key={product.id}
@@ -271,9 +333,49 @@ export default function Remedies() {
             <section className="platform-panel p-4">
               <p className="platform-eyebrow mb-3">From your chart</p>
               {profileLoading || remediesLoading ? (
-                <div className="flex items-center gap-2 py-4 text-sm text-white/40">
+                <div className="flex items-center gap-2 py-4 text-sm text-white/60" aria-busy="true">
                   <Loader2 size={16} className="animate-spin" />
                   Reading remedy context
+                </div>
+              ) : !hasBirthProfile ? (
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                  <AlertCircle className="mb-3 text-white/25" size={26} />
+                  <p className="type-body-sm text-white/60">
+                    Add your birth date and time to get remedy suggestions from
+                    your chart.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/onboarding")}
+                    className="platform-button-secondary mt-3"
+                  >
+                    Create birth profile
+                  </button>
+                </div>
+              ) : remediesError ? (
+                <div role="alert" className="rounded-xl border border-red-400/20 bg-red-500/[0.06] p-4">
+                  <p className="type-body-sm text-white/75">
+                    {remediesErrorKind === "signin"
+                      ? "Sign in to see remedy suggestions from your chart."
+                      : "Remedy suggestions from your chart couldn't be loaded. Check your connection and try again."}
+                  </p>
+                  {remediesErrorKind === "signin" ? (
+                    <button
+                      type="button"
+                      onClick={() => navigate("/onboarding")}
+                      className="platform-button-secondary mt-3"
+                    >
+                      Sign in
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={retryRemedies}
+                      className="platform-button-secondary mt-3"
+                    >
+                      Retry
+                    </button>
+                  )}
                 </div>
               ) : suggestedRemedies.length > 0 ? (
                 <div className="space-y-3">
@@ -292,24 +394,28 @@ export default function Remedies() {
                   ))}
                 </div>
               ) : (
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                  <AlertCircle className="mb-3 text-white/25" size={26} />
-                  <p className="type-body-sm text-white/55">
-                    Complete your birth profile to generate personalized remedy
-                    suggestions.
-                  </p>
-                </div>
+                <p className="type-body-sm text-white/60">
+                  No specific remedies were returned for your chart. The
+                  practices in the catalog are still safe to start with.
+                </p>
               )}
             </section>
 
             <section className="platform-panel p-4">
               <p className="platform-eyebrow mb-3">Recent requests</p>
               {requestsError ? (
-                <p className="type-body-sm text-white/40">
-                  Request history is unavailable right now.
-                </p>
+                <div role="alert">
+                  <p className="type-body-sm text-white/70">{requestsError}</p>
+                  <button
+                    type="button"
+                    onClick={() => void loadRequests()}
+                    className="mt-2 min-h-11 text-sm font-semibold text-gold hover:text-gold/80"
+                  >
+                    Retry
+                  </button>
+                </div>
               ) : requests.length === 0 ? (
-                <p className="type-body-sm text-white/40">
+                <p className="type-body-sm text-white/55">
                   Guidance requests will appear here.
                 </p>
               ) : (
@@ -323,7 +429,7 @@ export default function Remedies() {
                         <p className="type-body-sm truncate font-semibold text-white/80">
                           {request.product?.title || "Remedy request"}
                         </p>
-                        <p className="type-meta mt-1 text-white/35 capitalize">
+                        <p className="type-meta mt-1 text-white/55 capitalize">
                           {request.status || "requested"}
                         </p>
                       </div>
@@ -338,7 +444,7 @@ export default function Remedies() {
 
             <section className="platform-panel p-4">
               <p className="platform-eyebrow mb-3">Safety rules</p>
-              <div className="space-y-3 type-body-sm text-white/48">
+              <div className="space-y-3 type-body-sm text-white/60">
                 <p>Gemstones are reviewed before recommendation.</p>
                 <p>Mantra, service, routine, and discipline come first.</p>
                 <p>
@@ -351,14 +457,25 @@ export default function Remedies() {
         </section>
 
         {selectedProduct && (
-          <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/70 px-4">
-            <div className="platform-panel-strong w-full max-w-lg p-5 shadow-2xl">
+          <div
+            className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/70 px-4"
+            onClick={(event) => {
+              if (event.target === event.currentTarget) setSelectedProduct(null);
+            }}
+          >
+            <div
+              ref={dialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="remedy-dialog-title"
+              className="platform-panel-strong w-full max-w-lg p-5 shadow-2xl"
+            >
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
                   <p className="platform-eyebrow mb-2">
                     {fulfillmentLabel(selectedProduct)}
                   </p>
-                  <h2 className="type-section-title">
+                  <h2 id="remedy-dialog-title" className="type-section-title">
                     {selectedProduct.title}
                   </h2>
                   <p className="platform-copy mt-2">
@@ -383,7 +500,7 @@ export default function Remedies() {
               </div>
 
               <label
-                className="type-meta uppercase text-white/40"
+                className="type-meta uppercase text-white/60"
                 htmlFor="remedy-notes"
               >
                 Notes for the review
@@ -393,7 +510,7 @@ export default function Remedies() {
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
                 rows={4}
-                className="platform-field mt-2 resize-none p-3 text-sm"
+                className="platform-field mt-2 resize-none p-3 text-base md:text-sm"
                 placeholder="Mention your concern, timing, or current situation."
               />
 
@@ -403,6 +520,7 @@ export default function Remedies() {
 
               <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                 <button
+                  type="button"
                   onClick={() => setSelectedProduct(null)}
                   className="platform-button-secondary"
                 >
@@ -439,15 +557,15 @@ function RemedyProductCard({
   const Icon = categoryIcon[product.category];
 
   return (
-    <article className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+    <article className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
       <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gold/10 text-gold">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gold/10 text-gold">
             <Icon size={19} />
           </div>
-          <div>
-            <p className="type-card-title text-white">{product.title}</p>
-            <p className="type-meta mt-1 text-white/35">
+          <div className="min-w-0">
+            <p className="type-card-title break-words text-white">{product.title}</p>
+            <p className="type-meta mt-1 text-white/55">
               {fulfillmentLabel(product)}
             </p>
           </div>
@@ -457,7 +575,7 @@ function RemedyProductCard({
         </p>
       </div>
 
-      <p className="type-body-sm mt-3 text-white/50">{product.description}</p>
+      <p className="type-body-sm mt-3 text-white/60">{product.description}</p>
       <div className="mt-3 flex flex-wrap gap-1.5">
         {product.bestFor.slice(0, 3).map((item) => (
           <span key={item} className="platform-chip">

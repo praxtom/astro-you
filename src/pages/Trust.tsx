@@ -213,7 +213,7 @@ export default function Trust() {
           </div>
 
           <div className="platform-panel p-4">
-            <p className="platform-eyebrow text-white/35">Operating rules</p>
+            <p className="platform-eyebrow text-white/55">Operating rules</p>
             <div className="mt-3 grid gap-2">
               {TRUST_PRINCIPLES.map((item) => (
                 <div
@@ -237,7 +237,7 @@ export default function Trust() {
                 <h2 className="mt-3 type-card-title text-white">
                   {item.title}
                 </h2>
-                <p className="mt-2 type-body-sm text-white/45">{item.body}</p>
+                <p className="mt-2 type-body-sm text-white/60">{item.body}</p>
               </article>
             );
           })}
@@ -255,7 +255,7 @@ export default function Trust() {
                   <p className="type-body-sm font-semibold text-white">
                     {row.signal}
                   </p>
-                  <p className="type-body-sm text-white/45">{row.source}</p>
+                  <p className="type-body-sm text-white/60">{row.source}</p>
                   <p className="type-body-sm text-white/55">{row.publicRule}</p>
                 </div>
               ))}
@@ -351,23 +351,25 @@ export default function Trust() {
           <div className="platform-panel p-4">
             <p className="platform-eyebrow">Submit real story</p>
             <h2 className="mt-1 type-section-title">Share your experience</h2>
-            <p className="mt-2 type-body-sm text-white/45">
+            <p className="mt-2 type-body-sm text-white/60">
               This goes into a review queue. It is not published automatically.
             </p>
             <div className="mt-4 grid gap-3">
               <input
+                aria-label="Public name"
                 value={publicName}
                 onChange={(event) => setPublicName(event.target.value)}
                 placeholder="Public name, e.g. Asha K."
-                className="platform-field px-3 py-2.5 text-sm placeholder:text-white/25"
+                className="platform-field px-3 py-2.5 text-base sm:text-sm placeholder:text-white/45"
               />
               <textarea
+                aria-label="Your story"
                 value={story}
                 onChange={(event) => setStory(event.target.value)}
                 placeholder="What changed for you?"
-                className="platform-field min-h-24 resize-none px-3 py-2.5 text-sm placeholder:text-white/25"
+                className="platform-field min-h-24 resize-none px-3 py-2.5 text-base sm:text-sm placeholder:text-white/45"
               />
-              <label className="flex items-start gap-3 text-xs text-white/45">
+              <label className="flex items-start gap-3 text-xs text-white/60">
                 <input
                   type="checkbox"
                   checked={allowPublicUse}
@@ -383,7 +385,7 @@ export default function Trust() {
               >
                 {submitting ? "Submitting" : "Submit story"}
               </button>
-              {status && <p className="type-body-sm text-white/45">{status}</p>}
+              {status && <p className="type-body-sm text-white/60">{status}</p>}
             </div>
           </div>
         </section>
@@ -393,7 +395,7 @@ export default function Trust() {
           <h2 className="mt-1 type-section-title">Approved user signals</h2>
           <div className="mt-4 grid gap-3 lg:grid-cols-2">
             <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-              <h3 className="type-meta uppercase text-white/45">
+              <h3 className="type-meta uppercase text-white/60">
                 Testimonials
               </h3>
               <div className="mt-3 grid gap-3">
@@ -413,7 +415,7 @@ export default function Trust() {
                     </blockquote>
                   ))
                 ) : (
-                  <p className="type-body-sm text-white/35">
+                  <p className="type-body-sm text-white/55">
                     No approved public testimonials yet. Submitted stories stay
                     private until review.
                   </p>
@@ -421,7 +423,7 @@ export default function Trust() {
               </div>
             </div>
             <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-              <h3 className="type-meta uppercase text-white/45">Reviews</h3>
+              <h3 className="type-meta uppercase text-white/60">Reviews</h3>
               <div className="mt-3 grid gap-3">
                 {summary?.reviews.length ? (
                   summary.reviews.slice(0, 3).map((item) => {
@@ -446,7 +448,7 @@ export default function Trust() {
                     );
                   })
                 ) : (
-                  <p className="type-body-sm text-white/35">
+                  <p className="type-body-sm text-white/55">
                     No approved public reviews yet. Private ratings are not
                     displayed as social proof.
                   </p>
@@ -474,7 +476,7 @@ function formatTrustDate(value?: string | null) {
 function TrustMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-      <p className="type-meta uppercase text-white/35">{label}</p>
+      <p className="type-meta uppercase text-white/55">{label}</p>
       <p className="mt-1 type-kpi text-white">{value}</p>
     </div>
   );

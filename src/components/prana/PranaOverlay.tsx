@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Volume2, VolumeX, Music2, Wind, Waves, Circle, Plus } from 'lucide-react';
 import { useAudio, SoundType, SOUND_OPTIONS } from '../../hooks/useAudio';
+import { useDialog } from '../../hooks/useDialog';
 
 interface PranaOverlayProps {
     isOpen: boolean;
@@ -152,11 +153,18 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
         }
     };
 
+    const dialogRef = useRef<HTMLDivElement>(null);
+    useDialog(dialogRef, () => { stop(); onClose(); }, isOpen);
+
     if (!isOpen) return null;
 
     return (
         <AnimatePresence>
             <motion.div
+                ref={dialogRef}
+                role="dialog"
+                aria-modal="true"
+                aria-label="Breathing session"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -165,6 +173,7 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
                 {/* Close Button */}
                 <button
                     onClick={() => { stop(); onClose(); }}
+                    aria-label="End breathing session"
                     className="absolute top-6 right-6 p-2 text-white/50 hover:text-white transition-colors"
                 >
                     <X size={32} />
@@ -174,6 +183,7 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
                 <div className="absolute top-6 left-6 flex items-center gap-2">
                     <button
                         onClick={toggle}
+                        aria-label={isPlaying ? 'Mute sound' : 'Play sound'}
                         className="p-2 text-white/50 hover:text-white transition-colors"
                     >
                         {isPlaying ? <Volume2 size={24} /> : <VolumeX size={24} />}
@@ -183,6 +193,7 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
                     {isPlaying && (
                         <input
                             type="range"
+                            aria-label="Volume"
                             min="0"
                             max="100"
                             value={volume * 100}
@@ -195,6 +206,8 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
                     <div className="relative">
                         <button
                             onClick={() => setShowSoundMenu(!showSoundMenu)}
+                            aria-label="Choose sound"
+                            aria-expanded={showSoundMenu}
                             className="p-2 text-white/50 hover:text-white transition-colors flex items-center gap-1"
                         >
                             <Music2 size={18} />
@@ -227,7 +240,7 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
                                             {getSoundIcon(option.id)}
                                             <div>
                                                 <div className="text-sm font-medium">{option.name}</div>
-                                                <div className="text-xs text-white/40">{option.description}</div>
+                                                <div className="text-xs text-white/60">{option.description}</div>
                                             </div>
                                         </button>
                                     ))}

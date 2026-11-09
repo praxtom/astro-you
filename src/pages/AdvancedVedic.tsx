@@ -2,61 +2,116 @@ import { useState, useEffect } from "react";
 import { postJson } from "../lib/apiFetch";
 import { useUserProfile } from "../hooks";
 import { useRequestBirthData } from "../hooks/useRequestBirthData";
-import { Loader2, Gauge, Calendar } from "lucide-react";
+import { Loader2, Gauge, Calendar, RotateCcw } from "lucide-react";
 import { PageShell } from "../components/layout/PageShell";
 import BirthProfileRequired from "../components/BirthProfileRequired";
 
+function txt(value: unknown): string {
+  return typeof value === "string" || typeof value === "number" ? String(value) : "";
+}
+
+async function fetchChart(
+  birthData: unknown,
+  chartType: string,
+  signal: AbortSignal,
+): Promise<any> {
+  const res = await postJson("/api/kundali", { birthData, chartType }, { signal });
+  if (!res.ok) throw new Error(`${chartType} failed: ${res.status}`);
+  const json = await res.json();
+  return json?.data ?? null;
+}
+
+function SectionError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div role="alert" className="rounded-xl border border-red-400/20 bg-red-500/[0.06] p-4">
+      <p className="text-sm text-white/75">{message}</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-white/80 hover:border-white/30 hover:text-white"
+      >
+        <RotateCcw size={14} /> Retry
+      </button>
+    </div>
+  );
+}
+
 export default function AdvancedVedic() {
-  const { birthData } = useUserProfile();
+  const { birthData, loading: profileLoading } = useUserProfile();
   const requestBirthData = useRequestBirthData(birthData);
   const [shadbala, setShadbala] = useState<any>(null);
   const [varshaphal, setVarshaphal] = useState<any>(null);
+  const [shadbalaError, setShadbalaError] = useState(false);
+  const [varshaphalError, setVarshaphalError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [attempt, setAttempt] = useState(0);
+  const retry = () => setAttempt((n) => n + 1);
 
   useEffect(() => {
+    if (profileLoading) return;
     if (!requestBirthData?.dob) {
       setLoading(false);
       return;
     }
 
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => setLoading(false), 3200);
     setLoading(true);
-    Promise.all([
-      postJson("/api/kundali", { birthData: requestBirthData, chartType: "SHADBALA" }, { signal: controller.signal })
-        .then((r) => r.json())
-        .catch(() => null),
-      postJson("/api/kundali", { birthData: requestBirthData, chartType: "VARSHAPHAL" }, { signal: controller.signal })
-        .then((r) => r.json())
-        .catch(() => null),
+    setShadbalaError(false);
+    setVarshaphalError(false);
+    Promise.allSettled([
+      fetchChart(requestBirthData, "SHADBALA", controller.signal),
+      fetchChart(requestBirthData, "VARSHAPHAL", controller.signal),
     ]).then(([shadRes, varshRes]) => {
-      setShadbala(shadRes?.data);
-      setVarshaphal(varshRes?.data);
-      window.clearTimeout(timeoutId);
+      if (controller.signal.aborted) return;
+      if (shadRes.status === "fulfilled") setShadbala(shadRes.value);
+      else {
+        console.error("Shadbala failed:", shadRes.reason);
+        setShadbala(null);
+        setShadbalaError(true);
+      }
+      if (varshRes.status === "fulfilled") setVarshaphal(varshRes.value);
+      else {
+        console.error("Varshaphal failed:", varshRes.reason);
+        setVarshaphal(null);
+        setVarshaphalError(true);
+      }
       setLoading(false);
     });
 
-    return () => {
-      window.clearTimeout(timeoutId);
-      controller.abort();
-    };
-  }, [requestBirthData]);
+    return () => controller.abort();
+  }, [requestBirthData, profileLoading, attempt]);
 
-  const planets =
+  const planetsRaw =
     shadbala?.planets ||
     shadbala?.strengths ||
     (Array.isArray(shadbala) ? shadbala : []);
+  const planets: any[] = Array.isArray(planetsRaw) ? planetsRaw : [];
+  const varshaText =
+    txt(varshaphal?.predictions) ||
+    txt(varshaphal?.interpretation) ||
+    txt(varshaphal?.summary);
+  const muntha =
+    txt(varshaphal?.muntha) || txt(varshaphal?.muntha?.sign);
+  const keyPeriods: any[] = Array.isArray(varshaphal?.key_periods)
+    ? varshaphal.key_periods
+    : [];
+  const hasVarshaphal =
+    Boolean(txt(varshaphal?.year_lord) || varshaText || muntha || keyPeriods.length);
 
   return (
     <PageShell>
         <h1 className="type-page-title mb-2">
           Advanced Vedic Analysis
         </h1>
-        <p className="text-white/50 mb-8">
+        <p className="text-white/60 mb-8">
           Shadbala strength scoring and annual predictions
         </p>
 
-        {!requestBirthData?.dob ? (
+        {profileLoading ? (
+          <div className="flex items-center justify-center py-20" aria-busy="true">
+            <Loader2 size={32} className="animate-spin text-white/30" />
+          </div>
+        ) : !requestBirthData?.dob ? (
           <BirthProfileRequired
             title="Create your birth profile to unlock advanced Vedic analysis."
             description="Shadbala strength and yearly Varshaphal need your birth date, time, and place so the results are calculated for your chart."
@@ -75,11 +130,16 @@ export default function AdvancedVedic() {
                   Shadbala — Planetary Strength
                 </h2>
               </div>
-              {planets.length > 0 ? (
+              {shadbalaError ? (
+                <SectionError
+                  message="Planetary strength couldn't be calculated. Check your connection and try again."
+                  onRetry={retry}
+                />
+              ) : planets.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-white/40 text-xs uppercase tracking-widest border-b border-white/10">
+                      <tr className="text-white/55 text-xs uppercase tracking-widest border-b border-white/10">
                         <th className="text-left py-2 px-2">Planet</th>
                         <th className="text-right py-2 px-2">Strength</th>
                         <th className="text-left py-2 px-2 w-1/2">Level</th>
@@ -87,13 +147,13 @@ export default function AdvancedVedic() {
                     </thead>
                     <tbody>
                       {planets.map((p: any, i: number) => {
-                        const name = p.planet || p.name || `Planet ${i + 1}`;
+                        const name = txt(p?.planet) || txt(p?.name) || "—";
+                        const rawScore =
+                          p?.total ?? p?.strength ?? p?.score ?? p?.shadbala;
                         const score =
-                          p.total || p.strength || p.score || p.shadbala || 0;
-                        const pct = Math.min(
-                          100,
-                          typeof score === "number" ? score / 2 : 50,
-                        );
+                          typeof rawScore === "number" ? rawScore : txt(rawScore) || "—";
+                        const pct =
+                          typeof score === "number" ? Math.min(100, score / 2) : 0;
                         return (
                           <tr key={i} className="border-b border-white/5">
                             <td className="py-2.5 px-2 text-white/90">
@@ -119,14 +179,9 @@ export default function AdvancedVedic() {
                   </table>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn'].map((planet) => (
-                    <div key={planet} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm">
-                      <span className="text-white/70">{planet}</span>
-                      <span className="text-white/35">Refreshing strength</span>
-                    </div>
-                  ))}
-                </div>
+                <p className="text-sm text-white/60">
+                  The calculation returned no planetary strength scores for your chart.
+                </p>
               )}
             </div>
 
@@ -138,50 +193,45 @@ export default function AdvancedVedic() {
                   Varshaphal — Annual Chart
                 </h2>
               </div>
-              {varshaphal ? (
+              {varshaphalError ? (
+                <SectionError
+                  message="Your annual chart couldn't be calculated. Check your connection and try again."
+                  onRetry={retry}
+                />
+              ) : hasVarshaphal ? (
                 <div className="space-y-4">
-                  {varshaphal.year_lord && (
+                  {txt(varshaphal.year_lord) && (
                     <div className="p-4 rounded-xl bg-gold/5 border border-gold/20 text-center">
-                      <span className="text-[10px] text-gold/60 uppercase tracking-widest">
+                      <span className="text-xs text-gold/80 uppercase tracking-widest">
                         Year Lord
                       </span>
                       <p className="text-2xl font-display text-gold mt-1">
-                        {varshaphal.year_lord}
+                        {txt(varshaphal.year_lord)}
                       </p>
                     </div>
                   )}
-                  {(varshaphal.predictions ||
-                    varshaphal.interpretation ||
-                    varshaphal.summary) && (
-                    <p className="text-white/60 text-sm leading-relaxed">
-                      {varshaphal.predictions ||
-                        varshaphal.interpretation ||
-                        varshaphal.summary}
+                  {varshaText && (
+                    <p className="text-white/65 text-sm leading-relaxed">
+                      {varshaText}
                     </p>
                   )}
-                  {varshaphal.muntha && (
+                  {muntha && (
                     <div className="p-3 rounded-xl bg-white/5">
-                      <span className="text-[10px] text-white/30 uppercase tracking-widest">
+                      <span className="text-xs text-white/55 uppercase tracking-widest">
                         Muntha
                       </span>
                       <p className="text-sm text-white/80 mt-1">
-                        {typeof varshaphal.muntha === "string"
-                          ? varshaphal.muntha
-                          : varshaphal.muntha.sign ||
-                            JSON.stringify(varshaphal.muntha)}
+                        {muntha}
                       </p>
                     </div>
                   )}
-                  {varshaphal.key_periods && (
+                  {keyPeriods.length > 0 && (
                     <div>
-                      <span className="text-[10px] text-white/30 uppercase tracking-widest">
+                      <span className="text-xs text-white/55 uppercase tracking-widest">
                         Key Periods
                       </span>
                       <div className="space-y-2 mt-2">
-                        {(Array.isArray(varshaphal.key_periods)
-                          ? varshaphal.key_periods
-                          : []
-                        )
+                        {keyPeriods
                           .slice(0, 6)
                           .map((p: any, i: number) => (
                             <div
@@ -189,10 +239,10 @@ export default function AdvancedVedic() {
                               className="flex items-start gap-2 text-sm"
                             >
                               <span className="text-amber-400 min-w-[80px]">
-                                {p.period || p.date}
+                                {txt(p?.period) || txt(p?.date)}
                               </span>
                               <span className="text-white/60">
-                                {p.description || p.prediction}
+                                {txt(p?.description) || txt(p?.prediction)}
                               </span>
                             </div>
                           ))}
@@ -201,18 +251,9 @@ export default function AdvancedVedic() {
                   )}
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {[
-                    ['Year Lord', 'Annual ruling planet and tone.'],
-                    ['Muntha', 'The house focus activated for the year.'],
-                    ['Key Periods', 'Strong windows for work, relationship, and health decisions.'],
-                  ].map(([label, text]) => (
-                    <div key={label} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                      <span className="text-[10px] text-white/30 uppercase tracking-widest">{label}</span>
-                      <p className="mt-1 text-sm text-white/60">{text}</p>
-                    </div>
-                  ))}
-                </div>
+                <p className="text-sm text-white/60">
+                  The calculation returned no annual chart details for this year.
+                </p>
               )}
             </div>
           </div>

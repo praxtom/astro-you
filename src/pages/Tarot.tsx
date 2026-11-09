@@ -13,6 +13,10 @@ interface TarotCard {
   interpretation?: string;
 }
 
+function str(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
 export default function Tarot() {
   const [dailyCard, setDailyCard] = useState<TarotCard | null>(null);
   const [dailyLoading, setDailyLoading] = useState(true);
@@ -27,33 +31,44 @@ export default function Tarot() {
   >(null);
   const [flippedCards, setFlippedCards] = useState<Set<number>>(new Set());
 
+  const [dailyAttempt, setDailyAttempt] = useState(0);
+
   // Fetch daily card
   useEffect(() => {
+    const controller = new AbortController();
     const fetchDaily = async () => {
       try {
         setDailyLoading(true);
         setDailyError(null);
-        const res = await postJson("/api/kundali", {
-          chartType: "DAILY_TAROT",
-        });
+        const res = await postJson(
+          "/api/kundali",
+          { chartType: "DAILY_TAROT" },
+          { signal: controller.signal },
+        );
+        if (!res.ok) throw new Error(`Daily tarot failed: ${res.status}`);
         const data = await res.json();
-        const raw = data.data || data;
+        const raw = data?.data ?? data ?? {};
+        const name = str(raw.name) || str(raw.card_name) || str(raw.card);
+        if (!name) throw new Error("Daily tarot response had no card name");
         setDailyCard({
-          name: raw.name || raw.card_name || raw.card || "The Star",
-          meaning: raw.meaning || raw.upright_meaning || raw.description || "",
-          reversed_meaning: raw.reversed_meaning || raw.reversed || "",
-          image: raw.image || raw.image_url || "",
-          emoji: raw.emoji || raw.symbol || "",
+          name,
+          meaning: str(raw.meaning) || str(raw.upright_meaning) || str(raw.description),
+          reversed_meaning: str(raw.reversed_meaning) || str(raw.reversed),
+          image: str(raw.image) || str(raw.image_url),
+          emoji: str(raw.emoji) || str(raw.symbol),
         });
-      } catch (err) {
+      } catch (err: any) {
+        if (err?.name === "AbortError") return;
         console.error("Daily tarot error:", err);
-        setDailyError("Could not draw your daily card.");
+        setDailyCard(null);
+        setDailyError("We couldn't draw today's card. Check your connection and try again.");
       } finally {
-        setDailyLoading(false);
+        if (!controller.signal.aborted) setDailyLoading(false);
       }
     };
     fetchDaily();
-  }, []);
+    return () => controller.abort();
+  }, [dailyAttempt]);
 
   const handleDrawThreeCards = async () => {
     try {
@@ -67,8 +82,9 @@ export default function Tarot() {
         chartType: "TAROT_THREE",
         question: question || "What does the universe want me to know today?",
       });
+      if (!res.ok) throw new Error(`Three card reading failed: ${res.status}`);
       const data = await res.json();
-      const raw = data.data || data;
+      const raw = data?.data ?? data ?? {};
 
       // Parse cards - handle various response shapes
       const cards: TarotCard[] = [];
@@ -77,12 +93,12 @@ export default function Tarot() {
       if (Array.isArray(raw.cards)) {
         raw.cards.forEach((c: any, i: number) => {
           cards.push({
-            name: c.name || c.card_name || c.card || `Card ${i + 1}`,
-            meaning: c.meaning || c.upright_meaning || c.description || "",
-            reversed_meaning: c.reversed_meaning || c.reversed || "",
-            position: c.position || positions[i],
-            interpretation: c.interpretation || c.reading || "",
-            emoji: c.emoji || c.symbol || "",
+            name: str(c?.name) || str(c?.card_name) || str(c?.card),
+            meaning: str(c?.meaning) || str(c?.upright_meaning) || str(c?.description),
+            reversed_meaning: str(c?.reversed_meaning) || str(c?.reversed),
+            position: str(c?.position) || positions[i],
+            interpretation: str(c?.interpretation) || str(c?.reading),
+            emoji: str(c?.emoji) || str(c?.symbol),
           });
         });
       } else if (raw.past && raw.present && raw.future) {
@@ -93,7 +109,7 @@ export default function Tarot() {
         ] as const) {
           const c = raw[key];
           cards.push({
-            name: typeof c === "string" ? c : c.name || c.card_name || pos,
+            name: typeof c === "string" ? c : str(c?.name) || str(c?.card_name),
             meaning:
               typeof c === "object" ? c.meaning || c.description || "" : "",
             reversed_meaning:
@@ -105,30 +121,13 @@ export default function Tarot() {
         }
       }
 
-      // Fallback
-      if (cards.length === 0) {
-        cards.push(
-          {
-            name: "Card 1",
-            meaning: "Interpretation unavailable",
-            position: "Past",
-          },
-          {
-            name: "Card 2",
-            meaning: "Interpretation unavailable",
-            position: "Present",
-          },
-          {
-            name: "Card 3",
-            meaning: "Interpretation unavailable",
-            position: "Future",
-          },
-        );
+      if (cards.length === 0 || cards.some((c) => !c.name)) {
+        throw new Error("Three card reading response had no usable cards");
       }
 
       setThreeCards(cards);
       setReadingInterpretation(
-        raw.interpretation || raw.reading || raw.summary || null,
+        str(raw.interpretation) || str(raw.reading) || str(raw.summary) || null,
       );
 
       // Flip cards one by one
@@ -138,7 +137,8 @@ export default function Tarot() {
       }
     } catch (err) {
       console.error("Three card reading error:", err);
-      setReadingError("Could not draw cards. Please try again.");
+      setThreeCards([]);
+      setReadingError("We couldn't draw your cards. Check your connection and try again.");
     } finally {
       setReadingLoading(false);
     }
@@ -192,7 +192,7 @@ export default function Tarot() {
             <h1 className="type-page-title">
               Tarot
             </h1>
-            <p className="text-white/40 text-sm mt-1">
+            <p className="text-white/55 text-sm mt-1">
               Messages from the cosmic deck
             </p>
           </div>
@@ -200,7 +200,7 @@ export default function Tarot() {
 
         {/* Daily Card Section */}
         <section className="mb-12">
-          <h2 className="text-lg uppercase tracking-widest text-white/40 font-bold mb-5">
+          <h2 className="text-lg uppercase tracking-widest text-white/55 font-bold mb-5">
             Daily Card
           </h2>
           {dailyLoading ? (
@@ -210,13 +210,14 @@ export default function Tarot() {
               <div className="h-4 bg-white/5 rounded animate-pulse w-64 mx-auto" />
             </div>
           ) : dailyError ? (
-            <div className="glass rounded-2xl p-8 text-center">
-              <p className="text-red-400 mb-3">{dailyError}</p>
+            <div role="alert" className="glass rounded-2xl p-8 text-center">
+              <p className="text-white/75 mb-4">{dailyError}</p>
               <button
-                onClick={() => window.location.reload()}
-                className="text-sm text-white/50 hover:text-white transition-colors"
+                type="button"
+                onClick={() => setDailyAttempt((n) => n + 1)}
+                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-sm font-semibold text-white/80 transition-colors hover:border-white/30 hover:text-white"
               >
-                Try again
+                <RotateCw size={15} /> Retry
               </button>
             </div>
           ) : dailyCard ? (
@@ -227,7 +228,7 @@ export default function Tarot() {
               </h3>
               {dailyCard.meaning && (
                 <div className="mb-4">
-                  <p className="text-xs uppercase tracking-widest text-white/30 mb-1">
+                  <p className="text-xs uppercase tracking-widest text-white/55 mb-1">
                     Upright
                   </p>
                   <p className="text-white/70 leading-relaxed">
@@ -237,7 +238,7 @@ export default function Tarot() {
               )}
               {dailyCard.reversed_meaning && (
                 <div>
-                  <p className="text-xs uppercase tracking-widest text-white/30 mb-1">
+                  <p className="text-xs uppercase tracking-widest text-white/55 mb-1">
                     Reversed
                   </p>
                   <p className="text-white/50 leading-relaxed italic">
@@ -251,29 +252,32 @@ export default function Tarot() {
 
         {/* Three Card Reading Section */}
         <section>
-          <h2 className="text-lg uppercase tracking-widest text-white/40 font-bold mb-5">
+          <h2 className="text-lg uppercase tracking-widest text-white/55 font-bold mb-5">
             Get a Reading
           </h2>
 
           {/* Question input */}
           <div className="glass rounded-2xl p-6 mb-6">
-            <label className="text-sm text-white/50 block mb-2">
+            <label htmlFor="tarot-question" className="text-sm text-white/60 block mb-2">
               Ask a question (optional)
             </label>
             <div className="flex gap-3">
               <input
+                id="tarot-question"
                 type="text"
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 placeholder="What does the universe want me to know?"
-                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:border-gold/50 transition-colors"
+                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/40 focus:outline-none focus:border-gold/50 transition-colors"
                 onKeyDown={(e) =>
                   e.key === "Enter" && !readingLoading && handleDrawThreeCards()
                 }
               />
               <button
+                type="button"
                 onClick={handleDrawThreeCards}
                 disabled={readingLoading}
+                aria-label="Draw 3 cards"
                 className="px-6 py-3 rounded-xl bg-gold text-black font-semibold hover:bg-gold/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {readingLoading ? (
@@ -288,8 +292,16 @@ export default function Tarot() {
 
           {/* Reading error */}
           {readingError && (
-            <div className="glass rounded-2xl p-6 mb-6 border border-red-500/20 text-center">
-              <p className="text-red-400">{readingError}</p>
+            <div role="alert" className="glass rounded-2xl p-6 mb-6 border border-red-500/20 text-center">
+              <p className="text-white/75 mb-4">{readingError}</p>
+              <button
+                type="button"
+                onClick={handleDrawThreeCards}
+                disabled={readingLoading}
+                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-sm font-semibold text-white/80 transition-colors hover:border-white/30 hover:text-white disabled:opacity-50"
+              >
+                <RotateCw size={15} /> Retry
+              </button>
             </div>
           )}
 
@@ -310,7 +322,7 @@ export default function Tarot() {
                         : "opacity-0 translate-y-4"
                     }`}
                   >
-                    <p className="text-xs uppercase tracking-widest text-white/40 mb-3">
+                    <p className="text-xs uppercase tracking-widest text-white/55 mb-3">
                       {card.position}
                     </p>
                     <div className="text-5xl mb-4">{getCardEmoji(card)}</div>

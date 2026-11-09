@@ -151,7 +151,7 @@ export default function ConsultProfile() {
                 AI guide · always available
               </span>
               <span className="text-gold font-display text-base">
-                {persona.pricePerMin} cr / min
+                {persona.pricePerMin} credits / min
               </span>
               <span>{persona.specialty}</span>
               <span>{persona.languages.join(" · ")}</span>
@@ -256,13 +256,13 @@ export default function ConsultProfile() {
               <div className="flex items-baseline justify-between">
                 <span className="text-white/40">Balance</span>
                 <span className="font-display text-lg text-white">
-                  {isGuest ? "—" : creditsLoading ? "…" : `${credits} cr`}
+                  {isGuest ? "—" : creditsLoading ? "…" : `${credits} credits`}
                 </span>
               </div>
               <div className="flex items-baseline justify-between border-t border-white/8 pt-3">
                 <span className="text-white/40">Rate</span>
                 <span className="font-display text-lg text-gold">
-                  {persona.pricePerMin} cr / min
+                  {persona.pricePerMin} credits / min
                 </span>
               </div>
               <div className="flex items-baseline justify-between border-t border-white/8 pt-3">
@@ -357,9 +357,9 @@ export default function ConsultProfile() {
                 Buy {DEFAULT_CREDIT_PACK.label}
               </button>
             )}
-            <p className="mt-3 text-[0.65rem] text-white/30 leading-relaxed">
+            <p className="mt-3 text-xs text-white/55 leading-relaxed">
               Chart-aware guidance, billed in credits — charged only when the
-              server closes the session.
+              sitting closes.
             </p>
           </aside>
         </div>

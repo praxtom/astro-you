@@ -101,7 +101,7 @@ export default function ExpertApply() {
       <div className="platform-main">
         <button
           onClick={() => navigate(-1)}
-          className="mb-4 inline-flex items-center gap-2 text-sm text-white/40 hover:text-white"
+          className="mb-4 inline-flex items-center gap-2 text-sm text-white/60 hover:text-white"
         >
           <ArrowLeft size={16} /> Back
         </button>
@@ -161,23 +161,23 @@ export default function ExpertApply() {
             />
 
             <label className="mt-4 block">
-              <span className="type-meta uppercase text-white/40">Short bio</span>
+              <span className="type-meta uppercase text-white/60">Short bio</span>
               <textarea
                 value={form.bio}
                 onChange={(event) => setForm({ ...form, bio: event.target.value })}
                 rows={3}
-                className="platform-field mt-2 resize-none p-3 text-sm"
+                className="platform-field mt-2 resize-none p-3 text-base sm:text-sm"
                 placeholder="Your background, lineage, study, or practice style."
               />
             </label>
 
             <label className="mt-4 block">
-              <span className="type-meta uppercase text-white/40">Sample approach</span>
+              <span className="type-meta uppercase text-white/60">Sample approach</span>
               <textarea
                 value={form.sampleApproach}
                 onChange={(event) => setForm({ ...form, sampleApproach: event.target.value })}
                 rows={4}
-                className="platform-field mt-2 resize-none p-3 text-sm"
+                className="platform-field mt-2 resize-none p-3 text-base sm:text-sm"
                 placeholder="How would you guide someone asking about marriage, career, or remedies?"
               />
             </label>
@@ -246,12 +246,12 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="type-meta uppercase text-white/40">{label}</span>
+      <span className="type-meta uppercase text-white/60">{label}</span>
       <input
         value={value}
         type={type}
         onChange={(event) => onChange(event.target.value)}
-        className="platform-field mt-2 h-10 px-3 text-sm"
+        className="platform-field mt-2 h-11 px-3 text-base sm:text-sm"
       />
     </label>
   );
@@ -270,13 +270,14 @@ function ChoiceGroup({
 }) {
   return (
     <div className="mt-4">
-      <p className="type-meta mb-2 uppercase text-white/40">{title}</p>
+      <p className="type-meta mb-2 uppercase text-white/60">{title}</p>
       <div className="flex flex-wrap gap-2">
         {options.map((option) => (
           <button
             key={option}
             type="button"
             onClick={() => onToggle(option)}
+            aria-pressed={selected.includes(option)}
             className={`platform-chip ${
               selected.includes(option)
                 ? "border-gold/40 bg-gold/15 text-gold"

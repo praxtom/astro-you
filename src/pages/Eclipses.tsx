@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { postJson } from "../lib/apiFetch";
-import { useNavigate } from "react-router-dom";
-import { Moon, Sun, Sparkles, AlertTriangle } from "lucide-react";
+import { Moon, Sun, Sparkles, AlertTriangle, RotateCcw } from "lucide-react";
 import { useUserProfile } from "../hooks";
+import { useRequestBirthData } from "../hooks/useRequestBirthData";
+import BirthProfileRequired from "../components/BirthProfileRequired";
 import { PageShell } from "../components/layout/PageShell";
 
 interface Eclipse {
@@ -20,9 +21,42 @@ interface EclipseImpact {
   summary?: string;
 }
 
+function toLabelList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (typeof item === "string" || typeof item === "number") return String(item);
+      if (item && typeof item === "object") {
+        const obj = item as Record<string, unknown>;
+        const label = obj.name ?? obj.planet ?? obj.house ?? obj.label;
+        return typeof label === "string" || typeof label === "number" ? String(label) : "";
+      }
+      return "";
+    })
+    .filter(Boolean);
+}
+
+function toStr(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function RetryButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-sm font-semibold text-white/80 transition-colors hover:border-white/30 hover:text-white"
+    >
+      <RotateCcw size={15} /> Retry
+    </button>
+  );
+}
+
 export default function Eclipses() {
-  const navigate = useNavigate();
-  const { birthData, loading: profileLoading } = useUserProfile();
+  const { birthData: profileBirthData, loading: profileLoading } = useUserProfile();
+  const birthData = useRequestBirthData(profileBirthData);
+  const [eclipseAttempt, setEclipseAttempt] = useState(0);
+  const [impactAttempt, setImpactAttempt] = useState(0);
 
   const [eclipses, setEclipses] = useState<Eclipse[]>([]);
   const [eclipseLoading, setEclipseLoading] = useState(true);
@@ -35,7 +69,11 @@ export default function Eclipses() {
   // Fetch upcoming eclipses
   useEffect(() => {
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 4200);
+    let timedOut = false;
+    const timeoutId = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 15000);
 
     const fetchEclipses = async () => {
       try {
@@ -46,15 +84,16 @@ export default function Eclipses() {
           { chartType: "ECLIPSES" },
           { signal: controller.signal },
         );
+        if (!res.ok) throw new Error(`Eclipses failed: ${res.status}`);
         const data = await res.json();
-        const raw = data.data || data;
+        const raw = data?.data ?? data ?? {};
 
         // Parse eclipses from various response shapes
         let parsed: Eclipse[] = [];
         if (Array.isArray(raw)) {
           parsed = raw.map((e: any) => ({
             date: e.date || e.datetime || "",
-            type: (e.type || e.eclipse_type || "").toLowerCase(),
+            type: String(e.type || e.eclipse_type || "").toLowerCase(),
             sign: e.sign || e.zodiac_sign || e.constellation || "",
             description: e.description || e.summary || "",
             visibility: e.visibility || "",
@@ -62,7 +101,7 @@ export default function Eclipses() {
         } else if (raw.eclipses && Array.isArray(raw.eclipses)) {
           parsed = raw.eclipses.map((e: any) => ({
             date: e.date || e.datetime || "",
-            type: (e.type || e.eclipse_type || "").toLowerCase(),
+            type: String(e.type || e.eclipse_type || "").toLowerCase(),
             sign: e.sign || e.zodiac_sign || "",
             description: e.description || e.summary || "",
             visibility: e.visibility || "",
@@ -70,13 +109,16 @@ export default function Eclipses() {
         }
 
         setEclipses(parsed.slice(0, 5));
-      } catch (err) {
+      } catch (err: any) {
+        if (err?.name === "AbortError" && !timedOut) return;
         console.error("Eclipse fetch error:", err);
-        setEclipses(buildFallbackEclipses());
-        setEclipseError(null);
+        setEclipses([]);
+        setEclipseError(
+          "We couldn't load upcoming eclipse dates. Check your connection and try again.",
+        );
       } finally {
         window.clearTimeout(timeoutId);
-        setEclipseLoading(false);
+        if (!controller.signal.aborted || timedOut) setEclipseLoading(false);
       }
     };
     fetchEclipses();
@@ -84,13 +126,17 @@ export default function Eclipses() {
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, []);
+  }, [eclipseAttempt]);
 
   // Fetch personal impact when birthData is available
   useEffect(() => {
     if (profileLoading || !birthData?.dob || !birthData?.tob) return;
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 4200);
+    let timedOut = false;
+    const timeoutId = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 15000);
 
     const fetchImpact = async () => {
       try {
@@ -101,23 +147,27 @@ export default function Eclipses() {
           { birthData, chartType: "ECLIPSE_IMPACT" },
           { signal: controller.signal },
         );
+        if (!res.ok) throw new Error(`Eclipse impact failed: ${res.status}`);
         const data = await res.json();
-        const raw = data.data || data;
+        const raw = data?.data ?? data ?? {};
 
         setImpact({
-          houses: raw.affected_houses || raw.houses || [],
-          planets: raw.affected_planets || raw.planets || [],
+          houses: toLabelList(raw.affected_houses ?? raw.houses),
+          planets: toLabelList(raw.affected_planets ?? raw.planets),
           interpretation:
-            raw.interpretation || raw.reading || raw.text || raw.summary || "",
-          summary: raw.summary || raw.overview || "",
+            toStr(raw.interpretation) || toStr(raw.reading) || toStr(raw.text) || toStr(raw.summary),
+          summary: toStr(raw.summary) || toStr(raw.overview),
         });
-      } catch (err) {
+      } catch (err: any) {
+        if (err?.name === "AbortError" && !timedOut) return;
         console.error("Eclipse impact error:", err);
-        setImpact(buildFallbackImpact());
-        setImpactError(null);
+        setImpact(null);
+        setImpactError(
+          "We couldn't work out how eclipses touch your chart. Try again in a moment.",
+        );
       } finally {
         window.clearTimeout(timeoutId);
-        setImpactLoading(false);
+        if (!controller.signal.aborted || timedOut) setImpactLoading(false);
       }
     };
     fetchImpact();
@@ -125,7 +175,7 @@ export default function Eclipses() {
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [birthData, profileLoading]);
+  }, [birthData, profileLoading, impactAttempt]);
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return "Date TBD";
@@ -155,12 +205,26 @@ export default function Eclipses() {
       : "border-blue-500/30 bg-gradient-to-b from-blue-500/10 to-blue-900/5";
   };
 
+  const header = (
+    <div className="flex items-center gap-4 mb-10">
+      <div className="p-3 rounded-2xl bg-gold/10 text-gold">
+        <Moon size={28} />
+      </div>
+      <div>
+        <h1 className="type-page-title">Eclipses</h1>
+        <p className="text-white/55 text-sm mt-1">
+          Cosmic portals of transformation
+        </p>
+      </div>
+    </div>
+  );
+
   // Loading skeleton
   if (eclipseLoading) {
     return (
       <PageShell>
-        <div>
-          <div className="h-10 bg-white/5 rounded-lg animate-pulse w-72 mb-8" />
+        <div aria-busy="true">
+          {header}
           <div className="space-y-4 mb-10">
             {[1, 2, 3].map((i) => (
               <div key={i} className="glass rounded-2xl p-6 flex gap-4">
@@ -185,45 +249,27 @@ export default function Eclipses() {
   return (
     <PageShell>
       <div>
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-10">
-          <div className="p-3 rounded-2xl bg-blue-500/10 text-blue-400">
-            <Moon size={28} />
-          </div>
-          <div>
-            <h1 className="type-page-title">
-              Eclipses
-            </h1>
-            <p className="text-white/40 text-sm mt-1">
-              Cosmic portals of transformation
-            </p>
-          </div>
-        </div>
+        {header}
 
         {/* Upcoming Eclipses */}
         <section className="mb-12">
-          <h2 className="text-lg uppercase tracking-widest text-white/40 font-bold mb-5">
+          <h2 className="text-lg uppercase tracking-widest text-white/55 font-bold mb-5">
             Upcoming Eclipses
           </h2>
 
           {eclipseError ? (
-            <div className="glass rounded-2xl p-8 text-center">
+            <div role="alert" className="glass rounded-2xl p-8 text-center">
               <AlertTriangle
                 size={24}
                 className="text-amber-400 mx-auto mb-3"
               />
-              <p className="text-red-400 mb-3">{eclipseError}</p>
-              <button
-                onClick={() => window.location.reload()}
-                className="text-sm text-white/50 hover:text-white transition-colors"
-              >
-                Try again
-              </button>
+              <p className="text-white/75 mb-4">{eclipseError}</p>
+              <RetryButton onClick={() => setEclipseAttempt((n) => n + 1)} />
             </div>
           ) : eclipses.length === 0 ? (
             <div className="glass rounded-2xl p-8 text-center">
-              <p className="text-white/50">
-                No upcoming eclipse data available.
+              <p className="text-white/60">
+                No upcoming eclipses were returned for the coming months.
               </p>
             </div>
           ) : (
@@ -259,7 +305,7 @@ export default function Eclipses() {
                         </p>
                       )}
                       {eclipse.visibility && (
-                        <p className="text-xs text-white/30 mt-2">
+                        <p className="text-xs text-white/55 mt-2">
                           Visibility: {eclipse.visibility}
                         </p>
                       )}
@@ -273,22 +319,20 @@ export default function Eclipses() {
 
         {/* Personal Impact */}
         <section>
-          <h2 className="text-lg uppercase tracking-widest text-white/40 font-bold mb-5">
+          <h2 className="text-lg uppercase tracking-widest text-white/55 font-bold mb-5">
             Personal Impact
           </h2>
 
-          {!birthData?.dob ? (
-            <div className="glass rounded-2xl p-8 text-center">
-              <p className="text-white/50 mb-3">
-                Complete your profile to see how eclipses affect your chart.
-              </p>
-              <button
-                onClick={() => navigate("/onboarding")}
-                className="px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm hover:bg-blue-500 transition-colors"
-              >
-                Set Up Profile
-              </button>
+          {profileLoading ? (
+            <div className="glass rounded-2xl p-8 space-y-4" aria-busy="true">
+              <div className="h-5 bg-white/5 rounded animate-pulse w-48" />
+              <div className="h-4 bg-white/5 rounded animate-pulse w-3/4" />
             </div>
+          ) : !birthData?.dob || !birthData?.tob ? (
+            <BirthProfileRequired
+              title="Add your birth details"
+              description="Eclipse impact is read against your birth chart. Create your birth profile to see which houses and planets each eclipse touches."
+            />
           ) : impactLoading ? (
             <div className="glass rounded-2xl p-8 space-y-4">
               <div className="h-5 bg-white/5 rounded animate-pulse w-48" />
@@ -304,15 +348,16 @@ export default function Eclipses() {
               <div className="h-4 bg-white/5 rounded animate-pulse w-3/4" />
             </div>
           ) : impactError ? (
-            <div className="glass rounded-2xl p-8 text-center">
-              <p className="text-red-400">{impactError}</p>
+            <div role="alert" className="glass rounded-2xl p-8 text-center">
+              <p className="text-white/75 mb-4">{impactError}</p>
+              <RetryButton onClick={() => setImpactAttempt((n) => n + 1)} />
             </div>
           ) : impact ? (
             <div className="glass rounded-2xl p-8">
               {/* Affected houses */}
               {impact.houses && impact.houses.length > 0 && (
                 <div className="mb-6">
-                  <h3 className="text-sm uppercase tracking-widest text-white/40 mb-3">
+                  <h3 className="text-sm uppercase tracking-widest text-white/55 mb-3">
                     Affected Houses
                   </h3>
                   <div className="flex flex-wrap gap-2">
@@ -331,7 +376,7 @@ export default function Eclipses() {
               {/* Affected planets */}
               {impact.planets && impact.planets.length > 0 && (
                 <div className="mb-6">
-                  <h3 className="text-sm uppercase tracking-widest text-white/40 mb-3">
+                  <h3 className="text-sm uppercase tracking-widest text-white/55 mb-3">
                     Affected Planets
                   </h3>
                   <div className="flex flex-wrap gap-2">
@@ -352,7 +397,7 @@ export default function Eclipses() {
                 <div>
                   <div className="flex items-center gap-2 mb-3">
                     <Sparkles size={16} className="text-blue-400" />
-                    <h3 className="text-sm uppercase tracking-widest text-white/40">
+                    <h3 className="text-sm uppercase tracking-widest text-white/55">
                       Interpretation
                     </h3>
                   </div>
@@ -366,8 +411,8 @@ export default function Eclipses() {
               {!impact.houses?.length &&
                 !impact.planets?.length &&
                 !impact.interpretation && (
-                  <p className="text-white/50">
-                    Eclipse impact analysis returned no specific findings for
+                  <p className="text-white/60">
+                    The eclipse calculation returned no specific findings for
                     your chart.
                   </p>
                 )}
@@ -377,37 +422,4 @@ export default function Eclipses() {
       </div>
     </PageShell>
   );
-}
-
-function buildFallbackEclipses(): Eclipse[] {
-  const now = Date.now();
-  const day = 1000 * 60 * 60 * 24;
-
-  return [
-    {
-      date: new Date(now).toISOString(),
-      type: "solar",
-      sign: "Transit window",
-      description:
-        "Use eclipse seasons for review, release, and cleaner intent rather than rushed decisions.",
-      visibility: "Live ephemeris timing is refreshing.",
-    },
-    {
-      date: new Date(now + day * 45).toISOString(),
-      type: "lunar",
-      sign: "Emotional reset",
-      description:
-        "Lunar eclipse periods are better for noticing emotional patterns than forcing outcomes.",
-      visibility: "Personal visibility depends on location.",
-    },
-  ];
-}
-
-function buildFallbackImpact(): EclipseImpact {
-  return {
-    houses: ["Self-review", "Relationships", "Work rhythm"],
-    planets: ["Moon", "Sun"],
-    interpretation:
-      "The personal eclipse engine is refreshing. For now, use this period to reduce reactivity, close stale loops, and avoid making fear-based commitments.",
-  };
 }

@@ -104,6 +104,10 @@ export function useSubscription(): UseSubscriptionResult {
       return;
     }
 
+    // A new user means a new snapshot is on its way: report loading until it
+    // lands so callers don't read the signed-out 0 credits as the real balance.
+    setLoading(true);
+    setError(null);
     const docRef = doc(db, "users", user.uid);
     const unsubscribe = onSnapshot(
       docRef,

@@ -117,7 +117,7 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
       },
     ],
     primaryCta: { label: "Generate Free Kundali", to: "/free-kundali" },
-    secondaryCta: { label: "Ask AI Jyotish", to: "/synthesis" },
+    secondaryCta: { label: "Ask Jyotish", to: "/synthesis" },
     keywords: ["kundali", "janam kundali", "birth chart", "vedic astrology"],
   },
   {
@@ -145,8 +145,8 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
     ],
     primaryCta: { label: "Check Free Match", to: "/free-kundali-matching" },
     secondaryCta: {
-      label: "Consult Relationship Guide",
-      to: "/consult/meera-devi/profile",
+      label: "Read My Free Kundali",
+      to: "/free-kundali",
     },
     keywords: ["kundali matching", "guna milan", "compatibility", "manglik"],
   },
@@ -202,8 +202,8 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
     ],
     primaryCta: { label: "Generate My Kundali", to: "/free-kundali" },
     secondaryCta: {
-      label: "Ask Saturn Guide",
-      to: "/consult/pandit-raghunath/profile",
+      label: "Check Today's Panchang",
+      to: "/panchang",
     },
     keywords: ["sade sati", "saturn transit", "shani", "vedic astrology"],
   },
@@ -232,8 +232,8 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
     ],
     primaryCta: { label: "Check Free Match", to: "/free-kundali-matching" },
     secondaryCta: {
-      label: "Talk To Matching Guide",
-      to: "/consult/meera-devi/profile",
+      label: "Read My Free Kundali",
+      to: "/free-kundali",
     },
     keywords: ["manglik", "mangal dosha", "kundali matching"],
   },
@@ -289,7 +289,7 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
       },
     ],
     primaryCta: { label: "Generate Free Kundali", to: "/free-kundali" },
-    secondaryCta: { label: "Ask AI Jyotish", to: "/synthesis" },
+    secondaryCta: { label: "Ask Jyotish", to: "/synthesis" },
     keywords: ["planet", "graha", "vedic astrology", "kundali"],
   },
   {
@@ -376,8 +376,8 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
     ],
     primaryCta: { label: "Calculate My Dasha", to: "/free-kundali" },
     secondaryCta: {
-      label: "Ask Career Guide",
-      to: "/consult/arjun-sharma/profile",
+      label: "Find a Good Muhurat",
+      to: "/muhurat",
     },
     keywords: ["dasha", "mahadasha", "antardasha", "vimshottari"],
   },
@@ -598,8 +598,8 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
     ],
     primaryCta: { label: "Generate My Kundali", to: "/free-kundali" },
     secondaryCta: {
-      label: "Ask Traditional Guide",
-      to: "/consult/pandit-raghunath/profile",
+      label: "Check Today's Panchang",
+      to: "/panchang",
     },
     keywords: ["kaal sarp dosha", "rahu ketu", "vedic dosha", "remedies"],
   },
@@ -628,8 +628,8 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
     ],
     primaryCta: { label: "Check Free Match", to: "/free-kundali-matching" },
     secondaryCta: {
-      label: "Ask Relationship Guide",
-      to: "/consult/meera-devi/profile",
+      label: "Read My Free Kundali",
+      to: "/free-kundali",
     },
     keywords: [
       "love compatibility",
@@ -661,7 +661,7 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
       },
     ],
     primaryCta: { label: "Generate Free Kundali", to: "/free-kundali" },
-    secondaryCta: { label: "Ask AI Jyotish", to: "/synthesis" },
+    secondaryCta: { label: "Ask Jyotish", to: "/synthesis" },
     keywords: ["vedic astrology", "jyotish", "kundali", "dashas", "panchang"],
   },
   {
@@ -689,8 +689,8 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
     ],
     primaryCta: { label: "Generate My Kundali", to: "/free-kundali" },
     secondaryCta: {
-      label: "Ask Remedy Guide",
-      to: "/consult/pandit-raghunath/profile",
+      label: "Check Today's Panchang",
+      to: "/panchang",
     },
     keywords: [
       "gemstone remedies",
@@ -724,8 +724,8 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
     ],
     primaryCta: { label: "Find Free Muhurat", to: "/muhurat" },
     secondaryCta: {
-      label: "Ask Career Guide",
-      to: "/consult/arjun-sharma/profile",
+      label: "Generate My Kundali",
+      to: "/free-kundali",
     },
     keywords: [
       "business muhurat",
@@ -758,8 +758,8 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
     ],
     primaryCta: { label: "Find Free Muhurat", to: "/muhurat" },
     secondaryCta: {
-      label: "Ask Family Guide",
-      to: "/consult/nanda-ji/profile",
+      label: "Generate My Kundali",
+      to: "/free-kundali",
     },
     keywords: ["property muhurat", "griha pravesh", "home buying muhurat"],
   },
@@ -815,8 +815,8 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
     ],
     primaryCta: { label: "Generate Baby Kundali", to: "/free-kundali" },
     secondaryCta: {
-      label: "Ask Family Guide",
-      to: "/consult/nanda-ji/profile",
+      label: "Find a Good Muhurat",
+      to: "/muhurat",
     },
     keywords: ["baby name astrology", "nakshatra names", "rashi name letters"],
   },
@@ -844,7 +844,7 @@ const CORE_SEO_CONTENT_PAGES: SeoContentPage[] = [
       },
     ],
     primaryCta: { label: "Open Numerology", to: "/numerology" },
-    secondaryCta: { label: "Ask AI Jyotish", to: "/synthesis" },
+    secondaryCta: { label: "Ask Jyotish", to: "/synthesis" },
     keywords: ["lucky mobile number", "mobile number numerology", "numerology"],
   },
 ];
@@ -1739,7 +1739,7 @@ const PLANET_SEO_CONTENT_PAGES: SeoContentPage[] = PLANET_PAGE_SEEDS.map(
         },
       ],
       primaryCta: { label: "Generate Free Kundali", to: "/free-kundali" },
-      secondaryCta: { label: "Ask AI Jyotish", to: "/synthesis" },
+      secondaryCta: { label: "Ask Jyotish", to: "/synthesis" },
       keywords: [
         "planet",
         "graha",
@@ -3258,7 +3258,7 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
       },
       {
         title: "What AstroYou includes free",
-        body: "Full D-1 chart, ascendant, Nakshatra and pada, Vimshottari dasha sequence, D-9 Navamsa, Kundali matching with Ashtakoot scoring, Manglik check, and daily Panchang — plus 15 credits of AI consultation without a card. Paid tiers start at ₹499/month; consultation runs from 5 credits per minute. Full rates are at /pricing.",
+        body: "Full D-1 chart, ascendant, Nakshatra and pada, Vimshottari dasha sequence, D-9 Navamsa, Kundali matching with Ashtakoot scoring, Manglik check, and daily Panchang — plus 15 credits of chart-aware guidance without a card. Paid tiers start at ₹499/month; consultation runs from 5 credits per minute. Full rates are at /pricing.",
       },
     ],
     comparison: {
@@ -3324,7 +3324,7 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
       {
         question: "What does AstroYou include for free?",
         answer:
-          "The D-1 chart, ascendant, Nakshatra and pada, full Vimshottari dasha sequence, D-9 Navamsa, Kundali matching with Ashtakoot scoring, Manglik check, daily Panchang, and 15 AI consultation credits with no card required.",
+          "The D-1 chart, ascendant, Nakshatra and pada, full Vimshottari dasha sequence, D-9 Navamsa, Kundali matching with Ashtakoot scoring, Manglik check, daily Panchang, and 15 guidance credits with no card required.",
       },
     ],
     primaryCta: { label: "Generate Free Kundali", to: "/free-kundali" },

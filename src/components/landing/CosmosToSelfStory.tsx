@@ -371,7 +371,7 @@ export default function CosmosToSelfStory({
                 <span className="absolute left-[15%] top-[8%] h-1.5 w-1.5 rounded-full bg-violet-200 shadow-[0_0_18px_rgba(196,181,253,0.9)]" />
               </div>
               <div className="absolute inset-[28%] flex flex-col items-center justify-center rounded-full border border-white/10 text-center">
-                <span className="text-[9px] font-black uppercase tracking-[0.34em] text-white/34">Your sky</span>
+                <span className="text-xs font-black uppercase tracking-[0.34em] text-white/34">Your sky</span>
                 <span className="mt-2 font-display text-3xl text-white sm:text-4xl">Today</span>
               </div>
             </div>
@@ -383,7 +383,7 @@ export default function CosmosToSelfStory({
                   className={`border-0 bg-transparent md:absolute md:w-64 ${signal.position}`}
                   data-surface-treatment="open"
                 >
-                  <p className="text-[9px] font-black uppercase tracking-[0.34em] text-gold/66">
+                  <p className="text-xs font-black uppercase tracking-[0.34em] text-gold/66">
                     {signal.label}
                   </p>
                   <h3 className="mt-2 font-display text-2xl text-white">{signal.title}</h3>
@@ -500,7 +500,7 @@ export default function CosmosToSelfStory({
             Begin with a free birth chart. Keep a guide that knows your chart, remembers what you share, and helps you through the hard days. You still choose the path.
           </p>
           <button className="btn btn-primary group mt-10 px-10" onClick={onReveal}>
-            Reveal my birth sky
+            See my free Kundali
             <Sparkles
               className="ml-3 transition-transform duration-300 group-hover:rotate-12"
               size={18}

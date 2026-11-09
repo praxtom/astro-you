@@ -229,7 +229,7 @@ export function FactSkeleton() {
 }
 
 const ACTION_CLS =
-  "inline-flex items-center gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.18em] text-gold hover:text-white transition-colors";
+  "min-h-11 inline-flex items-center gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.18em] text-gold hover:text-white transition-colors";
 
 /** Quiet text action: a link (to) or a button (onClick). */
 export function TextAction({

@@ -48,6 +48,7 @@ export default function Onboarding() {
   const [isSaving, setIsSaving] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const showError = useErrorToast();
 
   // Chart upload state
@@ -173,10 +174,13 @@ export default function Onboarding() {
 
   const getCurrentLocation = () => {
     if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser");
+      setLocationError(
+        "This browser can't share your location. Type your current city instead.",
+      );
       return;
     }
 
+    setLocationError(null);
     setIsLocating(true);
     navigator.geolocation.getCurrentPosition(
       async (position) => {
@@ -535,9 +539,9 @@ export default function Onboarding() {
             <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
               Step 01 / 05 · Optional
             </span>
-            <h2 className="text-title text-3xl mb-3 font-display tracking-tight">
+            <h1 className="text-title text-3xl mb-3 font-display tracking-tight">
               Upload Kundali
-            </h2>
+            </h1>
             <p className="text-body mb-4 opacity-70 font-sans font-light">
               Have an existing birth chart? Upload it and we'll extract your
               planetary positions automatically.
@@ -576,7 +580,7 @@ export default function Onboarding() {
                     <p className="text-lg text-white/80 font-medium mb-2">
                       Drop your Kundali chart here
                     </p>
-                    <p className="text-sm text-white/40">
+                    <p className="text-sm text-white/60">
                       JPG, PNG, or WebP • Max 10MB
                     </p>
                   </div>
@@ -658,13 +662,13 @@ export default function Onboarding() {
                     {/* Birth Details Detected */}
                     {parsedChart.birthDetails && (
                       <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
-                        <div className="text-xs uppercase tracking-widest text-white/40">
+                        <div className="text-xs uppercase tracking-widest text-white/60">
                           Extracted Details
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           {parsedChart.birthDetails.dob && (
                             <div>
-                              <p className="text-[10px] text-white/30 uppercase">
+                              <p className="text-[10px] text-white/55 uppercase">
                                 Date
                               </p>
                               <p className="text-sm">
@@ -674,7 +678,7 @@ export default function Onboarding() {
                           )}
                           {parsedChart.birthDetails.tob && (
                             <div>
-                              <p className="text-[10px] text-white/30 uppercase">
+                              <p className="text-[10px] text-white/55 uppercase">
                                 Time
                               </p>
                               <p className="text-sm">
@@ -684,7 +688,7 @@ export default function Onboarding() {
                           )}
                           {parsedChart.birthDetails.pob && (
                             <div className="col-span-2">
-                              <p className="text-[10px] text-white/30 uppercase">
+                              <p className="text-[10px] text-white/55 uppercase">
                                 Place
                               </p>
                               <p className="text-sm">
@@ -699,7 +703,7 @@ export default function Onboarding() {
                     {/* Planets Table */}
                     {parsedChart.planets && parsedChart.planets.length > 0 && (
                       <div className="rounded-xl border border-white/10 overflow-hidden">
-                        <div className="bg-white/5 px-4 py-2 text-xs uppercase tracking-widest text-white/40">
+                        <div className="bg-white/5 px-4 py-2 text-xs uppercase tracking-widest text-white/60">
                           Extracted Planets
                         </div>
                         <div className="max-h-48 overflow-y-auto">
@@ -735,7 +739,7 @@ export default function Onboarding() {
             <div className="mt-4 text-center">
               <button
                 onClick={() => setStep("identity")}
-                className="text-sm text-white/40 hover:text-white/60 transition-colors underline"
+                className="text-sm text-white/60 hover:text-white/80 transition-colors underline"
               >
                 I don't have a chart — enter details manually
               </button>
@@ -749,9 +753,9 @@ export default function Onboarding() {
             <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
               Step 02 / 05
             </span>
-            <h2 className="text-title text-3xl mb-3 font-display tracking-tight">
+            <h1 className="text-title text-3xl mb-3 font-display tracking-tight">
               Personal Basis
-            </h2>
+            </h1>
             <p className="text-body mb-4 opacity-70 font-sans font-light">
               We'll start with your basic profile details.
             </p>
@@ -760,7 +764,7 @@ export default function Onboarding() {
               <div>
                 <label
                   htmlFor="name-input"
-                  className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-xs font-bold"
+                  className="block text-caption mb-3 opacity-60 uppercase tracking-widest text-xs font-bold"
                 >
                   Full Name
                 </label>
@@ -780,7 +784,7 @@ export default function Onboarding() {
                 />
               </div>
               <div>
-                <label className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-xs font-bold">
+                <label className="block text-caption mb-3 opacity-60 uppercase tracking-widest text-xs font-bold">
                   Gender
                 </label>
                 <div
@@ -802,7 +806,7 @@ export default function Onboarding() {
                       className={`py-3 rounded-xl border transition-all text-sm font-sans tracking-wide focus-ring ${
                         formData.gender === g
                           ? "bg-gold/10 border-gold/50 text-gold shadow-[0_0_15px_rgba(255,215,0,0.1)]"
-                          : "bg-white/5 border-white/10 text-white/40 hover:border-white/20"
+                          : "bg-white/5 border-white/10 text-white/60 hover:border-white/20"
                       }`}
                     >
                       {g}
@@ -820,9 +824,9 @@ export default function Onboarding() {
             <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
               Step 03 / 05
             </span>
-            <h2 className="text-title text-3xl mb-3 font-display tracking-tight">
+            <h1 className="text-title text-3xl mb-3 font-display tracking-tight">
               The Moment
-            </h2>
+            </h1>
             <p className="text-body mb-4 opacity-70 font-sans font-light">
               When did your spirit first draw breath? Precision determines the
               alignment of the stars.
@@ -832,7 +836,7 @@ export default function Onboarding() {
               <div>
                 <label
                   htmlFor="onboarding-dob"
-                  className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-xs font-bold"
+                  className="block text-caption mb-3 opacity-60 uppercase tracking-widest text-xs font-bold"
                 >
                   Birth Date
                 </label>
@@ -851,7 +855,7 @@ export default function Onboarding() {
               <div>
                 <label
                   htmlFor="onboarding-tob"
-                  className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-xs font-bold"
+                  className="block text-caption mb-3 opacity-60 uppercase tracking-widest text-xs font-bold"
                 >
                   Birth Time
                 </label>
@@ -912,9 +916,9 @@ export default function Onboarding() {
             <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
               Step 04 / 05
             </span>
-            <h2 className="text-title text-3xl mb-3 font-display tracking-tight">
+            <h1 className="text-title text-3xl mb-3 font-display tracking-tight">
               Birth Location
-            </h2>
+            </h1>
             <p className="text-body mb-4 opacity-70 font-sans font-light">
               Your location of birth is essential for accurate planetary
               mapping.
@@ -953,9 +957,9 @@ export default function Onboarding() {
             <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
               Step 05 / 05
             </span>
-            <h2 className="text-title text-3xl mb-3 font-display tracking-tight">
+            <h1 className="text-title text-3xl mb-3 font-display tracking-tight">
               The Presence
-            </h2>
+            </h1>
             <p className="text-body mb-4 opacity-70 font-sans font-light">
               Where does your light shine in this current moment?
             </p>
@@ -990,7 +994,7 @@ export default function Onboarding() {
                     preview.planets?.length > 0 &&
                     ` · ${preview.planets.length} planets analyzed`}
                 </p>
-                <p className="text-xs text-white/40 mt-1">
+                <p className="text-xs text-white/60 mt-1">
                   Complete your profile for your full personalised reading
                 </p>
               </div>
@@ -1000,7 +1004,7 @@ export default function Onboarding() {
               <div>
                 <label
                   htmlFor="onboarding-zodiac-mode"
-                  className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-xs font-bold"
+                  className="block text-caption mb-3 opacity-60 uppercase tracking-widest text-xs font-bold"
                 >
                   Which tradition should we read your chart in?
                 </label>
@@ -1027,7 +1031,7 @@ export default function Onboarding() {
                     </option>
                   ))}
                 </select>
-                <p className="mt-2 text-xs text-white/40">
+                <p className="mt-2 text-xs text-white/60">
                   {
                     ZODIAC_MODES.find(
                       (mode) =>
@@ -1057,6 +1061,7 @@ export default function Onboarding() {
                     disabled={isLocating}
                     className="p-2 text-gold/60 hover:text-gold transition-colors"
                     title="Get current location"
+                    aria-label="Use my current location"
                   >
                     {isLocating ? (
                       <Loader2 className="animate-spin" size={20} />
@@ -1066,6 +1071,11 @@ export default function Onboarding() {
                   </button>
                 }
               />
+              {locationError && (
+                <p role="alert" className="-mt-2 text-sm text-red-200">
+                  {locationError}
+                </p>
+              )}
             </div>
           </div>
         )}

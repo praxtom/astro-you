@@ -117,7 +117,7 @@ export default function FreeKundali() {
         setError(
           typeof body?.error === "string" && body.error
             ? body.error
-            : "Something went wrong. Please try again.",
+            : "We couldn't calculate your Kundali just now. Check the birth date, time and place, then try again in a minute.",
         );
       }
     } catch {
@@ -209,10 +209,11 @@ export default function FreeKundali() {
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-6 sm:p-8 space-y-5">
               {/* Name */}
               <div>
-                <label className="block text-sm text-white/60 mb-1.5">
+                <label htmlFor="fk-name" className="block text-sm text-white/60 mb-1.5">
                   Name (optional)
                 </label>
                 <input
+                  id="fk-name"
                   type="text"
                   value={form.name}
                   onChange={(e) =>
@@ -225,10 +226,11 @@ export default function FreeKundali() {
 
               {/* Date of Birth */}
               <div>
-                <label className="block text-sm text-white/60 mb-1.5">
+                <label htmlFor="fk-dob" className="block text-sm text-white/60 mb-1.5">
                   Date of Birth <span className="text-gold">*</span>
                 </label>
                 <input
+                  id="fk-dob"
                   type="date"
                   value={form.dob}
                   onChange={(e) =>
@@ -240,10 +242,11 @@ export default function FreeKundali() {
 
               {/* Time of Birth */}
               <div>
-                <label className="block text-sm text-white/60 mb-1.5">
+                <label htmlFor="fk-tob" className="block text-sm text-white/60 mb-1.5">
                   Time of Birth
                 </label>
                 <input
+                  id="fk-tob"
                   type="time"
                   value={form.tob}
                   disabled={timeUnknown}
@@ -271,10 +274,11 @@ export default function FreeKundali() {
 
               {/* Place of Birth */}
               <div>
-                <label className="block text-sm text-white/60 mb-1.5">
+                <label htmlFor="fk-pob" className="block text-sm text-white/60 mb-1.5">
                   Place of Birth <span className="text-gold">*</span>
                 </label>
                 <LocationInput
+                  inputId="fk-pob"
                   value={form.pob}
                   onChange={(value) => setForm((f) => ({ ...f, pob: value }))}
                   placeholder="Search for your birth city..."
@@ -405,7 +409,7 @@ export default function FreeKundali() {
                 },
                 {
                   title: "Consult ready",
-                  copy: "Use this chart as context when you speak to an AI astrologer.",
+                  copy: "Bring this chart into Jyotish or The Circle so every answer starts from it.",
                 },
                 {
                   title: "Private by default",
@@ -474,8 +478,8 @@ export default function FreeKundali() {
                 .
               </p>
               <p className="text-white/40 text-sm">
-                Unlock your complete AI-powered Vedic reading with Dasha
-                predictions, remedies, and personalized guidance.
+                Unlock your complete Vedic reading with Dasha predictions,
+                remedies, and personalized guidance.
               </p>
             </div>
 
@@ -486,13 +490,13 @@ export default function FreeKundali() {
               className="block w-full py-4 rounded-xl bg-gold text-black font-semibold text-lg text-center hover:bg-gold/90 transition-all"
             >
               <span className="flex items-center justify-center gap-2">
-                Get Your Complete AI-Powered Reading
+                Get Your Complete Kundali Reading
                 <ArrowRight className="w-5 h-5" />
               </span>
             </Link>
             <p className="text-center text-white/30 text-sm mt-3">
               Create a free account to save this chart and unlock Dasha,
-              remedies, and AI guidance
+              remedies, and chart-aware guidance
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
               <Link
@@ -500,14 +504,14 @@ export default function FreeKundali() {
                 onClick={() => rememberSource("/synthesis")}
                 className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm text-white/60 hover:border-gold/30 hover:text-gold"
               >
-                Ask AI about this chart
+                Ask Jyotish about this chart
               </Link>
               <Link
                 to="/consult"
                 onClick={() => rememberSource("/consult")}
                 className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm text-white/60 hover:border-gold/30 hover:text-gold"
               >
-                Talk to an AI astrologer
+                Sit with a guide in The Circle
               </Link>
             </div>
 
@@ -517,11 +521,11 @@ export default function FreeKundali() {
                 onClick={() => {
                   const text =
                     !resultTimeUnknown && result.ascendant
-                      ? `My Ascendant is ${result.ascendant}! Get your free Vedic birth chart:`
-                      : `My Moon sign is ${result.moonSign || "revealed"}! Get your free Vedic birth chart:`;
+                      ? `My Ascendant is ${result.ascendant}! Get your free Kundali:`
+                      : `My Moon sign is ${result.moonSign || "revealed"}! Get your free Kundali:`;
                   const url = window.location.href;
                   if (navigator.share) {
-                    navigator.share({ title: "My Birth Chart", text, url });
+                    navigator.share({ title: "My Kundali", text, url });
                   } else {
                     window.open(
                       `https://wa.me/?text=${encodeURIComponent(text + "\n" + url)}`,
@@ -532,7 +536,7 @@ export default function FreeKundali() {
                 className="px-4 py-2 rounded-xl border border-white/10 text-white/40 hover:text-gold hover:border-gold/30 text-xs uppercase tracking-widest transition-all flex items-center gap-2"
               >
                 <Share2 size={14} />
-                Share My Chart
+                Share My Kundali
               </button>
             </div>
             <button

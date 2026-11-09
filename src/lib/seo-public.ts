@@ -35,6 +35,7 @@ export const PUBLIC_TOOL_PAGES = [
 ];
 
 export const PUBLIC_PAGE_META = [
+  { path: '/', title: 'Free Kundali, Panchang & Jyotish Guidance', description: 'Create your free Vedic Kundali, check compatibility and daily Panchang, and get Jyotish guidance that remembers your chart and questions.' },
   ...PUBLIC_TOOL_PAGES,
   { path: '/pricing', title: 'Pricing: Plans & Consultation Credits', description: 'Compare AstroYou plans and credit packs. See subscription prices, included credits and consultation costs before choosing a plan.' },
   { path: '/help', title: 'Help Centre', description: 'Find help with birth details, chart calculations, credits and your AstroYou account.' },

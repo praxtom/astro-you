@@ -77,13 +77,23 @@ export function useRemedies(birthData: BirthData | null): UseRemediesResult {
               ? raw
               : [];
 
-        const normalized = remedyArray.map((r: any) => ({
-          category: r.category || r.type || r.remedy_type || "Ritual",
-          name: r.name || r.title || r.remedy_name || "Unknown",
-          detail:
-            r.detail || r.description || r.details || r.instructions || "",
-          planet: r.planet || r.related_planet || undefined,
-        }));
+        const text = (value: unknown): string =>
+          typeof value === "string" ? value.trim() : "";
+        const normalized: Remedy[] = remedyArray
+          .map((r: any) => ({
+            category:
+              text(r?.category) || text(r?.type) || text(r?.remedy_type) || "Ritual",
+            name: text(r?.name) || text(r?.title) || text(r?.remedy_name),
+            detail:
+              text(r?.detail) ||
+              text(r?.description) ||
+              text(r?.details) ||
+              text(r?.instructions),
+            planet: text(r?.planet) || text(r?.related_planet) || undefined,
+          }))
+          // A remedy without a name can't be shown honestly — drop it rather
+          // than rendering "Unknown".
+          .filter((r: Remedy) => r.name.length > 0);
 
         setRemedies({ remedies: normalized });
       } catch (err: any) {
@@ -99,7 +109,7 @@ export function useRemedies(birthData: BirthData | null): UseRemediesResult {
         setErrorKind(errorKindOf(err));
       } finally {
         window.clearTimeout(timeoutId);
-        setLoading(false);
+        if (!controller.signal.aborted || timedOut) setLoading(false);
       }
     };
 

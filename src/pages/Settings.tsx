@@ -96,7 +96,9 @@ export default function Settings() {
       }
     } catch (err: any) {
       console.error("Subscription error:", err);
-      setBillingError(err.message || "Subscription checkout failed");
+      setBillingError(
+        "We couldn't start checkout. You haven't been charged — please try again in a moment.",
+      );
     } finally {
       setCheckoutLoading(null);
     }
@@ -124,7 +126,9 @@ export default function Settings() {
       setCancelSuccess(true);
     } catch (err: any) {
       console.error("Subscription cancellation error:", err);
-      setBillingError(err.message || "Cancellation failed");
+      setBillingError(
+        "We couldn't cancel your plan right now. Please try again, or contact support if it keeps happening.",
+      );
     }
     setCancelling(false);
   };
@@ -177,7 +181,10 @@ export default function Settings() {
         setPushMessage("Browser brain nudges are on.");
       }
     } catch (err: any) {
-      setPushMessage(err.message || "Could not update browser push.");
+      console.error("Browser push update failed:", err);
+      setPushMessage(
+        "We couldn't change browser notifications. Check that this site is allowed to send notifications, then try again.",
+      );
     } finally {
       setPushSaving(false);
     }
@@ -268,7 +275,9 @@ export default function Settings() {
       navigate("/");
     } catch (err: any) {
       console.error("Account deletion failed:", err);
-      setBillingError(err.message || "Account deletion failed");
+      setBillingError(
+        "We couldn't delete your account. Nothing was removed — please try again, or contact support.",
+      );
     } finally {
       setDeletingAccount(false);
     }
@@ -285,7 +294,7 @@ export default function Settings() {
       <div className="container mx-auto pt-28 px-6 pb-16 max-w-2xl">
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-white/40 hover:text-white mb-6 text-sm"
+          className="flex items-center gap-2 text-white/60 hover:text-white mb-6 text-sm"
         >
           <ArrowLeft size={16} /> Back
         </button>
@@ -304,7 +313,7 @@ export default function Settings() {
               <span className="text-2xl mr-2">{currentTier.badge}</span>
               <span className="text-xl font-display">{currentTier.name}</span>
               {currentTier.price > 0 && (
-                <span className="text-white/40 ml-2">
+                <span className="text-white/60 ml-2">
                   {formatMoney(currentTier.prices[currency], currency)}/mo
                 </span>
               )}
@@ -314,7 +323,7 @@ export default function Settings() {
                 {credits} credits remaining
               </p>
               {profile?.subscription?.currentEnd && (
-                <p className="text-xs text-white/30">
+                <p className="text-xs text-white/60">
                   Renews:{" "}
                   {new Date(
                     profile.subscription.currentEnd,
@@ -322,7 +331,7 @@ export default function Settings() {
                 </p>
               )}
               {profile?.subscription?.status && (
-                <p className="text-xs text-white/30 capitalize">
+                <p className="text-xs text-white/60 capitalize">
                   Status: {profile.subscription.status}
                 </p>
               )}
@@ -398,7 +407,7 @@ export default function Settings() {
 
           <button
             onClick={() => navigate("/pricing")}
-            className="mt-4 text-xs text-white/30 hover:text-gold transition-colors"
+            className="mt-4 min-h-11 text-xs text-white/60 hover:text-gold transition-colors"
           >
             Compare all plans →
           </button>
@@ -414,11 +423,11 @@ export default function Settings() {
           </div>
           <div className="space-y-3 text-sm">
             <div className="flex justify-between">
-              <span className="text-white/40">Email</span>
+              <span className="text-white/60">Email</span>
               <span className="text-white/80">{user.email || "Not set"}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-white/40">Name</span>
+              <span className="text-white/60">Name</span>
               <span className="text-white/80">
                 {profile?.name || "Not set"}
               </span>
@@ -435,7 +444,7 @@ export default function Settings() {
             </h2>
           </div>
           <label className="block">
-            <span className="mb-2 block text-xs text-white/35">
+            <span className="mb-2 block text-xs text-white/60">
               Preferred guidance language
             </span>
             <select
@@ -451,7 +460,7 @@ export default function Settings() {
               ))}
             </select>
           </label>
-          <p className="mt-3 text-xs text-white/35">
+          <p className="mt-3 text-xs text-white/55">
             Jyotish, daily guidance, and new consultations will use this language where available.
           </p>
         </section>
@@ -465,7 +474,7 @@ export default function Settings() {
             </h2>
           </div>
           <label className="block">
-            <span className="mb-2 block text-xs text-white/35">
+            <span className="mb-2 block text-xs text-white/60">
               How your chart is calculated
             </span>
             <select
@@ -492,7 +501,7 @@ export default function Settings() {
               )?.description
             }
           </p>
-          <p className="mt-2 text-xs text-white/35">
+          <p className="mt-2 text-xs text-white/55">
             Switching systems changes your Sun sign by about one sign. Both are
             internally consistent — they measure from different starting points,
             not different skies.
@@ -508,7 +517,7 @@ export default function Settings() {
             </h2>
           </div>
           <label className="block">
-            <span className="mb-2 block text-xs text-white/35">
+            <span className="mb-2 block text-xs text-white/60">
               Which regional calendar to show
             </span>
             <select
@@ -528,7 +537,7 @@ export default function Settings() {
               ))}
             </select>
           </label>
-          <p className="mt-3 text-xs text-white/35">
+          <p className="mt-3 text-xs text-white/55">
             Choose &ldquo;Off&rdquo; to hide the festival card entirely.
           </p>
         </section>
@@ -566,9 +575,9 @@ export default function Settings() {
             </span>
           </button>
           {pushMessage && (
-            <p className="text-xs text-white/35 mt-3">{pushMessage}</p>
+            <p className="text-xs text-white/60 mt-3">{pushMessage}</p>
           )}
-          <p className="text-xs text-white/30 mt-3">
+          <p className="text-xs text-white/55 mt-3">
             High-priority brain nudges can use email or browser push. WhatsApp stays off until phone capture, explicit opt-in, and provider setup.
           </p>
         </section>
@@ -581,7 +590,7 @@ export default function Settings() {
               What I remember
             </h2>
           </div>
-          <p className="text-xs text-white/40 mb-4">
+          <p className="text-xs text-white/60 mb-4">
             AstroYou automatically turns your conversations into short notes
             (feelings, patterns, people, events) to personalise guidance.
             Review, delete or pause them here. Deleting a conversation also
@@ -606,7 +615,7 @@ export default function Settings() {
                   Guidance Safety
                 </span>
               </div>
-              <p className="text-xs text-white/40">
+              <p className="text-xs text-white/60">
                 Guidance avoids fatalism, fear-based predictions, medical diagnosis,
                 and guaranteed financial claims.
               </p>
@@ -644,7 +653,7 @@ export default function Settings() {
               <Download size={14} />
             </button>
             {installMessage && (
-              <p className="px-1 text-xs text-white/35">{installMessage}</p>
+              <p className="px-1 text-xs text-white/60">{installMessage}</p>
             )}
             <button
               onClick={handleDeleteAccount}

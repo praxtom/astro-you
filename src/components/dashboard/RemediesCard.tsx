@@ -181,7 +181,7 @@ export const RemediesCard: React.FC<RemediesCardProps> = ({ birthData }) => {
                     )}
                     <Link
                         to="/remedies"
-                        className="mt-4 inline-flex items-center gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.18em] text-gold hover:text-white transition-colors"
+                        className="mt-4 min-h-11 inline-flex items-center gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.18em] text-gold hover:text-white transition-colors"
                     >
                         Open remedy studio
                     </Link>
@@ -211,7 +211,7 @@ export const RemediesCard: React.FC<RemediesCardProps> = ({ birthData }) => {
                     )}
                     <Link
                         to="/remedies"
-                        className="mt-4 inline-flex items-center gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.18em] text-gold hover:text-white transition-colors"
+                        className="mt-4 min-h-11 inline-flex items-center gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.18em] text-gold hover:text-white transition-colors"
                     >
                         Open remedy studio
                     </Link>

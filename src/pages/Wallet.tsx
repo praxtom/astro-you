@@ -101,21 +101,25 @@ function labelForLedgerType(type?: string) {
 export default function Wallet() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
-  const { credits, tier } = useSubscription();
+  const { credits, tier, loading: subscriptionLoading } = useSubscription();
   const { buyCredits, isPaying, error: paymentError } = useCreditTopup();
   const { currency } = useCurrency();
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [consultations, setConsultations] = useState<ConsultationRecord[]>([]);
   const [reports, setReports] = useState<ReportRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activityError, setActivityError] = useState<string | null>(null);
+  const [sectionErrors, setSectionErrors] = useState({
+    ledger: false,
+    consultations: false,
+    reports: false,
+  });
   const [selectedPack, setSelectedPack] = useState<number | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
 
   const loadActivity = useCallback(async () => {
     if (!user) return;
     setLoading(true);
-    setActivityError(null);
+    setSectionErrors({ ledger: false, consultations: false, reports: false });
     try {
       const idToken = await user.getIdToken();
       const response = await fetch("/api/wallet/activity", {
@@ -193,16 +197,14 @@ export default function Wallet() {
         setReports([]);
       }
 
-      if (
-        ledgerResult.status === "rejected" &&
-        consultationResult.status === "rejected" &&
-        reportResult.status === "rejected"
-      ) {
-        setActivityError("Wallet activity is unavailable right now.");
-      }
+      setSectionErrors({
+        ledger: ledgerResult.status === "rejected",
+        consultations: consultationResult.status === "rejected",
+        reports: reportResult.status === "rejected",
+      });
     } catch (err) {
       console.error("Wallet activity load failed:", err);
-      setActivityError("Could not load wallet activity right now.");
+      setSectionErrors({ ledger: true, consultations: true, reports: true });
     } finally {
       setLoading(false);
     }
@@ -236,7 +238,7 @@ export default function Wallet() {
       <div className="platform-main">
         <button
           onClick={() => navigate(-1)}
-          className="mb-4 inline-flex items-center gap-2 text-sm text-white/40 hover:text-white"
+          className="mb-4 inline-flex items-center gap-2 text-sm text-white/60 hover:text-white"
         >
           <ArrowLeft size={16} /> Back
         </button>
@@ -256,13 +258,19 @@ export default function Wallet() {
           <aside className="platform-panel p-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="type-meta uppercase text-white/35">Balance</p>
-                <p className="type-kpi text-white mt-1">{credits}</p>
+                <p className="type-meta uppercase text-white/55">Balance</p>
+                <p className="type-kpi text-white mt-1">
+                  {user && subscriptionLoading ? (
+                    <span className="text-white/55" aria-label="Loading balance">…</span>
+                  ) : (
+                    credits
+                  )}
+                </p>
               </div>
               <WalletIcon className="text-gold" size={25} />
             </div>
             <div className="mt-2 flex items-center justify-between">
-              <span className="type-body-sm text-white/45">Plan</span>
+              <span className="type-body-sm text-white/60">Plan</span>
               <span className="type-body-sm text-gold capitalize">{tier}</span>
             </div>
           </aside>
@@ -280,7 +288,7 @@ export default function Wallet() {
             <section>
               <div className="mb-3">
                 <h2 className="type-section-title">Add credits</h2>
-                <p className="type-body-sm text-white/40">
+                <p className="type-body-sm text-white/55">
                   Packs are prepaid. Credit cost is shown before use.
                 </p>
               </div>
@@ -290,7 +298,7 @@ export default function Wallet() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="type-card-title text-white">{pack.label}</p>
-                        <p className="type-body-sm text-white/45 mt-1">
+                        <p className="type-body-sm text-white/60 mt-1">
                           {pack.description}
                         </p>
                       </div>
@@ -305,7 +313,7 @@ export default function Wallet() {
                         <p className="type-card-title text-gold">
                           {formatMoney(getPackAmount(pack, currency), currency)}
                         </p>
-                        <p className="type-meta text-white/35">
+                        <p className="type-meta text-white/55">
                           {formatCreditRate(pack)}
                         </p>
                       </div>
@@ -328,7 +336,7 @@ export default function Wallet() {
             <section>
               <div className="mb-3">
                 <h2 className="type-section-title">Credit activity</h2>
-                <p className="type-body-sm text-white/40">
+                <p className="type-body-sm text-white/55">
                   Server-written ledger entries.
                 </p>
               </div>
@@ -337,7 +345,7 @@ export default function Wallet() {
                   <div className="p-4 text-center">
                     <Receipt className="mx-auto text-white/20 mb-3" size={32} />
                     <p className="type-body text-white/70">Private wallet activity</p>
-                    <p className="type-body-sm text-white/35 mt-1">
+                    <p className="type-body-sm text-white/55 mt-1">
                       Sign in to buy credits and see purchases, charges, and receipts.
                     </p>
                     <button
@@ -348,23 +356,32 @@ export default function Wallet() {
                     </button>
                   </div>
                 ) : loading ? (
-                  <div className="p-4 text-center text-white/45">
+                  <div className="p-4 text-center text-white/60">
                     <Loader2 className="mx-auto animate-spin mb-3" size={22} />
                     Loading activity
                   </div>
-                ) : activityError ? (
-                  <div className="p-4 text-center">
+                ) : sectionErrors.ledger ? (
+                  <div role="alert" className="p-4 text-center">
                     <AlertCircle className="mx-auto text-amber-300/60 mb-3" size={30} />
-                    <p className="type-body text-white/70">Activity unavailable.</p>
-                    <p className="type-body-sm text-white/35 mt-1">
-                      {activityError}
+                    <p className="type-body text-white/75">
+                      Your credit history couldn't be loaded.
                     </p>
+                    <p className="type-body-sm text-white/55 mt-1">
+                      Your balance above is still current. Check your connection and retry.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void loadActivity()}
+                      className="platform-button-secondary mt-4"
+                    >
+                      Retry
+                    </button>
                   </div>
                 ) : ledger.length === 0 ? (
                   <div className="p-4 text-center">
                     <Receipt className="mx-auto text-white/20 mb-3" size={32} />
                     <p className="type-body text-white/70">No credit activity yet.</p>
-                    <p className="type-body-sm text-white/35 mt-1">
+                    <p className="type-body-sm text-white/55 mt-1">
                       Purchases and charges will appear here.
                     </p>
                   </div>
@@ -384,16 +401,16 @@ export default function Wallet() {
               <p className="platform-eyebrow mb-3">Where credits go</p>
               <div className="space-y-3 type-body-sm">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-white/50">Astrologer sittings</span>
+                  <span className="text-white/60">Astrologer sittings</span>
                   <span className="text-gold">5-10/min</span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-white/50">PDF reports</span>
+                  <span className="text-white/60">PDF reports</span>
                   <span className="text-gold">10-199/report</span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-white/50">Plan credits</span>
-                  <span className="text-white/45">Monthly grant</span>
+                  <span className="text-white/60">Plan credits</span>
+                  <span className="text-white/60">Monthly grant</span>
                 </div>
               </div>
             </section>
@@ -401,6 +418,13 @@ export default function Wallet() {
             <section className="platform-panel p-4">
               <p className="platform-eyebrow mb-3">Recent sessions</p>
               <MiniList
+                loading={Boolean(user) && loading}
+                error={
+                  sectionErrors.consultations
+                    ? "Sessions couldn't be loaded."
+                    : null
+                }
+                onRetry={() => void loadActivity()}
                 emptyLabel={user ? "No consultations yet." : "Sign in to see sessions."}
                 rows={consultations.map((item) => ({
                   id: item.id,
@@ -415,6 +439,9 @@ export default function Wallet() {
             <section className="platform-panel p-4">
               <p className="platform-eyebrow mb-3">Recent reports</p>
               <MiniList
+                loading={Boolean(user) && loading}
+                error={sectionErrors.reports ? "Reports couldn't be loaded." : null}
+                onRetry={() => void loadActivity()}
                 emptyLabel={user ? "No reports yet." : "Sign in to see reports."}
                 rows={reports.map((item) => ({
                   id: item.id,
@@ -433,7 +460,7 @@ export default function Wallet() {
                 <HelpCircle size={15} />
                 <p className="platform-eyebrow">Support</p>
               </div>
-              <p className="type-body-sm text-white/45 mt-3">
+              <p className="type-body-sm text-white/60 mt-3">
                 For failed payments, duplicate charges, or refund review,
                 open a ticket with the payment or report reference if you have it.
               </p>
@@ -470,7 +497,7 @@ function LedgerRow({ entry }: { entry: LedgerEntry }) {
         <p className="type-body-sm text-white/80">
           {labelForLedgerType(entry.type)}
         </p>
-        <p className="type-meta text-white/35 mt-1">
+        <p className="type-meta text-white/55 mt-1">
           {entry.source || "system"} {formatDate(entry.createdAt)}
         </p>
       </div>
@@ -480,7 +507,7 @@ function LedgerRow({ entry }: { entry: LedgerEntry }) {
           {amount} credits
         </p>
         {typeof entry.balanceAfter === "number" && (
-          <p className="type-meta text-white/30 mt-1">
+          <p className="type-meta text-white/55 mt-1">
             Balance {entry.balanceAfter}
           </p>
         )}
@@ -492,7 +519,13 @@ function LedgerRow({ entry }: { entry: LedgerEntry }) {
 function MiniList({
   rows,
   emptyLabel,
+  loading = false,
+  error = null,
+  onRetry,
 }: {
+  loading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
   rows: Array<{
     id: string;
     icon: typeof FileText;
@@ -502,8 +535,35 @@ function MiniList({
   }>;
   emptyLabel: string;
 }) {
+  if (loading) {
+    return (
+      <div className="space-y-3" aria-busy="true">
+        {[0, 1].map((i) => (
+          <div key={i} className="h-8 rounded-lg bg-white/5 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div role="alert">
+        <p className="type-body-sm text-white/70">{error}</p>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="mt-2 text-sm font-semibold text-gold hover:text-gold/80 min-h-11"
+          >
+            Retry
+          </button>
+        )}
+      </div>
+    );
+  }
+
   if (rows.length === 0) {
-    return <p className="type-body-sm text-white/35">{emptyLabel}</p>;
+    return <p className="type-body-sm text-white/55">{emptyLabel}</p>;
   }
 
   return (
@@ -517,7 +577,7 @@ function MiniList({
             </div>
             <div className="min-w-0">
               <p className="type-body-sm text-white/70 truncate">{row.title}</p>
-              <p className="type-meta text-white/35">
+              <p className="type-meta text-white/55">
                 {row.meta} {row.date && `· ${row.date}`}
               </p>
             </div>

@@ -52,7 +52,7 @@ export function usePanchang(
         console.error("[usePanchang] Error:", err);
         setError(err.message);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
 

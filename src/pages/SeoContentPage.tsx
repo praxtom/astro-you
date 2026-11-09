@@ -42,6 +42,7 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
       description: page.description,
       mainEntityOfPage: pageUrl,
       url: pageUrl,
+      image: siteUrl("/og-image.png"),
       inLanguage: "en",
       datePublished: reviewed,
       dateModified: reviewed,

@@ -21,6 +21,7 @@ import {
   LogIn,
 } from "lucide-react";
 import { useSubscription, useUserProfile } from "../hooks";
+import { useRequestBirthData } from "../hooks/useRequestBirthData";
 import { useAuth } from "../lib/useAuth";
 import AuthModal from "../components/AuthModal";
 import { REPORT_PRICING, type ReportType } from "../lib/report-pricing";
@@ -70,7 +71,15 @@ const getAreaColor = (area: string) => {
 const DailyForecast: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { birthData, profile, loading: profileLoading } = useUserProfile();
+  const {
+    birthData: profileBirthData,
+    profile,
+    loading: profileLoading,
+  } = useUserProfile();
+  // Stable on the birth fields only, so a credits/user-doc write doesn't
+  // refetch the forecast and flash the skeleton.
+  const requestBirthData = useRequestBirthData(profileBirthData);
+  const birthData = requestBirthData?.dob ? requestBirthData : null;
   const { credits } = useSubscription();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -106,15 +115,20 @@ const DailyForecast: React.FC = () => {
       return;
     }
 
+    const controller = new AbortController();
     const fetchForecast = async () => {
       try {
         setLoading(true);
-        const response = await postJson("/api/horoscope", {
-          birthData,
-          date: viewerDateKey(),
-          localDate: viewerDateKey(),
-          period,
-        });
+        const response = await postJson(
+          "/api/horoscope",
+          {
+            birthData,
+            date: viewerDateKey(),
+            localDate: viewerDateKey(),
+            period,
+          },
+          { signal: controller.signal },
+        );
 
         if (!response.ok) {
           const body = await response.json().catch(() => ({}) as any);
@@ -148,13 +162,15 @@ const DailyForecast: React.FC = () => {
             );
             return;
           }
-          throw new Error(body.error || "Failed to fetch forecast");
+          throw new Error(body.error || `Forecast failed: ${response.status}`);
         }
         const data = await response.json();
+        if (controller.signal.aborted) return;
         setForecast(data);
         setError(null);
         setErrorKind(null);
       } catch (err: any) {
+        if (err?.name === "AbortError") return;
         console.error("Error fetching forecast:", err);
         setForecast(null);
         setErrorKind("unavailable");
@@ -162,11 +178,12 @@ const DailyForecast: React.FC = () => {
           "Your forecast is temporarily unavailable. Please try again in a moment.",
         );
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
 
     fetchForecast();
+    return () => controller.abort();
   }, [birthData, profileLoading, period, retryNonce, user]);
 
   // The forecast PDF goes through the priced reports flow (/api/pdf-report),
@@ -285,12 +302,15 @@ const DailyForecast: React.FC = () => {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok)
-        throw new Error(data.error || "Could not save feedback");
+        throw new Error(data.error || `Feedback failed: ${response.status}`);
       setFeedbackStatus(
         "Feedback saved. We use this in aggregate accuracy tracking.",
       );
     } catch (err: any) {
-      setFeedbackStatus(err.message || "Could not save feedback.");
+      console.error("Prediction feedback failed:", err);
+      setFeedbackStatus(
+        "Your feedback couldn't be saved. Check your connection and try again.",
+      );
     } finally {
       setFeedbackSubmitting(false);
     }
@@ -347,26 +367,35 @@ const DailyForecast: React.FC = () => {
   return (
     <PageShell>
       <div className="max-w-5xl mx-auto">
-        <div className="flex gap-2 mb-4">
+        <div className="flex flex-col gap-2 mb-4 sm:flex-row sm:items-center">
+          <div
+            role="tablist"
+            aria-label="Forecast period"
+            className="grid grid-cols-4 gap-1.5 sm:flex sm:gap-2"
+          >
           {(["daily", "weekly", "monthly", "yearly"] as const).map((p) => (
             <button
               key={p}
+              type="button"
+              role="tab"
+              aria-selected={period === p}
               onClick={() => setPeriod(p)}
-              className={`px-4 py-1.5 rounded-xl border text-sm font-bold uppercase tracking-widest transition-all ${
+              className={`min-h-11 min-w-0 px-1.5 sm:px-4 py-1.5 rounded-xl border text-xs sm:text-sm font-bold uppercase tracking-wide sm:tracking-widest transition-all ${
                 period === p
                   ? "bg-gold/10 border-gold/50 text-gold"
-                  : "bg-white/5 border-white/10 text-white/40 hover:border-white/30"
+                  : "bg-white/5 border-white/10 text-white/60 hover:border-white/30"
               }`}
             >
               {p.charAt(0).toUpperCase() + p.slice(1)}
             </button>
           ))}
+          </div>
           {forecast && !loading && (
-            <>
+            <div className="flex gap-2 sm:ml-auto">
               <button
                 onClick={handleDownloadPDF}
                 disabled={downloading}
-                className="ml-auto px-4 py-2 rounded-xl border border-white/10 text-white/40 hover:text-gold hover:border-gold/30 text-xs uppercase tracking-widest transition-all flex items-center gap-2 disabled:opacity-50"
+                className="px-4 py-2 min-h-11 rounded-xl border border-white/10 text-white/60 hover:text-gold hover:border-gold/30 text-xs uppercase tracking-widest transition-all flex items-center gap-2 disabled:opacity-50"
               >
                 <Download size={14} />
                 {downloading
@@ -391,12 +420,12 @@ const DailyForecast: React.FC = () => {
                     );
                   }
                 }}
-                className="px-4 py-2 rounded-xl border border-white/10 text-white/40 hover:text-gold hover:border-gold/30 text-xs uppercase tracking-widest transition-all flex items-center gap-2"
+                className="px-4 py-2 min-h-11 rounded-xl border border-white/10 text-white/60 hover:text-gold hover:border-gold/30 text-xs uppercase tracking-widest transition-all flex items-center gap-2"
               >
                 <Share2 size={14} />
                 Share
               </button>
-            </>
+            </div>
           )}
         </div>
 
@@ -410,7 +439,7 @@ const DailyForecast: React.FC = () => {
                   ? "Your Weekly Forecast"
                   : "Your Daily Forecast"}
           </h1>
-          <div className="flex flex-wrap items-center gap-3 text-white/40 font-sans italic text-sm">
+          <div className="flex flex-wrap items-center gap-3 text-white/60 font-sans italic text-sm">
             <div className="flex items-center gap-2">
               <Calendar size={14} />
               {today}
@@ -449,7 +478,7 @@ const DailyForecast: React.FC = () => {
                 <p className="text-white/80 mb-2 text-lg font-light">
                   Sign in to see your personal forecast
                 </p>
-                <p className="text-white/45 text-sm mb-5">
+                <p className="text-white/60 text-sm mb-5">
                   Your forecast is read from your own chart, so it needs your
                   AstroYou account.
                 </p>
@@ -474,7 +503,7 @@ const DailyForecast: React.FC = () => {
             ) : (
               <>
                 <p className="text-white/75 mb-2">{error}</p>
-                <p className="text-white/40 text-sm mb-5">
+                <p className="text-white/60 text-sm mb-5">
                   Nothing is wrong with your chart — our forecast service is
                   just busy.
                 </p>
@@ -499,7 +528,7 @@ const DailyForecast: React.FC = () => {
               <div className="relative z-10">
                 <div className="flex items-center gap-3 text-gold mb-5 font-sans">
                   <span className="w-8 h-[1px] bg-gold/30"></span>
-                  <span className="text-[10px] font-black uppercase tracking-widest">
+                  <span className="text-xs font-black uppercase tracking-widest">
                     {period === "yearly"
                       ? "This Year's Theme"
                       : period === "monthly"
@@ -510,18 +539,23 @@ const DailyForecast: React.FC = () => {
                   </span>
                 </div>
 
-                <p className="text-xl leading-relaxed text-white/90 font-light italic mb-2 first-letter:text-6xl first-letter:font-bold first-letter:text-gold first-letter:mr-3 first-letter:float-left">
-                  {forecast?.narrative ||
-                    h?.overall_theme ||
-                    "The stars are aligning for your day. Focus on balance and intuitive steps forward."}
-                </p>
+                {forecast?.narrative || h?.overall_theme ? (
+                  <p className="text-xl leading-relaxed text-white/90 font-light italic mb-2 first-letter:text-6xl first-letter:font-bold first-letter:text-gold first-letter:mr-3 first-letter:float-left">
+                    {forecast?.narrative || h?.overall_theme}
+                  </p>
+                ) : (
+                  <p className="text-base text-white/60 mb-2">
+                    No theme was returned for this period. The details below
+                    are still read from your chart.
+                  </p>
+                )}
               </div>
             </div>
 
             {/* Period-specific content */}
             {period === "weekly" && h?.key_days && (
               <div className="glass rounded-2xl p-6 mb-6">
-                <h3 className="text-sm uppercase tracking-widest text-white/40 font-bold mb-4">
+                <h3 className="text-sm uppercase tracking-widest text-white/55 font-bold mb-4">
                   Key Days This Week
                 </h3>
                 <div className="space-y-3">
@@ -546,7 +580,7 @@ const DailyForecast: React.FC = () => {
 
             {period === "monthly" && (h?.key_dates || h?.keyDates) && (
               <div className="glass rounded-2xl p-6 mb-6">
-                <h3 className="text-sm uppercase tracking-widest text-white/40 font-bold mb-4">
+                <h3 className="text-sm uppercase tracking-widest text-white/55 font-bold mb-4">
                   Key Dates This Month
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -564,7 +598,7 @@ const DailyForecast: React.FC = () => {
                         </p>
                         {kd.type && (
                           <span
-                            className={`text-[10px] mt-1 inline-block px-2 py-0.5 rounded-full ${kd.type === "peak" || kd.type === "auspicious" ? "bg-emerald-500/20 text-emerald-300" : "bg-amber-500/20 text-amber-300"}`}
+                            className={`text-xs mt-1 inline-block px-2 py-0.5 rounded-full ${kd.type === "peak" || kd.type === "auspicious" ? "bg-emerald-500/20 text-emerald-300" : "bg-amber-500/20 text-amber-300"}`}
                           >
                             {kd.type}
                           </span>
@@ -578,7 +612,7 @@ const DailyForecast: React.FC = () => {
 
             {period === "yearly" && (h?.quarters || h?.major_transits) && (
               <div className="glass rounded-2xl p-6 mb-6">
-                <h3 className="text-sm uppercase tracking-widest text-white/40 font-bold mb-4">
+                <h3 className="text-sm uppercase tracking-widest text-white/55 font-bold mb-4">
                   Yearly Overview
                 </h3>
                 {h.quarters && (
@@ -600,7 +634,7 @@ const DailyForecast: React.FC = () => {
                 )}
                 {(h.major_transits || h.retrograde_periods) && (
                   <div>
-                    <h4 className="text-xs uppercase tracking-widest text-white/30 mb-3">
+                    <h4 className="text-xs uppercase tracking-widest text-white/55 mb-3">
                       Major Transits
                     </h4>
                     <div className="space-y-2">
@@ -650,11 +684,11 @@ const DailyForecast: React.FC = () => {
                           <h4 className="text-sm font-bold font-sans text-white/90 uppercase tracking-widest">
                             {inf.planet} Natal {inf.natal_planet}
                           </h4>
-                          <span className="text-[10px] font-bold text- gold/60 bg-gold/5 px-2 py-0.5 rounded-full border border-gold/10">
+                          <span className="text-xs font-bold text-gold/80 bg-gold/5 px-2 py-0.5 rounded-full border border-gold/10">
                             Strength: {inf.strength}
                           </span>
                         </div>
-                        <p className="text-xs text-white/40 font-sans font-light leading-relaxed italic">
+                        <p className="text-xs text-white/60 font-sans font-light leading-relaxed italic">
                           {inf.description}
                         </p>
                       </div>
@@ -669,12 +703,12 @@ const DailyForecast: React.FC = () => {
                 <div className="glass p-6 rounded-[2rem] border border-violet-500/20 bg-violet-500/5">
                   <div className="flex items-center gap-3 text-violet-400 mb-6 font-sans">
                     <Clock size={16} />
-                    <span className="text-[10px] font-black uppercase tracking-widest">
+                    <span className="text-xs font-black uppercase tracking-widest">
                       Active Life Cycle
                     </span>
                   </div>
                   <div className="mb-4">
-                    <div className="text-[10px] text-white/30 uppercase tracking-[0.2em] mb-1 font-sans">
+                    <div className="text-xs text-white/55 uppercase tracking-[0.2em] mb-1 font-sans">
                       Mahadasha
                     </div>
                     <div className="text-xl font-light text-violet-200">
@@ -682,15 +716,15 @@ const DailyForecast: React.FC = () => {
                     </div>
                   </div>
                   <div className="mb-6">
-                    <div className="text-[10px] text-white/30 uppercase tracking-[0.2em] mb-1 font-sans">
+                    <div className="text-xs text-white/55 uppercase tracking-[0.2em] mb-1 font-sans">
                       Antardasha
                     </div>
                     <div className="text-xl font-light text-violet-300">
                       {forecast?.dasha?.bhukti}
                     </div>
                   </div>
-                  <div className="pt-4 border-t border-violet-500/10 flex items-center justify-between text-[10px] font-sans">
-                    <span className="text-white/30">Phase Ends</span>
+                  <div className="pt-4 border-t border-violet-500/10 flex items-center justify-between text-xs font-sans">
+                    <span className="text-white/55">Phase Ends</span>
                     <span className="text-violet-400/80 font-bold">
                       {forecast?.dasha?.ends
                         ? new Date(forecast.dasha.ends).toLocaleDateString()
@@ -703,7 +737,7 @@ const DailyForecast: React.FC = () => {
                 {forecast?.panchang?.rahu_kaal &&
                   forecast.panchang.rahu_kaal !== "—" && (
                     <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 mb-4">
-                      <span className="text-[10px] text-red-400/60 uppercase tracking-widest font-bold">
+                      <span className="text-xs text-red-300/80 uppercase tracking-widest font-bold">
                         Rahu Kaal
                       </span>
                       <p className="text-sm text-red-300 mt-1">
@@ -715,7 +749,7 @@ const DailyForecast: React.FC = () => {
                 {/* Moon Phase & Sign */}
                 {h?.moon && (
                   <div className="p-3 rounded-xl bg-white/5 border border-white/10 mb-4">
-                    <span className="text-[10px] text-white/30 uppercase tracking-widest font-bold">
+                    <span className="text-xs text-white/55 uppercase tracking-widest font-bold">
                       Moon
                     </span>
                     <p className="text-sm text-white/70 mt-1">
@@ -729,13 +763,13 @@ const DailyForecast: React.FC = () => {
                 <div className="glass p-6 rounded-[2rem] border border-white/5">
                   <div className="flex items-center gap-3 text-gold mb-6 font-sans">
                     <Star size={16} />
-                    <span className="text-[10px] font-black uppercase tracking-widest">
+                    <span className="text-xs font-black uppercase tracking-widest">
                       Lucky Elements
                     </span>
                   </div>
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-white/30 uppercase tracking-widest font-sans">
+                      <span className="text-xs text-white/55 uppercase tracking-widest font-sans">
                         Colors
                       </span>
                       <div className="flex gap-2">
@@ -750,7 +784,7 @@ const DailyForecast: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-white/30 uppercase tracking-widest font-sans">
+                      <span className="text-xs text-white/55 uppercase tracking-widest font-sans">
                         Numbers
                       </span>
                       <span className="text-xs text-white/70">
@@ -758,7 +792,7 @@ const DailyForecast: React.FC = () => {
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-white/30 uppercase tracking-widest font-sans">
+                      <span className="text-xs text-white/55 uppercase tracking-widest font-sans">
                         Stones
                       </span>
                       <span className="text-xs text-white/70 italic">
@@ -766,7 +800,7 @@ const DailyForecast: React.FC = () => {
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-white/30 uppercase tracking-widest font-sans">
+                      <span className="text-xs text-white/55 uppercase tracking-widest font-sans">
                         Directions
                       </span>
                       <span className="text-xs text-white/70 uppercase tracking-widest">
@@ -776,7 +810,7 @@ const DailyForecast: React.FC = () => {
                   </div>
 
                   <div className="mt-6 pt-5 border-t border-white/5">
-                    <div className="text-[10px] text-white/30 uppercase tracking-widest font-sans mb-3">
+                    <div className="text-xs text-white/55 uppercase tracking-widest font-sans mb-3">
                       Auspicious Times
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -799,7 +833,7 @@ const DailyForecast: React.FC = () => {
               <section className="glass p-6 rounded-[2rem] border border-emerald-500/10 bg-emerald-500/[0.02]">
                 <div className="flex items-center gap-3 text-emerald-400 mb-6 font-sans">
                   <Sparkles size={16} />
-                  <span className="text-[10px] font-black uppercase tracking-widest">
+                  <span className="text-xs font-black uppercase tracking-widest">
                     Celestial Guidance
                   </span>
                 </div>
@@ -857,7 +891,7 @@ const DailyForecast: React.FC = () => {
                       {area.keywords.map((kw, kidx) => (
                         <span
                           key={kidx}
-                          className="text-[9px] font-black uppercase tracking-tighter text-white/30 bg-white/5 px-2 py-0.5 rounded-md border border-white/5"
+                          className="text-xs font-black uppercase tracking-tight text-white/55 bg-white/5 px-2 py-0.5 rounded-md border border-white/5"
                         >
                           {kw}
                         </span>
@@ -872,13 +906,13 @@ const DailyForecast: React.FC = () => {
             <section className="glass rounded-2xl border border-white/10 bg-white/[0.03] p-4">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-gold/70">
+                  <p className="text-xs font-black uppercase tracking-widest text-gold/80">
                     Prediction feedback
                   </p>
                   <h2 className="mt-1 text-lg font-light tracking-wide">
                     Did this feel accurate?
                   </h2>
-                  <p className="mt-1 text-xs text-white/40">
+                  <p className="mt-1 text-xs text-white/60">
                     Your response is stored as feedback, not shown publicly.
                   </p>
                 </div>
@@ -899,7 +933,7 @@ const DailyForecast: React.FC = () => {
                       className={`rounded-xl border px-3 py-2 text-xs font-bold uppercase tracking-widest transition-all ${
                         feedbackSignal === item.value
                           ? "border-gold/50 bg-gold/10 text-gold"
-                          : "border-white/10 bg-white/5 text-white/45 hover:border-gold/30 hover:text-gold"
+                          : "border-white/10 bg-white/5 text-white/60 hover:border-gold/30 hover:text-gold"
                       } disabled:opacity-50`}
                     >
                       {item.label}
@@ -914,7 +948,7 @@ const DailyForecast: React.FC = () => {
                 className="mt-4 min-h-20 w-full resize-none rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-white/25 focus:border-gold/40"
               />
               {feedbackStatus && (
-                <p className="mt-2 text-xs text-white/45">{feedbackStatus}</p>
+                <p role="status" className="mt-2 text-xs text-white/60">{feedbackStatus}</p>
               )}
             </section>
 

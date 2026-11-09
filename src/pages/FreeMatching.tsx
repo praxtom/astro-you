@@ -87,22 +87,25 @@ const normalizeMatchResponse = (data: any): MatchResult | null => {
 
 const PersonFormBlock = ({
   label,
+  idPrefix,
   person,
   onChange,
 }: {
   label: string;
+  idPrefix: string;
   person: PersonForm;
   onChange: (p: PersonForm) => void;
 }) => (
   <div className="space-y-4">
-    <h3 className="text-sm font-bold uppercase tracking-widest text-white/50">
+    <h2 className="text-sm font-bold uppercase tracking-widest text-white/50">
       {label}
-    </h3>
+    </h2>
     <div>
-      <label className="block text-sm text-white/60 mb-1.5">
+      <label htmlFor={`${idPrefix}-name`} className="block text-sm text-white/60 mb-1.5">
         Name (optional)
       </label>
       <input
+        id={`${idPrefix}-name`}
         type="text"
         value={person.name}
         onChange={(e) => onChange({ ...person, name: e.target.value })}
@@ -111,10 +114,11 @@ const PersonFormBlock = ({
       />
     </div>
     <div>
-      <label className="block text-sm text-white/60 mb-1.5">
+      <label htmlFor={`${idPrefix}-dob`} className="block text-sm text-white/60 mb-1.5">
         Date of Birth <span className="text-gold">*</span>
       </label>
       <input
+        id={`${idPrefix}-dob`}
         type="date"
         value={person.dob}
         onChange={(e) => onChange({ ...person, dob: e.target.value })}
@@ -122,10 +126,11 @@ const PersonFormBlock = ({
       />
     </div>
     <div>
-      <label className="block text-sm text-white/60 mb-1.5">
+      <label htmlFor={`${idPrefix}-tob`} className="block text-sm text-white/60 mb-1.5">
         Time of Birth
       </label>
       <input
+        id={`${idPrefix}-tob`}
         type="time"
         value={person.tob}
         onChange={(e) => onChange({ ...person, tob: e.target.value })}
@@ -133,8 +138,9 @@ const PersonFormBlock = ({
       />
     </div>
     <div>
-      <label className="block text-sm text-white/60 mb-1.5">Gender</label>
+      <label htmlFor={`${idPrefix}-gender`} className="block text-sm text-white/60 mb-1.5">Gender</label>
       <select
+        id={`${idPrefix}-gender`}
         value={person.gender}
         onChange={(e) =>
           onChange({
@@ -151,10 +157,11 @@ const PersonFormBlock = ({
       </select>
     </div>
     <div>
-      <label className="block text-sm text-white/60 mb-1.5">
+      <label htmlFor={`${idPrefix}-pob`} className="block text-sm text-white/60 mb-1.5">
         Place of Birth <span className="text-gold">*</span>
       </label>
       <LocationInput
+        inputId={`${idPrefix}-pob`}
         value={person.pob}
         onChange={(value) => onChange({ ...person, pob: value })}
         placeholder="Search for birth city..."
@@ -211,7 +218,7 @@ export default function FreeMatching() {
         } else {
           setError(
             (typeof compatData?.error === "string" && compatData.error) ||
-              "Something went wrong. Please try again.",
+              "We couldn't match these two charts just now. Check both birth dates, times and places, then try again in a minute.",
           );
         }
         return;
@@ -300,11 +307,13 @@ export default function FreeMatching() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <PersonFormBlock
                   label="Person 1"
+                  idPrefix="fm-p1"
                   person={person1}
                   onChange={setPerson1}
                 />
                 <PersonFormBlock
                   label="Person 2"
+                  idPrefix="fm-p2"
                   person={person2}
                   onChange={setPerson2}
                 />

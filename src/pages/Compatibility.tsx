@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import AuthModal from "../components/AuthModal";
 import { postJson } from "../lib/apiFetch";
 import {
   Heart,
@@ -226,9 +228,15 @@ function buildCompatibilitySummary(
   return lines.join("\n").slice(0, 1500);
 }
 
+/** Credits a compatibility match costs (server: feature-credits.ts). */
+const COMPATIBILITY_CREDIT_COST = 5;
+
 export default function Compatibility() {
   const { user } = useAuth();
-  const { birthData } = useUserProfile();
+  const { birthData, loading: profileLoading } = useUserProfile();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [needsCredits, setNeedsCredits] = useState(false);
+  const [needsProfile, setNeedsProfile] = useState(false);
   const [partnerData, setPartnerData] = useState<{
     name: string;
     dob: string;
@@ -237,8 +245,8 @@ export default function Compatibility() {
     gender: "" | "male" | "female" | "other";
   }>({
     name: "",
-    dob: "1995-01-01",
-    tob: "12:00",
+    dob: "",
+    tob: "",
     pob: "",
     gender: "",
   });
@@ -285,8 +293,29 @@ export default function Compatibility() {
     }
   }, [birthData]);
 
+  // Close the Inner Circle dialog on Escape.
+  useEffect(() => {
+    if (!circleOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setCircleOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [circleOpen]);
+
   const handleMatch = async () => {
-    if (!birthData) return;
+    setNeedsCredits(false);
+    setNeedsProfile(false);
+    if (!user) {
+      setError(null);
+      setShowAuthModal(true);
+      return;
+    }
+    if (!birthData?.dob) {
+      setError(null);
+      setNeedsProfile(true);
+      return;
+    }
 
     // No birth-place fallback. This used to default to "Mumbai, India", which
     // silently cast the user's own chart in the wrong city — a confidently
@@ -324,12 +353,34 @@ export default function Compatibility() {
         },
       });
 
-      const data = await response.json();
-      if (data.error) throw new Error(data.error);
+      if (response.status === 401 || response.status === 403) {
+        setShowAuthModal(true);
+        return;
+      }
+      if (response.status === 402) {
+        setNeedsCredits(true);
+        setError(
+          `A compatibility match costs ${COMPATIBILITY_CREDIT_COST} credits and your balance is too low. Top up your wallet to continue.`,
+        );
+        return;
+      }
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data || data.error) {
+        if (response.status === 400 && typeof data?.error === "string") {
+          // Input validation messages from the server are written for users.
+          throw new UserFacingError(data.error);
+        }
+        throw new Error(
+          `Compatibility failed: ${response.status} ${data?.error ?? ""}`,
+        );
+      }
       setMatchResult(data);
     } catch (err: any) {
+      console.error("Compatibility match failed:", err);
       setError(
-        err.message || "Failed to analyze compatibility. Please try again.",
+        err instanceof UserFacingError
+          ? err.message
+          : "We couldn't calculate this match. Check your connection and try again.",
       );
     } finally {
       setIsMatching(false);
@@ -358,7 +409,14 @@ export default function Compatibility() {
         ? null
         : await response.json().catch(() => null);
       if (!response.ok) {
-        throw new Error(errorPayload?.error || "Could not generate report");
+        if (response.status === 402) {
+          throw new UserFacingError(
+            "Your balance is too low for this PDF report. Top up your wallet to continue.",
+          );
+        }
+        throw new Error(
+          `Compatibility report failed: ${response.status} ${errorPayload?.error ?? ""}`,
+        );
       }
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
@@ -370,7 +428,11 @@ export default function Compatibility() {
       URL.revokeObjectURL(url);
     } catch (err: any) {
       console.error("Compatibility report error:", err);
-      setError(err.message || "Could not generate report.");
+      setError(
+        err instanceof UserFacingError
+          ? err.message
+          : "We couldn't generate the PDF report. Check your connection and try again.",
+      );
     } finally {
       setIsDownloadingReport(false);
     }
@@ -387,7 +449,7 @@ export default function Compatibility() {
           <h1 className="type-page-title mb-3">
             Celestial <span className="text-gold italic">Synchronicity</span>
           </h1>
-          <p className="text-white/40 font-sans text-base font-light max-w-2xl mx-auto italic">
+          <p className="text-white/60 font-sans text-base font-light max-w-2xl mx-auto italic">
             A professional-grade synthesis of Synastry and Composite dynamics to
             reveal the soul-level blueprint of your connection.
           </p>
@@ -422,26 +484,34 @@ export default function Compatibility() {
 
             <div className="space-y-3 relative z-10">
               <div className="space-y-1.5">
-                <label className="text-[10px] uppercase tracking-widest text-white/40 font-black ml-1">
+                <label
+                  htmlFor="partner-name"
+                  className="text-xs uppercase tracking-widest text-white/60 font-black ml-1"
+                >
                   Full Name
                 </label>
                 <input
+                  id="partner-name"
                   type="text"
                   value={partnerData.name}
                   onChange={(e) =>
                     setPartnerData({ ...partnerData, name: e.target.value })
                   }
                   placeholder="Partner's Name"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 font-sans text-white focus:outline-none focus:border-gold/30 transition-all placeholder:text-white/10"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 font-sans text-white focus:outline-none focus:border-gold/30 transition-all placeholder:text-white/40"
                 />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] uppercase tracking-widest text-white/40 font-black ml-1">
+                  <label
+                    htmlFor="partner-dob"
+                    className="text-xs uppercase tracking-widest text-white/60 font-black ml-1"
+                  >
                     Date of Birth
                   </label>
                   <input
+                    id="partner-dob"
                     type="date"
                     value={partnerData.dob}
                     onChange={(e) =>
@@ -451,10 +521,14 @@ export default function Compatibility() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] uppercase tracking-widest text-white/40 font-black ml-1">
+                  <label
+                    htmlFor="partner-tob"
+                    className="text-xs uppercase tracking-widest text-white/60 font-black ml-1"
+                  >
                     Time of Birth
                   </label>
                   <input
+                    id="partner-tob"
                     type="time"
                     value={partnerData.tob}
                     onChange={(e) =>
@@ -468,7 +542,7 @@ export default function Compatibility() {
               <div className="space-y-1.5">
                 <label
                   htmlFor="partner-gender"
-                  className="text-[10px] uppercase tracking-widest text-white/40 font-black ml-1"
+                  className="text-xs uppercase tracking-widest text-white/60 font-black ml-1"
                 >
                   Gender
                 </label>
@@ -491,10 +565,14 @@ export default function Compatibility() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] uppercase tracking-widest text-white/40 font-black ml-1">
+                <label
+                  htmlFor="partner-pob"
+                  className="text-xs uppercase tracking-widest text-white/60 font-black ml-1"
+                >
                   Place of Birth
                 </label>
                 <LocationInput
+                  inputId="partner-pob"
                   value={partnerData.pob}
                   onChange={(val) =>
                     setPartnerData({ ...partnerData, pob: val })
@@ -510,15 +588,48 @@ export default function Compatibility() {
                 />
               </div>
 
+              {!profileLoading && !user && (
+                <p className="text-sm text-white/60">
+                  Sign in to run a match. Your own birth chart is the other
+                  half of the comparison.
+                </p>
+              )}
+
+              {needsProfile && (
+                <div role="alert" className="p-4 rounded-xl bg-white/5 border border-white/10 text-sm text-white/75">
+                  Add your own birth details first — a match compares your
+                  chart with your partner's.{" "}
+                  <Link to="/onboarding" className="font-bold text-gold underline-offset-4 hover:underline">
+                    Create your birth profile
+                  </Link>
+                </div>
+              )}
+
               {error && (
-                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm animate-shake">
+                <div role="alert" className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-200 text-sm animate-shake">
                   {error}
+                  {needsCredits && (
+                    <>
+                      {" "}
+                      <Link to="/wallet" className="font-bold text-gold underline-offset-4 hover:underline">
+                        Open wallet
+                      </Link>
+                    </>
+                  )}
                 </div>
               )}
 
               <button
+                type="button"
                 onClick={handleMatch}
-                disabled={isMatching || !partnerData.name || !partnerData.pob}
+                disabled={
+                  isMatching ||
+                  profileLoading ||
+                  !partnerData.name.trim() ||
+                  !partnerData.dob ||
+                  !partnerData.tob ||
+                  !partnerData.pob
+                }
                 className="w-full py-3 mt-2 bg-white text-black font-display font-bold rounded-xl hover:bg-gold hover:text-black transition-all active:scale-95 shadow-[0_0_30px_rgba(255,255,255,0.1)] disabled:opacity-50 disabled:cursor-not-allowed group relative overflow-hidden"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-white via-gold/20 to-white opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
@@ -529,7 +640,9 @@ export default function Compatibility() {
                   </span>
                 ) : (
                   <span className="flex items-center justify-center gap-2 relative z-10">
-                    Calculate Compatibility
+                    {user
+                      ? `Calculate Compatibility · ${COMPATIBILITY_CREDIT_COST} credits`
+                      : "Sign in to calculate"}
                     <ChevronRight
                       size={18}
                       className="group-hover:translate-x-1 transition-transform"
@@ -981,7 +1094,7 @@ export default function Compatibility() {
             <div className="text-center pt-8">
               <button
                 onClick={() => setMatchResult(null)}
-                className="text-white/20 hover:text-white flex items-center gap-2 mx-auto transition-colors font-sans text-xs tracking-widest uppercase"
+                className="min-h-11 text-white/60 hover:text-white flex items-center gap-2 mx-auto transition-colors font-sans text-xs tracking-widest uppercase"
               >
                 Reset Analysis
               </button>
@@ -1005,12 +1118,14 @@ export default function Compatibility() {
           >
             <button
               onClick={() => setCircleOpen(false)}
-              className="absolute right-4 top-4 text-white/40 hover:text-white"
+              type="button"
+              autoFocus
+              className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center text-white/60 hover:text-white"
               aria-label="Close"
             >
               <X size={20} />
             </button>
-            <p className="mb-5 pr-8 text-xs leading-relaxed text-white/45">
+            <p className="mb-5 pr-8 text-xs leading-relaxed text-white/60">
               The people you add here give your readings and chats context about
               who matters in your life. You can edit or remove them any time.
             </p>
@@ -1026,9 +1141,19 @@ export default function Compatibility() {
           </div>
         </div>
       )}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={() => setShowAuthModal(false)}
+        title="Sign in to check compatibility"
+        message={`A match compares your birth chart with your partner's and costs ${COMPATIBILITY_CREDIT_COST} credits.`}
+      />
     </PageShell>
   );
 }
+
+/** An error whose message is already written for the user. */
+class UserFacingError extends Error {}
 
 function ScoreMetric({
   label,

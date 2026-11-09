@@ -120,12 +120,12 @@ const SadhanaPathGenerator: React.FC = () => {
         <div className="space-y-4">
             {!path && !loading && (
                 <div className="text-center py-4">
-                    <p className="text-xs text-white/40 mb-3 italic">"Align your energy with a 3-day spiritual map tailored to your soul's current vibration."</p>
+                    <p className="text-xs text-white/60 mb-3 italic">"Align your energy with a 3-day spiritual map tailored to your soul's current vibration."</p>
                     <button
                         onClick={generatePath}
                         className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-xs font-medium transition-colors shadow-lg shadow-violet-900/20"
                     >
-                        Reveal My Path
+                        Create my 3-day plan
                     </button>
                 </div>
             )}
@@ -273,16 +273,17 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
             <div className="bg-white/5 rounded-2xl border border-white/10 p-4">
                 <div className="flex items-center gap-2 text-gold mb-3">
                     <PenTool size={16} />
-                    <h4 className="text-sm font-display uppercase tracking-widest">Journal Entry</h4>
+                    <h4 id="journal-entry-label" className="text-sm font-display uppercase tracking-widest">Journal Entry</h4>
                 </div>
                 <textarea
+                    aria-labelledby="journal-entry-label"
                     value={journalText}
                     onChange={(event) => setJournalText(event.target.value)}
                     placeholder="Write what happened, how you felt, or what you are noticing..."
                     className="w-full min-h-24 rounded-xl bg-black/20 border border-white/10 px-4 py-3 text-sm text-white/80 outline-none focus:border-gold/40 resize-none placeholder:text-white/25"
                 />
                 <div className="flex items-center justify-between mt-3 gap-3">
-                    <p className="text-xs text-white/35">
+                    <p className="text-xs text-white/55">
                         Nothing is saved to memory until you accept it.
                     </p>
                     <button
@@ -295,15 +296,16 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                 </div>
                 {journalInsights.length > 0 && (
                     <div className="mt-4 space-y-2">
-                        <p className="text-xs uppercase tracking-widest text-white/35">
+                        <p className="text-xs uppercase tracking-widest text-white/55">
                             What I noticed about you
                         </p>
                         {journalInsights.map((insight) => (
                             <div key={insight.id} className="rounded-xl border border-white/10 bg-black/20 p-3">
-                                <p className="text-[10px] uppercase tracking-widest text-white/30 mb-2">
+                                <p className="text-[10px] uppercase tracking-widest text-white/55 mb-2">
                                     {insight.type === 'pattern' ? 'Pattern' : 'Life Event'}
                                 </p>
                                 <input
+                                    aria-label={insight.type === 'pattern' ? 'Edit pattern' : 'Edit life event'}
                                     value={insight.text}
                                     onChange={(event) => updateInsightText(insight.id, event.target.value)}
                                     className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-gold/40"
@@ -311,7 +313,7 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                                 <div className="flex justify-end gap-2 mt-3">
                                     <button
                                         onClick={() => rejectInsight(insight.id)}
-                                        className="px-3 py-1.5 rounded-lg border border-white/10 text-white/45 text-xs"
+                                        className="px-3 py-1.5 rounded-lg border border-white/10 text-white/60 text-xs"
                                     >
                                         Reject
                                     </button>

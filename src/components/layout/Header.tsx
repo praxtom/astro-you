@@ -336,6 +336,7 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                       onClick={() => navigate("/")}
                       className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-white/40 hover:text-white"
                       title="Exit to Landing"
+                      aria-label="Exit to landing page"
                     >
                       <LogOut size={16} />
                     </button>
@@ -355,7 +356,7 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
           {/* Mobile Menu Toggle */}
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="lg:hidden w-10 h-10 flex items-center justify-center rounded-full bg-white/5 border border-white/10 text-white z-[1001]"
+            className="lg:hidden w-11 h-11 flex items-center justify-center rounded-full bg-white/5 border border-white/10 text-white z-[1001]"
             aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
             aria-expanded={isMobileMenuOpen}
           >
@@ -366,6 +367,8 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
 
       {/* Mobile Menu Overlay */}
       <div
+        inert={!isMobileMenuOpen}
+        aria-hidden={!isMobileMenuOpen}
         className={`fixed inset-0 z-[999] bg-[#030308]/95 backdrop-blur-3xl transition-all duration-500 flex flex-col items-center justify-center gap-6 ${
           isMobileMenuOpen
             ? "opacity-100 pointer-events-auto"

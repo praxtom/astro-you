@@ -304,7 +304,7 @@ export default function Synthesis() {
   const [birthData, setBirthData] = useState<any>(null);
   // Active paid subscribers get unmetered chat server-side, so the client must
   // not paywall them at 0 credits (it would contradict the "unlimited" promise).
-  const { isSubscribed } = useSubscription();
+  const { isSubscribed, loading: subscriptionLoading } = useSubscription();
 
   // Atman Integration
   const { isAnxious, isChaotic, isReactive, atmanState, refreshAtman } =
@@ -1124,9 +1124,15 @@ export default function Synthesis() {
       return;
     }
 
+    // Skip the credit gate until the balance has actually loaded: a fast
+    // first send must not read the pre-snapshot 0 as "out of credits". The
+    // server charges before generation, so it still enforces the balance.
     const isOutOfTime = !user
       ? secondsUsed >= FREE_LIMIT_SECONDS
-      : credits <= 0 && !isSubscribed;
+      : !isLoadingProfile &&
+        !subscriptionLoading &&
+        credits <= 0 &&
+        !isSubscribed;
 
     if (isOutOfTime) {
       if (!user) setShowAuthModal(true);
@@ -1988,7 +1994,7 @@ export default function Synthesis() {
                     <button
                       type="button"
                       onClick={openBreathing}
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-white/35 transition-colors hover:bg-white/5 hover:text-gold"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white/60 transition-colors hover:bg-white/5 hover:text-gold"
                       title="Breathe"
                       aria-label="Take a slow breath"
                     >
@@ -2000,11 +2006,12 @@ export default function Synthesis() {
                       onToggle={toggleDictation}
                     />
                     <button
+                      type="button"
                       onClick={() => void handleSend()}
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-colors ${
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors ${
                         input.trim()
                           ? "bg-gold/90 text-black hover:bg-gold"
-                          : "text-white/20"
+                          : "text-white/30"
                       }`}
                       disabled={
                         isSynthesizing ||
