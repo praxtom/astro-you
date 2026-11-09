@@ -55,4 +55,4 @@ Purchased credits remain in the wallet. Subscription credits refresh monthly.
 - Daily Panchang
 - 15 starter credits, no card required
 
-Human-readable pricing: https://astroyou.app/pricing
+Human-readable pricing: https://astroyou.netlify.app/pricing

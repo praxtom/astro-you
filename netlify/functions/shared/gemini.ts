@@ -23,7 +23,7 @@ import {
  * Gemini model id. Overridable via the GEMINI_MODEL env var so it can be
  * swapped without a code deploy. Verified live against the Gemini API.
  */
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
 
 /** Per-call HTTP timeout for the small post-processing (side) calls. */
 export const SIDE_CALL_TIMEOUT_MS = 12_000;

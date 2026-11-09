@@ -33,4 +33,4 @@ Disallow: /api/
 Disallow: /.netlify/functions/
 
 # Sitemap
-Sitemap: https://astroyou.app/sitemap.xml
+Sitemap: https://astroyou.netlify.app/sitemap.xml

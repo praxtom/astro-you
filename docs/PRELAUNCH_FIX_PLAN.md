@@ -20,7 +20,7 @@ Recommend a shared helper `requireAuth(req)` and `requireAuthBody(body)` extract
 
 ### 0.1 — Verify the Gemini model id · `T2-B1`
 
-- **Do:** Make one live call with `gemini-3.1-flash-lite-preview` against the production `GEMINI_API_KEY` (a `scripts/` one-off or `curl`). If it 404s / errors, pick a valid current model.
+- **Do:** Make one live call with `gemini-flash-lite-latest` against the production `GEMINI_API_KEY` (a `scripts/` one-off or `curl`). If it 404s / errors, pick a valid current model.
 - **Then:** Replace all 14 hard-coded usages in `shared/gemini.ts` with `const GEMINI_MODEL = process.env.GEMINI_MODEL_ID ?? "<verified-id>"`. Set `GEMINI_MODEL_ID` in Netlify env.
 - **Accept:** A real synthesis call streams tokens end-to-end in a deployed/preview context.
 - ⛔ **If this fails, stop — there is no product until it's resolved.**
