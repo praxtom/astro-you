@@ -44,7 +44,7 @@ export default function HumanDesign() {
 
   return (
     <PageShell>
-        <h1 className="text-3xl md:text-4xl font-display mb-2 flex items-center gap-3">
+        <h1 className="type-page-title mb-2 flex items-center gap-3">
           <Hexagon size={28} className="text-gold" /> Human Design
         </h1>
         <p className="text-white/50 mb-8">Discover your energetic blueprint</p>

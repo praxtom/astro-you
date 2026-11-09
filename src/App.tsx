@@ -1,9 +1,8 @@
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { Suspense, lazy, useEffect } from "react";
+import { lazy, useEffect } from "react";
 import { SPACES, getSpacePrimaryPath } from "./lib/spaces";
-import { AnimatePresence } from "framer-motion";
 import ErrorBoundary from "./components/ErrorBoundary";
-import PageTransition from "./components/layout/PageTransition";
+import { AppFrame, Standalone } from "./components/layout/AppFrame";
 import { OfflineIndicator } from "./lib/OfflineIndicator";
 import { InstallPrompt } from "./components/InstallPrompt";
 import { trackAcquisitionEvent } from "./lib/acquisition";
@@ -64,473 +63,71 @@ function App() {
     });
   }, [location.pathname]);
 
-  // Use base path for animation key so /synthesis and /synthesis/:id don't trigger transitions
-  const getAnimationKey = (pathname: string) => {
-    const segments = pathname.split("/").filter(Boolean);
-    // A consult chat is a per-guide, per-sitting surface: hopping straight from
-    // one guide's sitting to another must remount, or the new guide inherits the
-    // previous transcript and the old session never gets its unmount cleanup.
-    if (segments[0] === "consult" && segments[2] === "chat") {
-      return `/consult/${segments[1]}/chat`;
-    }
-    // For paths like /synthesis/abc123, use just /synthesis as the key
-    return "/" + (segments[0] || "");
-  };
-
   return (
     <ErrorBoundary>
       {publicMeta ? <SEO title={publicMeta.title} description={publicMeta.description} /> :
         isPrivateRoute(location.pathname) ? <SEO title="Your AstroYou Account" noindex /> : null}
-      {/* Main content with id for skip link */}
-      <main id="main-content">
-        <AnimatePresence mode="wait">
-          <Routes location={location} key={getAnimationKey(location.pathname)}>
-            <Route path="/explore" element={<Suspense fallback={null}><Explore /></Suspense>} />
-            {/* Space aliases: /today /guidance /chart /bonds /path land on
-                each space's primary page. */}
-            {SPACES.map((space) => (
-              <Route
-                key={space.id}
-                path={`/${space.id}`}
-                element={<Navigate to={getSpacePrimaryPath(space)} replace />}
-              />
-            ))}
+      <Routes>
+        {/* Full-screen pages with their own chrome. */}
+        <Route path="/" element={<Standalone><Landing /></Standalone>} />
+        <Route path="/onboarding" element={<Standalone><Onboarding /></Standalone>} />
+        <Route path="/synthesis/:id?" element={<Standalone><Synthesis /></Standalone>} />
+        <Route path="/consult/:personaId/chat" element={<Standalone><ConsultChat /></Standalone>} />
+        {/* Everything else shares one frame: header, sky and footer render once. */}
+        <Route element={<AppFrame />}>
+          {/* Space aliases: /today /guidance /chart /bonds /path land on
+              each space's primary page. */}
+          {SPACES.map((space) => (
             <Route
-              path="/"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <Landing />
-                  </Suspense>
-                </PageTransition>
-              }
+              key={space.id}
+              path={`/${space.id}`}
+              element={<Navigate to={getSpacePrimaryPath(space)} replace />}
             />
-            <Route
-              path="/onboarding"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <Onboarding />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/synthesis/:id?"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <Synthesis />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/dashboard"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <Dashboard />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/transit"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <TransitOracle />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/forecast"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <DailyForecast />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/compatibility"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <Compatibility />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/consult"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <Consult />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/consult/:personaId"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <ConsultProfile />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/consult/:personaId/profile"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <ConsultProfile />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/consult/:personaId/chat"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <ConsultChat />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/free-kundali"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <FreeKundali />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/free-kundali-matching"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <FreeMatching />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/panchang"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <PanchangSeo />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/panchang/:date"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <PanchangSeo />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/muhurat"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <MuhuratSeo />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/muhurat/:category"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <MuhuratSeo />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            {SEO_CONTENT_PAGES.map(({ slug }) => (
-              <Route
-                key={slug}
-                path={`/${slug}`}
-                element={
-                  <PageTransition>
-                    <Suspense fallback={null}>
-                      <SeoContentPage slug={slug} />
-                    </Suspense>
-                  </PageTransition>
-                }
-              />
-            ))}
-            <Route
-              path="/help"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <Help />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/numerology"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <Numerology />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/tarot"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <Tarot />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/eclipses"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <Eclipses />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/astromap"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <AstroMap />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/wellness"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <Wellness />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/human-design"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <HumanDesign />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/advanced-vedic"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <AdvancedVedic />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/pricing"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <Pricing />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/wallet"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <Wallet />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/reports"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <Reports />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/remedies"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <Remedies />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/support"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <Support />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/trust"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <Trust />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/experts/apply"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <ExpertApply />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <Settings />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/settings/subscription"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <Settings />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/admin"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <Admin />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/privacy"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <PrivacyPolicy />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/terms"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <Terms />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/refund-policy"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <RefundPolicy />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/disclaimer"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <Disclaimer />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/horoscope/:sign/:period"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <SignHoroscope />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="/horoscope/:sign"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <SignHoroscope />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-            <Route
-              path="*"
-              element={
-                <PageTransition>
-                  <Suspense fallback={null}>
-                    <NotFound />
-                  </Suspense>
-                </PageTransition>
-              }
-            />
-          </Routes>
-        </AnimatePresence>
-      </main>
+          ))}
+          <Route path="/explore" element={<Explore />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/transit" element={<TransitOracle />} />
+          <Route path="/forecast" element={<DailyForecast />} />
+          <Route path="/compatibility" element={<Compatibility />} />
+          <Route path="/consult" element={<Consult />} />
+          <Route path="/consult/:personaId" element={<ConsultProfile />} />
+          <Route path="/consult/:personaId/profile" element={<ConsultProfile />} />
+          <Route path="/free-kundali" element={<FreeKundali />} />
+          <Route path="/free-kundali-matching" element={<FreeMatching />} />
+          <Route path="/panchang" element={<PanchangSeo />} />
+          <Route path="/panchang/:date" element={<PanchangSeo />} />
+          <Route path="/muhurat" element={<MuhuratSeo />} />
+          <Route path="/muhurat/:category" element={<MuhuratSeo />} />
+          <Route path="/help" element={<Help />} />
+          <Route path="/numerology" element={<Numerology />} />
+          <Route path="/tarot" element={<Tarot />} />
+          <Route path="/eclipses" element={<Eclipses />} />
+          <Route path="/astromap" element={<AstroMap />} />
+          <Route path="/wellness" element={<Wellness />} />
+          <Route path="/human-design" element={<HumanDesign />} />
+          <Route path="/advanced-vedic" element={<AdvancedVedic />} />
+          <Route path="/pricing" element={<Pricing />} />
+          <Route path="/wallet" element={<Wallet />} />
+          <Route path="/reports" element={<Reports />} />
+          <Route path="/remedies" element={<Remedies />} />
+          <Route path="/support" element={<Support />} />
+          <Route path="/trust" element={<Trust />} />
+          <Route path="/experts/apply" element={<ExpertApply />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/settings/subscription" element={<Settings />} />
+          <Route path="/admin" element={<Admin />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/refund-policy" element={<RefundPolicy />} />
+          <Route path="/disclaimer" element={<Disclaimer />} />
+          <Route path="/horoscope/:sign/:period" element={<SignHoroscope />} />
+          <Route path="/horoscope/:sign" element={<SignHoroscope />} />
+          {SEO_CONTENT_PAGES.map(({ slug }) => (
+            <Route key={slug} path={`/${slug}`} element={<SeoContentPage slug={slug} />} />
+          ))}
+          <Route path="*" element={<NotFound />} />
+        </Route>
+      </Routes>
 
       {/* Global offline indicator */}
       <OfflineIndicator />

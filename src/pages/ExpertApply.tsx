@@ -7,7 +7,6 @@ import {
   ShieldCheck,
   UserCheck,
 } from "lucide-react";
-import Header from "../components/layout/Header";
 import { trackAcquisitionEvent } from "../lib/acquisition";
 
 const LANGUAGE_OPTIONS = ["Hindi", "English", "Tamil", "Telugu", "Bengali", "Marathi", "Kannada", "Gujarati"];
@@ -98,9 +97,8 @@ export default function ExpertApply() {
   };
 
   return (
-    <div className="min-h-screen bg-[#030308] text-white">
-      <Header />
-      <main className="platform-main">
+    <div>
+      <div className="platform-main">
         <button
           onClick={() => navigate(-1)}
           className="mb-4 inline-flex items-center gap-2 text-sm text-white/40 hover:text-white"
@@ -230,7 +228,7 @@ export default function ExpertApply() {
             </section>
           </aside>
         </section>
-      </main>
+      </div>
     </div>
   );
 }

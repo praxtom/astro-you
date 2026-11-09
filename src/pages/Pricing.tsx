@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, Check, Loader2, Wallet } from "lucide-react";
-import Header from "../components/layout/Header";
 import { useAuth } from "../lib/useAuth";
 import {
   CREDIT_PACKS,
@@ -80,9 +79,8 @@ export default function Pricing() {
   };
 
   return (
-    <div className="min-h-screen bg-[#030308] text-white">
-      <Header />
-      <main className="platform-main">
+    <div>
+      <div className="platform-main">
         {/* Currency — the choice persists on the profile, so signed-in only. */}
         {user && SUPPORTED_CURRENCIES.length > 1 && (
           <div className="mb-4 flex items-center justify-end gap-2">
@@ -266,7 +264,7 @@ export default function Pricing() {
             </div>
           </div>
         </section>
-      </main>
+      </div>
     </div>
   );
 }

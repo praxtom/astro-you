@@ -142,7 +142,7 @@ function HoroscopeReading({ sign, period = "daily", route }: {
   ];
 
   return (
-    <div className="min-h-screen bg-[#030308] text-white p-6">
+    <div>
       <SEO
         title={route.title}
         description={content.description}
@@ -151,7 +151,7 @@ function HoroscopeReading({ sign, period = "daily", route }: {
         type="article"
         structuredData={structuredData}
       />
-      <div className="max-w-2xl mx-auto pt-8">
+      <div className="max-w-2xl mx-auto px-4 pt-28 pb-16">
         <Link
           to="/free-kundali"
           className="flex items-center gap-2 text-white/40 hover:text-white mb-8 text-sm"
@@ -161,7 +161,7 @@ function HoroscopeReading({ sign, period = "daily", route }: {
 
         <div className="text-center mb-8">
           <span className="text-5xl">{content.sign.symbol}</span>
-          <h1 className="text-3xl font-display mt-4">
+          <h1 className="type-page-title mt-4">
             {route.title}
           </h1>
           <p className="text-white/40 text-sm mt-2">

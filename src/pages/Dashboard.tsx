@@ -25,7 +25,6 @@ import { parseStoredJSON } from "../lib/safeStorage";
 import SectionErrorBoundary from "../components/SectionErrorBoundary";
 import { useErrorToast } from "../components/ui/toast-context";
 
-import Header from "../components/layout/Header";
 import OnboardingModal from "../components/OnboardingModal";
 import ChartShareModal from "../components/ChartShareModal";
 import { DailyAltar } from "../components/sadhana/DailyAltar";
@@ -55,13 +54,11 @@ import { FestivalCard } from "../components/dashboard/FestivalCard";
 import { SoulInsightCard } from "../components/dashboard/SoulInsightCard";
 import { DashaTimeline } from "../components/astrology/DashaTimeline";
 import { TextAction, Tile } from "../components/dashboard/primitives";
-import { NightSky } from "../components/layout/NightSky";
 
 function DashboardSkeleton() {
   return (
-    <div className="min-h-screen bg-bg-app text-white">
-      <Header onShowOnboarding={() => {}} />
-      <main className="container mx-auto pt-28 px-6 pb-12 max-w-6xl">
+    <div>
+      <div className="container mx-auto pt-28 px-6 pb-12 max-w-6xl">
         <div className="h-3 w-40 bg-white/5 rounded animate-pulse" />
         <div className="mt-6 h-16 w-72 bg-white/5 rounded-xl animate-pulse" />
         <div className="mt-8 h-px bg-white/8" />
@@ -81,7 +78,7 @@ function DashboardSkeleton() {
             <div className="h-56 bg-white/3 rounded-2xl animate-pulse" />
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
@@ -276,11 +273,9 @@ export default function Dashboard() {
   if (isLoading) return <DashboardSkeleton />;
 
   return (
-    <div className="min-h-screen bg-bg-app text-white selection:bg-gold/30">
-      <NightSky />
-      <Header onShowOnboarding={() => setShowOnboardingModal(true)} />
+    <div>
 
-      <main className="container mx-auto pt-28 px-6 pb-16 relative z-10 max-w-6xl">
+      <div className="container mx-auto pt-28 px-6 pb-16 relative z-10 max-w-6xl">
         <HeroAlmanac
           name={displayName}
           emotionalState={atmanState?.emotionalState}
@@ -448,7 +443,7 @@ export default function Dashboard() {
             </Tile>
           </div>
         </SectionErrorBoundary>
-      </main>
+      </div>
 
       <footer className="container mx-auto max-w-6xl px-6 py-8 border-t border-white/5 relative z-10">
         <p className="text-[0.65rem] uppercase tracking-[0.3em] text-white/50">

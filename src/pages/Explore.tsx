@@ -15,7 +15,7 @@ export default function Explore() {
   ];
   return <PageShell noTabs>
     <SEO title="Explore Astrology Tools & Guides" description="Browse AstroYou’s birth chart tools, astrology guides, horoscopes and daily Panchang pages." />
-    <h1 className="font-display text-4xl mb-6">Explore AstroYou</h1>
+    <h1 className="type-page-title mb-6">Explore AstroYou</h1>
     <p className="text-white/60 mb-8">Find a tool, learn about your chart, or check Panchang for your chosen date.</p>
     <nav aria-label="All tools and guides" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {[...new Map(links.map(link => [link.path, link])).values()].map(link =>

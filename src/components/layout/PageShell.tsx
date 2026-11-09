@@ -1,36 +1,62 @@
-import { Link } from "react-router-dom";
 import React from "react";
-import Header from "./Header";
-import { NightSky } from "./NightSky";
 import { SpaceTabs } from "./SpaceTabs";
 
+const WIDTHS = {
+  /** Long-form reading: policies, guides, settings, forms. */
+  reading: "max-w-4xl",
+  /** Default for tools and app pages. */
+  default: "max-w-6xl",
+  /** Data-heavy pages that need room (charts, comparisons). */
+  wide: "max-w-7xl",
+} as const;
+
 /**
- * The Ephemeris page frame: night sky, header, space tabs, and a consistent
- * content container. Wrap a page's content in this to make it feel like the
- * rest of the app.
+ * Standard page container. The header, night sky and footer come from
+ * AppFrame (rendered once for every page); this only sets the content width,
+ * the space under the fixed header, and the space tabs.
  */
 export const PageShell: React.FC<{
   children: React.ReactNode;
-  /** Hide the space tabs (e.g. on immersive or standalone pages). */
+  /** Hide the space tabs (e.g. on standalone or public pages). */
   noTabs?: boolean;
+  /** @deprecated use width="wide" */
   wide?: boolean;
-}> = ({ children, noTabs = false, wide = false }) => (
-  <div className="min-h-screen bg-bg-app text-white selection:bg-gold/30">
-    <NightSky />
-    <Header />
-    <main
-      className={`container mx-auto pt-28 px-6 pb-16 relative z-10 ${
-        wide ? "max-w-7xl" : "max-w-6xl"
-      }`}
-    >
-      {!noTabs && <SpaceTabs />}
-      {children}
-    </main>
-    <footer className="container mx-auto max-w-6xl px-6 py-8 border-t border-white/5 relative z-10">
-      <Link to="/explore" className="text-sm text-gold">All tools and guides</Link>
-      <p className="text-[0.6rem] uppercase tracking-[0.35em] text-white/20">
-        As above, so below
-      </p>
-    </footer>
+  width?: keyof typeof WIDTHS;
+  className?: string;
+}> = ({ children, noTabs = false, wide = false, width, className = "" }) => (
+  <div
+    className={`container mx-auto px-4 sm:px-6 pt-28 pb-16 ${
+      WIDTHS[width ?? (wide ? "wide" : "default")]
+    } ${className}`}
+  >
+    {!noTabs && <SpaceTabs />}
+    {children}
   </div>
+);
+
+/**
+ * The one page-title block: optional small label, display-serif title, and a
+ * single line of description. Actions (buttons) can sit on the right.
+ */
+export const PageTitle: React.FC<{
+  title: React.ReactNode;
+  eyebrow?: React.ReactNode;
+  description?: React.ReactNode;
+  actions?: React.ReactNode;
+  className?: string;
+}> = ({ title, eyebrow, description, actions, className = "" }) => (
+  <header
+    className={`mb-8 flex flex-wrap items-end justify-between gap-x-6 gap-y-4 ${className}`}
+  >
+    <div className="min-w-0 max-w-3xl">
+      {eyebrow && <p className="platform-eyebrow mb-2">{eyebrow}</p>}
+      <h1 className="type-page-title">{title}</h1>
+      {description && (
+        <p className="mt-3 max-w-2xl text-base leading-relaxed text-white/60 md:text-[1.05rem]">
+          {description}
+        </p>
+      )}
+    </div>
+    {actions && <div className="shrink-0">{actions}</div>}
+  </header>
 );

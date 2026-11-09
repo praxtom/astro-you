@@ -9,7 +9,6 @@ import {
   MapPin,
   Sparkles,
 } from "lucide-react";
-import Header from "../components/layout/Header";
 import SEO from "../components/SEO";
 import {
   captureAcquisitionSource,
@@ -101,7 +100,7 @@ function PanchangTool({ route }: { route: NonNullable<ReturnType<typeof panchang
   };
 
   return (
-    <div className="min-h-screen bg-[#030308] text-white">
+    <div>
       <SEO
         title={route.title}
         description={`Check ${route.date || "today’s"} Panchang: tithi, nakshatra, sunrise, sunset, Rahu Kaal and auspicious timings for your city.`}
@@ -109,14 +108,13 @@ function PanchangTool({ route }: { route: NonNullable<ReturnType<typeof panchang
         canonical={siteUrl(route.path)}
         structuredData={structuredData}
       />
-      <Header />
-      <main className="container mx-auto max-w-5xl px-6 pt-28 pb-20">
+      <div className="container mx-auto max-w-5xl px-6 pt-28 pb-20">
         <div className="mb-10 text-center">
           <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-gold/20 bg-gold/10 px-4 py-2 text-xs font-bold uppercase tracking-widest text-gold">
             <Calendar size={14} />
             Free Panchang
           </div>
-          <h1 className="font-display text-4xl md:text-5xl">{route.title}</h1>
+          <h1 className="type-page-title">{route.title}</h1>
           <p className="mx-auto mt-4 max-w-2xl text-white/55">
             Get tithi, nakshatra, yoga, karana, sunrise, sunset, Rahu Kaal, and
             daily auspicious timing in under a minute.
@@ -241,7 +239,7 @@ function PanchangTool({ route }: { route: NonNullable<ReturnType<typeof panchang
             Ask For Today Guidance
           </Link>
         </section>
-      </main>
+      </div>
     </div>
   );
 }

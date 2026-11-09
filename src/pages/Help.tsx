@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ChevronDown, HelpCircle, LifeBuoy, ArrowLeft } from "lucide-react";
+import { ChevronDown, HelpCircle, LifeBuoy } from "lucide-react";
 
 const FAQS = [
   {
@@ -62,21 +62,9 @@ export default function Help() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#030308] text-white">
-      {/* Background */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-violet-500/5 rounded-full blur-[120px]" />
-      </div>
+    <div>
 
-      <div className="relative z-10 px-4 py-12 sm:py-20 max-w-2xl mx-auto">
-        {/* Back link */}
-        <Link
-          to="/dashboard"
-          className="inline-flex items-center gap-1.5 text-sm text-white/40 hover:text-white/60 transition-colors mb-8"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Dashboard
-        </Link>
+      <div className="relative z-10 px-4 pt-28 pb-16 max-w-2xl mx-auto">
 
         {/* Header */}
         <motion.div
@@ -86,10 +74,10 @@ export default function Help() {
           className="text-center mb-12"
         >
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-white/60 text-sm mb-6">
-            <HelpCircle className="w-3.5 h-3.5 text-violet-400" />
+            <HelpCircle className="w-3.5 h-3.5 text-gold" />
             Help Center
           </div>
-          <h1 className="text-4xl sm:text-5xl font-display font-semibold bg-gradient-to-b from-white to-white/60 bg-clip-text text-transparent mb-3">
+          <h1 className="type-page-title mb-3">
             Frequently Asked Questions
           </h1>
           <p className="text-white/50 text-lg">

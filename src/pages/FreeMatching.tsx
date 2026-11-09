@@ -107,18 +107,18 @@ const PersonFormBlock = ({
         value={person.name}
         onChange={(e) => onChange({ ...person, name: e.target.value })}
         placeholder="Name"
-        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-transparent transition-all"
+        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-transparent transition-all"
       />
     </div>
     <div>
       <label className="block text-sm text-white/60 mb-1.5">
-        Date of Birth <span className="text-amber-400">*</span>
+        Date of Birth <span className="text-gold">*</span>
       </label>
       <input
         type="date"
         value={person.dob}
         onChange={(e) => onChange({ ...person, dob: e.target.value })}
-        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-transparent transition-all [color-scheme:dark]"
+        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-transparent transition-all [color-scheme:dark]"
       />
     </div>
     <div>
@@ -129,7 +129,7 @@ const PersonFormBlock = ({
         type="time"
         value={person.tob}
         onChange={(e) => onChange({ ...person, tob: e.target.value })}
-        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-transparent transition-all [color-scheme:dark]"
+        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-transparent transition-all [color-scheme:dark]"
       />
     </div>
     <div>
@@ -142,7 +142,7 @@ const PersonFormBlock = ({
             gender: e.target.value as PersonForm["gender"],
           })
         }
-        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-transparent transition-all [color-scheme:dark]"
+        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-transparent transition-all [color-scheme:dark]"
       >
         <option value="">Prefer not to say</option>
         <option value="female">Female</option>
@@ -152,13 +152,13 @@ const PersonFormBlock = ({
     </div>
     <div>
       <label className="block text-sm text-white/60 mb-1.5">
-        Place of Birth <span className="text-amber-400">*</span>
+        Place of Birth <span className="text-gold">*</span>
       </label>
       <LocationInput
         value={person.pob}
         onChange={(value) => onChange({ ...person, pob: value })}
         placeholder="Search for birth city..."
-        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-transparent transition-all"
+        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-transparent transition-all"
       />
     </div>
   </div>
@@ -259,7 +259,7 @@ export default function FreeMatching() {
   };
 
   return (
-    <div className="min-h-screen bg-[#030308] text-white">
+    <div>
       <SEO
         title="Free Kundali Matching Online | Guna Milan Calculator"
         description="Check Kundali matching and Guna Milan score for free. See compatibility score and Ashtakoot analysis with no signup required."
@@ -267,13 +267,8 @@ export default function FreeMatching() {
         canonical={siteUrl("/free-kundali-matching")}
         structuredData={structuredData}
       />
-      {/* Cosmic background */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-1/4 left-1/3 w-[500px] h-[500px] bg-pink-500/5 rounded-full blur-[120px]" />
-        <div className="absolute bottom-1/4 right-1/3 w-[400px] h-[400px] bg-amber-500/5 rounded-full blur-[100px]" />
-      </div>
 
-      <div className="relative z-10 px-4 py-12 sm:py-20">
+      <div className="relative z-10 px-4 pt-28 pb-16">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -282,10 +277,10 @@ export default function FreeMatching() {
           className="text-center mb-12"
         >
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-white/60 text-sm mb-6">
-            <Heart className="w-3.5 h-3.5 text-pink-400" />
+            <Heart className="w-3.5 h-3.5 text-gold" />
             100% Free — No Signup Required
           </div>
-          <h1 className="text-4xl sm:text-5xl font-display font-semibold bg-gradient-to-b from-white to-white/60 bg-clip-text text-transparent mb-3">
+          <h1 className="type-page-title mb-3">
             Free Kundali Matching
           </h1>
           <p className="text-white/50 text-lg max-w-xl mx-auto">
@@ -328,7 +323,7 @@ export default function FreeMatching() {
               <button
                 onClick={handleCheck}
                 disabled={loading}
-                className="w-full mt-8 py-3.5 rounded-xl bg-gradient-to-r from-pink-500 to-amber-500 text-black font-semibold text-lg hover:from-pink-400 hover:to-amber-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full mt-8 py-3.5 rounded-xl bg-gold text-black font-semibold text-lg hover:bg-gold/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>
@@ -375,7 +370,7 @@ export default function FreeMatching() {
               <p className="text-white/40 text-xs uppercase tracking-wider mb-2">
                 Overall Compatibility
               </p>
-              <div className="text-6xl font-display font-bold bg-gradient-to-b from-amber-400 to-pink-400 bg-clip-text text-transparent">
+              <div className="text-6xl font-display font-bold text-gold">
                 {result.overallScore}/{result.maxScore}
               </div>
               <p className="text-white/50 text-sm mt-2">
@@ -418,7 +413,7 @@ export default function FreeMatching() {
                         <div className="flex items-center gap-3">
                           <div className="w-24 h-1.5 bg-white/10 rounded-full overflow-hidden">
                             <div
-                              className="h-full bg-amber-400 rounded-full"
+                              className="h-full bg-gold rounded-full"
                               style={{
                                 width: `${((guna.score || 0) / (guna.maxScore || 1)) * 100}%`,
                               }}
@@ -433,7 +428,7 @@ export default function FreeMatching() {
                   })}
                 </div>
                 {result.gunas.length > 3 && (
-                  <div className="flex items-center justify-center gap-2 mt-4 text-amber-400/80 text-sm">
+                  <div className="flex items-center justify-center gap-2 mt-4 text-gold/80 text-sm">
                     <Lock className="w-4 h-4" />
                     {result.gunas.length - 3} more gunas hidden
                   </div>
@@ -442,11 +437,11 @@ export default function FreeMatching() {
             )}
 
             {/* CTA */}
-            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-6 mb-8 text-center">
-              <Sparkles className="w-6 h-6 text-amber-400 mx-auto mb-3" />
+            <div className="rounded-xl border border-gold/20 bg-gold/5 p-6 mb-8 text-center">
+              <Sparkles className="w-6 h-6 text-gold mx-auto mb-3" />
               <p className="text-white/70 mb-1">
                 See all{" "}
-                <span className="text-amber-400 font-medium">36 points</span> +
+                <span className="text-gold font-medium">36 points</span> +
                 the full compatibility analysis
               </p>
               <p className="text-white/40 text-sm">
@@ -458,7 +453,7 @@ export default function FreeMatching() {
             <Link
               to="/onboarding"
               onClick={() => rememberSource("/onboarding")}
-              className="block w-full py-4 rounded-xl bg-gradient-to-r from-pink-500 to-amber-500 text-black font-semibold text-lg text-center hover:from-pink-400 hover:to-amber-400 transition-all"
+              className="block w-full py-4 rounded-xl bg-gold text-black font-semibold text-lg text-center hover:bg-gold/90 transition-all"
             >
               <span className="flex items-center justify-center gap-2">
                 See All 36 Points + Full Analysis — Create Free Account

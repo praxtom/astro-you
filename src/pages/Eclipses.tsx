@@ -191,7 +191,7 @@ export default function Eclipses() {
             <Moon size={28} />
           </div>
           <div>
-            <h1 className="text-3xl md:text-4xl font-display tracking-wider">
+            <h1 className="type-page-title">
               Eclipses
             </h1>
             <p className="text-white/40 text-sm mt-1">

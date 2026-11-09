@@ -10,8 +10,6 @@ import {
   Wallet,
 } from "lucide-react";
 import AuthModal from "../components/AuthModal";
-import Header from "../components/layout/Header";
-import { NightSky } from "../components/layout/NightSky";
 import { SpaceTabs } from "../components/layout/SpaceTabs";
 import { useAuth } from "../lib/useAuth";
 import { useSubscription, useTrustSummary, useUserProfile } from "../hooks";
@@ -119,11 +117,9 @@ export default function ConsultProfile() {
   };
 
   return (
-    <div className="min-h-screen bg-bg-app text-white selection:bg-gold/30">
-      <NightSky />
-      <Header />
+    <div>
 
-      <main className="container mx-auto pt-28 px-6 pb-16 relative z-10 max-w-5xl">
+      <div className="container mx-auto pt-28 px-6 pb-16 relative z-10 max-w-5xl">
         <SpaceTabs />
 
         <button
@@ -143,7 +139,7 @@ export default function ConsultProfile() {
             >
               {persona.title}
             </p>
-            <h1 className="font-display italic text-4xl md:text-5xl text-white leading-tight">
+            <h1 className="type-page-title">
               {persona.name}
             </h1>
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-white/40">
@@ -367,7 +363,7 @@ export default function ConsultProfile() {
             </p>
           </aside>
         </div>
-      </main>
+      </div>
 
       <AuthModal
         isOpen={showAuthModal}

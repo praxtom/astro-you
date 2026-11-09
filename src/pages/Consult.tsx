@@ -21,8 +21,6 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { motion } from "framer-motion";
 import AuthModal from "../components/AuthModal";
-import Header from "../components/layout/Header";
-import { NightSky } from "../components/layout/NightSky";
 import { SpaceTabs } from "../components/layout/SpaceTabs";
 import { PersonaPortrait } from "../components/consult/PersonaPortrait";
 import {
@@ -259,17 +257,15 @@ export default function Consult() {
   }, [user, atmanState?.emotionalState]);
 
   return (
-    <div className="min-h-screen bg-bg-app text-white selection:bg-gold/30">
-      <NightSky />
-      <Header />
+    <div>
 
-      <main className="container mx-auto pt-28 px-6 pb-16 relative z-10 max-w-6xl">
+      <div className="container mx-auto pt-28 px-6 pb-16 relative z-10 max-w-6xl">
         {/* ── Masthead ── */}
         <SpaceTabs />
 
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-x-12 gap-y-6 items-end animate-reveal-progressive">
           <div>
-            <h1 className="font-display leading-[1.05]">
+            <h1 className="type-page-title">
               <span className="block text-2xl md:text-3xl text-white/55 italic">
                 Eight guides.
               </span>
@@ -467,7 +463,7 @@ export default function Consult() {
             </div>
           </section>
         )}
-      </main>
+      </div>
 
       {openSitting && (
         <TranscriptDrawer
@@ -497,11 +493,11 @@ export default function Consult() {
         message="Every guide in the Circle reads your chart, so we need to know whose it is. New accounts start with 15 free credits."
       />
 
-      <footer className="container mx-auto max-w-6xl px-6 py-8 border-t border-white/5 relative z-10">
-        <p className="text-[0.6rem] uppercase tracking-[0.35em] text-white/20">
-          Guidance billed by the minute · charged only when the session closes
-        </p>
-      </footer>
+      {/* Billing terms: real information, so readable, not a decorative footer. */}
+      <p className="container mx-auto max-w-6xl px-6 pb-10 text-sm text-white/55">
+        Guidance is billed by the minute and charged only when the session
+        closes.
+      </p>
     </div>
   );
 }

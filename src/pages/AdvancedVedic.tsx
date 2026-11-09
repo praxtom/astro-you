@@ -49,7 +49,7 @@ export default function AdvancedVedic() {
 
   return (
     <PageShell>
-        <h1 className="text-3xl md:text-4xl font-display mb-2">
+        <h1 className="type-page-title mb-2">
           Advanced Vedic Analysis
         </h1>
         <p className="text-white/50 mb-8">

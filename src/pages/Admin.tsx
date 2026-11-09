@@ -15,7 +15,6 @@ import {
   PackageCheck,
   UserCheck,
 } from "lucide-react";
-import Header from "../components/layout/Header";
 
 interface Stats {
   totalUsers: number;
@@ -535,20 +534,18 @@ export default function Admin() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#030308] text-white">
-        <Header />
-        <main className="container mx-auto flex min-h-[70vh] items-center justify-center px-6 pt-24">
+      <div>
+        <div className="container mx-auto flex min-h-[70vh] items-center justify-center px-6 pt-28">
           <Loader2 size={28} className="animate-spin text-white/30" />
-        </main>
+        </div>
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-[#030308] text-white">
-        <Header />
-        <main className="container mx-auto flex min-h-[72vh] items-center justify-center px-6 pt-24">
+      <div>
+        <div className="container mx-auto flex min-h-[72vh] items-center justify-center px-6 pt-28">
           <section className="w-full max-w-md rounded-2xl border border-white/10 bg-white/[0.035] p-6 text-center">
             <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-xl border border-gold/20 bg-gold/10 text-gold">
               <Lock size={20} />
@@ -578,15 +575,14 @@ export default function Admin() {
               </button>
             </div>
           </section>
-        </main>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#030308] text-white">
-      <Header />
-      <main className="platform-main">
+    <div>
+      <div className="platform-main">
         <button
           onClick={() => navigate("/dashboard")}
           className="mb-4 flex items-center gap-2 text-sm text-white/40 hover:text-white"
@@ -1322,7 +1318,7 @@ export default function Admin() {
             </>
           )
         )}
-      </main>
+      </div>
     </div>
   );
 }

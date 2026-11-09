@@ -307,7 +307,7 @@ const DailyForecast: React.FC = () => {
               <Calendar size={14} />
               Personal forecast
             </div>
-            <h1 className="font-display text-4xl leading-tight md:text-5xl">
+            <h1 className="type-page-title">
               Create your birth profile to see a personal forecast.
             </h1>
             <p className="mt-4 max-w-xl text-base leading-relaxed text-white/55">
@@ -401,7 +401,7 @@ const DailyForecast: React.FC = () => {
         </div>
 
         <header className="mb-4">
-          <h1 className="text-4xl md:text-5xl font-light mb-3 text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-white/40 leading-tight">
+          <h1 className="type-page-title mb-3">
             {period === "yearly"
               ? `Your ${new Date().getFullYear()} Forecast`
               : period === "monthly"

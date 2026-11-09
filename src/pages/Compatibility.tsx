@@ -384,7 +384,7 @@ export default function Compatibility() {
             <Heart size={16} className="text-gold" />
             Relationship Insights
           </div>
-          <h1 className="text-4xl md:text-5xl font-light mb-3 text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-white/40 leading-tight">
+          <h1 className="type-page-title mb-3">
             Celestial <span className="text-gold italic">Synchronicity</span>
           </h1>
           <p className="text-white/40 font-sans text-base font-light max-w-2xl mx-auto italic">

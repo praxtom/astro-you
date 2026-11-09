@@ -20,7 +20,6 @@ import {
   Trash2,
   User,
 } from "lucide-react";
-import Header from "../components/layout/Header";
 import { MemoryManager } from "../components/memory/MemoryManager";
 import { db } from "../lib/firebase";
 import { PLATFORM_LANGUAGES, normalizePlatformLanguage } from "../lib/languages";
@@ -282,16 +281,15 @@ export default function Settings() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-[#030308] text-white">
-      <Header />
-      <main className="container mx-auto pt-24 px-6 pb-16 max-w-2xl">
+    <div>
+      <div className="container mx-auto pt-28 px-6 pb-16 max-w-2xl">
         <button
           onClick={() => navigate(-1)}
           className="flex items-center gap-2 text-white/40 hover:text-white mb-6 text-sm"
         >
           <ArrowLeft size={16} /> Back
         </button>
-        <h1 className="text-3xl font-display mb-8">Settings</h1>
+        <h1 className="type-page-title mb-8">Settings</h1>
 
         {/* Current Plan */}
         <section className="glass rounded-[2rem] p-6 mb-6">
@@ -658,7 +656,7 @@ export default function Settings() {
             </button>
           </div>
         </section>
-      </main>
+      </div>
     </div>
   );
 }

@@ -61,7 +61,7 @@ export default function Wellness() {
   return (
     <PageShell>
       <div>
-        <h1 className="text-3xl md:text-4xl font-display mb-2">
+        <h1 className="type-page-title mb-2">
           Wellness & Biorhythms
         </h1>
         <p className="text-white/50 mb-8">

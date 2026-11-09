@@ -10,7 +10,6 @@ import {
   ReceiptText,
   Send,
 } from "lucide-react";
-import Header from "../components/layout/Header";
 import AuthModal from "../components/AuthModal";
 import { useAuth } from "../lib/useAuth";
 import { trackAcquisitionEvent } from "../lib/acquisition";
@@ -168,9 +167,8 @@ export default function Support() {
   };
 
   return (
-    <div className="min-h-screen bg-[#030308] text-white">
-      <Header />
-      <main className="platform-main">
+    <div>
+      <div className="platform-main">
         <button
           onClick={() => navigate(-1)}
           className="mb-4 inline-flex items-center gap-2 text-sm text-white/40 hover:text-white"
@@ -416,7 +414,7 @@ export default function Support() {
             </article>
           ))}
         </section>
-      </main>
+      </div>
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}

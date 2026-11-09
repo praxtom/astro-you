@@ -15,9 +15,9 @@ export function LegalPage({
   sections: LegalSection[];
 }) {
   return (
-    <div className="min-h-screen bg-[#030308] text-white">
+    <div>
       <SEO title={title} description={description} />
-      <main className="platform-main max-w-4xl">
+      <div className="platform-main max-w-4xl">
         <Link
           to="/"
           className="mb-6 inline-flex items-center gap-2 text-sm text-white/40 transition-colors hover:text-white"
@@ -49,7 +49,7 @@ export function LegalPage({
             </article>
           ))}
         </section>
-      </main>
+      </div>
     </div>
   );
 }

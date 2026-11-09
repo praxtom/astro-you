@@ -105,7 +105,7 @@ export default function TransitOracle() {
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-[0.2em] mb-2">
               <Clock size={12} /> Live Planetary Movements
             </div>
-            <h1 className="text-4xl md:text-5xl font-display tracking-tight mb-3">
+            <h1 className="type-page-title mb-3">
               Transit <span className="text-gold italic">Oracle</span>
             </h1>
             <p className="text-base text-white/60 leading-relaxed font-light font-sans max-w-xl">

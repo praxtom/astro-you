@@ -355,11 +355,12 @@ p {
 }
 
 /* --- Product Surface Primitives --- */
+/* Matches PageShell: clears the fixed header (7rem) with the same gutters. */
 .platform-main {
-  width: min(100% - 1rem, 74rem);
+  width: min(100% - 2rem, 72rem);
   margin-inline: auto;
-  padding-top: 2.5rem;
-  padding-bottom: 1.25rem;
+  padding-top: 7rem;
+  padding-bottom: 4rem;
 }
 
 .platform-eyebrow {
@@ -376,12 +377,14 @@ p {
   line-height: 1.48;
 }
 
+/* The one page-title style (see PageTitle in layout/PageShell.tsx). */
 .type-page-title {
   font-family: var(--font-display);
-  font-size: 1.55rem;
+  font-size: clamp(2.25rem, 1.6rem + 2.2vw, 3.25rem);
   font-weight: 500;
   letter-spacing: 0;
   line-height: 1.08;
+  color: rgba(255, 255, 255, 0.94);
 }
 
 .type-section-title {
@@ -437,10 +440,6 @@ p {
 }
 
 @media (min-width: 768px) {
-  .type-page-title {
-    font-size: 1.88rem;
-  }
-
   .type-section-title {
     font-size: 1.4rem;
   }

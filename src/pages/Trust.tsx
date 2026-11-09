@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { CheckCircle2, FileText } from "lucide-react";
-import Header from "../components/layout/Header";
-import Footer from "../components/layout/Footer";
 import SEO from "../components/SEO";
 import { getPersonaById } from "../lib/personas";
 import { useAuth } from "../lib/useAuth";
@@ -191,7 +189,7 @@ export default function Trust() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#030308] text-white">
+    <div>
       <SEO
         title="Trust and Transparency"
         description="How AstroYou handles AI astrologers, real reviews, testimonials, prediction feedback, and transparency."
@@ -199,8 +197,7 @@ export default function Trust() {
         canonical={siteUrl("/trust")}
         structuredData={structuredData}
       />
-      <Header />
-      <main className="platform-main">
+      <div className="platform-main">
         <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
           <div>
             <div className="platform-chip mb-3 border-gold/25 bg-gold/10 text-gold">
@@ -458,8 +455,7 @@ export default function Trust() {
             </div>
           </div>
         </section>
-      </main>
-      <Footer />
+      </div>
     </div>
   );
 }

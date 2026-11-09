@@ -185,11 +185,11 @@ export default function Tarot() {
       <div>
         {/* Header */}
         <div className="flex items-center gap-4 mb-10">
-          <div className="p-3 rounded-2xl bg-indigo-500/10 text-indigo-400">
+          <div className="p-3 rounded-2xl bg-gold/10 text-gold">
             <Sparkles size={28} />
           </div>
           <div>
-            <h1 className="text-3xl md:text-4xl font-display tracking-wider">
+            <h1 className="type-page-title">
               Tarot
             </h1>
             <p className="text-white/40 text-sm mt-1">
@@ -266,7 +266,7 @@ export default function Tarot() {
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 placeholder="What does the universe want me to know?"
-                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:border-violet-500/50 transition-colors"
+                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:border-gold/50 transition-colors"
                 onKeyDown={(e) =>
                   e.key === "Enter" && !readingLoading && handleDrawThreeCards()
                 }
@@ -274,7 +274,7 @@ export default function Tarot() {
               <button
                 onClick={handleDrawThreeCards}
                 disabled={readingLoading}
-                className="px-6 py-3 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-6 py-3 rounded-xl bg-gold text-black font-semibold hover:bg-gold/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {readingLoading ? (
                   <RotateCw size={18} className="animate-spin" />
@@ -337,7 +337,7 @@ export default function Tarot() {
           {readingInterpretation && (
             <div className="glass rounded-2xl p-8">
               <div className="flex items-center gap-3 mb-4">
-                <Sparkles size={18} className="text-indigo-400" />
+                <Sparkles size={18} className="text-gold" />
                 <h3 className="text-lg font-display tracking-wider">
                   Reading Interpretation
                 </h3>

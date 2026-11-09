@@ -168,7 +168,7 @@ export default function FreeKundali() {
   };
 
   return (
-    <div className="min-h-screen bg-[#030308] text-white">
+    <div>
       <SEO
         title="Free Kundali Online | Vedic Birth Chart Generator"
         description="Generate your free Vedic Kundali birth chart instantly. Get Moon sign, Sun sign, Ascendant, and planetary positions with no signup required."
@@ -176,13 +176,8 @@ export default function FreeKundali() {
         canonical={siteUrl("/free-kundali")}
         structuredData={[structuredData, faqStructuredData]}
       />
-      {/* Subtle cosmic background glow */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-purple-500/5 rounded-full blur-[120px]" />
-        <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-amber-500/5 rounded-full blur-[100px]" />
-      </div>
 
-      <div className="relative z-10 px-4 py-12 sm:py-20">
+      <div className="relative z-10 px-4 pt-28 pb-16">
         {/* SEO Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -191,10 +186,10 @@ export default function FreeKundali() {
           className="text-center mb-12"
         >
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-white/60 text-sm mb-6">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <Sparkles className="w-3.5 h-3.5 text-gold" />
             100% Free — No Signup Required
           </div>
-          <h1 className="text-4xl sm:text-5xl font-display font-semibold bg-gradient-to-b from-white to-white/60 bg-clip-text text-transparent mb-3">
+          <h1 className="type-page-title mb-3">
             Free Kundali Online
           </h1>
           <p className="text-white/50 text-lg max-w-xl mx-auto">
@@ -224,14 +219,14 @@ export default function FreeKundali() {
                     setForm((f) => ({ ...f, name: e.target.value }))
                   }
                   placeholder="Your name"
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-transparent transition-all"
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-transparent transition-all"
                 />
               </div>
 
               {/* Date of Birth */}
               <div>
                 <label className="block text-sm text-white/60 mb-1.5">
-                  Date of Birth <span className="text-amber-400">*</span>
+                  Date of Birth <span className="text-gold">*</span>
                 </label>
                 <input
                   type="date"
@@ -239,7 +234,7 @@ export default function FreeKundali() {
                   onChange={(e) =>
                     setForm((f) => ({ ...f, dob: e.target.value }))
                   }
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-transparent transition-all [color-scheme:dark]"
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-transparent transition-all [color-scheme:dark]"
                 />
               </div>
 
@@ -255,14 +250,14 @@ export default function FreeKundali() {
                   onChange={(e) =>
                     setForm((f) => ({ ...f, tob: e.target.value }))
                   }
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-transparent transition-all [color-scheme:dark] disabled:opacity-40"
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-transparent transition-all [color-scheme:dark] disabled:opacity-40"
                 />
                 <label className="mt-2 flex items-center gap-2 text-sm text-white/50 cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={timeUnknown}
                     onChange={(e) => setTimeUnknown(e.target.checked)}
-                    className="accent-amber-500"
+                    className="accent-gold"
                   />
                   I don't know my birth time
                 </label>
@@ -277,13 +272,13 @@ export default function FreeKundali() {
               {/* Place of Birth */}
               <div>
                 <label className="block text-sm text-white/60 mb-1.5">
-                  Place of Birth <span className="text-amber-400">*</span>
+                  Place of Birth <span className="text-gold">*</span>
                 </label>
                 <LocationInput
                   value={form.pob}
                   onChange={(value) => setForm((f) => ({ ...f, pob: value }))}
                   placeholder="Search for your birth city..."
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-transparent transition-all"
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-transparent transition-all"
                 />
               </div>
 
@@ -295,7 +290,7 @@ export default function FreeKundali() {
               <button
                 onClick={handleGenerate}
                 disabled={loading}
-                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-black font-semibold text-lg hover:from-amber-400 hover:to-orange-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full py-3.5 rounded-xl bg-gold text-black font-semibold text-lg hover:bg-gold/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>
@@ -360,7 +355,7 @@ export default function FreeKundali() {
             )}
 
             {resultTimeUnknown && (
-              <p className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-center text-sm text-white/60">
+              <p className="mb-4 rounded-xl border border-gold/20 bg-gold/5 px-4 py-3 text-center text-sm text-white/60">
                 Rising sign and houses need an exact birth time, so they're
                 hidden here. Moon sign, nakshatra and planets by sign don't
                 depend on it.
@@ -391,7 +386,7 @@ export default function FreeKundali() {
                   <p className="text-white/40 text-xs uppercase tracking-wider mb-1">
                     {item.label}
                   </p>
-                  <p className="text-xl font-display text-amber-400">
+                  <p className="text-xl font-display text-gold">
                     {item.value}
                   </p>
                 </div>
@@ -449,7 +444,7 @@ export default function FreeKundali() {
                     .slice(0, 9)
                     .map((planet: any, i: number) => (
                       <div key={i} className="flex items-center gap-2 text-sm">
-                        <span className="w-2 h-2 rounded-full bg-amber-400/60" />
+                        <span className="w-2 h-2 rounded-full bg-gold/60" />
                         <span className="text-white/60">
                           {textOf(planet?.name) ||
                             textOf(planet?.planet) ||
@@ -465,15 +460,15 @@ export default function FreeKundali() {
             )}
 
             {/* Teaser */}
-            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-6 mb-8 text-center">
-              <Sparkles className="w-6 h-6 text-amber-400 mx-auto mb-3" />
+            <div className="rounded-xl border border-gold/20 bg-gold/5 p-6 mb-8 text-center">
+              <Sparkles className="w-6 h-6 text-gold mx-auto mb-3" />
               <p className="text-white/70 mb-1">
                 Your chart reveals{" "}
-                <span className="text-amber-400 font-medium">
+                <span className="text-gold font-medium">
                   {result.yogas?.length || "several"} yogas
                 </span>{" "}
                 and{" "}
-                <span className="text-amber-400 font-medium">
+                <span className="text-gold font-medium">
                   {result.planets?.length || 9} planetary combinations
                 </span>
                 .
@@ -488,7 +483,7 @@ export default function FreeKundali() {
             <Link
               to="/onboarding"
               onClick={() => rememberSource("/onboarding")}
-              className="block w-full py-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-black font-semibold text-lg text-center hover:from-amber-400 hover:to-orange-400 transition-all"
+              className="block w-full py-4 rounded-xl bg-gold text-black font-semibold text-lg text-center hover:bg-gold/90 transition-all"
             >
               <span className="flex items-center justify-center gap-2">
                 Get Your Complete AI-Powered Reading

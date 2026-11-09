@@ -1,8 +1,6 @@
 import { Link, Navigate } from "react-router-dom";
 import { ArrowRight, BookOpen, MessageCircle } from "lucide-react";
-import Header from "../components/layout/Header";
 import SEO from "../components/SEO";
-import Footer from "../components/layout/Footer";
 import {
   captureAcquisitionSource,
   trackAcquisitionEvent,
@@ -134,7 +132,7 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-[#030308] text-white">
+    <div>
       <SEO
         title={page.title}
         description={page.description}
@@ -143,14 +141,13 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
         type="article"
         structuredData={structuredData}
       />
-      <Header />
-      <main className="container mx-auto max-w-4xl px-6 pt-28 pb-20">
+      <div className="container mx-auto max-w-4xl px-6 pt-28 pb-20">
         <div className="mb-10">
           <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-gold/20 bg-gold/10 px-4 py-2 text-xs font-bold uppercase tracking-widest text-gold">
             <BookOpen size={14} />
             Vedic Astrology Guide
           </div>
-          <h1 className="font-display text-4xl md:text-5xl">{page.heading}</h1>
+          <h1 className="type-page-title">{page.heading}</h1>
           <p className="mt-4 max-w-2xl text-lg leading-relaxed text-white/60">
             {page.intro}
           </p>
@@ -344,8 +341,7 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
             It is not medical, legal, financial, or psychological advice.
           </p>
         </section>
-      </main>
-      <Footer />
+      </div>
     </div>
   );
 }
