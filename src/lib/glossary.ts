@@ -54,6 +54,12 @@ export const GLOSSARY = {
       "A roughly 90-minute window each day traditionally avoided for starting something new.",
     long: "Calculated by splitting the time between sunrise and sunset into eight parts and assigning one to Rahu, the lunar node; which part depends on the weekday. Because it derives from local sunrise, it differs for every city.",
   },
+  abhijit: {
+    term: "Abhijit",
+    short:
+      "A window of about 48 minutes around local midday, traditionally favoured for beginnings.",
+    long: "Abhijit is the eighth of the fifteen equal parts of the daytime, centred on local noon. Tradition treats it as broadly supportive for starting something when no more specific auspicious time has been chosen. Like sunrise, it shifts with the city.",
+  },
   dasha: {
     term: "Dasha",
     short:

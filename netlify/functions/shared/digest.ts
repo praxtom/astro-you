@@ -23,6 +23,21 @@ interface DigestInput {
 }
 
 /**
+ * Scheduled (bulk) digest email is explicit opt-in: only `emailDigest === true`
+ * qualifies. Missing/undefined means "never asked" and gets no email.
+ * Reads the same locations Settings and unsubscribe write
+ * (`profile.notificationPrefs`, legacy top-level `notificationPrefs`).
+ */
+export function hasDigestOptIn(userData: unknown): boolean {
+  if (!userData || typeof userData !== "object") return false;
+  const data = userData as Record<string, any>;
+  const profile =
+    data.profile && typeof data.profile === "object" ? data.profile : data;
+  const prefs = profile.notificationPrefs || data.notificationPrefs || {};
+  return prefs?.emailDigest === true;
+}
+
+/**
  * Secret used to HMAC unsubscribe tokens. Follows the same fail-closed idiom
  * as OTP_HASH_SECRET (see shared/otp.ts): a missing or weak secret returns
  * undefined and callers must refuse to mint/verify tokens (and skip sending

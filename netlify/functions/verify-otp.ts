@@ -1,7 +1,13 @@
 import { Config, Context } from "@netlify/functions";
 import { db, auth, FieldValue } from "./shared/firebase-admin";
 import { initializeUserCredits } from "./shared/credits";
-import { hashOtp, safeEqualHex } from "./shared/otp.js";
+import {
+  hashOtp,
+  otpDailyCapReached,
+  otpFailureDocId,
+  otpFailureExpiresAt,
+  safeEqualHex,
+} from "./shared/otp.js";
 import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit.js";
 import { isValidEmail } from "./send-otp.js";
 
@@ -49,12 +55,24 @@ export default async (req: Request, _context: Context) => {
     const otpRef = db.collection("otps").doc(normalizedEmail);
     const now = Date.now();
     const submittedHash = hashOtp(code, normalizedEmail);
+    // Per-email daily failed-guess counter (survives resends — see shared/otp).
+    const failRef = db
+      .collection("rateLimits")
+      .doc(otpFailureDocId(normalizedEmail, now));
 
     // Atomically read, validate, and either consume the OTP (success) or
     // increment the failed-attempt counter / set a lockout. Doing the whole
     // check+mutate in one transaction closes the concurrent-guess race.
     const outcome = await db.runTransaction<VerifyOutcome>(async (tx) => {
       const snap = await tx.get(otpRef);
+      const failSnap = await tx.get(failRef);
+      if (otpDailyCapReached(failSnap.data()?.count)) {
+        return {
+          ok: false,
+          status: 429,
+          error: "Too many failed attempts today. Please try again tomorrow.",
+        };
+      }
       if (!snap.exists) {
         return {
           ok: false,
@@ -91,6 +109,15 @@ export default async (req: Request, _context: Context) => {
       const storedHash = typeof data.codeHash === "string" ? data.codeHash : "";
       if (!storedHash || !safeEqualHex(submittedHash, storedHash)) {
         const attemptsAfter = (data.attempts || 0) + 1;
+        tx.set(
+          failRef,
+          {
+            scope: "otp_fail",
+            count: FieldValue.increment(1),
+            expiresAt: otpFailureExpiresAt(now),
+          },
+          { merge: true },
+        );
         if (attemptsAfter >= MAX_ATTEMPTS) {
           tx.update(otpRef, {
             attempts: FieldValue.increment(1),

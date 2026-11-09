@@ -46,7 +46,7 @@ test("buildReferralClaimRecord creates reward metadata", () => {
   assert.equal(record.refereeUid, "new_user_1");
   // Email is masked before it lands in the referrer's tree (PII minimization).
   assert.equal(record.refereeEmail, "s***@example.com");
-  assert.equal(record.status, "rewarded");
+  assert.equal(record.status, "pending_payment");
   assert.equal(record.referrerRewardCredits, REFERRER_REWARD_CREDITS);
   assert.equal(record.refereeRewardCredits, REFEREE_REWARD_CREDITS);
   assert.equal(record.createdAt, "server-timestamp");

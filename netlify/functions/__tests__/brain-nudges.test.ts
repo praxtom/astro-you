@@ -136,11 +136,15 @@ test("runProactiveBrainForUser persists a nudge and updates Atman history", asyn
       },
     },
     now: () => NOW,
+    unsubscribeUrlFor: (uid) => `https://astroyou.app/api/unsubscribe?uid=${uid}&token=t`,
     async lookupVerifiedEmail(uid) {
       assert.equal(uid, "user_123");
       return "kavan@example.com";
     },
     async sendEmail(email) {
+      // The claim must already be on disk before anything is delivered.
+      assert.equal(writes.length, 2);
+      assert.ok(email.unsubscribeUrl);
       emails.push({ to: email.to, subject: email.subject });
     },
   };
@@ -152,11 +156,195 @@ test("runProactiveBrainForUser persists a nudge and updates Atman history", asyn
 
   assert.equal(result.sent, true);
   assert.equal(result.emailSent, true);
-  assert.equal(writes.length, 2);
-  assert.equal(writes[0].path, "users/user_123");
-  assert.equal((writes[0].data.atman as AtmanData).nudgeHistory?.[0].triggerType, "emotional_stabilization");
-  assert.match(writes[1].path, /users\/user_123\/brainNudges\/2026-05-29_emotional_stabilization/);
+  assert.equal(writes.length, 3);
+  // 1. Claim doc first.
+  assert.match(writes[0].path, /users\/user_123\/brainNudges\/2026-05-29_emotional_stabilization/);
+  assert.equal(writes[0].data.deliveryStatus, "claimed");
+  // 2. Field-level Atman append — never the whole memory.
+  assert.equal(writes[1].path, "users/user_123");
+  const atmanPatch = writes[1].data.atman as Partial<AtmanData>;
+  assert.equal(atmanPatch.nudgeHistory?.[0].triggerType, "emotional_stabilization");
+  assert.deepEqual(
+    Object.keys(atmanPatch).sort(),
+    ["memory", "memoryLedger", "nudgeHistory", "schemaVersion"],
+  );
+  assert.deepEqual(Object.keys(atmanPatch.memory || {}), ["nudgeHistory"]);
+  // 3. Delivery outcome on the claim doc.
+  assert.match(writes[2].path, /brainNudges\/2026-05-29_emotional_stabilization/);
+  assert.equal(writes[2].data.emailSent, true);
+  assert.equal(writes[2].data.deliveryStatus, "delivered");
   assert.equal(emails[0].to, "kavan@example.com");
+});
+
+test("runProactiveBrainForUser refuses nudge email without an unsubscribe link but still pushes", async () => {
+  const atman = baseAtman();
+  atman.emotionalState = "chaotic";
+  const emails: string[] = [];
+  const pushes: string[] = [];
+  const result = await runProactiveBrainForUser(
+    {
+      db: singleUserDb({
+        profile: {
+          name: "Kavan",
+          timezone: "Asia/Kolkata",
+          notificationPrefs: { enabled: true, emailDigest: true },
+        },
+        atman,
+      }),
+      now: () => NOW,
+      unsubscribeUrlFor: () => undefined,
+      async lookupVerifiedEmail() {
+        return "kavan@example.com";
+      },
+      async sendEmail(email) {
+        emails.push(email.to);
+      },
+      async loadPushTokens() {
+        return ["push_token_1"];
+      },
+      async sendPush(push) {
+        pushes.push(push.token);
+      },
+    },
+    { uid: "user_123", sendEmail: true },
+  );
+  assert.equal(result.sent, true);
+  assert.equal(result.emailSent, false);
+  assert.equal(result.pushSent, true);
+  assert.deepEqual(emails, []);
+  assert.deepEqual(pushes, ["push_token_1"]);
+});
+
+test("runProactiveBrainForUser never resends a nudge that was already claimed", async () => {
+  const atman = baseAtman();
+  atman.emotionalState = "chaotic";
+  const sets: string[] = [];
+  const pushes: string[] = [];
+  const db = {
+    collection() {
+      return {
+        doc() {
+          return {
+            collection() {
+              return {
+                doc(docId: string) {
+                  return {
+                    async get() {
+                      return { exists: true, data: () => ({ deliveryStatus: "claimed" }) };
+                    },
+                    async set() {
+                      sets.push(`nudge:${docId}`);
+                    },
+                  };
+                },
+              };
+            },
+            async get() {
+              return {
+                exists: true,
+                data: () => ({
+                  profile: {
+                    name: "Kavan",
+                    timezone: "Asia/Kolkata",
+                    notificationPrefs: { enabled: true },
+                  },
+                  atman,
+                }),
+              };
+            },
+            async set() {
+              sets.push("user");
+            },
+          };
+        },
+      };
+    },
+  } as unknown as ProactiveBrainDeps["db"];
+  const result = await runProactiveBrainForUser(
+    {
+      db,
+      now: () => NOW,
+      async loadPushTokens() {
+        return ["push_token_1"];
+      },
+      async sendPush(push) {
+        pushes.push(push.token);
+      },
+    },
+    { uid: "user_123", sendEmail: true },
+  );
+  assert.equal(result.sent, false);
+  assert.equal(result.skippedReason, "already_claimed");
+  assert.deepEqual(pushes, []);
+  assert.deepEqual(sets, []);
+});
+
+test("runProactiveBrainForUser claims inside a transaction on fresh memory", async () => {
+  const stale = baseAtman();
+  stale.emotionalState = "chaotic";
+  stale.knownPatterns = [
+    {
+      id: "p1",
+      pattern: "Deleted by the user meanwhile",
+      frequency: 1,
+      weightScore: 1,
+      lastMentioned: NOW,
+      verified: false,
+    },
+  ];
+  const fresh = { ...baseAtman(), emotionalState: "chaotic" as const };
+  const txSets: Array<{ ref: string; data: Record<string, unknown> }> = [];
+  const userRef: any = {
+    id: "user",
+    async get() {
+      return {
+        exists: true,
+        data: () => ({
+          profile: { name: "Kavan", timezone: "Asia/Kolkata", notificationPrefs: { enabled: true } },
+          atman: stale,
+        }),
+      };
+    },
+    async set() {
+      throw new Error("must write through the transaction");
+    },
+    collection() {
+      return {
+        doc() {
+          return {
+            id: "nudge",
+            async set() {},
+          };
+        },
+      };
+    },
+  };
+  const db = {
+    collection: () => ({ doc: () => userRef }),
+    async runTransaction(fn: (tx: any) => Promise<unknown>) {
+      return fn({
+        async get(ref: any) {
+          if (ref.id === "nudge") return { exists: false, data: () => undefined };
+          return { exists: true, data: () => ({ atman: fresh }) };
+        },
+        set(ref: any, data: Record<string, unknown>) {
+          txSets.push({ ref: ref.id, data });
+        },
+      });
+    },
+  } as unknown as ProactiveBrainDeps["db"];
+  const result = await runProactiveBrainForUser(
+    { db, now: () => NOW },
+    { uid: "user_123", sendEmail: false },
+  );
+  assert.equal(result.sent, true);
+  assert.deepEqual(
+    txSets.map((s) => s.ref),
+    ["nudge", "user"],
+  );
+  const patch = txSets[1].data.atman as Record<string, unknown>;
+  assert.equal("knownPatterns" in patch, false);
+  assert.equal(JSON.stringify(patch).includes("Deleted by the user"), false);
 });
 
 test("runProactiveBrainForUser sends browser push when a user has active push tokens", async () => {

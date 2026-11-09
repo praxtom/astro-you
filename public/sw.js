@@ -1,8 +1,16 @@
-// Bump SW_VERSION on every deploy that changes cached assets so old caches are
-// purged on activate. (Build can inject a hash here; bump manually otherwise.)
-const SW_VERSION = "v3";
+// SW_VERSION is stamped per build by scripts/prerender-seo-pages.mjs (it
+// rewrites this exact line in dist/sw.js), so every deploy purges the old
+// precache/runtime caches on activate. The value here is only the dev default.
+const SW_VERSION = "dev";
 const CACHE_NAME = `astroyou-${SW_VERSION}`;
 const RUNTIME_CACHE = `astroyou-runtime-${SW_VERSION}`;
+// Vite's build output (/assets/<name>-<hash>.<ext>, top level only) is
+// content-hashed and immutable, so it lives in an unversioned cache that
+// survives deploys (a changed file has a new name). public/assets/ also holds
+// UNhashed images in subfolders; those stay network-first.
+const ASSET_CACHE = "astroyou-assets";
+const MAX_RUNTIME_ENTRIES = 60;
+const MAX_ASSET_ENTRIES = 120;
 
 // Never cache these — auth handshakes carry one-time tokens, and API responses
 // are user-specific and must always hit the network.
@@ -39,7 +47,9 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((k) => ![CACHE_NAME, RUNTIME_CACHE].includes(k))
+            .filter(
+              (k) => ![CACHE_NAME, RUNTIME_CACHE, ASSET_CACHE].includes(k),
+            )
             .map((k) => caches.delete(k)),
         ),
       ),
@@ -58,6 +68,11 @@ self.addEventListener("fetch", (event) => {
 
   if (event.request.mode === "navigate") {
     event.respondWith(networkFirst(event.request, "/"));
+    return;
+  }
+
+  if (isHashedBuildAsset(requestUrl.pathname)) {
+    event.respondWith(cacheFirst(event.request));
     return;
   }
 
@@ -92,8 +107,12 @@ async function networkFirst(request, fallbackUrl) {
   try {
     const response = await fetch(request);
     if (response && response.ok) {
-      const cache = await caches.open(RUNTIME_CACHE);
-      cache.put(request, response.clone());
+      await putBounded(
+        RUNTIME_CACHE,
+        request,
+        response.clone(),
+        MAX_RUNTIME_ENTRIES,
+      );
     }
     return response;
   } catch (_error) {
@@ -101,6 +120,38 @@ async function networkFirst(request, fallbackUrl) {
     if (cached) return cached;
     if (fallbackUrl) return caches.match(fallbackUrl);
     return new Response("", { status: 503, statusText: "Offline" });
+  }
+}
+
+function isHashedBuildAsset(pathname) {
+  return /^\/assets\/[^/]+-[A-Za-z0-9_-]{8,}\.(?:js|css|woff2?|png|jpe?g|svg|webp|avif)$/.test(
+    pathname,
+  );
+}
+
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+  const response = await fetch(request);
+  if (response && response.ok) {
+    await putBounded(ASSET_CACHE, request, response.clone(), MAX_ASSET_ENTRIES);
+  }
+  return response;
+}
+
+// Insert, then evict the oldest entries (Cache keys keep insertion order) so
+// the runtime caches cannot grow without bound.
+async function putBounded(cacheName, request, response, maxEntries) {
+  try {
+    const cache = await caches.open(cacheName);
+    await cache.put(request, response);
+    const keys = await cache.keys();
+    const excess = keys.length - maxEntries;
+    for (let i = 0; i < excess; i += 1) {
+      await cache.delete(keys[i]);
+    }
+  } catch (_error) {
+    // Quota or storage errors must never break the response.
   }
 }
 

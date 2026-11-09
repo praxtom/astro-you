@@ -1,5 +1,8 @@
 import { Config, Context } from "@netlify/functions";
 import { auth, db } from "./shared/firebase-admin";
+import { AuthError, enforceRateLimit } from "./shared/require-auth";
+
+const HOUR_MS = 60 * 60 * 1000;
 
 type WalletCollection = "creditLedger" | "consultations" | "reports";
 
@@ -48,6 +51,12 @@ export default async (req: Request, _context: Context) => {
     }
 
     const decoded = await auth.verifyIdToken(body.idToken);
+    await enforceRateLimit({
+      scope: "wallet_activity",
+      key: decoded.uid,
+      limit: 120,
+      windowMs: HOUR_MS,
+    });
     const maxItems =
       typeof body.limit === "number" && Number.isFinite(body.limit)
         ? Math.min(50, Math.max(1, Math.floor(body.limit)))
@@ -61,6 +70,9 @@ export default async (req: Request, _context: Context) => {
 
     return json({ ledger, consultations, reports }, 200);
   } catch (error: any) {
+    if (error instanceof AuthError) {
+      return json({ error: error.message }, error.status);
+    }
     console.error("[Wallet Activity] Error:", error);
     return json({ error: "Could not load wallet activity" }, 500);
   }

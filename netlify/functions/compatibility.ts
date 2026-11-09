@@ -26,9 +26,14 @@ import {
   chargeKeyCoord,
 } from "./shared/charge-input.js";
 import { describeError } from "./shared/error-summary.js";
-import { createHash } from "node:crypto";
 import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit";
 import { getCachedOrFetch } from "./shared/cache";
+import { keyedCacheId } from "./shared/chart-cache.js";
+import { parseBudget } from "./shared/astro-budget.js";
+import {
+  isUpstreamQuotaError,
+  upstreamQuotaResponse,
+} from "./shared/kundali-errors.js";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -45,8 +50,15 @@ const json = (body: unknown, status = 200) =>
  * during an outage. An unauthenticated paid-API path must never fail open.
  */
 const FREE_MATCHES_PER_IP_PER_HOUR = 5;
-/** Site-wide ceiling on upstream calls from the free tool, whatever the IPs. */
-const FREE_MATCHES_PER_DAY = 500;
+/**
+ * Site-wide ceiling on upstream calls from the free tool, whatever the IPs
+ * (env ASTRO_FREE_MATCHES_PER_DAY). Every call also counts against the global
+ * astrology budget (shared/astro-budget.ts), which refuses first when lower.
+ */
+const DEFAULT_FREE_MATCHES_PER_DAY = 60;
+export function freeMatchesPerDay(env = process.env): number {
+  return parseBudget(env.ASTRO_FREE_MATCHES_PER_DAY, DEFAULT_FREE_MATCHES_PER_DAY);
+}
 /** A repeated pair is served from cache and spends no budget. */
 const FREE_MATCH_CACHE_HOURS = 24;
 
@@ -80,11 +92,21 @@ async function withinBudget(scope: string, key: string, budget: number, windowMs
   return result.allowed && result.remaining > 0;
 }
 
-/** Cache id: a hash, so birth details are not readable in document ids. */
-function pairCacheId(a: Record<string, unknown>, b: Record<string, unknown>) {
+/**
+ * Cache id: an HMAC under the server secret (shared/chart-cache keyedCacheId),
+ * so two people's birth details can neither be read from nor brute-forced
+ * back out of a document id. `kind` separates the Guna Milan and synastry
+ * payloads for the same pair.
+ */
+export function pairCacheId(
+  a: Record<string, unknown>,
+  b: Record<string, unknown>,
+  kind: "guna" | "synastry" = "guna",
+  env = process.env,
+) {
   const pick = (p: Record<string, unknown>) =>
     [p.dob, p.tob, p.pob, p.lat, p.lng, p.gender].map((v) => String(v ?? "")).join("|");
-  return createHash("sha256").update(`${pick(a)}#${pick(b)}`).digest("hex");
+  return keyedCacheId(`match_${kind}`, [pick(a), pick(b)], env, 48);
 }
 
 async function freeGunaMilan(
@@ -114,7 +136,7 @@ async function freeGunaMilan(
         const siteOk = await withinBudget(
           "compatibility_free_day",
           "all",
-          FREE_MATCHES_PER_DAY,
+          freeMatchesPerDay(),
           24 * 60 * 60 * 1000,
         );
         if (!siteOk) throw new FreeBudgetError(503);
@@ -140,6 +162,8 @@ async function freeGunaMilan(
         err.status,
       );
     }
+    // Spent astrology allowance (upstream or our global budget): 503.
+    if (isUpstreamQuotaError(err)) return upstreamQuotaResponse();
     throw err;
   }
   if (!vedicMatching || typeof vedicMatching !== "object") {
@@ -243,11 +267,25 @@ export default async (req: Request, _context: Context) => {
     // not by entry order. Same/missing gender keeps entry order and is flagged.
     const vedicPair = orientVedicPair(personA, personB);
 
-    // Build parallel promises
+    // Build parallel promises. Both parts are cached per pair (HMAC ids) for
+    // a day, so a retry or back-navigation spends no upstream calls; the Guna
+    // Milan entry is shared with the free tool (same orientation, same id).
     const promises: [Promise<any>, Promise<any>] = [
-      getCompatibilityDetails(personA, personB),
+      getCachedOrFetch(
+        "match_cache",
+        pairCacheId(personA, personB, "synastry"),
+        () => getCompatibilityDetails(personA, personB),
+        FREE_MATCH_CACHE_HOURS,
+        // Half-empty merges (one upstream part failed) are served, not kept.
+        { shouldCache: (v: any) => Boolean(v && v.overall_score) },
+      ),
       shouldUseVedic
-        ? getKundliMatching(vedicPair.groom, vedicPair.bride).catch((err) => {
+        ? getCachedOrFetch(
+            "match_cache",
+            pairCacheId(personA, personB),
+            () => getKundliMatching(vedicPair.groom, vedicPair.bride),
+            FREE_MATCH_CACHE_HOURS,
+          ).catch((err) => {
             console.warn(
               "[Compatibility] Vedic matching failed (non-critical):",
               describeError(err),
@@ -312,6 +350,7 @@ export default async (req: Request, _context: Context) => {
   } catch (error: any) {
     console.error("[Compatibility] Error:", describeError(error));
     if (charge) await charge.refund();
+    if (isUpstreamQuotaError(error)) return upstreamQuotaResponse();
     return new Response(
       JSON.stringify({
         error: "Compatibility request failed. Please try again.",

@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { Config, Context } from "@netlify/functions";
 import { getTransitChart, getTransitReport } from "./shared/astro-api";
 import { generateTransitSummary } from "./shared/gemini";
@@ -17,6 +16,18 @@ import {
   type FeatureCharge,
 } from "./shared/feature-credits";
 import { requestedDateKey } from "./shared/request-date.js";
+import { keyedCacheId } from "./shared/chart-cache.js";
+import {
+  isUpstreamQuotaError,
+  upstreamQuotaResponse,
+} from "./shared/kundali-errors.js";
+
+/** Transit reports are cached per chart + day for 12 hours. */
+const TRANSIT_REPORT_TTL_HOURS = 12;
+
+function errorSummary(err: unknown): string {
+  return err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+}
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
@@ -82,42 +93,59 @@ export default async (req: Request, _context: Context) => {
     }
 
     // Fetch both transit positions and the interpretive report.
-    // Cache key covers dob + tob + pob so users sharing a birthdate don't
-    // collide — hashed so raw birth data never appears in a doc ID.
+    // Cache key covers the chart (dob, tob, place, coordinates) and the day,
+    // as an HMAC under the server secret: a plain hash of birth data can be
+    // brute-forced back to the birth moment from a doc id.
     const today = requestedDateKey(localDate);
-    const reportKey = createHash("sha256")
-      .update(
-        `${birthData.dob}_${birthData.tob}_${birthData.pob || ""}_${transitDate || today}`,
-      )
-      .digest("hex");
+    const reportKey = keyedCacheId("transit_report", [
+      birthData.dob,
+      String(birthData.tob ?? "").slice(0, 5),
+      birthData.pob || "",
+      typeof birthData.lat === "number" ? birthData.lat.toFixed(4) : "",
+      typeof birthData.lng === "number" ? birthData.lng.toFixed(4) : "",
+      transitDate || today,
+    ]);
     console.log(
       `[Transit] Fetching chart and report for ${transitDate || "today"}...`,
     );
-    const [chartData, reportData] = await Promise.all([
-      getTransitChart(birthData, transitDate).then((d) => {
-        console.log("[Transit] Chart data received");
-        return d;
-      }),
-      // A report failure must not fail the whole request — the chart is still
-      // useful. getCachedOrFetch propagates the fetcher throw (so nothing is
-      // cached on failure); we degrade to empty predictions in-memory only.
+    const [chartResult, reportResult] = await Promise.allSettled([
+      getTransitChart(birthData, transitDate),
+      // getCachedOrFetch propagates the fetcher throw, so nothing is cached
+      // on failure.
       getCachedOrFetch(
         "transit_reports",
         reportKey,
         () => getTransitReport(birthData, transitDate),
-        12, // 12-hour TTL for transit reports
-      )
-        .then((d) => {
-          console.log(
-            `[Transit] Report data received (${Array.isArray(d) ? d.length : 0} events)`,
-          );
-          return d;
-        })
-        .catch((err) => {
-          console.error("[Transit] Report fetch failed, degrading:", err);
-          return [] as any[];
-        }),
+        TRANSIT_REPORT_TTL_HOURS,
+      ),
     ]);
+    // No chart, nothing to show: the outer catch refunds (and maps a spent
+    // allowance to 503 `upstream_quota`).
+    if (chartResult.status === "rejected") throw chartResult.reason;
+    const chartData = chartResult.value;
+    console.log("[Transit] Chart data received");
+
+    // A report failure must not fail the whole request — the chart is still
+    // useful — but the user paid for chart + report: refund the reservation
+    // and say so, instead of keeping the charge for half the product.
+    let reportData: any[] = [];
+    let reportUnavailable = false;
+    if (reportResult.status === "fulfilled") {
+      reportData = Array.isArray(reportResult.value) ? reportResult.value : [];
+      console.log(`[Transit] Report data received (${reportData.length} events)`);
+    } else {
+      reportUnavailable = true;
+      console.error(
+        "[Transit] Report fetch failed; refunding and degrading:",
+        isUpstreamQuotaError(reportResult.reason)
+          ? "upstream_quota"
+          : errorSummary(reportResult.reason),
+      );
+      if (charge) {
+        await charge.refund();
+        charge = null;
+      }
+    }
 
     // Generate Gemini summary if we have report data
     let aiSummary = "";
@@ -142,13 +170,20 @@ export default async (req: Request, _context: Context) => {
           predictions: reportData,
           aiSummary,
           date: transitDate || requestedDateKey(localDate),
+          // Predictions could not be fetched; no credits were used.
+          ...(reportUnavailable
+            ? { reportUnavailable: true, refunded: true }
+            : {}),
         },
       }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   } catch (error: any) {
-    console.error("Transit function error:", error);
+    console.error("Transit function error:", errorSummary(error));
     if (charge) await charge.refund();
+    // Spent astrology allowance (upstream 429 or our own budget/breaker):
+    // a retryable 503, not a generic 500.
+    if (isUpstreamQuotaError(error)) return upstreamQuotaResponse();
     return new Response(
       JSON.stringify({ error: "Transit request failed. Please try again." }),
       {

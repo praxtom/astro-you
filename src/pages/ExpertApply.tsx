@@ -113,8 +113,9 @@ export default function ExpertApply() {
               Apply to join AstroYou as a verified guide.
             </h1>
             <p className="platform-copy mt-3 max-w-2xl">
-              This is the intake path for real astrologers, readers, and remedy
-              specialists. Profiles should go live only after review.
+              Every guide on AstroYou today is an AI. This form records
+              interest from real astrologers, readers, and remedy specialists;
+              applying does not create a listing.
             </p>
           </div>
 
@@ -123,7 +124,7 @@ export default function ExpertApply() {
               <ShieldCheck className="mt-0.5 text-gold" size={21} />
               <div>
                 <p className="type-card-title text-white">Verification first</p>
-                <p className="type-body-sm mt-1 text-white/45">
+                <p className="type-body-sm mt-1 text-white/55">
                   Intake, credential review, sample consultation, approval, and
                   quality checks before public listing.
                 </p>
@@ -221,7 +222,7 @@ export default function ExpertApply() {
                 <UserCheck size={16} />
                 <p className="platform-eyebrow">Listing rule</p>
               </div>
-              <p className="type-body-sm mt-3 text-white/45">
+              <p className="type-body-sm mt-3 text-white/55">
                 Applying does not create a public profile. A guide should appear
                 in the marketplace only after approval and operational setup.
               </p>

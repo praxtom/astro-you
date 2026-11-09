@@ -15,6 +15,7 @@ import { StatusNotice } from "../components/ui/StatusNotice";
 import { useToast } from "../components/ui/toast-context";
 import { useAuth } from "../lib/useAuth";
 import { trackAcquisitionEvent } from "../lib/acquisition";
+import { requestSignIn } from "../lib/auth-prompt";
 import { useRemedies } from "../hooks/useRemedies";
 import { useUserProfile } from "../hooks";
 import {
@@ -170,12 +171,11 @@ export default function Remedies() {
 
   async function requestGuidance(product: RemedyProduct) {
     if (!user) {
-      addToast({
-        type: "warning",
-        title: "Sign in required",
-        message: "Create an account before requesting remedy guidance.",
+      const opened = requestSignIn({
+        title: "Sign in to request guidance",
+        message: "Remedy reviews are tied to your account and chart.",
       });
-      navigate("/onboarding");
+      if (!opened) navigate("/onboarding");
       return;
     }
 
@@ -275,7 +275,7 @@ export default function Remedies() {
                 </div>
                 <div className="relative w-full md:w-72">
                   <Search
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50"
                     size={16}
                   />
                   <label htmlFor="remedy-search" className="sr-only">
@@ -350,7 +350,7 @@ export default function Remedies() {
                     tone="info"
                     size="section"
                     message="Sign in to see remedy suggestions from your chart."
-                    action={{ label: "Sign in", to: "/onboarding" }}
+                    action={{ label: "Sign in", onClick: () => requestSignIn() }}
                   />
                 ) : (
                   <StatusNotice

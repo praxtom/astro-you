@@ -4,7 +4,7 @@
  */
 
 import { useCallback, useState, useEffect, useRef } from "react";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { deleteField, doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { devLog } from "../lib/devLog";
 import { useAuth } from "../lib/useAuth";
@@ -37,6 +37,32 @@ function profileSignUpdates(
   return Object.keys(updates).length ? updates : null;
 }
 
+/**
+ * Firestore field a chart is cached under. The contract other code relies on
+ * (the server's AI context and ConsultChat read it): `kundaliData` holds ONLY
+ * the Vedic D1 chart in the profile's birth-time shape. A Western D1 lives in
+ * `kundaliData_western`; divisional charts are Vedic-only on the server, so
+ * they keep their `kundaliData_D9` / `kundaliData_D10` fields.
+ */
+export function kundaliCacheField(
+  chartType: ChartType,
+  mode: ZodiacMode,
+): string {
+  if (chartType !== "D1") return `kundaliData_${chartType}`;
+  return mode === "western" ? "kundaliData_western" : "kundaliData";
+}
+
+/** The birth fields a cached chart was cast from. */
+function birthKey(b: {
+  dob?: unknown;
+  tob?: unknown;
+  pob?: unknown;
+}): string {
+  const text = (v: unknown) =>
+    typeof v === "string" ? v.trim().toLowerCase() : "";
+  return [text(b.dob), text(b.tob), text(b.pob)].join("|");
+}
+
 interface UseKundaliResult {
   kundaliData: KundaliData | null;
   loading: boolean;
@@ -51,7 +77,10 @@ export function useKundali(
   chartType: ChartType = "D1",
   zodiacMode?: ZodiacMode,
 ): UseKundaliResult {
-  const mode = normalizeZodiacMode(zodiacMode);
+  // Divisional charts are always computed sidereally (kundali.ts ignores the
+  // zodiac mode for them), so only a D1 can be Western.
+  const mode: ZodiacMode =
+    chartType === "D1" ? normalizeZodiacMode(zodiacMode) : "vedic";
   const { user } = useAuth();
   const [kundaliData, setKundaliData] = useState<KundaliData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -87,6 +116,9 @@ export function useKundali(
         setError(null);
         setKundaliData(null);
 
+        const cacheFieldName = kundaliCacheField(chartType, mode);
+        let effectiveBirthData: BirthData = requestBirthData;
+
         // First, check if we have cached data in Firestore
         if (user) {
           const docRef = doc(db, "users", user.uid);
@@ -95,19 +127,36 @@ export function useKundali(
 
           if (docSnap.exists()) {
             const data = docSnap.data();
-            const cachedData =
-              chartType === "D1"
-                ? data.kundaliData
-                : data[`kundaliData_${chartType}`];
+            const savedProfile = data.profile;
+            // A caller that forgot the flag must still get the profile's
+            // birth-time shape when it is asking for the profile's own chart.
+            if (
+              requestBirthData.birthTimeUnknown === undefined &&
+              savedProfile?.birthTimeUnknown === true &&
+              birthKey(savedProfile) === birthKey(requestBirthData)
+            ) {
+              effectiveBirthData = {
+                ...requestBirthData,
+                birthTimeUnknown: true,
+              };
+            }
+            const cachedData = data[cacheFieldName];
 
             // A chart cached before the birth time was marked unknown still
             // carries a guessed Lagna — refetch the time-unknown shape.
             const timeShapeMatches =
-              Boolean(requestBirthData.birthTimeUnknown) ===
+              Boolean(effectiveBirthData.birthTimeUnknown) ===
               Boolean(cachedData?.timeUnknown);
+            // Charts written since the birth key was added must also be for
+            // these exact birth details (older entries are cleared by
+            // onboarding when the birth data changes).
+            const birthMatches =
+              typeof cachedData?._birthKey !== "string" ||
+              cachedData._birthKey === birthKey(requestBirthData);
             // Only use cached data if it has actual planetary positions
             if (
               timeShapeMatches &&
+              birthMatches &&
               isUsableCachedKundali(cachedData, chartType, mode)
             ) {
               devLog(
@@ -144,13 +193,13 @@ export function useKundali(
         // flat lat/lng (see kundali.ts / astro-api.ts buildSubject), so flatten
         // profile.coordinates when present — this skips server-side geocoding
         // of the pob string. Coordinates stay optional.
-        const requestPayload = requestBirthData.coordinates
+        const requestPayload = effectiveBirthData.coordinates
           ? {
-              ...requestBirthData,
-              lat: requestBirthData.coordinates.lat,
-              lng: requestBirthData.coordinates.lng,
+              ...effectiveBirthData,
+              lat: effectiveBirthData.coordinates.lat,
+              lng: effectiveBirthData.coordinates.lng,
             }
-          : requestBirthData;
+          : effectiveBirthData;
         const response = await postJson(
           "/api/kundali",
           { birthData: requestPayload, chartType, zodiacMode: mode },
@@ -225,34 +274,54 @@ export function useKundali(
 
         if (isCurrentRequest()) setKundaliData(kundali);
 
-        // Cache in Firestore for logged-in users
+        // Cache in Firestore for logged-in users — but only a chart that is
+        // the saved profile's own chart, in the profile's birth-time shape.
+        // `kundaliData` is read by the server and ConsultChat as AI context,
+        // so a noon chart for a time-unknown user (or a chart for someone
+        // else's birth details) must never land there.
         if (user) {
           const docRef = doc(db, "users", user.uid);
-          const cacheFieldName =
-            chartType === "D1" ? "kundaliData" : `kundaliData_${chartType}`;
-          // Sidereal signs only — a Western chart's signs are tropical.
-          const profileSnap =
-            chartType === "D1" && mode === "vedic"
-              ? await getDoc(docRef).catch(() => null)
-              : null;
-          const profileData = profileSnap?.data()?.profile;
-          const backfill = profileData?.dob
-            ? profileSignUpdates(kundali, profileData)
-            : null;
-          await setDoc(
-            docRef,
-            {
-              [cacheFieldName]: {
-                ...kundali,
-                _chartType: chartType,
-                // Tagged so a mode switch misses this cache instead of
-                // silently serving the other zodiac's signs.
-                _zodiacMode: mode,
+          const profileSnap = await getDoc(docRef).catch(() => null);
+          // Re-check right before writing: a newer request (mode switch,
+          // edited birth data) may have started while we awaited, and a
+          // stale chart must not overwrite the one it is fetching.
+          if (!isCurrentRequest()) return;
+          const userDoc = profileSnap?.data();
+          const profileData = userDoc?.profile;
+          // Legacy: Western charts used to be written into `kundaliData`.
+          // Clear one when its Western replacement is saved, so the field
+          // only ever holds the Vedic chart.
+          const clearLegacyWestern =
+            cacheFieldName === "kundaliData_western" &&
+            userDoc?.kundaliData?._zodiacMode === "western";
+          const isProfileChart =
+            Boolean(profileData?.dob) &&
+            birthKey(profileData) === birthKey(requestBirthData) &&
+            Boolean(profileData?.birthTimeUnknown) ===
+              Boolean(kundali.timeUnknown);
+          if (isProfileChart) {
+            // Sidereal signs only — a Western chart's signs are tropical.
+            const backfill =
+              chartType === "D1" && mode === "vedic"
+                ? profileSignUpdates(kundali, profileData)
+                : null;
+            await setDoc(
+              docRef,
+              {
+                [cacheFieldName]: {
+                  ...kundali,
+                  _chartType: chartType,
+                  // Tagged so a mode switch misses this cache instead of
+                  // silently serving the other zodiac's signs.
+                  _zodiacMode: mode,
+                  _birthKey: birthKey(requestBirthData),
+                },
+                ...(backfill ? { profile: backfill } : {}),
+                ...(clearLegacyWestern ? { kundaliData: deleteField() } : {}),
               },
-              ...(backfill ? { profile: backfill } : {}),
-            },
-            { merge: true },
-          );
+              { merge: true },
+            );
+          }
         }
       } catch (err: any) {
         if (err.name === "AbortError" || !isCurrentRequest()) return;

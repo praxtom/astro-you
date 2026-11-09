@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, ChevronDown } from "lucide-react";
 
 import { useAuth } from "../lib/useAuth";
 import {
@@ -19,6 +19,11 @@ import { useProactiveTriggers } from "../hooks/useProactiveTriggers";
 import AuthModal from "../components/AuthModal";
 import { OPEN_AUTH_EVENT } from "../components/dashboard/PersonalCardNotice";
 import { REPORT_PRICING } from "../lib/report-pricing";
+import {
+  createReportRequestId,
+  postPdfReport,
+  REPORT_IN_PROGRESS_MESSAGE,
+} from "../lib/report-products";
 import { SIGNUP_BONUS_CREDITS } from "../lib/signup-offer";
 import { STORAGE_KEYS } from "../lib/constants";
 import { parseStoredJSON } from "../lib/safeStorage";
@@ -41,6 +46,7 @@ import { approximateLunar } from "../lib/moon-phase";
 import { AskJyotishBar } from "../components/dashboard/AskJyotishBar";
 import { ExploreIndex } from "../components/dashboard/ExploreIndex";
 import { buildTodayGuide } from "../lib/todayGuide";
+import { resolveDashboardPanchangPlace } from "../lib/panchang-place";
 import { buildChartThreeLines, deriveProfileSigns } from "../lib/chart-summary";
 import { normalizeZodiacMode } from "../lib/zodiac-mode";
 import { MemoryPanel } from "../components/dashboard/MemoryPanel";
@@ -54,6 +60,7 @@ import { FestivalCard } from "../components/dashboard/FestivalCard";
 import { SoulInsightCard } from "../components/dashboard/SoulInsightCard";
 import { DashaTimeline } from "../components/astrology/DashaTimeline";
 import { TextAction, Tile } from "../components/dashboard/primitives";
+import { GlossaryTerm } from "../components/ui/GlossaryTerm";
 
 function DashboardSkeleton() {
   return (
@@ -96,7 +103,12 @@ export default function Dashboard() {
   const [showDailyAltar, setShowDailyAltar] = useState(false);
   const [showChartShare, setShowChartShare] = useState(false);
   const [downloadingNatal, setDownloadingNatal] = useState(false);
+  // One requestId per natal PDF purchase, kept until the server answers so a
+  // retry after a network drop can never charge twice.
+  const pendingNatalRequestId = useRef<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  // Secondary tiles stay folded (and unfetched) until asked for.
+  const [showMore, setShowMore] = useState(false);
   const { credits } = useSubscription();
   const natalReportCost = REPORT_PRICING.natal.creditCost;
 
@@ -108,34 +120,48 @@ export default function Dashboard() {
     return () => window.removeEventListener(OPEN_AUTH_EVENT, open);
   }, []);
 
-  // Guest mode fallback — no account, but birth data stashed during onboarding
+  // Guest mode fallback — no account, but birth data stashed during
+  // onboarding. sessionStorage is per tab, so a guest opening a new tab only
+  // has the localStorage copy; read both before sending anyone to Landing.
   useEffect(() => {
     if (!user && !isLoading) {
-      const stored = parseStoredJSON(
-        sessionStorage,
-        STORAGE_KEYS.GUEST_PROFILE,
-      );
-      if (stored) {
+      const stored =
+        parseStoredJSON<Record<string, any>>(
+          sessionStorage,
+          STORAGE_KEYS.GUEST_PROFILE,
+        ) ??
+        parseStoredJSON<Record<string, any>>(
+          localStorage,
+          STORAGE_KEYS.PROFILE,
+        );
+      if (stored && typeof stored === "object") {
         setGuestData(stored);
-      } else {
+      } else if (!profile?.dob) {
         navigate("/");
       }
     }
-  }, [user, isLoading, navigate]);
+  }, [user, isLoading, navigate, profile?.dob]);
 
   const userData = profile || guestData;
   const hasBirthData = Boolean(userData?.dob);
   const displayName = userData?.profile?.name || userData?.name || "Seeker";
 
+  // Panchang timings are local to where the user is now (onboarding's
+  // current location), falling back to the birth place, then the server's
+  // New Delhi default — and the tiles say which.
+  const panchangPlace = useMemo(
+    () => resolveDashboardPanchangPlace(userData),
+    [userData],
+  );
   const {
     panchang,
     loading: panchangLoading,
     error: panchangError,
   } = usePanchang(
-    profile?.pob,
-    profile?.coordinates?.lat,
-    profile?.coordinates?.lng,
-    profile?.timezone,
+    panchangPlace.city,
+    panchangPlace.lat,
+    panchangPlace.lng,
+    userData?.timezone,
   );
   const { lunar: lunarFromService } = useLunarPhase(userData);
   // Never draw a blank or wrong moon: fall back to the date-based phase.
@@ -167,9 +193,30 @@ export default function Dashboard() {
     error: predictionError,
   } = useDailyPrediction(userData);
 
+  // The natal Moon the day's guidance is read against: the saved sidereal
+  // signs first, then the loaded Vedic chart (never a tropical one).
+  const isVedic = normalizeZodiacMode(profile?.zodiacMode) === "vedic";
+  const derivedSigns = isVedic ? deriveProfileSigns(natal.kundaliData) : null;
+  const natalMoonSign: string | undefined =
+    userData?.moonSign || derivedSigns?.moonSign;
+  const natalMoonNakshatra: string | undefined =
+    userData?.moonNakshatra ||
+    derivedSigns?.moonNakshatra ||
+    nakshatraState.nakshatra?.name;
   const todayGuide = useMemo(
-    () => buildTodayGuide(atmanState, panchang, panchangError, Boolean(user)),
-    [atmanState, panchang, panchangError, user],
+    () =>
+      buildTodayGuide(atmanState, panchang, panchangError, Boolean(user), {
+        moonSign: natalMoonSign,
+        moonNakshatra: natalMoonNakshatra,
+      }),
+    [
+      atmanState,
+      panchang,
+      panchangError,
+      user,
+      natalMoonSign,
+      natalMoonNakshatra,
+    ],
   );
   // The hero carries the day's reading once. Without a prediction it falls back
   // to the day's nudge — never to Energy/Do, which the "Today for you" tile shows.
@@ -238,14 +285,26 @@ export default function Dashboard() {
         lat: userData.coordinates?.lat,
         lng: userData.coordinates?.lng,
       };
-      const response = await fetch("/api/pdf-report", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken, birthData, reportType: "natal" }),
+      const requestId =
+        pendingNatalRequestId.current ?? createReportRequestId();
+      pendingNatalRequestId.current = requestId;
+      const response = await postPdfReport({
+        idToken,
+        requestId,
+        birthData,
+        reportType: "natal",
       });
+      // The server answered: this purchase attempt is settled either way.
+      pendingNatalRequestId.current = null;
       const errorPayload = response.ok
         ? null
         : await response.json().catch(() => null);
+      if (
+        response.status === 409 &&
+        errorPayload?.code === "report_in_progress"
+      ) {
+        throw new Error(errorPayload.error || REPORT_IN_PROGRESS_MESSAGE);
+      }
       if (!response.ok) {
         throw new Error(errorPayload?.error || "Failed to generate PDF");
       }
@@ -288,6 +347,7 @@ export default function Dashboard() {
           readingLoading={
             isPredictionLoading && !prediction && !predictionError
           }
+          placeLabel={panchangPlace.label}
         />
 
         <div className="mt-10">
@@ -295,52 +355,64 @@ export default function Dashboard() {
         </div>
 
         {/* One continuous grid of self-labelled tiles (Apple Weather structure):
-            today first, then you, then practice, calendar and links. */}
-        <SectionErrorBoundary label="dashboard tiles">
-          <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-            {/* Today */}
+            today first, then you, then the five spaces. Each tile has its own
+            error boundary so one failing card never blanks the rest. */}
+        <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          {/* Today */}
+          <SectionErrorBoundary label="day timings tile">
             <DayTile
               panchang={panchang}
+              placeLabel={panchangPlace.label}
               className="sm:col-span-2 lg:col-span-4"
             />
+          </SectionErrorBoundary>
+          <SectionErrorBoundary label="today for you tile">
             <TodayForYouTile
               guide={todayGuide}
               showNudge={Boolean(prediction)}
               onSaveIntention={() =>
-                user ? setShowDailyAltar(true) : navigate("/onboarding")
+                user ? setShowDailyAltar(true) : setShowAuthModal(true)
               }
             />
+          </SectionErrorBoundary>
 
-            {/* Your journey (signed in) */}
-            {user && atmanState && (
-              <Tile className="sm:col-span-2">
+          {/* Your journey (signed in) */}
+          {user && atmanState && (
+            <Tile className="sm:col-span-2">
+              <SectionErrorBoundary label="soul insight tile">
                 <SoulInsightCard
                   atmanState={atmanState}
                   onOpenSadhanaPath={() => setShowDailyAltar(true)}
                 />
-              </Tile>
-            )}
-            {user && (
-              <Tile className="sm:col-span-2">
+              </SectionErrorBoundary>
+            </Tile>
+          )}
+          {user && (
+            <Tile className="sm:col-span-2">
+              <SectionErrorBoundary label="memory tile">
                 <MemoryPanel
                   atmanState={atmanState}
                   hasBirthData={hasBirthData}
                 />
-              </Tile>
-            )}
-            {user && atmanState?.routines && atmanState.routines.length > 0 && (
-              <Tile className="sm:col-span-2 lg:col-span-4">
+              </SectionErrorBoundary>
+            </Tile>
+          )}
+          {user && atmanState?.routines && atmanState.routines.length > 0 && (
+            <Tile className="sm:col-span-2 lg:col-span-4">
+              <SectionErrorBoundary label="daily practice tile">
                 <TileHead>Your daily practice</TileHead>
                 <DharmaList
                   routines={atmanState.routines}
                   userId={user.uid}
                   onComplete={refreshAtman}
                 />
-              </Tile>
-            )}
+              </SectionErrorBoundary>
+            </Tile>
+          )}
 
-            {/* You */}
-            {hasBirthData && moonLine && (
+          {/* You */}
+          {hasBirthData && moonLine && (
+            <SectionErrorBoundary label="Moon sign tile">
               <FactTile
                 label="Moon sign"
                 value={moonLine.value.split(" · ")[0]}
@@ -359,7 +431,8 @@ export default function Dashboard() {
                   (nakshatraState.nakshatra.deity ||
                     nakshatraState.nakshatra.ruler) && (
                     <p className="mt-2 text-[0.9rem] text-white/50">
-                      Birth star
+                      Birth star (
+                      <GlossaryTerm k="nakshatra">nakshatra</GlossaryTerm>)
                       {nakshatraState.nakshatra.deity &&
                         `: deity ${nakshatraState.nakshatra.deity}`}
                       {nakshatraState.nakshatra.ruler &&
@@ -367,16 +440,20 @@ export default function Dashboard() {
                     </p>
                   )}
               </FactTile>
-            )}
-            {hasBirthData && lagnaLine && (
+            </SectionErrorBoundary>
+          )}
+          {hasBirthData && lagnaLine && (
+            <SectionErrorBoundary label="rising sign tile">
               <FactTile
                 label="Rising"
                 value={lagnaLine.value}
                 note={lagnaLine.meaning}
               />
-            )}
-            {hasBirthData && (
-              <Tile className="sm:col-span-2">
+            </SectionErrorBoundary>
+          )}
+          {hasBirthData && (
+            <Tile className="sm:col-span-2 lg:col-span-4">
+              <SectionErrorBoundary label="dasha tile">
                 <DashaCard
                   periods={dashaPeriods}
                   loading={dasha.loading}
@@ -389,64 +466,106 @@ export default function Dashboard() {
                     <DashaTimeline periods={dashaPeriods} />
                   </div>
                 )}
-              </Tile>
-            )}
-            {hasBirthData && (
-              <Tile className="sm:col-span-2">
-                <SadeSatiCard birthData={userData} />
-              </Tile>
-            )}
-            {hasBirthData && (
-              <Tile className="sm:col-span-2">
-                <YogaCard birthData={userData} />
-                {nakshatraState.nakshatra?.prediction && (
-                  <div className="mt-6">
-                    <TileHead>Birth star today</TileHead>
-                    <p className="text-[0.98rem] leading-relaxed text-white/70">
-                      {nakshatraState.nakshatra.prediction}
-                    </p>
-                  </div>
-                )}
-              </Tile>
-            )}
-
-            {/* Practice and calendar */}
-            <Tile className="sm:col-span-2">
-              <RemediesCard birthData={userData} />
+              </SectionErrorBoundary>
             </Tile>
-            <Tile className="sm:col-span-2 self-start">
-              <FestivalCard region={profile?.festivalRegion} />
-              <div className="mt-4">
-                <TextAction to="/panchang">
-                  Full Panchang
-                  <ArrowUpRight size={12} />
-                </TextAction>
-              </div>
-            </Tile>
+          )}
 
-            {/* Explore */}
-            <Tile className="sm:col-span-2 lg:col-span-3">
+          {/* The five spaces */}
+          <Tile className="sm:col-span-2 lg:col-span-4">
+            <SectionErrorBoundary label="explore tile">
               <TileHead>Explore</TileHead>
               <ExploreIndex />
-            </Tile>
-            <Tile>
-              <UtilityDock
-                profile={profile}
-                hasBirthData={hasBirthData}
-                downloadingNatal={downloadingNatal}
-                natalReportCost={natalReportCost}
-                onDownloadNatalReport={handleDownloadNatalReport}
-                onUpdateBirthData={() => setShowOnboardingModal(true)}
-                onOpenAltar={() => setShowDailyAltar(true)}
-                onShareChart={() => setShowChartShare(true)}
+            </SectionErrorBoundary>
+          </Tile>
+
+          {/* Secondary tiles, folded (and not fetched) until asked for. */}
+          <div className="sm:col-span-2 lg:col-span-4">
+            <button
+              type="button"
+              aria-expanded={showMore}
+              aria-controls="dashboard-more"
+              onClick={() => setShowMore((v) => !v)}
+              className="flex min-h-11 w-full items-center justify-between gap-3 rounded-[1.25rem] border border-white/[0.08] bg-white/[0.015] px-5 py-3 text-left text-[0.95rem] font-semibold text-white/75 transition-colors hover:border-white/20 hover:text-white"
+            >
+              <span>
+                More for today
+                <span className="ml-2 font-normal text-white/55">
+                  {hasBirthData
+                    ? "Sade Sati, yogas, remedies, festivals, tools"
+                    : "Remedies, festivals, tools"}
+                </span>
+              </span>
+              <ChevronDown
+                size={18}
+                aria-hidden="true"
+                className={`shrink-0 transition-transform ${showMore ? "rotate-180" : ""}`}
               />
-            </Tile>
+            </button>
           </div>
-        </SectionErrorBoundary>
+          {showMore && (
+            <div
+              id="dashboard-more"
+              className="contents"
+            >
+              {hasBirthData && (
+                <Tile className="sm:col-span-2">
+                  <SectionErrorBoundary label="Sade Sati tile">
+                    <SadeSatiCard birthData={userData} />
+                  </SectionErrorBoundary>
+                </Tile>
+              )}
+              {hasBirthData && (
+                <Tile className="sm:col-span-2">
+                  <SectionErrorBoundary label="yogas tile">
+                    <YogaCard birthData={userData} />
+                    {nakshatraState.nakshatra?.prediction && (
+                      <div className="mt-6">
+                        <TileHead>Birth star today</TileHead>
+                        <p className="text-[0.98rem] leading-relaxed text-white/70">
+                          {nakshatraState.nakshatra.prediction}
+                        </p>
+                      </div>
+                    )}
+                  </SectionErrorBoundary>
+                </Tile>
+              )}
+              <Tile className="sm:col-span-2">
+                <SectionErrorBoundary label="remedies tile">
+                  <RemediesCard birthData={userData} />
+                </SectionErrorBoundary>
+              </Tile>
+              <Tile className="sm:col-span-2 self-start">
+                <SectionErrorBoundary label="festivals tile">
+                  <FestivalCard region={profile?.festivalRegion} />
+                  <div className="mt-4">
+                    <TextAction to="/panchang">
+                      Full Panchang
+                      <ArrowUpRight size={12} />
+                    </TextAction>
+                  </div>
+                </SectionErrorBoundary>
+              </Tile>
+              <Tile className="sm:col-span-2 lg:col-span-4">
+                <SectionErrorBoundary label="tools tile">
+                  <UtilityDock
+                    profile={profile}
+                    hasBirthData={hasBirthData}
+                    downloadingNatal={downloadingNatal}
+                    natalReportCost={natalReportCost}
+                    onDownloadNatalReport={handleDownloadNatalReport}
+                    onUpdateBirthData={() => setShowOnboardingModal(true)}
+                    onOpenAltar={() => setShowDailyAltar(true)}
+                    onShareChart={() => setShowChartShare(true)}
+                  />
+                </SectionErrorBoundary>
+              </Tile>
+            </div>
+          )}
+        </div>
       </div>
 
       <footer className="container mx-auto max-w-6xl px-6 py-8 border-t border-white/5 relative z-10">
-        <p className="text-[0.65rem] uppercase tracking-[0.3em] text-white/50">
+        <p className="text-[0.6875rem] uppercase tracking-[0.3em] text-white/50">
           {userData?.pob
             ? `Cast for ${userData.pob}`
             : "Cast under the open sky"}

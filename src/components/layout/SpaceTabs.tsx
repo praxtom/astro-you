@@ -17,7 +17,7 @@ export const SpaceTabs: React.FC = () => {
   return (
     <div className="mb-8 animate-reveal-progressive">
       <div className="flex items-baseline gap-4">
-        <p className="text-gold/80 text-[0.65rem] font-bold uppercase tracking-[0.4em]">
+        <p className="text-gold/80 text-[0.6875rem] font-bold uppercase tracking-[0.4em]">
           {space.label}
         </p>
         <span className="hidden sm:block flex-1 h-px bg-linear-to-r from-gold/25 to-transparent" />
@@ -38,6 +38,7 @@ export const SpaceTabs: React.FC = () => {
               <button
                 key={page.path}
                 onClick={() => navigate(page.path)}
+                aria-current={active ? "page" : undefined}
                 className={`relative inline-flex min-h-11 items-center px-4 text-[0.75rem] font-bold uppercase tracking-[0.2em] whitespace-nowrap transition-colors ${
                   active ? "text-gold" : "text-white/55 hover:text-white"
                 }`}

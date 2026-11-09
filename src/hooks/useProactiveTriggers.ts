@@ -53,6 +53,38 @@ function loadCooldowns(uid: string): Record<string, number> {
   }
 }
 
+/**
+ * Ask the server for an AI nudge. Returns null — quietly — when the server
+ * has no grounded nudge to give (no transit/partner data, generation failed,
+ * rate limited) or the request fails. The server loads the user's memory
+ * itself; only the trigger (and a partner name hint) is sent.
+ */
+async function fetchAiNudge(
+  triggerType: string,
+  extra: Record<string, unknown> = {},
+): Promise<{ title: string; message: string } | null> {
+  try {
+    const response = await postJson("/api/proactive-nudge", {
+      triggerType,
+      ...extra,
+    });
+    if (!response.ok) return null;
+    const data = await response.json().catch(() => null);
+    if (
+      data &&
+      typeof data.title === "string" &&
+      data.title.trim() &&
+      typeof data.message === "string" &&
+      data.message.trim()
+    ) {
+      return { title: data.title, message: data.message };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function saveCooldowns(uid: string, cooldowns: Record<string, number>) {
   try {
     localStorage.setItem(cooldownStorageKey(uid), JSON.stringify(cooldowns));
@@ -379,8 +411,8 @@ export function useProactiveTriggers({
                 currentMin <= startMin + 5
               ) {
                 showAndSaveNudge(
-                  "Rahu Kaal Approaching",
-                  `Rahu Kaal begins soon (${panchangData.rahu_kaal}). Avoid starting new ventures during this period. Use it for reflection instead.`,
+                  "Rahu Kaal soon",
+                  `Rahu Kaal begins soon (${panchangData.rahu_kaal}). A calm window for routine work and reflection; fresh starts can wait an hour or two.`,
                   "rahu_kaal_warning",
                 );
                 markTrigger(rahuKey);
@@ -397,18 +429,9 @@ export function useProactiveTriggers({
       if (!lastTriggerRef.current[transitKey]) {
         // Claim before the call: a failing endpoint must not be retried every 5 minutes.
         markTrigger(transitKey);
-        try {
-          const response = await postJson("/api/proactive-nudge", {
-            atmanData: atmanState,
-            triggerType: "transit_alert",
-          });
-          const data = await response.json();
-          if (data.title && data.message) {
-            showAndSaveNudge(data.title, data.message, "transit_alert", 12000);
-            markTrigger(transitKey);
-          }
-        } catch (e) {
-          console.error("Failed to fetch transit nudge", e);
+        const nudge = await fetchAiNudge("transit_alert");
+        if (nudge) {
+          showAndSaveNudge(nudge.title, nudge.message, "transit_alert", 12000);
         }
       }
 
@@ -422,23 +445,14 @@ export function useProactiveTriggers({
         const relationalKey = `relational_nudge_${today}`;
         if (!lastTriggerRef.current[relationalKey]) {
           markTrigger(relationalKey);
-          try {
-            const response = await postJson("/api/proactive-nudge", {
-              atmanData: atmanState,
-              triggerType: "relational_management",
-            });
-            const data = await response.json();
-            if (data.title && data.message) {
-              showAndSaveNudge(
-                data.title,
-                data.message,
-                "relational_management",
-                12000,
-              );
-              markTrigger(relationalKey);
-            }
-          } catch (e) {
-            console.error("Failed to fetch relational nudge", e);
+          const nudge = await fetchAiNudge("relational_management");
+          if (nudge) {
+            showAndSaveNudge(
+              nudge.title,
+              nudge.message,
+              "relational_management",
+              12000,
+            );
           }
         }
       }
@@ -459,29 +473,18 @@ export function useProactiveTriggers({
 
           if (partner) {
             markTrigger(synastryKey);
-            try {
-              const response = await postJson("/api/proactive-nudge", {
-                atmanData: atmanState,
-                triggerType: "synastry_alert",
-                partnerData: {
-                  name: partner.name,
-                  relation: partner.relation,
-                  dynamic: partner.dynamic,
-                  zodiacSign: partner.zodiacSign,
-                },
-              });
-              const data = await response.json();
-              if (data.title && data.message) {
-                showAndSaveNudge(
-                  data.title,
-                  data.message,
-                  "synastry_alert",
-                  12000,
-                );
-                markTrigger(synastryKey);
-              }
-            } catch (e) {
-              console.error("Failed to fetch synastry nudge", e);
+            // The name only selects among the user's own relationships; the
+            // server reads the details from their stored memory.
+            const nudge = await fetchAiNudge("synastry_alert", {
+              partnerData: { name: partner.name },
+            });
+            if (nudge) {
+              showAndSaveNudge(
+                nudge.title,
+                nudge.message,
+                "synastry_alert",
+                12000,
+              );
             }
           }
         }
@@ -509,9 +512,11 @@ export function useProactiveTriggers({
             friend: "your friendship",
           };
           const tone = toneMap[partner.relation] || "your connection";
+          // No chart data backs this check-in, so it makes no astrological
+          // claim — just a gentle relational prompt.
           showAndSaveNudge(
-            `Relational Insight: ${partner.name}`,
-            `The stars suggest patience in ${tone} with ${partner.name} today. Communication may need extra care.`,
+            `With ${partner.name}`,
+            `A gentle check-in for ${tone} with ${partner.name}: speak slowly and listen fully today.`,
             "synastry_partner_transit",
           );
         }

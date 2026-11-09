@@ -17,11 +17,11 @@ const PanchangItem: React.FC<PanchangItemProps> = ({
   subtext,
 }) => (
   <div className="space-y-0.5">
-    <p className="text-[10px] uppercase tracking-widest text-white/40 font-medium">
+    <p className="text-[0.6875rem] uppercase tracking-widest text-white/55 font-medium">
       {label}
     </p>
     <p className="text-sm text-white/80 truncate">{value || "—"}</p>
-    {subtext && <p className="text-[10px] text-white/30">{subtext}</p>}
+    {subtext && <p className="text-[0.6875rem] text-white/50">{subtext}</p>}
   </div>
 );
 

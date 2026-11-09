@@ -42,6 +42,8 @@ test("buildLaunchReadinessReport reports ready without exposing secret values", 
     APP_BASE_URL: "https://astroyou.app",
     OTP_HASH_SECRET: "otp-secret-at-least-32-characters-long",
     EMAIL_UNSUB_SECRET: "email-unsub-secret-at-least-32-characters-long",
+    RESEND_API_KEY: "re_secret",
+    DIGEST_FROM_EMAIL: "AstroYou <noreply@astroyou.app>",
     VITE_FIREBASE_API_KEY: "firebase-client-key",
     VITE_FIREBASE_AUTH_DOMAIN: "astroyou.firebaseapp.com",
     VITE_FIREBASE_PROJECT_ID: "astroyou",
@@ -73,6 +75,8 @@ test("buildLaunchReadinessReport warns when ASTROYOU_API_KEY fallback is overloa
     APP_BASE_URL: "https://astroyou.app",
     OTP_HASH_SECRET: "otp-secret-at-least-32-characters-long",
     EMAIL_UNSUB_SECRET: "email-unsub-secret-at-least-32-characters-long",
+    RESEND_API_KEY: "re_secret",
+    DIGEST_FROM_EMAIL: "AstroYou <noreply@astroyou.app>",
     VITE_FIREBASE_API_KEY: "client",
     VITE_FIREBASE_AUTH_DOMAIN: "domain",
     VITE_FIREBASE_PROJECT_ID: "project",
@@ -146,6 +150,8 @@ test("buildLaunchReadinessReport warns when client and server projects do not ma
     APP_BASE_URL: "https://astroyou.app",
     OTP_HASH_SECRET: "otp-secret-at-least-32-characters-long",
     EMAIL_UNSUB_SECRET: "email-unsub-secret-at-least-32-characters-long",
+    RESEND_API_KEY: "re_secret",
+    DIGEST_FROM_EMAIL: "AstroYou <noreply@astroyou.app>",
     VITE_FIREBASE_API_KEY: "firebase-client-key",
     VITE_FIREBASE_AUTH_DOMAIN: "other.firebaseapp.com",
     VITE_FIREBASE_PROJECT_ID: "other",
@@ -301,6 +307,8 @@ test("buildLaunchReadinessReport blocks missing or weak EMAIL_UNSUB_SECRET", () 
   const readyReport = buildLaunchReadinessReport({
     ...baseEnv,
     EMAIL_UNSUB_SECRET: "email-unsub-secret-at-least-32-characters-long",
+    RESEND_API_KEY: "re_secret",
+    DIGEST_FROM_EMAIL: "AstroYou <noreply@astroyou.app>",
   });
   assert.equal(readyReport.overallStatus, "ready");
 });

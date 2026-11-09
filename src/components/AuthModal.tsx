@@ -7,7 +7,11 @@ import {
   signInWithRedirect,
   signInWithCustomToken,
 } from "firebase/auth";
-import { auth } from "../lib/firebase";
+import {
+  auth,
+  rememberPendingAnalyticsOptIn,
+  setAnalyticsConsent,
+} from "../lib/firebase";
 import { STORAGE_KEYS } from "../lib/constants";
 import { useDialog } from "../hooks/useDialog";
 import { SIGNUP_BONUS_CREDITS } from "../lib/signup-offer";
@@ -64,6 +68,8 @@ export default function AuthModal({
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [resent, setResent] = useState(false);
+  // Optional, independent of the Terms/Privacy notice; unchecked by default.
+  const [analyticsOptIn, setAnalyticsOptIn] = useState(false);
 
   const otpRefs = [
     useRef<HTMLInputElement>(null),
@@ -120,6 +126,7 @@ export default function AuthModal({
       setCountdown(0);
       setResent(false);
       setIsGoogleLoading(false);
+      setAnalyticsOptIn(false);
     }
   }, [isOpen]);
 
@@ -233,6 +240,7 @@ export default function AuthModal({
 
       // Sign in with custom token
       await signInWithCustomToken(auth, data.token);
+      if (analyticsOptIn) setAnalyticsConsent(true);
       onClose();
       if (onSuccess) onSuccess();
     } catch (err: any) {
@@ -251,6 +259,7 @@ export default function AuthModal({
 
     try {
       await signInWithPopup(auth, googleProvider);
+      if (analyticsOptIn) setAnalyticsConsent(true);
       onClose();
       if (onSuccess) onSuccess();
     } catch (err: any) {
@@ -268,6 +277,7 @@ export default function AuthModal({
       if (shouldRetryAsRedirect) {
         try {
           sessionStorage.setItem(STORAGE_KEYS.LOGIN_REDIRECT, "true");
+          rememberPendingAnalyticsOptIn(analyticsOptIn);
           await signInWithRedirect(auth, googleProvider);
           return; // page navigates away; keep the spinner up
         } catch (redirectErr: any) {
@@ -421,7 +431,7 @@ export default function AuthModal({
                     {/* Divider */}
                     <div className="my-6 flex items-center gap-4">
                       <div className="h-px flex-1 bg-white/10"></div>
-                      <span className="font-sans text-[0.65rem] font-bold uppercase tracking-[0.25em] text-white/55">
+                      <span className="font-sans text-[0.6875rem] font-bold uppercase tracking-[0.25em] text-white/55">
                         or
                       </span>
                       <div className="h-px flex-1 bg-white/10"></div>
@@ -470,7 +480,22 @@ export default function AuthModal({
                       </button>
                     </form>
 
-                    <p className="mt-6 text-center text-xs leading-relaxed text-white/55">
+                    <label className="mt-6 flex min-h-11 cursor-pointer items-start gap-3 text-left text-xs leading-relaxed text-white/60">
+                      <input
+                        type="checkbox"
+                        checked={analyticsOptIn}
+                        onChange={(e) => setAnalyticsOptIn(e.target.checked)}
+                        disabled={busy}
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-[#E5B96A]"
+                      />
+                      <span>
+                        Optional: allow anonymous usage analytics (Google
+                        Analytics cookies) to help improve AstroYou. You can
+                        change this anytime in Settings.
+                      </span>
+                    </label>
+
+                    <p className="mt-4 text-center text-xs leading-relaxed text-white/55">
                       By continuing you agree to our{" "}
                       <a
                         href="/terms"
@@ -489,7 +514,7 @@ export default function AuthModal({
                       >
                         Privacy Policy
                       </a>
-                      , and consent to analytics cookies.
+                      .
                     </p>
                   </motion.div>
                 ) : (

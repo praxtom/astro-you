@@ -118,7 +118,7 @@ export const GrowthRadar: React.FC<GrowthRadarProps> = ({ atmanData, size = 300 
             <div className="mt-4 grid grid-cols-2 gap-4 w-full px-6">
                 {scores.map((s, i) => (
                     <div key={i} className="flex flex-col items-center">
-                        <span className="text-[10px] text-zinc-500 uppercase">{s.label}</span>
+                        <span className="text-[0.6875rem] text-zinc-500 uppercase">{s.label}</span>
                         <span className="text-xl font-display text-white">{s.value}%</span>
                     </div>
                 ))}

@@ -263,7 +263,7 @@ export default function Tarot() {
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 placeholder="What does the universe want me to know?"
-                className="platform-field flex-1 w-auto text-white placeholder:text-white/40"
+                className="platform-field flex-1 w-auto text-white placeholder:text-white/50"
                 onKeyDown={(e) =>
                   e.key === "Enter" && !readingLoading && handleDrawThreeCards()
                 }

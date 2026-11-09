@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { MotionConfig } from "framer-motion";
 import App from "./App.tsx";
+import "./styles/fonts.css";
 import "./index.css";
 import { AuthProvider } from "./lib/AuthContext.tsx";
 import { ToastProvider } from "./components/ui/Toast.tsx";

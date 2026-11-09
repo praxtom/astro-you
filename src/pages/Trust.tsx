@@ -360,14 +360,14 @@ export default function Trust() {
                 value={publicName}
                 onChange={(event) => setPublicName(event.target.value)}
                 placeholder="Public name, e.g. Asha K."
-                className="platform-field px-3 py-2.5 text-base sm:text-sm placeholder:text-white/45"
+                className="platform-field px-3 py-2.5 text-base sm:text-sm placeholder:text-white/50"
               />
               <textarea
                 aria-label="Your story"
                 value={story}
                 onChange={(event) => setStory(event.target.value)}
                 placeholder="What changed for you?"
-                className="platform-field min-h-24 resize-none px-3 py-2.5 text-base sm:text-sm placeholder:text-white/45"
+                className="platform-field min-h-24 resize-none px-3 py-2.5 text-base sm:text-sm placeholder:text-white/50"
               />
               <label className="flex items-start gap-3 text-xs text-white/60">
                 <input

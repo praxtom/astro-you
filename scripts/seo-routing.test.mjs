@@ -28,3 +28,6 @@ test('private route matching does not hide public guides', () => {
   assert.equal(isPrivateRoute('/free-kundali'), false);
   assert.equal(isPrivateRoute('/remedies-guide'), false);
 });
+test('hosted payment return uses the private app shell', () => {
+  assert.equal(isPrivateRoute('/payment/return'), true);
+});

@@ -38,7 +38,7 @@ export const ExploreIndex: React.FC = () => {
           className="group relative text-left transition-colors duration-300"
         >
           <div className="flex items-start justify-between gap-3">
-            <span className="font-display italic text-white/40 text-sm group-hover:text-gold/70 transition-colors">
+            <span className="font-display italic text-white/55 text-sm group-hover:text-gold/70 transition-colors">
               {String(i + 1).padStart(2, "0")}
             </span>
             <ArrowUpRight
@@ -65,7 +65,7 @@ export const ExploreIndex: React.FC = () => {
         className="group relative text-left transition-colors duration-300"
       >
         <div className="flex items-start justify-between gap-3">
-          <span className="font-display italic text-white/40 text-sm group-hover:text-gold/70 transition-colors">
+          <span className="font-display italic text-white/55 text-sm group-hover:text-gold/70 transition-colors">
             06
           </span>
           <ArrowUpRight

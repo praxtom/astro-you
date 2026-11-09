@@ -108,7 +108,7 @@ const PersonFormBlock = ({
         value={person.name}
         onChange={(e) => onChange({ ...person, name: e.target.value })}
         placeholder="Name"
-        className="platform-field placeholder:text-white/40"
+        className="platform-field placeholder:text-white/50"
       />
     </div>
     <div>
@@ -335,7 +335,7 @@ export default function FreeMatching() {
               <h2 className="text-xl font-display text-white/70">
                 What is Kundali Matching?
               </h2>
-              <p className="text-white/40 text-sm max-w-md mx-auto leading-relaxed">
+              <p className="text-white/55 text-sm max-w-md mx-auto leading-relaxed">
                 Kundali Matching (Guna Milan) is a Vedic compatibility analysis
                 that compares two birth charts across 8 categories (Ashtakoot)
                 totaling 36 points. A score of 18+ is considered favorable for
@@ -352,13 +352,13 @@ export default function FreeMatching() {
             className="max-w-2xl mx-auto"
           >
             {/* Names */}
-            <p className="text-center text-white/40 mb-6">
+            <p className="text-center text-white/55 mb-6">
               {person1.name || "Person 1"} & {person2.name || "Person 2"}
             </p>
 
             {/* Overall Score */}
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center mb-8">
-              <p className="text-white/40 text-xs uppercase tracking-wider mb-2">
+              <p className="text-white/55 text-xs uppercase tracking-wider mb-2">
                 Overall Compatibility
               </p>
               <div className="text-6xl font-display font-bold text-gold">
@@ -376,7 +376,7 @@ export default function FreeMatching() {
             </div>
 
             {result.orientationAssumed && (
-              <p className="text-xs text-white/40 text-center -mt-4 mb-8">
+              <p className="text-xs text-white/55 text-center -mt-4 mb-8">
                 Traditional Ashtakoot matching assumes a bride and groom; we
                 used the order you entered.
               </p>
@@ -435,7 +435,7 @@ export default function FreeMatching() {
                 <span className="text-gold font-medium">36 points</span> +
                 the full compatibility analysis
               </p>
-              <p className="text-white/40 text-sm">
+              <p className="text-white/55 text-sm">
                 Get detailed insights on each guna, Mangal Dosha check, and
                 personalized relationship guidance.
               </p>
@@ -451,7 +451,7 @@ export default function FreeMatching() {
                 <ArrowRight className="w-5 h-5" />
               </span>
             </Link>
-            <p className="text-center text-white/30 text-sm mt-3">
+            <p className="text-center text-white/50 text-sm mt-3">
               Free account — unlock full compatibility report
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
@@ -473,7 +473,7 @@ export default function FreeMatching() {
 
             <button
               onClick={() => setResult(null)}
-              className="block mx-auto mt-8 text-white/40 hover:text-white/60 text-sm underline underline-offset-4 transition-colors"
+              className="block mx-auto mt-8 text-white/55 hover:text-white/60 text-sm underline underline-offset-4 transition-colors"
             >
               Check another match
             </button>

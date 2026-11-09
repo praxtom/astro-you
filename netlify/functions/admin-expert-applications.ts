@@ -5,6 +5,7 @@ import {
   buildExpertApplicationReviewDecision,
 } from "./shared/expert-applications.js";
 import { db, FieldValue } from "./shared/firebase-admin.js";
+import { auditLogExpiresAt } from "./shared/audit-log.js";
 
 type AdminExpertAction = "list" | "update";
 
@@ -76,6 +77,7 @@ export default async (req: Request, _context: Context) => {
         note: decision.patch.reviewNote,
       },
       createdAt: FieldValue.serverTimestamp(),
+      expiresAt: auditLogExpiresAt(),
     });
     await batch.commit();
 

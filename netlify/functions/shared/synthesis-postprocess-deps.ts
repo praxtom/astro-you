@@ -5,7 +5,10 @@ import {
   generateConversationSummary,
   type UserContext,
 } from "./gemini.js";
-import { persistAtmanInsights } from "./atman-brain.js";
+import {
+  isWriteSupersededByReset,
+  persistAtmanInsights,
+} from "./atman-brain.js";
 import { sanitizePromptText } from "./sanitize.js";
 import type { SynthesisPostprocessDeps } from "./synthesis-postprocess.js";
 
@@ -36,6 +39,7 @@ export function createSynthesisPostprocessDeps(): SynthesisPostprocessDeps {
             userMessage: input.userMessage,
             assistantMessage: input.assistantMessage,
           },
+          requestedAt: input.requestedAt,
         },
         { chatId: input.chatId },
       ),
@@ -47,11 +51,25 @@ export function createSynthesisPostprocessDeps(): SynthesisPostprocessDeps {
     },
     summarize: (messages, userName, previousSummary) =>
       generateConversationSummary(messages, userName, previousSummary),
-    async writeChatSummary(uid, chatId, summary) {
-      // update() (not set/merge) so a chat deleted meanwhile is not recreated.
-      await chatRef(uid, chatId).update({
-        summary,
-        summaryUpdatedAt: FieldValue.serverTimestamp(),
+    async writeChatSummary(uid, chatId, summary, requestedAt) {
+      const userRef = db.collection("users").doc(uid);
+      const ref = chatRef(uid, chatId);
+      await db.runTransaction(async (tx) => {
+        const [userSnap, chatSnap] = await Promise.all([
+          tx.get(userRef),
+          tx.get(ref),
+        ]);
+        // A chat deleted meanwhile is not recreated.
+        if (!userSnap.exists || !chatSnap.exists) return;
+        const userData = userSnap.data() || {};
+        // Paused, "Forget everything" or "forget this chat" after the turn
+        // was requested: don't bring a summary back.
+        if (userData.memoryPaused === true) return;
+        if (isWriteSupersededByReset(userData, requestedAt, chatId)) return;
+        tx.update(ref, {
+          summary,
+          summaryUpdatedAt: FieldValue.serverTimestamp(),
+        });
       });
     },
   };

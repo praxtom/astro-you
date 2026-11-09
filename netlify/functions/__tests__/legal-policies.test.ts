@@ -31,7 +31,10 @@ test("legal policy copy covers production-critical surfaces", () => {
     "financial",
     SUPPORT_EMAIL,
   ]) {
-    assert.match(allCopy, new RegExp(required, "i"));
+    assert.match(
+      allCopy,
+      new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"),
+    );
   }
 });
 

@@ -1,4 +1,4 @@
-import { schedule } from "@netlify/functions";
+import type { Config } from "@netlify/functions";
 import { auth, db, messaging } from "./shared/firebase-admin";
 import { lookupVerifiedAuthEmail } from "./shared/verified-contact";
 import {
@@ -7,11 +7,26 @@ import {
   type BrainPushNotification,
   type BrainWhatsAppMessage,
 } from "./shared/brain-nudges";
+import { resolveUnsubscribeSecret } from "./shared/digest.js";
 import { resolveResendApiKey } from "./shared/env.js";
 import { processUsersPaged } from "./shared/scheduled-users";
 import { createPushTokenDocId } from "./shared/push-tokens";
+import { recordJobRun } from "./shared/ops-alerts";
 
-export const handler = schedule("0 * * * *", async () => {
+export default async (_req: Request) => {
+  try {
+    return await runBrainNudges();
+  } catch (err) {
+    console.error("[BrainNudgesScheduled] Run failed:", err);
+    await recordJobRun("brain-nudges", { ok: false, note: "run_threw" });
+    return new Response(JSON.stringify({ error: "brain_nudges_failed" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+};
+
+async function runBrainNudges(): Promise<Response> {
   const maxUsers = Number(process.env.BRAIN_NUDGE_BATCH_SIZE || 500);
   const sendEmail = createEmailSender();
   const loadPushTokens = createPushTokenLoader();
@@ -27,6 +42,7 @@ export const handler = schedule("0 * * * *", async () => {
     whatsappSent?: boolean;
     skippedReason?: string;
   }> = [];
+  let failed = 0;
 
   const { processed, reachedEnd } = await processUsersPaged(
     { job: "brain-nudges", maxUsers },
@@ -46,31 +62,53 @@ export const handler = schedule("0 * * * *", async () => {
           ),
         );
       } catch (err: any) {
+        failed += 1;
         console.error("[BrainNudgesScheduled] User failed:", userDoc.id, err);
         results.push({ sent: false, skippedReason: err.message || "failed" });
       }
     },
   );
 
-  return {
-    statusCode: 200,
-    body: JSON.stringify({
-      processed,
-      reachedEnd,
-      sent: results.filter((item) => item.sent).length,
-      emailSent: results.filter((item) => item.emailSent).length,
-      pushSent: results.filter((item) => item.pushSent).length,
-      whatsappSent: results.filter((item) => item.whatsappSent).length,
-      skipped: results.filter((item) => item.skippedReason).length,
-    }),
+  const summary = {
+    processed,
+    reachedEnd,
+    sent: results.filter((item) => item.sent).length,
+    emailSent: results.filter((item) => item.emailSent).length,
+    pushSent: results.filter((item) => item.pushSent).length,
+    whatsappSent: results.filter((item) => item.whatsappSent).length,
+    skipped: results.filter((item) => item.skippedReason).length,
+    failed,
   };
-});
+  await recordJobRun("brain-nudges", {
+    ok: true,
+    processed,
+    failed,
+    note: reachedEnd ? undefined : "batch_limit",
+  });
+  return new Response(JSON.stringify(summary), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+export const config: Config = { schedule: "0 * * * *" };
 
 function createEmailSender() {
   const resendApiKey = resolveResendApiKey();
   if (!resendApiKey) return undefined;
+  // Like the daily digest: no unsubscribe secret → no nudge email at all
+  // (bulk mail without List-Unsubscribe). Push/in-app still go out.
+  if (!resolveUnsubscribeSecret()) {
+    console.warn(
+      "[BrainNudgesScheduled] EMAIL_UNSUB_SECRET missing — nudge email disabled.",
+    );
+    return undefined;
+  }
 
   return async (email: BrainNudgeEmail) => {
+    if (!email.unsubscribeUrl) {
+      throw new Error("email_unsubscribe_missing");
+    }
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -84,14 +122,10 @@ function createEmailSender() {
         subject: email.subject,
         html: email.html,
         // One-click unsubscribe for bulk-sender (Gmail/Yahoo) compliance.
-        ...(email.unsubscribeUrl
-          ? {
-              headers: {
-                "List-Unsubscribe": `<${email.unsubscribeUrl}>`,
-                "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-              },
-            }
-          : {}),
+        headers: {
+          "List-Unsubscribe": `<${email.unsubscribeUrl}>`,
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        },
       }),
     });
 

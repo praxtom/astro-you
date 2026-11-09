@@ -61,7 +61,7 @@ export const InnerCircleManager: React.FC<InnerCircleManagerProps> = ({
             case 'conflict': return 'bg-red-500/10 text-red-400 border-red-500/20';
             case 'distant': return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
             case 'teacher': return 'bg-violet-500/10 text-violet-400 border-violet-500/20';
-            default: return 'bg-white/5 text-white/40 border-white/10';
+            default: return 'bg-white/5 text-white/55 border-white/10';
         }
     };
 
@@ -99,7 +99,7 @@ export const InnerCircleManager: React.FC<InnerCircleManagerProps> = ({
             {keyRelationships.length === 0 ? (
                 <div className="bg-white/5 border border-dashed border-white/10 rounded-2xl p-8 text-center">
                     <Users size={32} className="text-white/10 mx-auto mb-3" />
-                    <p className="text-white/40 text-sm">
+                    <p className="text-white/55 text-sm">
                         No connections mapped yet.<br />
                         Add key people to give the Guru social context.
                     </p>
@@ -122,7 +122,7 @@ export const InnerCircleManager: React.FC<InnerCircleManagerProps> = ({
                                         <h4 className="text-white font-medium">{rel.name}</h4>
                                         <div className="flex items-center gap-1.5">
                                             {getRelationIcon(rel.relation)}
-                                            <span className="text-[10px] uppercase tracking-wider text-white/40">
+                                            <span className="text-[0.6875rem] uppercase tracking-wider text-white/55">
                                                 {rel.relation}
                                             </span>
                                         </div>
@@ -133,25 +133,25 @@ export const InnerCircleManager: React.FC<InnerCircleManagerProps> = ({
                                         setEditingRel(rel);
                                         setIsFormOpen(true);
                                     }}
-                                    className="p-1.5 opacity-0 group-hover:opacity-100 text-white/40 hover:text-white transition-all"
+                                    className="p-1.5 opacity-0 group-hover:opacity-100 text-white/55 hover:text-white transition-all"
                                 >
                                     <Edit2 size={14} />
                                 </button>
                             </div>
 
                             <div className="flex items-center gap-2 mt-3">
-                                <span className={`text-[10px] px-2 py-0.5 rounded-full border ${getDynamicStyles(rel.dynamic)}`}>
+                                <span className={`text-[0.6875rem] px-2 py-0.5 rounded-full border ${getDynamicStyles(rel.dynamic)}`}>
                                     {rel.dynamic}
                                 </span>
                                 {rel.zodiacSign && (
-                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/40">
+                                    <span className="text-[0.6875rem] px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/55">
                                         {rel.zodiacSign}
                                     </span>
                                 )}
                             </div>
                             
                             {rel.notes && (
-                                <p className="mt-2 text-[11px] text-white/30 line-clamp-1 italic">
+                                <p className="mt-2 text-[11px] text-white/50 line-clamp-1 italic">
                                     "{rel.notes}"
                                 </p>
                             )}

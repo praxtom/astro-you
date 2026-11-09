@@ -12,15 +12,17 @@ import {
   normalizeAtmanData,
   validateNudgeInput,
 } from "../../../src/lib/atman-schema.js";
+import { stripUndefined } from "../../../src/lib/memory-ops.js";
 import { buildUnsubscribeUrl, resolveUnsubscribeSecret } from "./digest.js";
 import { selectVerifiedWhatsAppNumber } from "./verified-contact.js";
 
 /**
- * Best-effort one-click unsubscribe URL for a user's nudge emails. Returns
- * undefined (falling back to the settings link) when EMAIL_UNSUB_SECRET is not
- * configured, so a missing secret never crashes the scheduled nudge run.
+ * One-click unsubscribe URL for a user's nudge emails, or undefined when
+ * EMAIL_UNSUB_SECRET is not configured. Without it, nudge EMAIL is not sent
+ * at all (same as the daily digest) — bulk mail must carry List-Unsubscribe.
+ * Push and in-app delivery are unaffected.
  */
-function resolveNudgeUnsubscribeUrl(uid: string): string | undefined {
+export function resolveNudgeUnsubscribeUrl(uid: string): string | undefined {
   try {
     const secret = resolveUnsubscribeSecret();
     if (!secret) return undefined;
@@ -36,10 +38,22 @@ type UserDocSnapshot = {
 };
 
 type BrainNudgeDocRef = {
+  /** Optional in test doubles; used to detect an existing claim. */
+  get?(): Promise<UserDocSnapshot>;
   set(
     data: Record<string, unknown>,
     options?: { merge?: boolean },
   ): Promise<unknown>;
+};
+
+/** Minimal Firestore transaction surface used to claim a nudge. */
+type NudgeTransaction = {
+  get(ref: unknown): Promise<UserDocSnapshot>;
+  set(
+    ref: unknown,
+    data: Record<string, unknown>,
+    options?: { merge?: boolean },
+  ): unknown;
 };
 
 type BrainNudgeCollectionRef = {
@@ -90,8 +104,20 @@ export interface BrainWhatsAppMessage {
 export interface ProactiveBrainDeps {
   db: {
     collection(name: string): UsersCollectionRef;
+    /**
+     * When present (production), the nudge is claimed and appended to Atman
+     * inside a transaction on fresh data.
+     */
+    runTransaction?: <T>(
+      fn: (tx: NudgeTransaction) => Promise<T>,
+    ) => Promise<T>;
   };
   now?: () => Date;
+  /**
+   * One-click unsubscribe URL for a user. Defaults to the EMAIL_UNSUB_SECRET
+   * based link; when it returns undefined, no nudge email is sent.
+   */
+  unsubscribeUrlFor?: (uid: string) => string | undefined;
   sendEmail?: (email: BrainNudgeEmail) => Promise<void>;
   /**
    * The user's verified email from the Firebase Auth record (see
@@ -326,12 +352,8 @@ export async function runProactiveBrainForUser(
     };
   }
 
-  const atman = appendNudgeToAtman(
-    userData.atman as Partial<AtmanData> | undefined,
-    candidate,
-    now,
-  );
   const docId = createNudgeDocId(candidate.localDate, candidate.triggerType);
+  const nudgeRef = userRef.collection("brainNudges").doc(docId);
   const record = {
     uid: input.uid,
     ...candidate,
@@ -340,18 +362,44 @@ export async function runProactiveBrainForUser(
     pushSent: false,
     pushTokenCount: 0,
     whatsappSent: false,
-    deliveryStatus: "stored",
+    deliveryStatus: "claimed",
   };
+
+  // Claim BEFORE sending anything: the brainNudges doc is written first (and
+  // the nudge appended to Atman with field-level writes on fresh data), so a
+  // crash or retry after delivery can never resend, and the slow sends below
+  // never hold a stale copy of the user's memory that could be written back.
+  const claim = await claimNudge(deps, {
+    userRef,
+    nudgeRef,
+    record,
+    candidate,
+    now,
+    initialUserData: userData,
+  });
+  if (!claim.claimed) {
+    return {
+      uid: input.uid,
+      sent: false,
+      emailSent: false,
+      pushSent: false,
+      whatsappSent: false,
+      triggerType: candidate.triggerType,
+      skippedReason: claim.reason,
+    };
+  }
 
   let emailSent = false;
   let emailError: string | undefined;
+  // No List-Unsubscribe link (EMAIL_UNSUB_SECRET missing) → no email at all.
+  const unsubscribeUrl = shouldEmailNudge(candidate, profile, input.sendEmail)
+    ? (deps.unsubscribeUrlFor || resolveNudgeUnsubscribeUrl)(input.uid)
+    : undefined;
   const emailTo =
-    shouldEmailNudge(candidate, profile, input.sendEmail) &&
-    deps.sendEmail &&
-    deps.lookupVerifiedEmail
+    unsubscribeUrl && deps.sendEmail && deps.lookupVerifiedEmail
       ? await deps.lookupVerifiedEmail(input.uid).catch(() => null)
       : null;
-  if (emailTo && deps.sendEmail) {
+  if (emailTo && unsubscribeUrl && deps.sendEmail) {
     try {
       await deps.sendEmail(
         buildNudgeEmail(
@@ -359,7 +407,7 @@ export async function runProactiveBrainForUser(
           profile.name || "Friend",
           candidate,
           input.uid,
-          resolveNudgeUnsubscribeUrl(input.uid),
+          unsubscribeUrl,
         ),
       );
       emailSent = true;
@@ -406,31 +454,27 @@ export async function runProactiveBrainForUser(
     }
   }
 
-  await userRef.set({ atman }, { merge: true });
-  await userRef
-    .collection("brainNudges")
-    .doc(docId)
-    .set(
-      {
-        ...record,
+  // Delivery outcome only — the user's memory is never rewritten here.
+  await nudgeRef.set(
+    {
+      emailSent,
+      pushSent,
+      pushTokenCount,
+      whatsappSent,
+      deliveryStatus: resolveDeliveryStatus({
         emailSent,
         pushSent,
-        pushTokenCount,
         whatsappSent,
-        deliveryStatus: resolveDeliveryStatus({
-          emailSent,
-          pushSent,
-          whatsappSent,
-          emailError,
-          pushError,
-          whatsappError,
-        }),
-        emailError: emailError || null,
-        pushError: pushError || null,
-        whatsappError: whatsappError || null,
-      },
-      { merge: true },
-    );
+        emailError,
+        pushError,
+        whatsappError,
+      }),
+      emailError: emailError || null,
+      pushError: pushError || null,
+      whatsappError: whatsappError || null,
+    },
+    { merge: true },
+  );
 
   return {
     uid: input.uid,
@@ -441,6 +485,87 @@ export async function runProactiveBrainForUser(
     triggerType: candidate.triggerType,
     skippedReason: emailError || pushError || whatsappError,
   };
+}
+
+/**
+ * Field-level Atman patch (for set-with-merge) that appends one nudge to the
+ * history and ledger. Never carries the rest of the memory, so it cannot
+ * bring back anything the user deleted.
+ */
+export function buildNudgeAtmanPatch(
+  existingAtman: Partial<AtmanData> | undefined,
+  candidate: BrainNudgeCandidate,
+  now = new Date(),
+): Record<string, unknown> {
+  const atman = appendNudgeToAtman(existingAtman, candidate, now);
+  return stripUndefined({
+    schemaVersion: ATMAN_SCHEMA_VERSION,
+    nudgeHistory: atman.nudgeHistory,
+    memory: { nudgeHistory: atman.nudgeHistory },
+    memoryLedger: atman.memoryLedger,
+  });
+}
+
+type ClaimResult = { claimed: true } | { claimed: false; reason: string };
+
+/**
+ * Write the brainNudges/{docId} claim and append the nudge to Atman, before
+ * any delivery. In production this is one transaction on fresh data: an
+ * existing claim (an earlier or concurrent run) means skip, and the Atman
+ * append re-reads the memory instead of reusing the snapshot taken before.
+ */
+async function claimNudge(
+  deps: ProactiveBrainDeps,
+  input: {
+    userRef: UserDocRef;
+    nudgeRef: BrainNudgeDocRef;
+    record: Record<string, unknown>;
+    candidate: BrainNudgeCandidate;
+    now: Date;
+    initialUserData: Record<string, unknown>;
+  },
+): Promise<ClaimResult> {
+  const { userRef, nudgeRef, record, candidate, now } = input;
+  if (typeof deps.db.runTransaction === "function") {
+    return deps.db.runTransaction<ClaimResult>(async (tx) => {
+      const existing = await tx.get(nudgeRef);
+      if (existing.exists) return { claimed: false, reason: "already_claimed" };
+      const userSnap = await tx.get(userRef);
+      if (!userSnap.exists) return { claimed: false, reason: "user_not_found" };
+      const fresh = userSnap.data() || {};
+      tx.set(nudgeRef, record);
+      tx.set(
+        userRef,
+        {
+          atman: buildNudgeAtmanPatch(
+            fresh.atman as Partial<AtmanData> | undefined,
+            candidate,
+            now,
+          ),
+        },
+        { merge: true },
+      );
+      return { claimed: true };
+    });
+  }
+
+  // Fallback for test doubles without transactions.
+  if (nudgeRef.get) {
+    const existing = await nudgeRef.get();
+    if (existing.exists) return { claimed: false, reason: "already_claimed" };
+  }
+  await nudgeRef.set(record);
+  await userRef.set(
+    {
+      atman: buildNudgeAtmanPatch(
+        input.initialUserData.atman as Partial<AtmanData> | undefined,
+        candidate,
+        now,
+      ),
+    },
+    { merge: true },
+  );
+  return { claimed: true };
 }
 
 export function appendNudgeToAtman(
@@ -563,7 +688,8 @@ function shouldEmailNudge(
 ) {
   if (!sendEmail || candidate.priority !== "high") return false;
   if (!candidate.channels.includes("email")) return false;
-  return profile.notificationPrefs?.emailDigest !== false;
+  // Email is explicit opt-in (same rule as the scheduled digest).
+  return profile.notificationPrefs?.emailDigest === true;
 }
 
 function shouldPushNudge(

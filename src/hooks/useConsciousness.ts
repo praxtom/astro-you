@@ -21,13 +21,22 @@ export function useConsciousness() {
         AtmanService.initializeAtman(user.uid);
 
         // Real-time listener for consciousness updates
-        const unsub = onSnapshot(doc(db, "users", user.uid), (doc) => {
-            if (doc.exists()) {
-                const userData = doc.data() as UserProfile;
-                setAtmanState(normalizeAtmanData(userData.atman) || undefined);
-            }
-            setLoading(false);
-        });
+        const unsub = onSnapshot(
+            doc(db, "users", user.uid),
+            (doc) => {
+                if (doc.exists()) {
+                    const userData = doc.data() as UserProfile;
+                    setAtmanState(normalizeAtmanData(userData.atman) || undefined);
+                }
+                setLoading(false);
+            },
+            (error) => {
+                // Without this, a permission/network error leaves loading
+                // stuck at true forever.
+                console.error('[useConsciousness] Subscription failed:', error.code || error.name);
+                setLoading(false);
+            },
+        );
 
         return () => unsub();
     }, [user]);

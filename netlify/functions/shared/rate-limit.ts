@@ -30,7 +30,6 @@ export function getRequestIdentifier(req: Request, fallback = "anonymous") {
 const FAIL_CLOSED_SCOPES = new Set([
   "send_otp",
   "verify_otp",
-  "credits_use",
   "synthesis",
   "synthesis_guest",
   "synthesis_guest_day",
@@ -108,5 +107,79 @@ export async function checkRateLimit(
       remaining: 0,
       resetAt,
     };
+  }
+}
+
+/** Stable sha256 of a JSON-serializable submission (object keys sorted). */
+export function submissionFingerprint(value: unknown): string {
+  const stable = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(stable);
+    if (v && typeof v === "object") {
+      return Object.fromEntries(
+        Object.keys(v as Record<string, unknown>)
+          .sort()
+          .map((k) => [k, stable((v as Record<string, unknown>)[k])]),
+      );
+    }
+    return v;
+  };
+  return crypto
+    .createHash("sha256")
+    .update(JSON.stringify(stable(value)) ?? "")
+    .digest("hex")
+    .slice(0, 40);
+}
+
+/**
+ * True when this exact submission (same scope + key + fingerprint) was already
+ * accepted within `windowMs` — e.g. a double-clicked "Send" or a client retry.
+ * Otherwise claims the window and returns false. Fails OPEN (returns false) if
+ * the store is unavailable: a duplicate ticket is better than a lost one.
+ */
+export interface SubmissionKey {
+  scope: string;
+  key: string;
+  fingerprint: string;
+}
+
+function duplicateRef(options: SubmissionKey) {
+  const keyHash = crypto
+    .createHash("sha256")
+    .update(`${options.scope}:${options.key}:${options.fingerprint}`)
+    .digest("hex")
+    .slice(0, 32);
+  return db.collection("rateLimits").doc(`dup_${options.scope}_${keyHash}`);
+}
+
+/** Undo a claim when the write it guarded failed, so a retry isn't blocked. */
+export async function releaseSubmission(options: SubmissionKey) {
+  await duplicateRef(options)
+    .delete()
+    .catch(() => undefined);
+}
+
+export async function isDuplicateSubmission(
+  options: SubmissionKey & { windowMs: number },
+): Promise<boolean> {
+  const now = Date.now();
+  const ref = duplicateRef(options);
+  try {
+    return await db.runTransaction(async (tx: Transaction) => {
+      const snap = await tx.get(ref);
+      const until = snap.exists ? Number(snap.data()?.duplicateUntilMs) : 0;
+      if (until > now) return true;
+      tx.set(ref, {
+        scope: options.scope,
+        duplicateUntilMs: now + options.windowMs,
+        expiresAt: new Date(now + options.windowMs),
+      });
+      return false;
+    });
+  } catch (error) {
+    console.error(
+      `[RateLimit] Duplicate check failed for ${options.scope}; allowing.`,
+      error,
+    );
+    return false;
   }
 }

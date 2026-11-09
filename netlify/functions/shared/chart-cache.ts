@@ -152,14 +152,21 @@ let memoBase: string | undefined;
 let memoKey: string | undefined;
 
 /**
- * HMAC key for cache doc ids, derived from OTP_HASH_SECRET (already required
- * for launch) with a fixed label — same pattern as shared/internal-dispatch.
+ * HMAC key for cache doc ids. A dedicated CACHE_KEY_SECRET (>= 32 chars) wins
+ * when set; otherwise the key is derived from OTP_HASH_SECRET (already
+ * required for launch) with a fixed label — same pattern as
+ * shared/internal-dispatch — so existing cache ids stay valid while
+ * CACHE_KEY_SECRET is unset. Setting it re-keys every cache once (old entries
+ * simply miss and expire via TTL).
  */
 export function resolveChartCacheKeySecret(env: Env = process.env): string {
-  const base = env.OTP_HASH_SECRET?.trim();
+  const dedicated = env.CACHE_KEY_SECRET?.trim();
+  const useDedicated = !!dedicated && dedicated.length >= MIN_SECRET_CHARS;
+  const base = useDedicated ? dedicated : env.OTP_HASH_SECRET?.trim();
   if (!base || base.length < MIN_SECRET_CHARS) return DEV_FALLBACK_KEY;
-  if (memoBase !== base) {
-    memoBase = base;
+  const memoId = `${useDedicated ? "dedicated" : "otp"}:${base}`;
+  if (memoBase !== memoId) {
+    memoBase = memoId;
     memoKey = createHmac("sha256", base).update(CACHE_KEY_LABEL).digest("hex");
   }
   return memoKey!;
@@ -169,6 +176,61 @@ function keyedDigest(material: string, env: Env): string {
   return createHmac("sha256", resolveChartCacheKeySecret(env))
     .update(material)
     .digest("hex");
+}
+
+/**
+ * Keyed (HMAC) doc id for caches outside chart_cache — match_cache,
+ * transit_reports, weeklyAstrologyContext. A plain SHA-256 of birth data can
+ * be brute-forced back to the birth moment (the input space is small); an
+ * HMAC under the server secret cannot. `namespace` keeps different payloads
+ * built from the same inputs apart.
+ */
+export function keyedCacheId(
+  namespace: string,
+  parts: readonly unknown[],
+  env: Env = process.env,
+  length = 40,
+): string {
+  const material = [
+    namespace,
+    ...parts.map((p) => (p === undefined || p === null ? "" : String(p))),
+  ].join("|");
+  return keyedDigest(material, env).slice(0, length);
+}
+
+/** Birth fields a per-chart cache key is built from (kundali.ts `bd` shape). */
+export interface ChartKeyBirthData {
+  dob: string;
+  tob: string;
+  pob?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  birthTimeUnknown?: boolean;
+}
+
+/**
+ * The chart_cache id kundali.ts uses for a natal chart type with no variant
+ * params (e.g. DASHAS, YOGAS), so other endpoints share the same entry.
+ */
+export function birthChartCacheKey(
+  chartType: string,
+  bd: ChartKeyBirthData,
+  variant?: ChartCacheKeyInput["variant"],
+  env: Env = process.env,
+): string {
+  return chartCacheKey(
+    {
+      chartType,
+      dob: bd.dob,
+      tob: bd.tob,
+      lat: bd.lat,
+      lng: bd.lng,
+      pob: bd.pob,
+      birthTimeUnknown: bd.birthTimeUnknown === true,
+      variant,
+    },
+    env,
+  );
 }
 
 function normalizePlace(value: unknown): string {

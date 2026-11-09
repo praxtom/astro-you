@@ -192,6 +192,12 @@ const {
   getCompatibilityDetails,
   getDailyHoroscope,
 } = await import("../shared/astro-api.js");
+// No Firestore budget store here; and the quota breaker the stubbed 429s open
+// is reset after each stub so later tests reach their own fetch stubs.
+const { setAstroBudgetStore, resetAstroBudgetMemo } = await import(
+  "../shared/astro-budget.js"
+);
+setAstroBudgetStore(null);
 
 const BIRTH = { dob: "1990-05-15", tob: "10:30", pob: "New Delhi" };
 
@@ -204,6 +210,7 @@ function stubQuotaFetch() {
     })) as typeof fetch;
   return () => {
     globalThis.fetch = original;
+    resetAstroBudgetMemo();
   };
 }
 

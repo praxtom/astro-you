@@ -35,6 +35,7 @@ function extractProfile(data: Record<string, any>): UserProfile | null {
         tob: data.tob,
         pob: data.pob,
         gender: data.gender,
+        birthTimeUnknown: data.birthTimeUnknown,
         currentLocation: data.currentLocation,
         coordinates: data.coordinates,
     };
@@ -71,7 +72,7 @@ function readStoredGuestProfile(): UserProfile | null {
 }
 
 export function useUserProfile(): UseUserProfileResult {
-    const { user } = useAuth();
+    const { user, accountSyncing } = useAuth();
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -142,20 +143,26 @@ export function useUserProfile(): UseUserProfileResult {
         return () => unsubscribe();
     }, [user]);
 
-    // Extract birthData from profile for convenience
+    // Extract birthData from profile for convenience. birthTimeUnknown must
+    // travel with it: the server only shapes a time-unknown chart (no Lagna,
+    // Moon-based houses) when the flag is set, so dropping it here served
+    // every consumer a fabricated noon chart.
     const birthData: BirthData | null = useMemo(() => profile?.dob ? {
         name: profile.name,
         dob: profile.dob,
         tob: profile.tob,
         pob: profile.pob,
         gender: profile.gender as any,
+        ...(profile.birthTimeUnknown === true ? { birthTimeUnknown: true } : {}),
         coordinates: profile.coordinates,
     } : null, [profile]);
 
     return {
         profile,
         birthData,
-        loading,
+        // A guest profile may still be migrating into the user doc after
+        // sign-in; don't report "no profile" until that finishes.
+        loading: loading || (accountSyncing && !profile),
         error,
         refetch: fetchProfile,
     };

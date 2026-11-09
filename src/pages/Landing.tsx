@@ -16,6 +16,7 @@ import { STORAGE_KEYS } from "../lib/constants";
 import { captureReferralFromUrl } from "../lib/acquisition";
 import { hasSavedBirthProfile } from "../lib/saved-profile";
 import { SIGNUP_BONUS_CREDITS } from "../lib/signup-offer";
+import { TIERS } from "../lib/subscriptions";
 import {
   getPlanetStoryState,
   PLANET_STORY_CHAPTERS,
@@ -23,6 +24,42 @@ import {
 } from "../lib/landing-planet-story";
 
 const CelestialEngine = lazy(() => import("../components/CelestialEngine"));
+
+const PLANS_FROM_INR = TIERS.premium.prices.INR.toLocaleString("en-IN");
+
+/**
+ * The 3D sky costs ~890KB of three.js plus ~4.6MB of planet textures (loaded
+ * by the engine itself, so they arrive only when it mounts). Only devices that
+ * can comfortably afford it get it; everyone else sees the CSS starfield.
+ */
+function canAffordCelestialEngine(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return false;
+  }
+  if (!window.matchMedia("(prefers-reduced-motion: no-preference)").matches) {
+    return false;
+  }
+  if (!window.matchMedia("(min-width: 768px)").matches) return false;
+  const nav = navigator as Navigator & {
+    connection?: { saveData?: boolean };
+    deviceMemory?: number;
+  };
+  if (nav.connection?.saveData) return false;
+  if (typeof nav.deviceMemory === "number" && nav.deviceMemory < 4) {
+    return false;
+  }
+  return true;
+}
+
+/** Static, CSS-only starfield: a few tiled dots, no JavaScript, no images. */
+const CSS_STARFIELD = [
+  "radial-gradient(1px 1px at 22px 34px, rgba(255,255,255,0.75), transparent)",
+  "radial-gradient(1px 1px at 128px 86px, rgba(255,255,255,0.55), transparent)",
+  "radial-gradient(1.5px 1.5px at 206px 154px, rgba(229,185,106,0.7), transparent)",
+  "radial-gradient(1px 1px at 64px 196px, rgba(255,255,255,0.45), transparent)",
+  "radial-gradient(1px 1px at 174px 18px, rgba(255,255,255,0.65), transparent)",
+  "radial-gradient(1.5px 1.5px at 248px 232px, rgba(255,255,255,0.5), transparent)",
+].join(", ");
 
 function PlanetStoryNarrative({
   chapter,
@@ -79,7 +116,7 @@ function PlanetStoryNarrative({
           aria-hidden="true"
         />
         <span
-          className="text-[10px] font-black uppercase tracking-[0.38em] sm:text-xs"
+          className="text-[0.6875rem] font-black uppercase tracking-[0.38em] sm:text-xs"
           style={{ color: chapter.accent }}
         >
           {chapter.eyebrow}
@@ -176,6 +213,18 @@ function PlanetStoryNarrative({
           ) : null}
         </div>
       ) : null}
+
+      {isOpening ? (
+        <div className="mt-6 max-w-xl space-y-1 text-sm leading-relaxed text-white/70 [text-shadow:0_2px_14px_rgba(0,0,0,0.95)]">
+          <p>
+            An AI guide trained on Jyotish reads your birth chart and answers in
+            plain language. It is software, not a human astrologer.
+          </p>
+          <p className="text-white/55">
+            Free to start · plans from ₹{PLANS_FROM_INR}/month
+          </p>
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -264,7 +313,7 @@ function HaveChartChoice({
         <button
           type="button"
           onClick={onClose}
-          className="mt-5 w-full text-xs uppercase tracking-widest text-white/40 hover:text-white/70"
+          className="mt-5 w-full text-xs uppercase tracking-widest text-white/55 hover:text-white/70"
         >
           Cancel
         </button>
@@ -296,6 +345,7 @@ function Landing() {
   }, []);
 
   useEffect(() => {
+    if (!canAffordCelestialEngine()) return;
     const timer = window.setTimeout(() => setShowCelestialEngine(true), 600);
     return () => window.clearTimeout(timer);
   }, []);
@@ -456,6 +506,16 @@ function Landing() {
             <div className="absolute h-3 w-3 rounded-full bg-gold shadow-[0_0_45px_rgba(229,185,106,0.8)]" />
           </div>
 
+          {!showCelestialEngine ? (
+            <div
+              className="absolute inset-0 opacity-70"
+              style={{
+                backgroundImage: CSS_STARFIELD,
+                backgroundSize: "260px 260px",
+              }}
+            />
+          ) : null}
+
           <div className="h-full w-full motion-reduce:hidden">
             {showCelestialEngine ? (
               <SectionErrorBoundary label="celestial story">
@@ -490,7 +550,7 @@ function Landing() {
               </div>
 
               {index === 0 ? (
-                <div className="absolute bottom-5 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2 text-white/35 motion-safe:animate-bounce">
+                <div className="absolute bottom-5 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2 text-white/50 motion-safe:animate-bounce">
                   <span className="text-xs font-bold uppercase tracking-[0.34em]">
                     Descend
                   </span>

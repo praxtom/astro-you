@@ -107,6 +107,8 @@ export default async (req: Request, _context: Context) => {
       supportTicketsGlobal,
       remedyRequestsGlobal,
       paymentOrders,
+      weeklyAstrologyContext,
+      publishedReviews,
     ] = await Promise.all([
       readTopLevelCollectionByUid("analyticsEvents", uid),
       // expertApplications is written by the anonymous public application
@@ -122,6 +124,23 @@ export default async (req: Request, _context: Context) => {
       readTopLevelCollectionByUid("supportTickets", uid),
       readTopLevelCollectionByUid("remedyRequests", uid),
       readTopLevelCollectionByUid("paymentOrders", uid),
+      // Cached weekly dasha/transit context computed from the user's chart.
+      readTopLevelCollectionByUid("weeklyAstrologyContext", uid),
+      // Public copies of the user's approved consultation reviews
+      // (astrologers/{personaId}/reviews/*).
+      db
+        .collectionGroup("reviews")
+        .where("uid", "==", uid)
+        .limit(TOP_LEVEL_EXPORT_CAP)
+        .get()
+        .then((snap: QuerySnapshot) =>
+          snap.docs.map((d: QueryDocumentSnapshot) => ({
+            id: d.id,
+            path: d.ref.path,
+            ...d.data(),
+          })),
+        )
+        .catch(() => [] as Array<Record<string, unknown>>),
     ]);
 
     // The whole user document (minus the internal/secret fields documented
@@ -151,6 +170,8 @@ export default async (req: Request, _context: Context) => {
       supportTicketsGlobal,
       remedyRequestsGlobal,
       paymentOrders,
+      weeklyAstrologyContext,
+      publishedReviews,
     };
 
     return new Response(JSON.stringify(exportData, null, 2), {

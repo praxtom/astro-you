@@ -1,6 +1,80 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { initializeUserCredits, type CreditDeps } from "../shared/credits.js";
+import {
+  canonicalizeEmail,
+  initializeUserCredits,
+  signupGrantKey,
+  type CreditDeps,
+} from "../shared/credits.js";
+import { createFakeFirestore } from "./helpers/fake-firestore.js";
+
+const SECRET_ENV = { OTP_HASH_SECRET: "x".repeat(40) };
+
+test("canonicalizeEmail folds case, +tags and Gmail dots", () => {
+  assert.equal(
+    canonicalizeEmail("John.Doe+promo@GMAIL.com"),
+    "johndoe@gmail.com",
+  );
+  assert.equal(
+    canonicalizeEmail("j.o.h.n.doe@googlemail.com"),
+    "johndoe@gmail.com",
+  );
+  // Dots matter outside Gmail.
+  assert.equal(
+    canonicalizeEmail("john.doe+x@example.com"),
+    "john.doe@example.com",
+  );
+  assert.equal(canonicalizeEmail("not-an-email"), null);
+  assert.equal(canonicalizeEmail(undefined), null);
+});
+
+test("signupGrantKey is a keyed hash, stable across email variants", () => {
+  const a = signupGrantKey("John.Doe+x@gmail.com", SECRET_ENV);
+  const b = signupGrantKey("johndoe@gmail.com", SECRET_ENV);
+  assert.equal(a, b);
+  assert.match(a || "", /^[0-9a-f]{64}$/);
+  assert.equal((a || "").includes("johndoe"), false);
+  // A different secret gives a different key (it is keyed, not a plain hash).
+  assert.notEqual(
+    signupGrantKey("johndoe@gmail.com", { OTP_HASH_SECRET: "y".repeat(40) }),
+    a,
+  );
+});
+
+test("delete + re-signup with the same mailbox gets no second signup bonus", async () => {
+  const fake = createFakeFirestore();
+  const first = await initializeUserCredits(fake, {
+    uid: "first_uid",
+    email: "johndoe@gmail.com",
+    env: SECRET_ENV,
+  });
+  assert.equal(first.balanceAfter, 15);
+
+  // Account deleted: the whole users/first_uid tree goes away.
+  for (const key of [...fake.store.keys()]) {
+    if (key.startsWith("users/first_uid")) fake.store.delete(key);
+  }
+
+  const second = await initializeUserCredits(fake, {
+    uid: "second_uid",
+    email: "John.Doe+again@gmail.com",
+    env: SECRET_ENV,
+  });
+  assert.equal(second.duplicate, false);
+  assert.equal(second.balanceAfter, 0);
+  assert.equal(fake.get("users/second_uid")?.credits, 0);
+  // The sentinel is still written so repeat calls are idempotent.
+  assert.equal(
+    fake.get("users/second_uid/creditLedger/signup_bonus")?.amount,
+    0,
+  );
+  const again = await initializeUserCredits(fake, {
+    uid: "second_uid",
+    email: "johndoe@gmail.com",
+    env: SECRET_ENV,
+  });
+  assert.equal(again.duplicate, true);
+});
 
 type Write = {
   type: "update" | "set";
@@ -88,7 +162,7 @@ test("signup bonus is granted incrementally even when credits already exist (ref
     balanceAfter: 25,
     duplicate: false,
   });
-  assert.equal(writes.length, 2);
+  assert.equal(writes.length, 3);
   assert.equal(writes[0].path, "users/user_123");
   // Increment (not overwrite) so the referral credits are preserved.
   assert.deepEqual(writes[0].data.credits, { op: "increment", value: 15 });
@@ -133,7 +207,7 @@ test("signup bonus grants 15 credits to a brand-new user", async () => {
     balanceAfter: 15,
     duplicate: false,
   });
-  assert.equal(writes.length, 2);
+  assert.equal(writes.length, 3);
   assert.deepEqual(writes[0].data.credits, { op: "increment", value: 15 });
   assert.equal(writes[1].path, "users/user_123/creditLedger/signup_bonus");
 });

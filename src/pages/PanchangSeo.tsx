@@ -135,7 +135,7 @@ function PanchangTool({ route }: { route: NonNullable<ReturnType<typeof panchang
         <section className="sm:rounded-2xl sm:border sm:border-white/10 sm:bg-white/[0.03] sm:p-6">
           <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto]">
             <label className="block">
-              <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white/40">
+              <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white/55">
                 <Calendar size={14} /> Date
               </span>
               <input
@@ -146,7 +146,7 @@ function PanchangTool({ route }: { route: NonNullable<ReturnType<typeof panchang
               />
             </label>
             <label className="block">
-              <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white/40">
+              <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white/55">
                 <MapPin size={14} /> City
               </span>
               <input
@@ -187,12 +187,12 @@ function PanchangTool({ route }: { route: NonNullable<ReturnType<typeof panchang
                 key={label}
                 className="rounded-2xl border border-white/10 bg-white/[0.03] p-5"
               >
-                <p className="text-xs font-bold uppercase tracking-widest text-white/35">
+                <p className="text-xs font-bold uppercase tracking-widest text-white/50">
                   {label}
                 </p>
                 <p className="mt-2 text-xl text-white/85">{value || "-"}</p>
                 {subtext && (
-                  <p className="mt-1 text-sm text-white/35">until {subtext}</p>
+                  <p className="mt-1 text-sm text-white/50">until {subtext}</p>
                 )}
               </div>
             ))}
@@ -207,7 +207,7 @@ function PanchangTool({ route }: { route: NonNullable<ReturnType<typeof panchang
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-white/35">
+                <p className="text-xs font-bold uppercase tracking-widest text-white/50">
                   Favor
                 </p>
                 <p className="mt-2 text-white/70">
@@ -218,7 +218,7 @@ function PanchangTool({ route }: { route: NonNullable<ReturnType<typeof panchang
                 </p>
               </div>
               <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-white/35">
+                <p className="text-xs font-bold uppercase tracking-widest text-white/50">
                   Avoid
                 </p>
                 <p className="mt-2 text-white/70">

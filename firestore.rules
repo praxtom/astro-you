@@ -53,15 +53,17 @@ service cloud.firestore {
       // Money, subscription, and referral state are server-owned through
       // Admin SDK. Explicit field equality is more robust than
       // diff().affectedKeys(), which only reports top-level keys and is easy
-      // to get subtly wrong. Referral fields may be absent, so compare via
-      // get() with a null default — a client-writable referral.code would let
+      // to get subtly wrong. Every compared field may be absent (free users
+      // never have `subscription`; a brand-new doc may not have `credits` yet),
+      // and reading a missing field is a rules error that DENIES the write, so
+      // always compare via get() with a null default — a client-writable referral.code would let
       // an attacker hijack another user's referral rewards.
       // Memory controls: the owner may edit/clear their own `atman` memory
       // and toggle `memoryPaused` (must be a bool; the server skips memory
       // extraction while it is true).
       allow update: if isOwner(userId)
-                    && request.resource.data.credits == resource.data.credits
-                    && request.resource.data.subscription == resource.data.subscription
+                    && request.resource.data.get('credits', null) == resource.data.get('credits', null)
+                    && request.resource.data.get('subscription', null) == resource.data.get('subscription', null)
                     && request.resource.data.get('referral', null) == resource.data.get('referral', null)
                     && request.resource.data.get('referredBy', null) == resource.data.get('referredBy', null)
                     && request.resource.data.get('referralClaimedAt', null) == resource.data.get('referralClaimedAt', null)

@@ -1,9 +1,13 @@
-import { useEffect, useState } from "react";
+import { isRazorpayHostedUrl } from "../lib/payment-navigation";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { doc, updateDoc } from "firebase/firestore";
 import { useAuth } from "../lib/useAuth";
 import { useUserProfile } from "../hooks";
-import { useSubscription } from "../hooks/useSubscription";
+import {
+  formatSubscriptionDate,
+  useSubscription,
+} from "../hooks/useSubscription";
 import { getTier, type SubscriptionTier } from "../lib/subscriptions";
 import {
   AlertCircle,
@@ -15,13 +19,19 @@ import {
   Download,
   Languages,
   Loader2,
+  LogOut,
+  PencilLine,
   ShieldCheck,
   Sparkles,
   Trash2,
   User,
 } from "lucide-react";
 import { MemoryManager } from "../components/memory/MemoryManager";
-import { db } from "../lib/firebase";
+import { AnalyticsConsentToggle } from "../components/AnalyticsConsentToggle";
+import { auth, db } from "../lib/firebase";
+import OnboardingModal from "../components/OnboardingModal";
+import { useErrorToast } from "../components/ui/toast-context";
+import { requestSignIn } from "../lib/auth-prompt";
 import { PLATFORM_LANGUAGES, normalizePlatformLanguage } from "../lib/languages";
 import { ZODIAC_MODES, normalizeZodiacMode } from "../lib/zodiac-mode";
 import {
@@ -58,6 +68,13 @@ export default function Settings() {
   const [pushSaving, setPushSaving] = useState(false);
   const [pushMessage, setPushMessage] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteText, setDeleteText] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [showEditBirth, setShowEditBirth] = useState(false);
+  const deleteInputRef = useRef<HTMLInputElement>(null);
+  const deleteOpenerRef = useRef<HTMLButtonElement>(null);
+  const showErrorToast = useErrorToast();
   const [installAvailable, setInstallAvailable] = useState(false);
   const [installMessage, setInstallMessage] = useState("");
 
@@ -91,6 +108,7 @@ export default function Settings() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Could not start checkout");
+      if (!isRazorpayHostedUrl(data.shortUrl)) throw new Error("Hosted subscription checkout is unavailable. Please try again shortly.");
       if (data.shortUrl) {
         window.location.href = data.shortUrl;
       }
@@ -156,12 +174,18 @@ export default function Settings() {
     if (!user || !profile) return;
     setSavingPrefs(true);
     try {
-      const current = profile.notificationPrefs?.emailDigest !== false;
+      // Opt-in: the scheduled digest only goes out when emailDigest === true,
+      // so an unset preference is Off. Always write an explicit boolean.
+      const current = profile.notificationPrefs?.emailDigest === true;
       await updateDoc(doc(db, "users", user.uid), {
-        "profile.notificationPrefs.emailDigest": !current,
+        "profile.notificationPrefs.emailDigest": current ? false : true,
       });
     } catch (err) {
       console.error("Notification preference update failed:", err);
+      showErrorToast(
+        "Email digest not changed",
+        "Check your connection and try again.",
+      );
     } finally {
       setSavingPrefs(false);
     }
@@ -200,6 +224,10 @@ export default function Settings() {
       });
     } catch (err) {
       console.error("Language preference update failed:", err);
+      showErrorToast(
+        "Language not saved",
+        "Check your connection and choose it again.",
+      );
     } finally {
       setSavingPrefs(false);
     }
@@ -217,6 +245,10 @@ export default function Settings() {
       });
     } catch (err) {
       console.error("Zodiac mode update failed:", err);
+      showErrorToast(
+        "Zodiac system not saved",
+        "Check your connection and choose it again.",
+      );
     } finally {
       setSavingPrefs(false);
     }
@@ -232,6 +264,10 @@ export default function Settings() {
       });
     } catch (err) {
       console.error("Festival region update failed:", err);
+      showErrorToast(
+        "Festival calendar not saved",
+        "Check your connection and choose it again.",
+      );
     } finally {
       setSavingPrefs(false);
     }
@@ -257,30 +293,82 @@ export default function Settings() {
     );
   };
 
-  const handleDeleteAccount = async () => {
-    if (!user) return;
-    const confirmation = prompt("Type DELETE to permanently delete your account.");
-    if (confirmation !== "DELETE") return;
+  const DELETE_WORD = "DELETE";
+
+  const openDeleteConfirm = () => {
+    setDeleteError(null);
+    setDeleteText("");
+    setDeleteOpen(true);
+    window.setTimeout(() => deleteInputRef.current?.focus(), 0);
+  };
+
+  const closeDeleteConfirm = () => {
+    setDeleteOpen(false);
+    setDeleteText("");
+    window.setTimeout(() => deleteOpenerRef.current?.focus(), 0);
+  };
+
+  /**
+   * Deletion needs a recent sign-in (server answers 401 with
+   * code "recent_login_required"). Then we ask the user to sign in again and
+   * retry once — only if they came back as the same account.
+   */
+  const handleDeleteAccount = async (afterReauth = false) => {
+    const current = auth.currentUser;
+    if (!current || deleteText.trim() !== DELETE_WORD) return;
+    const uid = current.uid;
     setDeletingAccount(true);
+    setDeleteError(null);
     try {
-      const idToken = await user.getIdToken();
+      const idToken = await current.getIdToken(afterReauth);
       const res = await fetch("/api/account/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken, confirmation }),
+        body: JSON.stringify({ idToken, confirmation: DELETE_WORD }),
       });
       const data = await res.json().catch(() => ({}));
+      if (res.status === 401 && data?.code === "recent_login_required") {
+        if (afterReauth) {
+          throw new Error("Still needs a recent sign-in after re-auth");
+        }
+        setDeletingAccount(false);
+        const opened = requestSignIn({
+          title: "Confirm it's you",
+          message:
+            "For your safety, sign in again to delete your account. Nothing has been deleted yet.",
+          onSuccess: () => {
+            if (auth.currentUser?.uid !== uid) {
+              setDeleteError(
+                "You signed in with a different account, so nothing was deleted. Sign in with the account you want to delete.",
+              );
+              return;
+            }
+            void handleDeleteAccount(true);
+          },
+        });
+        if (!opened) {
+          setDeleteError(
+            "Please sign out, sign in again, then delete your account.",
+          );
+        }
+        return;
+      }
       if (!res.ok) throw new Error(data.error || "Account deletion failed");
       await signOut();
       navigate("/");
     } catch (err: any) {
       console.error("Account deletion failed:", err);
-      setBillingError(
+      setDeleteError(
         "We couldn't delete your account. Nothing was removed — please try again, or contact support.",
       );
     } finally {
       setDeletingAccount(false);
     }
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate("/");
   };
 
   useEffect(() => {
@@ -312,9 +400,10 @@ export default function Settings() {
             <div>
               <span className="text-2xl mr-2">{currentTier.badge}</span>
               <span className="text-xl font-display">{currentTier.name}</span>
+              {/* One INR plan per tier: subscriptions are always billed in rupees. */}
               {currentTier.price > 0 && (
                 <span className="text-white/60 ml-2">
-                  {formatMoney(currentTier.prices[currency], currency)}/mo
+                  {formatMoney(currentTier.prices.INR, "INR")}/mo
                 </span>
               )}
             </div>
@@ -322,14 +411,20 @@ export default function Settings() {
               <p className="text-sm text-white/60">
                 {credits} credits remaining
               </p>
-              {profile?.subscription?.currentEnd && (
-                <p className="text-xs text-white/60">
-                  Renews:{" "}
-                  {new Date(
-                    profile.subscription.currentEnd,
-                  ).toLocaleDateString()}
-                </p>
-              )}
+              {tier !== "free" &&
+                profile?.subscription?.status !== "cancelling" &&
+                formatSubscriptionDate(
+                  profile?.subscription?.chargeAt ??
+                    profile?.subscription?.currentEnd,
+                ) && (
+                  <p className="text-xs text-white/60">
+                    Renews:{" "}
+                    {formatSubscriptionDate(
+                      profile?.subscription?.chargeAt ??
+                        profile?.subscription?.currentEnd,
+                    )}
+                  </p>
+                )}
               {profile?.subscription?.status && (
                 <p className="text-xs text-white/60 capitalize">
                   Status: {profile.subscription.status}
@@ -338,13 +433,37 @@ export default function Settings() {
             </div>
           </div>
 
+          {tier !== "free" && profile?.subscription?.status !== "cancelling" && (
+            <p className="mb-4 text-xs text-white/60">
+              Renews monthly until you cancel. You can cancel any time and keep
+              access until the end of the month you've paid for.
+            </p>
+          )}
+
+          {(() => {
+            const pendingTier = (
+              profile?.subscription as
+                | { pendingSubscription?: { tier?: string } }
+                | undefined
+            )?.pendingSubscription?.tier;
+            if (!pendingTier || pendingTier === tier) return null;
+            return (
+              <div className="mb-4 rounded-xl border border-gold/20 bg-gold/5 px-4 py-3 text-sm text-white/80">
+                Your switch to {getTier(pendingTier).name} starts as soon as
+                its first payment goes through.
+                {tier !== "free" &&
+                  ` Your ${currentTier.name} plan is then cancelled automatically, so you're never billed for both.`}
+              </div>
+            );
+          })()}
+
           {profile?.subscription?.status === "pending" &&
-            profile.subscription.gracePeriodEnd && (
+            formatSubscriptionDate(profile.subscription.gracePeriodEnd) && (
               <div className="mb-4 rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100 flex gap-2">
                 <AlertCircle size={16} className="shrink-0 mt-0.5" />
                 <span>
                   Payment is pending. Grace period ends{" "}
-                  {new Date(profile.subscription.gracePeriodEnd).toLocaleDateString()}.
+                  {formatSubscriptionDate(profile.subscription.gracePeriodEnd)}.
                 </span>
               </div>
             )}
@@ -356,14 +475,14 @@ export default function Settings() {
                 disabled={checkoutLoading !== null}
                 className="flex-1 py-3 rounded-xl bg-gold text-black font-bold text-sm text-center"
               >
-                {checkoutLoading === "premium" ? "Starting..." : `Upgrade to Premium — ${formatMoney(TIERS.premium.prices[currency], currency)}/mo`}
+                {checkoutLoading === "premium" ? "Starting..." : `Upgrade to Premium — ${formatMoney(TIERS.premium.prices.INR, "INR")}/mo`}
               </button>
               <button
                 onClick={() => handleSubscribe("pro")}
                 disabled={checkoutLoading !== null}
                 className="flex-1 py-3 rounded-xl border border-gold/30 text-gold font-bold text-sm text-center"
               >
-                {checkoutLoading === "pro" ? "Starting..." : `Go Pro — ${formatMoney(TIERS.pro.prices[currency], currency)}/mo`}
+                {checkoutLoading === "pro" ? "Starting..." : `Go Pro — ${formatMoney(TIERS.pro.prices.INR, "INR")}/mo`}
               </button>
             </div>
           ) : (
@@ -374,7 +493,7 @@ export default function Settings() {
                   disabled={checkoutLoading !== null}
                   className="flex-1 py-3 rounded-xl bg-gold text-black font-bold text-sm text-center"
                 >
-                  {checkoutLoading === "pro" ? "Starting..." : `Upgrade to Pro — ${formatMoney(TIERS.pro.prices[currency], currency)}/mo`}
+                  {checkoutLoading === "pro" ? "Starting..." : `Upgrade to Pro — ${formatMoney(TIERS.pro.prices.INR, "INR")}/mo`}
                 </button>
               )}
               <button
@@ -394,6 +513,19 @@ export default function Settings() {
                 </p>
               )}
             </div>
+          )}
+
+          {tier === "premium" && (
+            <p className="mt-3 text-xs text-white/60">
+              No need to cancel first: Pro starts the moment its payment goes
+              through, and Premium is cancelled automatically so you're never
+              charged for both.
+            </p>
+          )}
+          {currency !== "INR" && (
+            <p className="mt-3 text-xs text-white/60">
+              Plans are billed monthly in Indian rupees (₹).
+            </p>
           )}
 
           {profile?.subscription?.status === "cancelling" && (
@@ -432,6 +564,24 @@ export default function Settings() {
                 {profile?.name || "Not set"}
               </span>
             </div>
+          </div>
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => setShowEditBirth(true)}
+              className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-gold/30 px-4 text-sm font-bold text-gold hover:bg-gold/10"
+            >
+              <PencilLine size={15} />
+              Edit birth details
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-white/15 px-4 text-sm font-semibold text-white/75 hover:bg-white/5 hover:text-white"
+            >
+              <LogOut size={15} />
+              Log out
+            </button>
           </div>
         </section>
 
@@ -557,7 +707,7 @@ export default function Settings() {
           >
             <span>Daily email digest</span>
             <span className="text-xs text-gold">
-              {profile?.notificationPrefs?.emailDigest === false ? "Off" : "On"}
+              {profile?.notificationPrefs?.emailDigest === true ? "On" : "Off"}
             </span>
           </button>
           <button
@@ -620,6 +770,7 @@ export default function Settings() {
                 and guaranteed financial claims.
               </p>
             </div>
+            <AnalyticsConsentToggle />
             <button
               onClick={handleExportData}
               className="w-full flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 text-sm text-white/70 transition-colors"
@@ -655,17 +806,108 @@ export default function Settings() {
             {installMessage && (
               <p className="px-1 text-xs text-white/60">{installMessage}</p>
             )}
-            <button
-              onClick={handleDeleteAccount}
-              disabled={deletingAccount}
-              className="w-full flex items-center justify-between p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-300 hover:bg-red-500/15 transition-colors disabled:opacity-50"
-            >
-              <span>Delete my account</span>
-              {deletingAccount ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-            </button>
+            {!deleteOpen ? (
+              <button
+                ref={deleteOpenerRef}
+                type="button"
+                onClick={openDeleteConfirm}
+                aria-expanded={false}
+                aria-controls="delete-account-confirm"
+                className="w-full min-h-11 flex items-center justify-between p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-300 hover:bg-red-500/15 transition-colors"
+              >
+                <span>Delete my account</span>
+                <Trash2 size={14} />
+              </button>
+            ) : (
+              <form
+                id="delete-account-confirm"
+                aria-labelledby="delete-account-title"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void handleDeleteAccount();
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape" && !deletingAccount) {
+                    event.stopPropagation();
+                    closeDeleteConfirm();
+                  }
+                }}
+                className="rounded-xl border border-red-500/30 bg-red-500/10 p-4"
+              >
+                <h3
+                  id="delete-account-title"
+                  className="flex items-center gap-2 text-sm font-bold text-red-200"
+                >
+                  <Trash2 size={14} /> Delete your account permanently
+                </h3>
+                <p className="mt-2 text-xs leading-5 text-white/65">
+                  This removes your profile, chart, chats, memories and
+                  remaining credits. It can't be undone.
+                </p>
+                <label
+                  htmlFor="delete-account-input"
+                  className="mt-3 block text-xs text-white/70"
+                >
+                  Type <strong className="text-white">DELETE</strong> to confirm
+                </label>
+                <input
+                  ref={deleteInputRef}
+                  id="delete-account-input"
+                  type="text"
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                  spellCheck={false}
+                  value={deleteText}
+                  onChange={(event) => setDeleteText(event.target.value)}
+                  aria-describedby={
+                    deleteError ? "delete-account-error" : undefined
+                  }
+                  className="platform-field mt-2 text-white"
+                />
+                {deleteError && (
+                  <p
+                    id="delete-account-error"
+                    role="alert"
+                    className="mt-3 text-xs text-red-300"
+                  >
+                    {deleteError}
+                  </p>
+                )}
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                  <button
+                    type="submit"
+                    disabled={
+                      deletingAccount || deleteText.trim() !== DELETE_WORD
+                    }
+                    className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-red-500/80 px-4 text-sm font-bold text-white hover:bg-red-500 disabled:opacity-40"
+                  >
+                    {deletingAccount ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Trash2 size={14} />
+                    )}
+                    Delete account
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeDeleteConfirm}
+                    disabled={deletingAccount}
+                    className="min-h-11 flex-1 rounded-xl border border-white/15 px-4 text-sm text-white/75 hover:text-white disabled:opacity-40"
+                  >
+                    Keep my account
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </section>
       </div>
+
+      <OnboardingModal
+        isOpen={showEditBirth}
+        onClose={() => setShowEditBirth(false)}
+        existingProfile={profile}
+      />
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/useAuth";
 import { deleteField, doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { auth, db } from "../lib/firebase";
 import {
   birthDataChanged,
   parseSuggestionCoordinates,
@@ -37,14 +37,24 @@ import {
 } from "../lib/chart-summary";
 import { ZODIAC_SIGNS } from "../lib/astrology";
 import { SIGNUP_BONUS_CREDITS } from "../lib/signup-offer";
+import { hasSavedBirthProfile } from "../lib/saved-profile";
+import ChartDataNotice from "../components/ChartDataNotice";
+import {
+  CHART_UPLOAD_TOO_LARGE,
+  MAX_CHART_UPLOAD_BYTES,
+  birthDateProblem,
+  todayInputValue,
+} from "../lib/onboarding-rules";
 
 type Step = "upload" | "identity" | "temporal" | "spatial" | "present";
+/** Manual entry is the default path; "upload" is an optional detour from identity. */
+const FLOW_STEPS: Step[] = ["identity", "temporal", "spatial", "present"];
 import type { ParsedChartData } from "../types";
 
 export default function Onboarding() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [step, setStep] = useState<Step>("upload");
+  const [step, setStep] = useState<Step>("identity");
   const [isSaving, setIsSaving] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
@@ -74,9 +84,15 @@ export default function Onboarding() {
   // LocationInput suggestion. Optional: manual typing leaves this null.
   const [birthCoordinates, setBirthCoordinates] =
     useState<BirthCoordinates | null>(null);
+  // Current-location coordinates (suggestion pick or the locate button). The
+  // dashboard Panchang needs them; without them it falls back to the birth
+  // place. Optional: manual typing leaves this null.
+  const [currentCoordinates, setCurrentCoordinates] =
+    useState<BirthCoordinates | null>(null);
 
   // Preview: background-fetch kundali data when entering "present" step
   const [preview, setPreview] = useState<any>(null);
+  const [previewFailed, setPreviewFailed] = useState(false);
   const previewLagna = resolveAscendant(preview);
   const previewMoon = resolveMoon(preview);
   const previewMoonSign = previewMoon
@@ -90,6 +106,7 @@ export default function Onboarding() {
     const controller = new AbortController();
     // Reset so going back and changing birth data never shows a stale preview.
     setPreview(null);
+    setPreviewFailed(false);
 
     const birthData = {
       name,
@@ -108,11 +125,22 @@ export default function Onboarding() {
       { birthData, chartType: "D1", zodiacMode: formData.zodiacMode },
       { signal: controller.signal },
     )
-      .then((r) => r.json())
-      .then((d) => setPreview(d))
+      .then((r) => {
+        // An error body would otherwise read as a chart with no Lagna and
+        // leave "Calculating..." on screen forever.
+        if (!r.ok) throw new Error(`Preview responded ${r.status}`);
+        return r.json();
+      })
+      .then((d) => {
+        if (!d || typeof d !== "object" || d.error) {
+          throw new Error("Preview returned no chart");
+        }
+        setPreview(d);
+      })
       .catch((err) => {
-        if (err.name !== "AbortError")
-          console.warn("[Onboarding] Preview unavailable:", err);
+        if (err.name === "AbortError") return;
+        console.warn("[Onboarding] Preview unavailable:", err);
+        setPreviewFailed(true);
       });
 
     return () => controller.abort();
@@ -155,6 +183,12 @@ export default function Onboarding() {
           parsed.coordinates?.lng,
         ),
       );
+      setCurrentCoordinates(
+        parseSuggestionCoordinates(
+          parsed.currentCoordinates?.lat,
+          parsed.currentCoordinates?.lng,
+        ),
+      );
     } catch {
       // Corrupt browser cache — start fresh.
     }
@@ -163,12 +197,19 @@ export default function Onboarding() {
   const saveStepData = (
     data: typeof formData,
     coords: BirthCoordinates | null | undefined = undefined,
+    currentCoords: BirthCoordinates | null | undefined = undefined,
   ) => {
     const nextCoords = coords === undefined ? birthCoordinates : coords;
+    const nextCurrent =
+      currentCoords === undefined ? currentCoordinates : currentCoords;
     setFormData(data);
     localStorage.setItem(
       STORAGE_KEYS.PROFILE,
-      JSON.stringify(nextCoords ? { ...data, coordinates: nextCoords } : data),
+      JSON.stringify({
+        ...data,
+        ...(nextCoords ? { coordinates: nextCoords } : {}),
+        ...(nextCurrent ? { currentCoordinates: nextCurrent } : {}),
+      }),
     );
   };
 
@@ -186,6 +227,8 @@ export default function Onboarding() {
       async (position) => {
         try {
           const { latitude, longitude } = position.coords;
+          const here = parseSuggestionCoordinates(latitude, longitude);
+          setCurrentCoordinates(here);
 
           // Reverse geocoding using Nominatim
           const response = await fetch(
@@ -213,14 +256,16 @@ export default function Onboarding() {
           }
 
           setFormData((prev) => ({ ...prev, currentLocation: locString }));
-          saveStepData({ ...formData, currentLocation: locString });
+          saveStepData({ ...formData, currentLocation: locString }, undefined, here);
         } catch (error) {
           console.error("Location error:", error);
           // Fallback to coords if reverse geocoding fails
           const { latitude, longitude } = position.coords;
           const locString = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+          const here = parseSuggestionCoordinates(latitude, longitude);
+          setCurrentCoordinates(here);
           setFormData((prev) => ({ ...prev, currentLocation: locString }));
-          saveStepData({ ...formData, currentLocation: locString });
+          saveStepData({ ...formData, currentLocation: locString }, undefined, here);
         } finally {
           setIsLocating(false);
         }
@@ -249,13 +294,26 @@ export default function Onboarding() {
         : undefined,
     );
     // Current location is optional; default it to the birth place.
-    const profileData = formData.currentLocation.trim()
+    const hasCurrentLocation = Boolean(formData.currentLocation.trim());
+    const profileData = hasCurrentLocation
       ? formData
       : { ...formData, currentLocation: formData.pob };
+    // Coordinates only travel with a typed/picked current location; an empty
+    // one falls back to the birth place (and its coordinates) downstream.
+    // Same text as the birth place (e.g. "skip") → the birth coordinates
+    // apply downstream; never pair it with coordinates of an earlier pick.
+    const savedCurrentCoordinates =
+      hasCurrentLocation &&
+      formData.currentLocation.trim() !== formData.pob.trim()
+        ? currentCoordinates
+        : null;
     const storedProfile = JSON.stringify({
       ...profileData,
       timezone,
       ...(birthCoordinates ? { coordinates: birthCoordinates } : {}),
+      ...(savedCurrentCoordinates
+        ? { currentCoordinates: savedCurrentCoordinates }
+        : {}),
     });
 
     if (user || mode === "logged_in") {
@@ -281,6 +339,9 @@ export default function Onboarding() {
             timezone,
             parsedChart: parsedChart,
           };
+          // Stale current coordinates would point Panchang at the old place.
+          profilePayload.currentCoordinates =
+            savedCurrentCoordinates ?? deleteField();
           if (birthCoordinates) {
             profilePayload.coordinates = birthCoordinates;
           } else if (
@@ -319,6 +380,7 @@ export default function Onboarding() {
             updates.kundaliData = deleteField();
             updates.kundaliData_D9 = deleteField();
             updates.kundaliData_D10 = deleteField();
+            updates.kundaliData_western = deleteField();
             // The saved signs belong to the old chart too.
             profilePayload.moonSign = deleteField();
             profilePayload.sunSign = deleteField();
@@ -379,9 +441,9 @@ export default function Onboarding() {
       return;
     }
 
-    // Validate file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      setParseError("Image too large. Maximum size is 10MB.");
+    // Must match the parse-kundali body cap (~6MB base64, about 4.5MB image).
+    if (file.size > MAX_CHART_UPLOAD_BYTES) {
+      setParseError(CHART_UPLOAD_TOO_LARGE);
       return;
     }
 
@@ -470,6 +532,7 @@ export default function Onboarding() {
       setStep("temporal");
     } else if (step === "temporal") {
       if (!formData.dob || !formData.tob) return;
+      if (dobProblem) return;
       setStep("spatial");
     } else if (step === "spatial") {
       if (!formData.pob) return;
@@ -488,8 +551,26 @@ export default function Onboarding() {
     }
   };
 
+  const dobProblem = birthDateProblem(formData.dob);
+
+  /** Returning users who already saved a chart go straight to it. */
+  const handleSignedIn = async () => {
+    setShowAuthModal(false);
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    try {
+      const snap = await getDoc(doc(db, "users", uid));
+      if (snap.exists() && hasSavedBirthProfile(snap.data())) {
+        navigate("/dashboard");
+      }
+    } catch {
+      // Stay here: the form saves to the signed-in account.
+    }
+  };
+
   const prevStep = () => {
-    if (step === "identity") setStep("upload");
+    if (step === "upload") setStep("identity");
+    else if (step === "identity") navigate("/");
     else if (step === "temporal") setStep("identity");
     else if (step === "spatial") setStep("temporal");
     else if (step === "present") setStep("spatial");
@@ -509,16 +590,10 @@ export default function Onboarding() {
       <div className="w-full max-w-xl glass p-4 md:p-5 relative z-10 border border-white/10 rounded-2xl">
         {/* Progress Bar */}
         <div className="flex gap-1.5 mb-4">
-          {["upload", "identity", "temporal", "spatial", "present"].map(
+          {FLOW_STEPS.map(
             (s, i) => {
-              const steps = [
-                "upload",
-                "identity",
-                "temporal",
-                "spatial",
-                "present",
-              ];
-              const currentIndex = steps.indexOf(step);
+              // The optional upload detour sits before the first step.
+              const currentIndex = FLOW_STEPS.indexOf(step);
               return (
                 <div
                   key={s}
@@ -537,7 +612,7 @@ export default function Onboarding() {
         {step === "upload" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
             <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
-              Step 01 / 05 · Optional
+              Optional
             </span>
             <h1 className="text-title text-3xl mb-3 font-display tracking-tight">
               Upload Kundali
@@ -581,7 +656,7 @@ export default function Onboarding() {
                       Drop your Kundali chart here
                     </p>
                     <p className="text-sm text-white/60">
-                      JPG, PNG, or WebP • Max 10MB
+                      JPG, PNG, or WebP • Max 4.5 MB
                     </p>
                   </div>
                 )}
@@ -668,7 +743,7 @@ export default function Onboarding() {
                         <div className="grid grid-cols-2 gap-4">
                           {parsedChart.birthDetails.dob && (
                             <div>
-                              <p className="text-[10px] text-white/55 uppercase">
+                              <p className="text-[0.6875rem] text-white/55 uppercase">
                                 Date
                               </p>
                               <p className="text-sm">
@@ -678,7 +753,7 @@ export default function Onboarding() {
                           )}
                           {parsedChart.birthDetails.tob && (
                             <div>
-                              <p className="text-[10px] text-white/55 uppercase">
+                              <p className="text-[0.6875rem] text-white/55 uppercase">
                                 Time
                               </p>
                               <p className="text-sm">
@@ -688,7 +763,7 @@ export default function Onboarding() {
                           )}
                           {parsedChart.birthDetails.pob && (
                             <div className="col-span-2">
-                              <p className="text-[10px] text-white/55 uppercase">
+                              <p className="text-[0.6875rem] text-white/55 uppercase">
                                 Place
                               </p>
                               <p className="text-sm">
@@ -739,9 +814,9 @@ export default function Onboarding() {
             <div className="mt-4 text-center">
               <button
                 onClick={() => setStep("identity")}
-                className="text-sm text-white/60 hover:text-white/80 transition-colors underline"
+                className="min-h-11 text-sm text-white/60 hover:text-white/80 transition-colors underline"
               >
-                I don't have a chart — enter details manually
+                Enter my details manually instead
               </button>
             </div>
           </div>
@@ -751,7 +826,7 @@ export default function Onboarding() {
         {step === "identity" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
             <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
-              Step 02 / 05
+              Step 01 / 04
             </span>
             <h1 className="text-title text-3xl mb-3 font-display tracking-tight">
               Personal Basis
@@ -815,6 +890,26 @@ export default function Onboarding() {
                 </div>
               </div>
             </div>
+
+            <div className="mt-5 flex flex-col items-start gap-1 border-t border-white/10 pt-4">
+              <button
+                type="button"
+                onClick={() => setStep("upload")}
+                className="inline-flex min-h-11 items-center gap-2 text-sm text-gold/80 hover:text-gold transition-colors"
+              >
+                <Upload size={15} />
+                Have a Kundali image? Upload it to fill in details
+              </button>
+              {!user && (
+                <button
+                  type="button"
+                  onClick={() => setShowAuthModal(true)}
+                  className="min-h-11 text-sm text-white/60 hover:text-white transition-colors underline"
+                >
+                  Already saved your chart? Sign in
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -822,7 +917,7 @@ export default function Onboarding() {
         {step === "temporal" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
             <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
-              Step 03 / 05
+              Step 02 / 04
             </span>
             <h1 className="text-title text-3xl mb-3 font-display tracking-tight">
               The Moment
@@ -843,6 +938,9 @@ export default function Onboarding() {
                 <input
                   id="onboarding-dob"
                   type="date"
+                  max={todayInputValue()}
+                  aria-invalid={dobProblem ? true : undefined}
+                  aria-describedby={dobProblem ? "onboarding-dob-error" : undefined}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-gold/50 transition-all text-base font-sans font-light appearance-none invert-calendar-icon"
                   value={formData.dob}
                   onChange={(e) => {
@@ -907,6 +1005,15 @@ export default function Onboarding() {
                 )}
               </div>
             </div>
+            {dobProblem && (
+              <p
+                id="onboarding-dob-error"
+                role="alert"
+                className="mt-3 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-100"
+              >
+                {dobProblem}
+              </p>
+            )}
           </div>
         )}
 
@@ -914,7 +1021,7 @@ export default function Onboarding() {
         {step === "spatial" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
             <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
-              Step 04 / 05
+              Step 03 / 04
             </span>
             <h1 className="text-title text-3xl mb-3 font-display tracking-tight">
               Birth Location
@@ -947,6 +1054,8 @@ export default function Onboarding() {
                   );
                 }}
               />
+              {/* The next step requests the chart preview. */}
+              <ChartDataNotice />
             </div>
           </div>
         )}
@@ -955,7 +1064,7 @@ export default function Onboarding() {
         {step === "present" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
             <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
-              Step 05 / 05
+              Step 04 / 04
             </span>
             <h1 className="text-title text-3xl mb-3 font-display tracking-tight">
               The Presence
@@ -964,9 +1073,17 @@ export default function Onboarding() {
               Where does your light shine in this current moment?
             </p>
 
+            {previewFailed && !preview && (
+              <p
+                role="status"
+                className="mb-4 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/65"
+              >
+                Preview unavailable — you can still continue.
+              </p>
+            )}
             {preview && (
               <div className="mb-4 p-3 rounded-xl bg-gold/5 border border-gold/20">
-                <p className="text-[10px] text-gold uppercase tracking-widest font-bold mb-2">
+                <p className="text-[0.6875rem] text-gold uppercase tracking-widest font-bold mb-2">
                   Quick Preview
                 </p>
                 <p className="text-sm text-white/70">
@@ -978,7 +1095,7 @@ export default function Onboarding() {
                       ? "needs an exact birth time"
                       : previewLagna
                         ? `${previewLagna.western} (${previewLagna.name})`
-                        : "Calculating..."}
+                        : "unavailable — you can still continue"}
                   </span>
                   {previewMoonSign && (
                     <>
@@ -1047,9 +1164,25 @@ export default function Onboarding() {
                 placeholder="Enter city or coordinates"
                 value={formData.currentLocation}
                 onChange={(val) => {
-                  const newData = { ...formData, currentLocation: val };
-                  setFormData(newData);
-                  saveStepData(newData);
+                  // Typing invalidates coordinates from an earlier pick.
+                  setCurrentCoordinates(null);
+                  saveStepData(
+                    { ...formData, currentLocation: val },
+                    undefined,
+                    null,
+                  );
+                }}
+                onSelect={(suggestion) => {
+                  const coords = parseSuggestionCoordinates(
+                    suggestion.lat,
+                    suggestion.lon,
+                  );
+                  setCurrentCoordinates(coords);
+                  saveStepData(
+                    { ...formData, currentLocation: suggestion.display_name },
+                    undefined,
+                    coords,
+                  );
                 }}
                 icon={
                   <button
@@ -1087,15 +1220,16 @@ export default function Onboarding() {
             onClick={prevStep}
             className="btn btn-outline py-3 flex-1 font-bold tracking-widest text-xs uppercase"
           >
-            {/* Upload is the first step, so only it cancels; identity goes back to it. */}
-            {step === "upload" ? "Cancel" : "Back"}
+            {/* Identity is the first step, so it cancels; upload returns to it. */}
+            {step === "identity" ? "Cancel" : "Back"}
           </button>
           <button
             disabled={isSaving}
             onClick={nextStep}
             className={`btn btn-primary py-3 flex-[2] font-bold tracking-widest text-xs uppercase flex items-center justify-center gap-2 transition-all ${
               (step === "identity" && (!formData.name || !formData.gender)) ||
-              (step === "temporal" && (!formData.dob || !formData.tob)) ||
+              (step === "temporal" &&
+                (!formData.dob || !formData.tob || Boolean(dobProblem))) ||
               (step === "spatial" && !formData.pob)
                 ? "opacity-40 cursor-not-allowed grayscale"
                 : ""
@@ -1104,7 +1238,7 @@ export default function Onboarding() {
             {isSaving ? (
               <Loader2 className="animate-spin" size={20} />
             ) : step === "present" ? (
-              "Calculate Destiny"
+              "See my chart"
             ) : (
               "Next Step"
             )}
@@ -1115,6 +1249,7 @@ export default function Onboarding() {
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
+        onSuccess={() => void handleSignedIn()}
         title="Save your chart"
         message={`Sign in to save your chart and get ${SIGNUP_BONUS_CREDITS} free credits.`}
       />

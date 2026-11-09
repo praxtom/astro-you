@@ -88,6 +88,7 @@ import {
   markCurrentDashaPeriods,
   type DashaCurrentPeriod,
 } from "./chart-cache.js";
+import { noteAstroResponse, reserveAstroCall } from "./astro-budget.js";
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -178,10 +179,29 @@ async function apiFetch(
   url: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  return fetch(url, {
-    ...init,
-    signal: init.signal ?? AbortSignal.timeout(ASTRO_API_TIMEOUT_MS),
-  });
+  // Global spend cap + quota breaker (shared/astro-budget.ts). A refused call
+  // throws the same quota error an upstream 429 would, so every endpoint's
+  // existing 503 `upstream_quota` handling applies unchanged.
+  const decision = await reserveAstroCall();
+  if (!decision.allowed) {
+    throw new AstroChartError(
+      `Astrology budget error: 429 - ${canonicalErrorBody("quota_exhausted")}`,
+      "quota_exhausted",
+      429,
+    );
+  }
+  const counted = decision.commit();
+  try {
+    const res = await fetch(url, {
+      ...init,
+      signal: init.signal ?? AbortSignal.timeout(ASTRO_API_TIMEOUT_MS),
+    });
+    // A quota 429 opens the breaker (reads a clone; the body stays unread).
+    await noteAstroResponse(res);
+    return res;
+  } finally {
+    await counted;
+  }
 }
 
 /**

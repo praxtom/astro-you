@@ -56,11 +56,11 @@ export const UtilityDock: React.FC<UtilityDockProps> = ({
   };
 
   const linkClass =
-    "flex items-center gap-2.5 text-sm text-white/40 hover:text-gold transition-colors disabled:opacity-50 text-left";
+    "flex items-center gap-2.5 text-sm text-white/55 hover:text-gold transition-colors disabled:opacity-50 text-left";
 
   return (
     <section className="animate-reveal-progressive">
-      <p className="text-[0.65rem] font-bold uppercase tracking-[0.3em] text-white/50 mb-4">
+      <p className="text-[0.6875rem] font-bold uppercase tracking-[0.3em] text-white/50 mb-4">
         Keep & Share
       </p>
 
@@ -117,7 +117,7 @@ export const UtilityDock: React.FC<UtilityDockProps> = ({
               <Gift size={14} className="text-gold/80" />
               {referralCopied ? "Invite link copied" : "Invite friends"}
             </button>
-            <p className="mt-1 text-xs leading-relaxed text-white/35">
+            <p className="mt-1 text-xs leading-relaxed text-white/50">
               {referral.stats
                 ? `${referral.stats.invited} invited · ${referral.stats.creditsEarned} credits earned`
                 : referral.loading
@@ -126,7 +126,7 @@ export const UtilityDock: React.FC<UtilityDockProps> = ({
                     ? "Share link works. Stats are unavailable right now."
                     : "Earn credits when friends join."}
             </p>
-            <p className="mt-2 text-[0.6rem] font-bold uppercase tracking-[0.25em] text-gold/70">
+            <p className="mt-2 text-[0.6875rem] font-bold uppercase tracking-[0.25em] text-gold/70">
               {referral.code}
             </p>
           </div>

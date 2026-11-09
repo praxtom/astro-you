@@ -1,5 +1,7 @@
 import { Config, Context } from "@netlify/functions";
 import Razorpay from "razorpay";
+import { createHostedCheckout, HostedPaymentError } from "./shared/hosted-payments";
+import { hostedProvider } from "./shared/hosted-razorpay";
 import { auth, db, FieldValue } from "./shared/firebase-admin";
 import {
   buildTopupOrderOptions,
@@ -34,7 +36,7 @@ export default async (req: Request, _context: Context) => {
   }
 
   try {
-    const { idToken, minutes, amount, currency } = await req.json();
+    const { idToken, minutes, amount, currency, checkoutMode, returnPath } = await req.json();
     const orderCurrency = normalizeCurrency(currency);
     if (!idToken) {
       return new Response(JSON.stringify({ error: "Missing auth token" }), {
@@ -67,6 +69,17 @@ export default async (req: Request, _context: Context) => {
       getCreditPack(product.minutes),
       orderCurrency,
     );
+
+    if (checkoutMode === "hosted") {
+      const checkout = await createHostedCheckout({ db, FieldValue }, hostedProvider, {
+        uid: decoded.uid, minutes: product.minutes, currency: orderCurrency,
+        expectedAmount: amount === undefined ? undefined : Number(amount),
+        origin: new URL(req.url).origin, returnPath,
+      });
+      return new Response(JSON.stringify(checkout), {
+        status: 200, headers: { "Content-Type": "application/json" },
+      });
+    }
 
     const order = await instance.orders.create(options);
     await db.collection("paymentOrders").doc(order.id).set({
@@ -103,13 +116,13 @@ export default async (req: Request, _context: Context) => {
     );
   } catch (error: unknown) {
     const isValidation = isPaymentValidationError(error);
-    const status = isValidation ? 400 : 500;
+    const status = error instanceof HostedPaymentError ? error.status : isValidation ? 400 : 500;
     // Only the server-authored PaymentValidationError text is safe to show —
     // it is written by us and describes what the caller got wrong. Anything
     // else (Razorpay SDK, Firebase, network) could leak internals, so it gets
     // a generic message and only its type is logged.
     const message =
-      isValidation && error instanceof Error
+      (isValidation || error instanceof HostedPaymentError) && error instanceof Error
         ? error.message
         : "Unable to create order";
 

@@ -9,6 +9,10 @@ import {
 import { getCachedOrFetch } from "./shared/cache.js";
 import { enforceIpRateLimit, AuthError } from "./shared/require-auth.js";
 import { requestedDateKey } from "./shared/request-date.js";
+import {
+  isUpstreamQuotaError,
+  upstreamQuotaResponse,
+} from "./shared/kundali-errors.js";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -150,6 +154,8 @@ export default async (req: Request, _context: Context) => {
 
     return json({ data });
   } catch (err: any) {
+    // Spent astrology allowance (upstream or our global budget): 503.
+    if (isUpstreamQuotaError(err)) return upstreamQuotaResponse();
     console.error("[SignHoroscope] Error:", err);
     // Generic message — never leak upstream/Firestore internals to the client.
     return json({ error: "Horoscope request failed. Please try again." }, 500);

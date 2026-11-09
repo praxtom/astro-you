@@ -82,7 +82,7 @@ export const MemoryPanel: React.FC<MemoryPanelProps> = ({
     <section>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-gold/80 text-[0.6rem] font-bold uppercase tracking-[0.35em] mb-1.5">
+          <p className="text-gold/80 text-[0.6875rem] font-bold uppercase tracking-[0.35em] mb-1.5">
             The Inner Record
           </p>
           <h3 className="font-display text-xl italic text-white/90">
@@ -92,7 +92,7 @@ export const MemoryPanel: React.FC<MemoryPanelProps> = ({
         <button
           onClick={() => navigate("/settings#memory")}
           aria-label="Manage what AstroYou remembers"
-          className="shrink-0 text-[0.65rem] font-bold uppercase tracking-[0.15em] text-white/40 hover:text-gold transition-colors"
+          className="shrink-0 text-[0.6875rem] font-bold uppercase tracking-[0.15em] text-white/55 hover:text-gold transition-colors"
         >
           Manage
         </button>
@@ -101,13 +101,13 @@ export const MemoryPanel: React.FC<MemoryPanelProps> = ({
       <div className="mt-5 grid grid-cols-2 gap-px bg-white/8 border border-white/8 rounded-xl overflow-hidden">
         {stats.map((item) => (
           <div key={item.label} className="bg-[#08080f] p-4">
-            <p className="text-[0.6rem] font-bold uppercase tracking-[0.25em] text-white/30">
+            <p className="text-[0.6875rem] font-bold uppercase tracking-[0.25em] text-white/50">
               {item.label}
             </p>
             <p className="mt-1 font-display text-2xl capitalize text-white/90 leading-none">
               {item.value}
             </p>
-            <p className="mt-1.5 text-[0.65rem] text-white/30">{item.detail}</p>
+            <p className="mt-1.5 text-[0.6875rem] text-white/50">{item.detail}</p>
           </div>
         ))}
       </div>
@@ -121,7 +121,7 @@ export const MemoryPanel: React.FC<MemoryPanelProps> = ({
           />
         </div>
         <span
-          className="text-[0.6rem] text-white/30 uppercase tracking-[0.25em]"
+          className="text-[0.6875rem] text-white/50 uppercase tracking-[0.25em]"
           title="How much of your profile AstroYou has to work with: chart, patterns, people, routines and life events"
         >
           {completion}% known
@@ -134,10 +134,10 @@ export const MemoryPanel: React.FC<MemoryPanelProps> = ({
             <span
               key={b.id}
               title={b.label}
-              className="px-2.5 py-1 rounded-full border border-white/10 bg-white/3 text-[0.65rem] inline-flex items-center gap-1.5"
+              className="px-2.5 py-1 rounded-full border border-white/10 bg-white/3 text-[0.6875rem] inline-flex items-center gap-1.5"
             >
               <span>{b.emoji}</span>
-              <span className="text-white/45">{b.label}</span>
+              <span className="text-white/55">{b.label}</span>
             </span>
           ))}
         </div>

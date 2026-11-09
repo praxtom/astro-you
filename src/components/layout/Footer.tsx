@@ -22,7 +22,7 @@ const guideLinks = [
 
 const platformLinks = [
   { label: "Jyotish Chat", href: "/synthesis" },
-  { label: "Consult Astrologers", href: "/consult" },
+  { label: "AI Guides", href: "/consult" },
   { label: "Pricing", href: "/pricing" },
   { label: "Trust", href: "/trust" },
   { label: "Support", href: "/support" },
@@ -33,7 +33,6 @@ const legalLinks = [
   { label: "Terms of Service", href: "/terms" },
   { label: "Refund Policy", href: "/refund-policy" },
   { label: "Disclaimer", href: "/disclaimer" },
-  { label: "For Experts", href: "/experts/apply" },
   { label: "Help Center", href: "/help" },
 ];
 

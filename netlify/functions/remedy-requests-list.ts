@@ -1,5 +1,8 @@
 import { Config, Context } from "@netlify/functions";
 import { auth, db } from "./shared/firebase-admin";
+import { AuthError, enforceRateLimit } from "./shared/require-auth";
+
+const HOUR_MS = 60 * 60 * 1000;
 
 function serializeDate(value: any): string | null {
   if (!value) return null;
@@ -21,6 +24,12 @@ export default async (req: Request, _context: Context) => {
     }
 
     const decoded = await auth.verifyIdToken(body.idToken);
+    await enforceRateLimit({
+      scope: "remedy_requests_list",
+      key: decoded.uid,
+      limit: 120,
+      windowMs: HOUR_MS,
+    });
     const snap = await db
       .collection("users")
       .doc(decoded.uid)
@@ -41,6 +50,9 @@ export default async (req: Request, _context: Context) => {
 
     return json({ requests }, 200);
   } catch (error: any) {
+    if (error instanceof AuthError) {
+      return json({ error: error.message }, error.status);
+    }
     console.error("[Remedy Requests List] Error:", error);
     return json({ error: "Could not load remedy requests" }, 500);
   }

@@ -9,7 +9,8 @@ import { trackAcquisitionEvent } from "./lib/acquisition";
 import SEO from "./components/SEO";
 import { PUBLIC_PAGE_META } from "./lib/seo-public";
 import { isPrivateRoute } from "./lib/seo-routing";
-import { SEO_CONTENT_PAGES, SEO_GUIDE_REDIRECTS } from "./lib/seo-content";
+// The slug index only: the guides' text (seo-content) loads with SeoContentPage.
+import { SEO_CONTENT_SLUGS, SEO_GUIDE_REDIRECTS } from "./lib/seo-index";
 
 // Lazy load pages for better performance
 const Landing = lazy(() => import("./pages/Landing"));
@@ -31,6 +32,7 @@ const Eclipses = lazy(() => import("./pages/Eclipses"));
 const AstroMap = lazy(() => import("./pages/AstroMap"));
 const Wellness = lazy(() => import("./pages/Wellness"));
 const Pricing = lazy(() => import("./pages/Pricing"));
+const PaymentReturn = lazy(() => import("./pages/PaymentReturn"));
 const Wallet = lazy(() => import("./pages/Wallet"));
 const Reports = lazy(() => import("./pages/Reports"));
 const Remedies = lazy(() => import("./pages/Remedies"));
@@ -65,7 +67,7 @@ function App() {
 
   return (
     <ErrorBoundary>
-      {publicMeta ? <SEO title={publicMeta.title} description={publicMeta.description} /> :
+      {publicMeta ? <SEO title={publicMeta.title} description={publicMeta.description} noindex={'noindex' in publicMeta && publicMeta.noindex === true} /> :
         isPrivateRoute(location.pathname) ? <SEO title="Your AstroYou Account" noindex /> : null}
       <Routes>
         {/* Full-screen pages with their own chrome. */}
@@ -112,6 +114,7 @@ function App() {
           <Route path="/advanced-vedic" element={<AdvancedVedic />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/wallet" element={<Wallet />} />
+          <Route path="/payment/return" element={<PaymentReturn />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/remedies" element={<Remedies />} />
           <Route path="/support" element={<Support />} />
@@ -126,7 +129,7 @@ function App() {
           <Route path="/disclaimer" element={<Disclaimer />} />
           <Route path="/horoscope/:sign/:period" element={<SignHoroscope />} />
           <Route path="/horoscope/:sign" element={<SignHoroscope />} />
-          {SEO_CONTENT_PAGES.map(({ slug }) => (
+          {SEO_CONTENT_SLUGS.map((slug) => (
             <Route key={slug} path={`/${slug}`} element={<SeoContentPage slug={slug} />} />
           ))}
           <Route path="*" element={<NotFound />} />

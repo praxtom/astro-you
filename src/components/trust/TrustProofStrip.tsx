@@ -28,7 +28,7 @@ export function TrustProofStrip({ className = "" }: { className?: string }) {
               key={metric.label}
               className="rounded-lg border border-white/10 bg-black/20 px-2.5 py-2"
             >
-              <p className="type-meta text-white/35">{metric.label}</p>
+              <p className="type-meta text-white/50">{metric.label}</p>
               <p className="mt-1 text-sm font-semibold text-gold">{metric.value}</p>
             </div>
           ))}

@@ -5,6 +5,9 @@ import {
   REFERRER_REWARD_CREDITS,
   generateReferralCode,
 } from "./shared/referrals";
+import { AuthError, enforceRateLimit } from "./shared/require-auth";
+
+const HOUR_MS = 60 * 60 * 1000;
 
 function serializeDate(value: any): string | null {
   if (!value) return null;
@@ -26,6 +29,12 @@ export default async (req: Request, _context: Context) => {
     }
 
     const decoded = await auth.verifyIdToken(body.idToken);
+    await enforceRateLimit({
+      scope: "referral_info",
+      key: decoded.uid,
+      limit: 120,
+      windowMs: HOUR_MS,
+    });
     const userRef = db.collection("users").doc(decoded.uid);
 
     // Generate a random code once and reuse it. Avoids both the guessable
@@ -73,8 +82,14 @@ export default async (req: Request, _context: Context) => {
         referrals,
         stats: {
           invited: referrals.length,
+          // Only settled rewards count: since the referrer's reward waits for
+          // the referee's first payment, "pending_payment"/"cap_reached"
+          // claims have not paid out. Legacy records were rewarded on claim.
           creditsEarned: referrals.reduce(
-            (sum, item: any) => sum + (Number(item.referrerRewardCredits) || 0),
+            (sum, item: any) =>
+              item.status === undefined || item.status === "rewarded"
+                ? sum + (Number(item.referrerRewardCredits) || 0)
+                : sum,
             0,
           ),
           referrerRewardCredits: REFERRER_REWARD_CREDITS,
@@ -84,6 +99,9 @@ export default async (req: Request, _context: Context) => {
       200,
     );
   } catch (error: any) {
+    if (error instanceof AuthError) {
+      return json({ error: error.message }, error.status);
+    }
     console.error("[Referral Info] Error:", error);
     return json({ error: "Could not load referral info" }, 500);
   }

@@ -37,7 +37,7 @@ export const TodayTriptych: React.FC<TodayTriptychProps> = ({
     <section className="animate-reveal-progressive">
       <div className="flex items-end justify-between gap-4 mb-4">
         <div>
-          <p className="text-gold/80 text-[0.6rem] font-bold uppercase tracking-[0.35em] mb-1.5">
+          <p className="text-gold/80 text-[0.6875rem] font-bold uppercase tracking-[0.35em] mb-1.5">
             Today's Reading
           </p>
           <h2 className="font-display text-2xl md:text-3xl italic text-white/90">
@@ -46,7 +46,7 @@ export const TodayTriptych: React.FC<TodayTriptychProps> = ({
         </div>
         <button
           onClick={onSaveIntention}
-          className="shrink-0 px-4 py-2 rounded-xl border border-gold/30 text-gold text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:bg-gold hover:text-black transition-colors"
+          className="shrink-0 px-4 py-2 rounded-xl border border-gold/30 text-gold text-[0.6875rem] font-bold uppercase tracking-[0.2em] hover:bg-gold hover:text-black transition-colors"
         >
           Save intention
         </button>
@@ -61,7 +61,7 @@ export const TodayTriptych: React.FC<TodayTriptychProps> = ({
             <span className="absolute top-3 right-5 font-display italic text-3xl text-white/[0.08] select-none">
               {panel.numeral}
             </span>
-            <p className="text-[0.7rem] font-bold uppercase tracking-[0.25em] text-white/45 mb-3">
+            <p className="text-[0.7rem] font-bold uppercase tracking-[0.25em] text-white/55 mb-3">
               {panel.label}
             </p>
             <p className="text-[1.02rem] text-white/80 leading-relaxed">
@@ -73,7 +73,7 @@ export const TodayTriptych: React.FC<TodayTriptychProps> = ({
 
       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 mt-6">
         <p className="text-sm text-white/55 italic">{guide.nudge}</p>
-        <details className="text-sm text-white/45 sm:ml-auto">
+        <details className="text-sm text-white/55 sm:ml-auto">
           <summary className="cursor-pointer hover:text-white/55 transition-colors select-none">
             Why am I seeing this?
           </summary>

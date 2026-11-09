@@ -224,7 +224,32 @@ interface SendFailure {
 interface SendOptions {
   /** Resend a failed turn without adding a second user bubble. */
   retryOf?: SendFailure;
+  /** Send this text (a tapped follow-up chip) instead of the composer. */
+  text?: string;
 }
+
+/** Follow-up suggestions shown under the latest reply of one chat. */
+interface ReplyChips {
+  chatId: string | null;
+  chips: string[];
+}
+
+const MAX_REPLY_CHIPS = 2;
+const MAX_REPLY_CHIP_CHARS = 80;
+
+/** Defensive read of a `chips` SSE event: at most two short strings. */
+const readReplyChips = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value
+        .filter(
+          (chip): chip is string =>
+            typeof chip === "string" &&
+            chip.trim().length > 0 &&
+            chip.length <= MAX_REPLY_CHIP_CHARS,
+        )
+        .map((chip) => chip.trim())
+        .slice(0, MAX_REPLY_CHIPS)
+    : [];
 
 const DESKTOP_MEDIA_QUERY = "(min-width: 1024px)";
 
@@ -250,10 +275,13 @@ const MESSAGE_WINDOW = 200;
 
 class SendError extends Error {
   status?: number;
-  constructor(message: string, status?: number) {
+  /** Machine-readable reason from our own function (e.g. "fair_use_daily"). */
+  code?: string;
+  constructor(message: string, status?: number, code?: string) {
     super(message);
     this.name = "SendError";
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -264,10 +292,15 @@ class SendError extends Error {
  */
 async function readSendError(response: Response): Promise<SendError> {
   let message = QUIET_SKY_MESSAGE;
+  let code: string | undefined;
   const contentType = response.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
     try {
-      const body = (await response.json()) as { error?: unknown };
+      const body = (await response.json()) as {
+        error?: unknown;
+        code?: unknown;
+      };
+      if (typeof body.code === "string") code = body.code;
       if (
         typeof body.error === "string" &&
         body.error.trim() &&
@@ -280,7 +313,7 @@ async function readSendError(response: Response): Promise<SendError> {
       /* unparseable — keep the calm default */
     }
   }
-  return new SendError(message, response.status);
+  return new SendError(message, response.status, code);
 }
 
 /** An `error` event delivered inside the SSE stream by our own function. */
@@ -346,7 +379,7 @@ export default function Synthesis() {
     kundaliData: hookKundaliData,
     loading: isLoadingHookKundali,
     error: kundaliError,
-  } = useKundali(birthData, currentChartType);
+  } = useKundali(birthData, currentChartType, profile?.zodiacMode);
   // The hook keeps its last successful chart when birth data disappears
   // (e.g. sign-out into an empty guest session) — never show it in that case.
   const kundaliData = birthData ? hookKundaliData : null;
@@ -372,6 +405,7 @@ export default function Synthesis() {
   const { currency } = useCurrency();
   // Inline calm failure state with a Retry for the exact failed question.
   const [sendFailure, setSendFailure] = useState<SendFailure | null>(null);
+  const [replyChips, setReplyChips] = useState<ReplyChips | null>(null);
   // "Check in with me in 3 days" offer after a heavy-hearted reply.
   const [checkInOffer, setCheckInOffer] = useState<{
     question: string;
@@ -1085,16 +1119,7 @@ export default function Synthesis() {
       setShowAuthModal(true);
       return;
     }
-    const ok = await buyCredits(purchasePack.minutes);
-    if (ok) {
-      trackAcquisitionEvent("first_payment", {
-        amount: getPackAmount(purchasePack, currency),
-      });
-      showSuccess(
-        "Credits added",
-        `${purchasePack.label} were added to your account.`,
-      );
-    }
+    await buyCredits(purchasePack.minutes);
   };
 
   useEffect(() => {
@@ -1103,8 +1128,8 @@ export default function Synthesis() {
 
   // Handle message sending. `retryOf` resends a failed turn verbatim without
   // adding a second user bubble (or a second Firestore user message).
-  const handleSend = async ({ retryOf }: SendOptions = {}) => {
-    const text = retryOf ? retryOf.content : input;
+  const handleSend = async ({ retryOf, text: chipText }: SendOptions = {}) => {
+    const text = retryOf ? retryOf.content : (chipText ?? input);
     if (
       !text.trim() ||
       isSynthesizing ||
@@ -1141,6 +1166,7 @@ export default function Synthesis() {
     }
     setShowCreditsNotice(false);
     setSendFailure(null);
+    setReplyChips(null);
     setCheckInOffer(null);
     setCheckInScheduled(null);
 
@@ -1164,7 +1190,8 @@ export default function Synthesis() {
       if (user) {
         pendingMessagesRef.current = [...pendingMessagesRef.current, userMsg];
       }
-      setInput("");
+      // A tapped chip leaves whatever the user was typing untouched.
+      if (chipText === undefined) setInput("");
     } else if (input === retryOf.content) {
       // Retry supersedes the auto-restored draft — don't leave a copy behind.
       setInput("");
@@ -1310,6 +1337,7 @@ export default function Synthesis() {
       const decoder = new TextDecoder();
       let buffer = "";
       let metadata: any = null;
+      let followUpChips: string[] = [];
 
       setIsSynthesizing(false); // Hide loader, streaming content will show instead
 
@@ -1334,6 +1362,8 @@ export default function Synthesis() {
           if (streamFrameRef.current === null) {
             streamFrameRef.current = requestAnimationFrame(flushStream);
           }
+        } else if (event.type === "chips") {
+          followUpChips = readReplyChips(event.chips);
         } else if (event.type === "done") {
           metadata = event;
         } else if (event.type === "error") {
@@ -1388,6 +1418,11 @@ export default function Synthesis() {
           setReplyAnnouncement("");
           replyAnnounceTimerRef.current = null;
         }, 3000);
+      }
+
+      // Follow-up chips belong to the chat this reply landed in.
+      if (followUpChips.length > 0 && isCurrent()) {
+        setReplyChips({ chatId, chips: followUpChips });
       }
 
       // Handle Routine Suggestion — delay to let the response settle visually
@@ -1511,7 +1546,11 @@ export default function Synthesis() {
       // Only our own short, plain messages are shown; anything else (network
       // errors, gateway pages) becomes the calm default.
       const message =
-        status === 429
+        status === 429 &&
+        err instanceof SendError &&
+        err.code === "fair_use_daily"
+          ? err.message
+          : status === 429
           ? "The sky needs a breath — please try again in a moment."
           : err instanceof StreamError || err instanceof SendError
             ? err.message
@@ -1753,6 +1792,26 @@ export default function Synthesis() {
                       />
                     )}
 
+                    {/* Follow-up chips under the latest reply — tap to ask */}
+                    {replyChips &&
+                      replyChips.chatId === currentChatId &&
+                      !hasStreamingContent &&
+                      !isSynthesizing &&
+                      messages[messages.length - 1]?.role === "assistant" && (
+                        <div className="flex flex-wrap justify-start gap-2 animate-in fade-in duration-300">
+                          {replyChips.chips.map((chip) => (
+                            <button
+                              key={chip}
+                              type="button"
+                              onClick={() => void handleSend({ text: chip })}
+                              className="min-h-11 rounded-full border border-gold/20 bg-gold/5 px-4 py-2 text-left text-xs text-gold/80 transition-colors hover:border-gold/40 hover:text-gold"
+                            >
+                              {chip}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
                     {isSynthesizing && (
                       <div
                         className="flex justify-start animate-in fade-in duration-300"
@@ -1760,7 +1819,7 @@ export default function Synthesis() {
                         aria-live="polite"
                       >
                         <div className="max-w-[85%]">
-                          <div className="text-[0.65rem] font-bold uppercase tracking-[0.3em] mb-1.5 text-gold/50">
+                          <div className="text-[0.6875rem] font-bold uppercase tracking-[0.3em] mb-1.5 text-gold/50">
                             Jyotish
                           </div>
                           <div className="pl-5 border-l border-gold/30 flex items-center gap-3 py-1">
@@ -1768,7 +1827,7 @@ export default function Synthesis() {
                               size={14}
                               className="animate-spin text-gold"
                             />
-                            <span className="text-[0.65rem] uppercase tracking-[0.3em] text-gold/60 animate-pulse">
+                            <span className="text-[0.6875rem] uppercase tracking-[0.3em] text-gold/60 animate-pulse">
                               Reading the sky…
                             </span>
                           </div>
@@ -1800,7 +1859,7 @@ export default function Synthesis() {
                           <p className="mb-1 text-sm text-white/85">
                             You're out of credits.
                           </p>
-                          <p className="mb-3 text-xs text-white/45">
+                          <p className="mb-3 text-xs text-white/55">
                             Add credits to continue this conversation.
                           </p>
                           <div className="flex flex-wrap items-center gap-3">
@@ -1808,7 +1867,7 @@ export default function Synthesis() {
                               type="button"
                               onClick={() => void handlePurchase()}
                               disabled={isPaying}
-                              className="flex min-h-11 items-center gap-2 rounded-xl bg-gold/90 px-4 py-2 text-[0.65rem] font-bold uppercase tracking-[0.2em] text-black transition-colors hover:bg-gold disabled:cursor-not-allowed disabled:opacity-50"
+                              className="flex min-h-11 items-center gap-2 rounded-xl bg-gold/90 px-4 py-2 text-[0.6875rem] font-bold uppercase tracking-[0.2em] text-black transition-colors hover:bg-gold disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               {isPaying ? (
                                 <Loader2 size={12} className="animate-spin" />
@@ -1827,7 +1886,7 @@ export default function Synthesis() {
                             <button
                               type="button"
                               onClick={() => setShowCreditsNotice(false)}
-                              className="flex min-h-11 items-center px-2 text-xs text-white/40 transition-colors hover:text-white/70"
+                              className="flex min-h-11 items-center px-2 text-xs text-white/55 transition-colors hover:text-white/70"
                             >
                               Not now
                             </button>
@@ -1849,7 +1908,7 @@ export default function Synthesis() {
                           <button
                             type="button"
                             onClick={retryFailedSend}
-                            className="mt-3 flex min-h-11 items-center gap-2 rounded-xl border border-gold/30 bg-gold/10 px-4 py-2 text-[0.65rem] font-bold uppercase tracking-[0.2em] text-gold transition-colors hover:bg-gold/20"
+                            className="mt-3 flex min-h-11 items-center gap-2 rounded-xl border border-gold/30 bg-gold/10 px-4 py-2 text-[0.6875rem] font-bold uppercase tracking-[0.2em] text-gold transition-colors hover:bg-gold/20"
                           >
                             <RotateCcw size={12} />
                             Retry
@@ -1886,7 +1945,7 @@ export default function Synthesis() {
                               <button
                                 type="button"
                                 onClick={() => setCheckInOffer(null)}
-                                className="flex h-9 w-9 items-center justify-center rounded-full text-white/30 transition-colors hover:text-white/60"
+                                className="flex h-9 w-9 items-center justify-center rounded-full text-white/50 transition-colors hover:text-white/60"
                                 aria-label="Dismiss check-in offer"
                               >
                                 <X size={12} />
@@ -1903,7 +1962,7 @@ export default function Synthesis() {
                   <button
                     type="button"
                     onClick={jumpToLatest}
-                    className="absolute bottom-4 left-1/2 z-10 flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-full border border-white/15 bg-[#06060c]/90 px-5 py-2 text-[0.65rem] font-bold uppercase tracking-[0.2em] text-white/70 backdrop-blur-xl transition-colors hover:border-gold/30 hover:text-gold animate-in fade-in slide-in-from-bottom-2 duration-200"
+                    className="absolute bottom-4 left-1/2 z-10 flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-full border border-white/15 bg-[#06060c]/90 px-5 py-2 text-[0.6875rem] font-bold uppercase tracking-[0.2em] text-white/70 backdrop-blur-xl transition-colors hover:border-gold/30 hover:text-gold animate-in fade-in slide-in-from-bottom-2 duration-200"
                   >
                     <ArrowDown size={12} />
                     Jump to latest
@@ -1933,7 +1992,7 @@ export default function Synthesis() {
                       <button
                         type="button"
                         onClick={() => setShowBreathOffer(false)}
-                        className="flex h-9 w-9 items-center justify-center rounded-full text-white/30 transition-colors hover:text-white/60"
+                        className="flex h-9 w-9 items-center justify-center rounded-full text-white/50 transition-colors hover:text-white/60"
                         aria-label="Dismiss breathing offer"
                       >
                         <X size={12} />
@@ -1968,7 +2027,7 @@ export default function Synthesis() {
                       <button
                         type="button"
                         onClick={dismissMemoryNotice}
-                        className="-m-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white/30 transition-colors hover:text-white/60"
+                        className="-m-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white/50 transition-colors hover:text-white/60"
                         aria-label="Dismiss memory notice"
                       >
                         <X size={12} />
@@ -2013,7 +2072,7 @@ export default function Synthesis() {
                       className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors ${
                         input.trim()
                           ? "bg-gold/90 text-black hover:bg-gold"
-                          : "text-white/30"
+                          : "text-white/50"
                       }`}
                       disabled={
                         isSynthesizing ||
@@ -2235,12 +2294,12 @@ export default function Synthesis() {
                     <button
                       type="button"
                       onClick={() => navigate("/dashboard")}
-                      className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-white/45 transition-colors hover:bg-white/5 hover:text-gold"
+                      className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-white/55 transition-colors hover:bg-white/5 hover:text-gold"
                     >
                       <ChevronLeft size={14} />
                       Home
                     </button>
-                    <div className="flex items-center gap-1.5 rounded-full border border-gold/30 bg-gold/5 px-2.5 py-1 font-mono text-[0.65rem] text-gold">
+                    <div className="flex items-center gap-1.5 rounded-full border border-gold/30 bg-gold/5 px-2.5 py-1 font-mono text-[0.6875rem] text-gold">
                       <Clock size={10} />
                       <span>
                         {Math.floor(remainingSeconds / 60)}:
@@ -2265,7 +2324,7 @@ export default function Synthesis() {
                     {user && (
                       <button
                         onClick={() => navigate("/reports")}
-                        className="flex items-center gap-1 text-[0.65rem] px-2.5 py-1 rounded-full border border-white/10 text-white/45 hover:text-gold hover:border-gold/30 transition-colors"
+                        className="flex items-center gap-1 text-[0.6875rem] px-2.5 py-1 rounded-full border border-white/10 text-white/55 hover:text-gold hover:border-gold/30 transition-colors"
                         title="My reports"
                       >
                         <Download size={10} />
@@ -2332,7 +2391,7 @@ export default function Synthesis() {
                     </button>
                     <button
                       onClick={() => setShowShareModal(true)}
-                      className="rounded-xl bg-white/5 p-2 text-white/40 transition-all hover:bg-white/10 hover:text-gold"
+                      className="rounded-xl bg-white/5 p-2 text-white/55 transition-all hover:bg-white/10 hover:text-gold"
                       title="Share chart"
                       aria-label="Share chart"
                     >
@@ -2448,14 +2507,14 @@ export default function Synthesis() {
               <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
                 <h2
                   id="synthesis-memory-title"
-                  className="text-xs font-bold uppercase tracking-widest text-white/40"
+                  className="text-xs font-bold uppercase tracking-widest text-white/55"
                 >
                   What I remember
                 </h2>
                 <button
                   type="button"
                   onClick={() => setShowMemoryPanel(false)}
-                  className="rounded-lg p-2 text-white/40 transition-colors hover:bg-white/5 hover:text-white/80"
+                  className="rounded-lg p-2 text-white/55 transition-colors hover:bg-white/5 hover:text-white/80"
                   aria-label="Close what I remember"
                   autoFocus
                 >

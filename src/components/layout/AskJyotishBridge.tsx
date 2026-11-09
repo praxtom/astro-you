@@ -59,7 +59,7 @@ export const AskJyotishBridge: React.FC<AskJyotishBridgeProps> = ({
         <Sparkles size={16} aria-hidden="true" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[0.6rem] font-bold uppercase tracking-[0.3em] text-gold/70">
+        <span className="block text-[0.6875rem] font-bold uppercase tracking-[0.3em] text-gold/70">
           {eyebrow}
         </span>
         <span className="mt-1 block font-display italic text-base text-white/80 group-hover:text-white transition-colors">

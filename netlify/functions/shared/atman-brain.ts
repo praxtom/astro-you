@@ -110,6 +110,12 @@ export interface PersistAtmanInsightsInput {
   analysisResult?: BrainAnalysisResult | null;
   extractedAdvice?: { advice: string; context: string } | null;
   source: AtmanBrainSource;
+  /**
+   * When the turn these insights came from was requested (ms, Date or ISO).
+   * A write is dropped when the user hit "Forget everything" (or forgot this
+   * chat) after this moment. Falls back to the time this call started.
+   */
+  requestedAt?: number | Date | string;
 }
 
 export interface PersistAtmanInsightsResult {
@@ -117,7 +123,112 @@ export interface PersistAtmanInsightsResult {
   changed: boolean;
   /** True when the user has paused memory — nothing was written. */
   paused?: boolean;
+  /** True when memory was reset after the turn was requested — dropped. */
+  reset?: boolean;
   ledgerEntry?: AtmanMemoryLedgerEntry;
+}
+
+// ── Memory reset guard ────────────────────────────────────────────────
+// "Forget everything" stamps users/{uid}.memoryResetAt; "forget this chat"
+// stamps users/{uid}.memoryChatResets[chatId]. A background job requested
+// before either stamp must not write, or it would quietly bring the
+// forgotten memory back.
+
+/** Max age of a per-chat reset marker; no job lives anywhere near this long. */
+export const CHAT_RESET_RETENTION_MS = 2 * 24 * 60 * 60 * 1000;
+
+/** Milliseconds from a Firestore Timestamp, Date, ISO string or number. */
+export function toMillisLoose(value: unknown): number | undefined {
+  if (value === null || value === undefined) return undefined;
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  if (value instanceof Date) {
+    const ms = value.getTime();
+    return Number.isFinite(ms) ? ms : undefined;
+  }
+  if (typeof value === "object") {
+    const maybe = value as {
+      toMillis?: () => number;
+      toDate?: () => Date;
+      seconds?: unknown;
+      _seconds?: unknown;
+    };
+    if (typeof maybe.toMillis === "function") return maybe.toMillis();
+    if (typeof maybe.toDate === "function") return maybe.toDate().getTime();
+    const seconds =
+      typeof maybe.seconds === "number"
+        ? maybe.seconds
+        : typeof maybe._seconds === "number"
+          ? maybe._seconds
+          : undefined;
+    if (seconds !== undefined) return seconds * 1000;
+    return undefined;
+  }
+  if (typeof value === "string") {
+    const ms = new Date(value).getTime();
+    return Number.isFinite(ms) ? ms : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * True when the user's memory (or this chat's memory) was reset at or after
+ * `requestedAt`, i.e. a write carrying data from that request must be dropped.
+ */
+export function isWriteSupersededByReset(
+  userData: Record<string, unknown>,
+  requestedAt: unknown,
+  chatId?: string,
+): boolean {
+  const requestedMs = toMillisLoose(requestedAt);
+  if (requestedMs === undefined) return false;
+  const resetMs = toMillisLoose(userData.memoryResetAt);
+  if (resetMs !== undefined && requestedMs <= resetMs) return true;
+  if (chatId) {
+    const chatResets = userData.memoryChatResets;
+    if (chatResets && typeof chatResets === "object") {
+      const chatResetMs = toMillisLoose(
+        (chatResets as Record<string, unknown>)[chatId],
+      );
+      if (chatResetMs !== undefined && requestedMs <= chatResetMs) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * The per-chat reset map after stamping `chatId`, with stale markers pruned so
+ * the map stays small.
+ */
+export function stampChatReset(
+  existing: unknown,
+  chatId: string,
+  now: Date,
+): Record<string, Date> {
+  const cutoff = now.getTime() - CHAT_RESET_RETENTION_MS;
+  const next: Record<string, Date> = {};
+  if (existing && typeof existing === "object") {
+    for (const [id, value] of Object.entries(existing as Record<string, unknown>)) {
+      const ms = toMillisLoose(value);
+      if (ms !== undefined && ms >= cutoff && id !== chatId) {
+        next[id] = new Date(ms);
+      }
+    }
+  }
+  next[chatId] = now;
+  return next;
+}
+
+/**
+ * Whether memory is paused for this user. Callers should check this BEFORE
+ * sending any transcript to the model, and fail closed (treat a rejection as
+ * paused).
+ */
+export async function isAtmanMemoryPaused(
+  deps: Pick<AtmanBrainDeps, "db">,
+  uid: string,
+): Promise<boolean> {
+  const snap = await deps.db.collection("users").doc(uid).get();
+  return snap.data()?.memoryPaused === true;
 }
 
 export interface AtmanMaintenanceResult {
@@ -319,6 +430,8 @@ export async function persistAtmanInsights(
     typeof meta?.chatId === "string" && meta.chatId ? meta.chatId : undefined;
   const userRef = deps.db.collection("users").doc(input.uid);
   const now = deps.now?.() || new Date();
+  // Fallback: the moment this call started (before any read).
+  const requestedAt = input.requestedAt ?? now;
 
   // Atomic path: read + merge + write inside a transaction so a concurrent
   // client edit to the same atman doc isn't lost (last-write-wins).
@@ -329,6 +442,9 @@ export async function persistAtmanInsights(
       const userData = snap.data() || {};
       if (userData.memoryPaused === true) {
         return { persisted: false, changed: false, paused: true };
+      }
+      if (isWriteSupersededByReset(userData, requestedAt, sourceChatId)) {
+        return { persisted: false, changed: false, reset: true };
       }
       const result = applyBrainInsights({
         existingAtman: userData.atman as Partial<AtmanData> | undefined,
@@ -357,6 +473,9 @@ export async function persistAtmanInsights(
   const userData = userSnap.data() || {};
   if (userData.memoryPaused === true) {
     return { persisted: false, changed: false, paused: true };
+  }
+  if (isWriteSupersededByReset(userData, requestedAt, sourceChatId)) {
+    return { persisted: false, changed: false, reset: true };
   }
   const result = applyBrainInsights({
     existingAtman: userData.atman as Partial<AtmanData> | undefined,
@@ -497,6 +616,41 @@ export function applyPredictionFeedbackSignal(
   return { atman, changed: true, ledgerEntry };
 }
 
+/**
+ * Read the user doc, compute a FIELD-LEVEL atman patch from fresh data and
+ * write it with set(merge) — inside a transaction when the db offers one —
+ * so the write can never resurrect memory deleted after a stale read, nor
+ * clobber fields written concurrently by the post-processor or the client.
+ */
+async function patchAtmanFields<R>(
+  deps: AtmanBrainDeps,
+  uid: string,
+  compute: (userData: Record<string, unknown> | null) => {
+    patch: Record<string, unknown> | null;
+    result: R;
+  },
+): Promise<R> {
+  const userRef = deps.db.collection("users").doc(uid);
+  if (typeof deps.db.runTransaction === "function") {
+    return deps.db.runTransaction(async (tx: any) => {
+      const snap = await tx.get(userRef);
+      const { patch, result } = compute(
+        snap.exists ? snap.data() || {} : null,
+      );
+      if (patch) {
+        tx.set(userRef, { atman: stripUndefined(patch) }, { merge: true });
+      }
+      return result;
+    });
+  }
+  const snap = await userRef.get();
+  const { patch, result } = compute(snap.exists ? snap.data() || {} : null);
+  if (patch) {
+    await userRef.set({ atman: stripUndefined(patch) }, { merge: true });
+  }
+  return result;
+}
+
 export async function persistPredictionFeedbackSignal(
   deps: AtmanBrainDeps,
   input: {
@@ -504,58 +658,75 @@ export async function persistPredictionFeedbackSignal(
     feedback: ApplyPredictionFeedbackInput["feedback"];
   },
 ) {
-  const userRef = deps.db.collection("users").doc(input.uid);
-  const userSnap = await userRef.get();
-  if (!userSnap.exists) {
-    return { persisted: false, changed: false };
-  }
-  const userData = userSnap.data() || {};
-  const result = applyPredictionFeedbackSignal({
-    existingAtman: userData.atman as Partial<AtmanData> | undefined,
-    feedback: input.feedback,
-    now: deps.now?.() || new Date(),
+  const now = deps.now?.() || new Date();
+  return patchAtmanFields(deps, input.uid, (userData) => {
+    if (!userData) {
+      return {
+        patch: null,
+        result: { persisted: false, changed: false } as {
+          persisted: boolean;
+          changed: boolean;
+          ledgerEntry?: AtmanMemoryLedgerEntry;
+        },
+      };
+    }
+    const applied = applyPredictionFeedbackSignal({
+      existingAtman: userData.atman as Partial<AtmanData> | undefined,
+      feedback: input.feedback,
+      now,
+    });
+    return {
+      // Only the fields this signal touches.
+      patch: {
+        schemaVersion: ATMAN_SCHEMA_VERSION,
+        predictionFeedbackStats: applied.atman.predictionFeedbackStats,
+        memoryLedger: applied.atman.memoryLedger,
+      },
+      result: {
+        persisted: true,
+        changed: true,
+        ledgerEntry: applied.ledgerEntry,
+      },
+    };
   });
-  await userRef.set({ atman: stripUndefined(result.atman) }, { merge: true });
-  return { persisted: true, changed: true, ledgerEntry: result.ledgerEntry };
 }
 
 export async function persistAtmanMaintenance(
   deps: AtmanBrainDeps,
   uid: string,
 ) {
-  const userRef = deps.db.collection("users").doc(uid);
-  const userSnap = await userRef.get();
-  if (!userSnap.exists) {
-    return {
-      persisted: false,
-      changed: false,
-      decayedPatterns: 0,
-      archivedPatterns: 0,
-    };
-  }
-
-  const userData = userSnap.data() || {};
-  const result = maintainAtmanMemory(
-    userData.atman as Partial<AtmanData> | undefined,
-    deps.now?.() || new Date(),
-  );
-
-  if (!result.changed) {
-    return {
-      persisted: false,
-      changed: false,
-      decayedPatterns: 0,
-      archivedPatterns: 0,
-    };
-  }
-
-  await userRef.set({ atman: stripUndefined(result.atman) }, { merge: true });
-  return {
-    persisted: true,
-    changed: true,
-    decayedPatterns: result.decayedPatterns,
-    archivedPatterns: result.archivedPatterns,
+  const now = deps.now?.() || new Date();
+  const unchanged = {
+    persisted: false,
+    changed: false,
+    decayedPatterns: 0,
+    archivedPatterns: 0,
   };
+  return patchAtmanFields(deps, uid, (userData) => {
+    // No user, or no memory yet: nothing to maintain (and never create one).
+    if (!userData || !userData.atman) return { patch: null, result: unchanged };
+    const maintained = maintainAtmanMemory(
+      userData.atman as Partial<AtmanData>,
+      now,
+    );
+    if (!maintained.changed) return { patch: null, result: unchanged };
+    const knownPatterns = maintained.atman.knownPatterns || [];
+    return {
+      // Only the fields maintenance touches.
+      patch: {
+        schemaVersion: ATMAN_SCHEMA_VERSION,
+        knownPatterns,
+        memory: { knownPatterns },
+        memoryLedger: maintained.atman.memoryLedger,
+      },
+      result: {
+        persisted: true,
+        changed: true,
+        decayedPatterns: maintained.decayedPatterns,
+        archivedPatterns: maintained.archivedPatterns,
+      },
+    };
+  });
 }
 
 export function selectBrainContext(
@@ -1142,6 +1313,7 @@ export interface ForgetChatDeps {
   };
   /** FieldValue.delete() in production. */
   deleteField: () => unknown;
+  now?: () => Date;
 }
 
 export interface ForgetChatResult {
@@ -1168,30 +1340,37 @@ export async function forgetChat(
 ): Promise<ForgetChatResult> {
   if (!isValidChatId(chatId)) throw new Error("Invalid chatId");
   const userRef = deps.db.collection("users").doc(uid);
+  const now = deps.now?.() || new Date();
 
-  const applyToSnapshot = (snap: ForgetDocSnapshot) => {
+  // Besides removing the chat's memories, stamp memoryChatResets[chatId] so a
+  // post-processing job for this chat that is still in flight drops its
+  // write instead of re-adding what was just forgotten.
+  const planForSnapshot = (snap: ForgetDocSnapshot) => {
     if (!snap.exists) return null;
     const data = snap.data() || {};
-    if (!data.atman) return null;
-    return forgetChatInAtman(data.atman as Partial<AtmanData>, chatId);
+    const result = data.atman
+      ? forgetChatInAtman(data.atman as Partial<AtmanData>, chatId)
+      : null;
+    const patch: Record<string, unknown> = {
+      memoryChatResets: stampChatReset(data.memoryChatResets, chatId, now),
+    };
+    // update() replaces the whole atman map, so fields we deleted
+    // (e.g. an emotionalState that only this chat set) are really gone.
+    if (result?.changed) patch.atman = stripUndefined(result.atman);
+    return { result, patch };
   };
 
   let atmanResult: ReturnType<typeof forgetChatInAtman> | null;
   if (typeof deps.db.runTransaction === "function") {
     atmanResult = await deps.db.runTransaction(async (tx: any) => {
-      const result = applyToSnapshot(await tx.get(userRef));
-      // update() replaces the whole atman map, so fields we deleted
-      // (e.g. an emotionalState that only this chat set) are really gone.
-      if (result?.changed) {
-        tx.update(userRef, { atman: stripUndefined(result.atman) });
-      }
-      return result;
+      const plan = planForSnapshot(await tx.get(userRef));
+      if (plan) tx.update(userRef, plan.patch);
+      return plan?.result ?? null;
     });
   } else {
-    atmanResult = applyToSnapshot(await userRef.get());
-    if (atmanResult?.changed) {
-      await userRef.update({ atman: stripUndefined(atmanResult.atman) });
-    }
+    const plan = planForSnapshot(await userRef.get());
+    if (plan) await userRef.update(plan.patch);
+    atmanResult = plan?.result ?? null;
   }
 
   let summaryRemoved = false;

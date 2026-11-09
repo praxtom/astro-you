@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ChevronDown, HelpCircle, LifeBuoy } from "lucide-react";
+import { ChevronDown, HelpCircle, LifeBuoy, Mail } from "lucide-react";
+import { SUPPORT_EMAIL } from "../lib/legal-policies";
+import { useAuth } from "../lib/useAuth";
 
 const FAQS = [
   {
@@ -26,7 +28,7 @@ const FAQS = [
   },
   {
     q: "Can I change my birth data?",
-    a: "Yes! Click 'Update Birth Data' in your Dashboard settings to modify your birth details.",
+    a: "Yes. Open Settings and choose Edit birth details. Your chart is recalculated from the new details.",
   },
   {
     q: "What's the difference between Jyotish and The Circle?",
@@ -46,12 +48,13 @@ const FAQS = [
   },
   {
     q: "Do I need to know my exact birth time?",
-    a: "While exact birth time gives the most accurate results (especially for Ascendant and house positions), you can still generate a chart using 12:00 noon as default. Some features like Dasha predictions will be less precise.",
+    a: "Exact birth time gives the most accurate results, especially for the Ascendant and houses. Without it, AstroYou calculates your chart for 12:00 noon and marks Lagna- and house-based readings as less certain, while still showing the insights that do not depend on the time, such as your Moon sign and nakshatra, with dasha dates as approximate.",
   },
 ];
 
 export default function Help() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const { user } = useAuth();
 
   useEffect(() => {
     const prevTitle = document.title;
@@ -101,13 +104,14 @@ export default function Help() {
               >
                 <button
                   onClick={() => setOpenIndex(isOpen ? null : i)}
+                  aria-expanded={isOpen}
                   className="w-full flex items-center justify-between px-5 py-4 text-left"
                 >
                   <span className="text-sm sm:text-base text-white/80 font-medium pr-4">
                     {faq.q}
                   </span>
                   <ChevronDown
-                    className={`w-5 h-5 text-white/30 flex-shrink-0 transition-transform duration-300 ${
+                    className={`w-5 h-5 text-white/50 flex-shrink-0 transition-transform duration-300 ${
                       isOpen ? "rotate-180" : ""
                     }`}
                   />
@@ -132,17 +136,27 @@ export default function Help() {
           className="mt-12 rounded-2xl border border-white/10 bg-white/[0.03] p-6 sm:p-8 text-center"
         >
           <h2 className="text-xl font-display text-white/80 mb-2">Still have questions?</h2>
-          <p className="text-white/40 text-sm mb-6">
-            Open a ticket for payments, refunds, reports, consultation billing,
-            or account issues.
+          <p className="text-white/60 text-sm mb-6">
+            {user
+              ? "Open a ticket for payments, refunds, reports, consultation billing, or account issues."
+              : "Can't sign in, or don't have an account? Email us — no login needed."}
           </p>
-          <Link
-            to="/support"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gold text-black font-bold hover:bg-gold/90 transition-all text-sm"
-          >
-            <LifeBuoy className="w-4 h-4" />
-            Open support ticket
-          </Link>
+          <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <Link
+              to="/support"
+              className="inline-flex min-h-11 items-center gap-2 px-5 py-2.5 rounded-xl bg-gold text-black font-bold hover:bg-gold/90 transition-all text-sm"
+            >
+              <LifeBuoy className="w-4 h-4" />
+              Open support ticket
+            </Link>
+            <a
+              href={`mailto:${SUPPORT_EMAIL}`}
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/15 px-5 text-sm font-semibold text-white/80 hover:text-white"
+            >
+              <Mail className="w-4 h-4" />
+              {SUPPORT_EMAIL}
+            </a>
+          </div>
         </motion.div>
       </div>
     </div>

@@ -95,7 +95,7 @@ export default function AdvancedVedic() {
 
         {profileLoading ? (
           <div className="flex items-center justify-center py-20" aria-busy="true">
-            <Loader2 size={32} className="animate-spin text-white/30" />
+            <Loader2 size={32} className="animate-spin text-white/50" />
           </div>
         ) : !requestBirthData?.dob ? (
           <BirthProfileRequired
@@ -104,7 +104,7 @@ export default function AdvancedVedic() {
           />
         ) : loading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 size={32} className="animate-spin text-white/30" />
+            <Loader2 size={32} className="animate-spin text-white/50" />
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

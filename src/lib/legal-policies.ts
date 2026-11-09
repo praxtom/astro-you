@@ -1,14 +1,63 @@
 export const LEGAL_EFFECTIVE_DATE = "July 11, 2026";
-export const SUPPORT_EMAIL = "support@astroyou.com";
 
-// TODO(legal): confirm the Grievance Officer named below (DPDP Act §13 requires
-// a reachable grievance contact) and have counsel review the Privacy Policy
-// sections before launch — the processor list, retention periods, and transfer
-// disclosures were drafted by engineering and are not a substitute for review.
-export const GRIEVANCE_OFFICER = {
-  name: "[Grievance Officer name]",
-  email: "grievance@astroyou.com",
+// ═══════════════════════════════════════════════════════════════════════════
+//  BUSINESS IDENTITY — THE OWNER MUST FILL THIS IN BEFORE LAUNCH
+// ═══════════════════════════════════════════════════════════════════════════
+// Every value wrapped in [[double brackets]] is a placeholder and is shown to
+// users verbatim until replaced. Do not ship with placeholders: the test
+// legal-identity.test.ts fails while any remain when run with
+// LEGAL_PLACEHOLDER_CHECK=1 (the launch checker sets it).
+// DPDP Act §8(10)/§13 needs a reachable grievance contact; the IT Rules 2011
+// need the grievance officer's name. Have counsel review the Privacy Policy:
+// the processor list, retention periods and transfer disclosures were drafted
+// by engineering and are not a substitute for legal review.
+export const BUSINESS_IDENTITY = {
+  /** Registered legal entity that operates AstroYou (company / LLP / proprietor). */
+  legalEntityName: "[[LEGAL ENTITY NAME]]",
+  /** Registered office address, as on incorporation / GST records. */
+  registeredAddress: "[[REGISTERED OFFICE ADDRESS]]",
+  /** GSTIN, if registered. Optional: set to "" when not GST-registered. */
+  gstin: "[[GSTIN or empty string]]",
+  /** Grievance Officer — a real, named person with a monitored inbox. */
+  grievanceOfficer: {
+    name: "[[GRIEVANCE OFFICER NAME]]",
+    // TODO(owner): confirm this mailbox exists and is monitored before launch.
+    email: "grievance@astroyou.com",
+  },
+  /**
+   * Monitored support inbox shown across the legal pages and used in the
+   * Help/Support mailto links, so it must never hold a [[placeholder]].
+   * TODO(owner): confirm this mailbox exists and is monitored before launch.
+   */
+  supportEmail: "support@astroyou.com",
 };
+
+/** Matches a [[placeholder]] left in the business identity. */
+export const LEGAL_PLACEHOLDER_PATTERN = /\[\[[^\]]*\]\]/;
+
+/** Dotted paths of BUSINESS_IDENTITY fields that still hold a placeholder. */
+export function findLegalPlaceholders(): string[] {
+  const found: string[] = [];
+  const walk = (value: unknown, path: string) => {
+    if (typeof value === "string") {
+      if (LEGAL_PLACEHOLDER_PATTERN.test(value)) found.push(path);
+    } else if (value && typeof value === "object") {
+      for (const [key, child] of Object.entries(value)) {
+        walk(child, path ? `${path}.${key}` : key);
+      }
+    }
+  };
+  walk(BUSINESS_IDENTITY, "");
+  return found;
+}
+
+export const SUPPORT_EMAIL = BUSINESS_IDENTITY.supportEmail;
+export const GRIEVANCE_OFFICER = BUSINESS_IDENTITY.grievanceOfficer;
+
+/** One consistent "operated by" line for every legal page. */
+export const OPERATOR_STATEMENT = `AstroYou is operated by ${BUSINESS_IDENTITY.legalEntityName}, ${BUSINESS_IDENTITY.registeredAddress}${
+  BUSINESS_IDENTITY.gstin ? ` (GSTIN ${BUSINESS_IDENTITY.gstin})` : ""
+}. In these policies, "AstroYou", "we" and "us" refer to that entity.`;
 
 export interface LegalSection {
   title: string;
@@ -19,6 +68,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
   {
     title: "1. Service",
     content: [
+      OPERATOR_STATEMENT,
       "AstroYou provides Vedic astrology tools, chart calculations, AI-generated interpretations, AI astrologer consultations, reports, reminders, and spiritual companion features.",
       "The platform is for reflection, education, entertainment, and spiritual guidance. It is not a substitute for professional medical, legal, financial, psychological, or emergency advice.",
     ],
@@ -77,7 +127,7 @@ export const TERMS_SECTIONS: LegalSection[] = [
     title: "9. Changes and Contact",
     content: [
       "We may update these terms. Material changes may be communicated by in-app notice or email.",
-      `Questions about these terms can be sent to ${SUPPORT_EMAIL}.`,
+      `Questions about these terms can be sent to ${SUPPORT_EMAIL}. Postal address: ${BUSINESS_IDENTITY.legalEntityName}, ${BUSINESS_IDENTITY.registeredAddress}.`,
     ],
   },
 ];
@@ -86,6 +136,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   {
     title: "1. Data We Collect",
     content: [
+      `${OPERATOR_STATEMENT} We are the data fiduciary (controller) for the personal data described here.`,
       "Account data: email, display name, authentication identifiers, language, and support contact details.",
       "Astrology data: date, time, place of birth, coordinates, current location when provided, chart calculations, compatibility inputs, reports, and forecast context.",
       "Usage data: pages visited, feature actions, wallet activity, purchases, subscriptions, referrals, install events, and support tickets.",
@@ -103,12 +154,16 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     title: "3. Service Providers We Share Data With",
     content: [
       "We use the following processors to run AstroYou, and share only the data each needs for its function:",
-      "Google (Firebase Authentication, Firestore, Cloud Storage, Cloud Functions/Netlify hosting): stores your account, profile, birth data, chats, and product records, and handles sign-in.",
+      "Google (Firebase Authentication, Firestore, Cloud Storage): stores your account, profile, birth data, chats, and product records, and handles sign-in.",
+      "Netlify (hosting and serverless functions): serves the app and runs our backend, so it processes your requests, IP address, and the data each request carries, and keeps short-lived request logs.",
       "astrology-api.io (chart calculation): receives the birth date, time, and place/coordinates needed to compute charts, dashas, and timings. It does not need and should not receive your real name.",
       "Google Gemini (AI generation): receives the prompt, chart context, relevant chat content, and saved guidance memory needed to generate a response.",
       "Razorpay (payments and subscriptions): processes your payment. AstroYou never stores full card numbers, CVV, UPI PIN, OTPs, or net-banking passwords.",
       "Resend (email delivery): receives your email address and the content of transactional and digest emails you have enabled.",
-      "Google Analytics / Firebase Analytics (usage measurement): receives product usage events. It is loaded only after you accept the privacy notice at sign-in; anonymous visitors are not tracked.",
+      "Google Analytics / Firebase Analytics (usage measurement): receives product usage events and sets analytics cookies. It is optional and off by default: it loads only if you opt in (an unchecked box at sign-in, or the toggle in Settings). Agreeing to these policies does not turn it on.",
+      "OpenStreetMap Nominatim (place search, operated by the OpenStreetMap Foundation): when you type a birthplace or location, your browser sends the place text directly to Nominatim to look up coordinates, so Nominatim also receives your IP address and browser details.",
+      "Sentry (error monitoring, only when enabled): if the app hits an error, it may send a technical error report (error message, stack trace, page address, browser and device type). It is configured not to attach personal identifiers, but Sentry necessarily sees the IP address the report is sent from.",
+      "jsDelivr (font glyph fallback): our fonts are self-hosted, but when the 3D chart needs a character our font lacks, your browser fetches glyph data from the jsDelivr CDN (cdn.jsdelivr.net), which receives your IP address.",
     ],
   },
   {
@@ -129,6 +184,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     content: [
       "Account, profile, birth data, and saved guidance: kept while your account is active, and deleted or anonymized within 30 days of an account-deletion request, except records we must retain longer.",
       "Payment, invoice, and credit-ledger records: retained for up to 8 years to meet tax, accounting, and fraud-prevention obligations.",
+      "Audit logs: we keep an internal log of security-relevant and administrative actions (for example payments, refunds, credit adjustments, moderation decisions, and account-deletion requests). These entries reference your account ID and may include order, payment, or subscription IDs. They are kept after your account is deleted, for up to 8 years from the date of each entry, for fraud prevention, accounting, and dispute handling, and are then deleted automatically. They do not contain your birth details, chats, or saved memory.",
       "One-time login codes: deleted or expired within minutes. Rate-limit and short-lived cache records expire automatically, typically within a day.",
       "Computed chart results (for example your birth chart, dasha periods, and yogas): cached for up to 180 days so we don't recalculate them on every visit, then deleted automatically. The cache stores only the calculated results — not your name or birth details — under a one-way keyed hash of the calculation inputs, and is not linked to your account. Daily readings (such as wellness, energy, and lunar-phase readings) and the daily Panchang are cached for about a day.",
       "Analytics and email-engagement events: retained in aggregated or limited form for product measurement and then rotated.",
@@ -146,7 +202,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     content: [
       "You can export supported account data from Settings.",
       "You can request access to, correction of, or deletion of your account and eligible saved guidance data through Support. Some records may be retained where needed for payments, fraud prevention, legal obligations, dispute handling, or accounting.",
-      "You can withdraw analytics consent by signing out, which stops analytics on this browser.",
+      "Analytics is opt-in. You can withdraw analytics consent at any time with the Usage analytics toggle in Settings; signing out also withdraws it on this browser. Withdrawing stops collection immediately and clears the analytics cookies.",
       "You can opt out of optional notifications where the app provides that control.",
     ],
   },

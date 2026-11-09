@@ -1,7 +1,17 @@
-import { createHash } from "node:crypto";
 import type { UserContext } from "./gemini.js";
+import { keyedCacheId } from "./chart-cache.js";
 
 const WEEKLY_ASTROLOGY_CONTEXT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/**
+ * A failed pull with no older copy is remembered this long, so every chat
+ * turn doesn't retry the same three upstream calls.
+ */
+export const WEEKLY_ASTROLOGY_NEGATIVE_TTL_MS = 10 * 60 * 1000;
+/**
+ * Firestore TTL (`expiresAt`): a good record outlives its 7-day freshness so
+ * it can still serve as the stale fallback when a refresh fails.
+ */
+const WEEKLY_ASTROLOGY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 interface BirthDataLike {
   dob?: string;
@@ -29,6 +39,15 @@ export interface WeeklyAstrologyContextData {
 export interface WeeklyAstrologyCacheRecord {
   cachedAt: Date | string | number | FirestoreTimestampLike;
   data: WeeklyAstrologyContextData;
+  /**
+   * Owner, so account deletion can find these docs with
+   * where("uid", "==", uid). null for guest records.
+   */
+  uid?: string | null;
+  /** Firestore TTL policy field. */
+  expiresAt?: Date | string | number | FirestoreTimestampLike;
+  /** Negative-cache marker: the last pull failed and no older copy existed. */
+  failed?: boolean;
 }
 
 export interface WeeklyAstrologyContextStore {
@@ -38,7 +57,8 @@ export interface WeeklyAstrologyContextStore {
 
 export interface WeeklyAstrologyContextResult {
   docId: string;
-  source: "cache" | "fresh" | "stale";
+  /** "unavailable": a recent pull failed (negative cache) — data is empty. */
+  source: "cache" | "fresh" | "stale" | "unavailable";
   data: WeeklyAstrologyContextData;
 }
 
@@ -58,7 +78,21 @@ export async function getWeeklyAstrologyContext(
     options.uid,
     options.birthData,
   );
-  const cached = await options.store.get(docId);
+  const uid = options.uid || null;
+  const stored = await options.store.get(docId);
+
+  // A recent failure with nothing to fall back on: don't hammer upstream.
+  if (stored?.failed) {
+    const failedAt = toDate(stored.cachedAt);
+    if (
+      failedAt &&
+      now.getTime() - failedAt.getTime() < WEEKLY_ASTROLOGY_NEGATIVE_TTL_MS
+    ) {
+      return { docId, source: "unavailable", data: {} };
+    }
+  }
+  // A negative record is never a usable (stale) copy.
+  const cached = stored && !stored.failed ? stored : null;
 
   if (cached && isCacheFresh(cached.cachedAt, now)) {
     return {
@@ -73,6 +107,8 @@ export async function getWeeklyAstrologyContext(
     const record = stripUndefinedValues({
       cachedAt: now,
       data: fresh,
+      uid,
+      expiresAt: new Date(now.getTime() + WEEKLY_ASTROLOGY_RETENTION_MS),
     }) as WeeklyAstrologyCacheRecord;
     await options.store.set(docId, record);
 
@@ -94,13 +130,35 @@ export async function getWeeklyAstrologyContext(
       };
     }
 
+    // Remember the failure briefly (best-effort) so the next turns skip
+    // upstream; the caller still sees this turn's error.
+    try {
+      await options.store.set(docId, {
+        cachedAt: now,
+        data: {},
+        uid,
+        failed: true,
+        expiresAt: new Date(now.getTime() + WEEKLY_ASTROLOGY_NEGATIVE_TTL_MS),
+      });
+    } catch (writeError) {
+      console.warn(
+        `[WeeklyAstrologyContext] Could not record failed pull for ${docId}:`,
+        writeError,
+      );
+    }
     throw error;
   }
 }
 
-function createWeeklyAstrologyContextDocId(
+/**
+ * Doc id: an HMAC (shared/chart-cache keyedCacheId) of the owner and birth
+ * inputs. A plain SHA-256 of these could be brute-forced back to the birth
+ * moment. Changing the scheme simply re-pulls each user's context once.
+ */
+export function createWeeklyAstrologyContextDocId(
   uid: string | undefined,
   birthData: BirthDataLike,
+  env: Record<string, string | undefined> = process.env,
 ) {
   const birthKey = JSON.stringify({
     dob: birthData.dob || "",
@@ -110,7 +168,7 @@ function createWeeklyAstrologyContextDocId(
     lng: birthData.lng ?? birthData.coordinates?.lng ?? "",
   });
   const cacheKey = JSON.stringify({ uid: uid || "guest", birthKey });
-  return createHash("sha256").update(cacheKey).digest("hex").slice(0, 32);
+  return keyedCacheId("weekly_astrology_context", [cacheKey], env, 32);
 }
 
 function isCacheFresh(

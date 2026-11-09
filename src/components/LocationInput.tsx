@@ -6,6 +6,7 @@ import { dedupeLocationSuggestions } from "../lib/location-dedupe";
 
 const LOOKUP_ERROR =
   "Couldn't look up places right now. Check your connection and try again.";
+const NO_MATCH_HINT = "No match — try the nearest town or district.";
 
 interface LocationInputProps {
   value: string;
@@ -55,6 +56,7 @@ export default function LocationInput({
   const [isOpen, setIsOpen] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
   const [lookupError, setLookupError] = useState<string | null>(null);
+  const [noMatch, setNoMatch] = useState(false);
   const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -116,15 +118,18 @@ export default function LocationInput({
       // Clearing back below the threshold must also clear a stale failure —
       // otherwise the geocoder error stays on screen for a query we never ran.
       setLookupError(null);
+      setNoMatch(false);
       return;
     }
 
     setIsLoading(true);
     try {
+      // No feature-type filter: many birthplaces are towns, villages or
+      // districts, and a city-only search silently found nothing for them.
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
           searchQuery,
-        )}&addressdetails=1&limit=5&featuretype=city`,
+        )}&addressdetails=1&limit=5`,
       );
       if (!response.ok)
         throw new Error(`Geocoder responded ${response.status}`);
@@ -140,6 +145,7 @@ export default function LocationInput({
 
       // A search that got through clears any earlier failure.
       setLookupError(null);
+      setNoMatch(filtered.length === 0);
       setSuggestions(filtered);
       setIsOpen(filtered.length > 0);
       setActiveSuggestion(filtered.length > 0 ? 0 : -1);
@@ -151,6 +157,7 @@ export default function LocationInput({
       setSuggestions([]);
       setIsOpen(false);
       setActiveSuggestion(-1);
+      setNoMatch(false);
       setLookupError(LOOKUP_ERROR);
     } finally {
       setIsLoading(false);
@@ -173,6 +180,7 @@ export default function LocationInput({
     const displayName = suggestion.display_name;
     setQuery(displayName);
     onChange(displayName);
+    setNoMatch(false);
     if (onSelect) onSelect(suggestion);
     setIsOpen(false);
     setActiveSuggestion(-1);
@@ -195,7 +203,9 @@ export default function LocationInput({
       event.preventDefault();
       handleSelect(suggestions[activeSuggestion]);
     } else if (event.key === "Escape") {
+      // Close only the list — an enclosing dialog must not see this Escape.
       event.preventDefault();
+      event.stopPropagation();
       setIsOpen(false);
       setActiveSuggestion(-1);
     }
@@ -223,7 +233,11 @@ export default function LocationInput({
           aria-expanded={isOpen && suggestions.length > 0}
           aria-controls={listboxId}
           aria-describedby={
-            lookupError ? `${resolvedInputId}-error` : undefined
+            lookupError
+              ? `${resolvedInputId}-error`
+              : noMatch
+                ? `${resolvedInputId}-nomatch`
+                : undefined
           }
           aria-activedescendant={
             isOpen && activeSuggestion >= 0
@@ -243,7 +257,7 @@ export default function LocationInput({
           aria-label={label ? undefined : placeholder}
           className={
             size === "field"
-              ? "platform-field pr-12 text-white placeholder:text-white/40"
+              ? "platform-field pr-12 text-white placeholder:text-white/50"
               : "w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 outline-none focus:border-gold/50 transition-colors text-xl font-sans font-light pr-14"
           }
         />
@@ -260,6 +274,7 @@ export default function LocationInput({
                 setIsOpen(false);
                 setActiveSuggestion(-1);
                 setLookupError(null);
+                setNoMatch(false);
               }}
               className="text-white/20 hover:text-white/60 transition-colors"
               aria-label="Clear location"
@@ -273,6 +288,15 @@ export default function LocationInput({
       </div>
 
       <FieldError error={lookupError} fieldName={resolvedInputId} />
+      <p
+        id={`${resolvedInputId}-nomatch`}
+        aria-live="polite"
+        className={
+          noMatch && !lookupError ? "mt-2 text-sm text-white/60" : "sr-only"
+        }
+      >
+        {noMatch && !lookupError ? NO_MATCH_HINT : ""}
+      </p>
 
       {/* Suggestions Dropdown via Portal */}
       {isOpen &&

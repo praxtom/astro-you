@@ -369,7 +369,7 @@ export function MemoryManager({ compact }: { compact?: boolean }) {
                   >
                     <ChevronDown
                       size={14}
-                      className={`shrink-0 text-white/40 transition-transform ${isOpen ? "" : "-rotate-90"}`}
+                      className={`shrink-0 text-white/55 transition-transform ${isOpen ? "" : "-rotate-90"}`}
                     />
                     <span className="text-white/60 text-xs uppercase tracking-widest font-bold truncate">
                       {group.title}

@@ -20,7 +20,7 @@ export interface BirthIdentityFields {
 /**
  * Returns true when a profile save changes any chart-defining birth field
  * (dob / tob / pob, or the resolved birth coordinates). Used to decide whether
- * cached kundali data (kundaliData / kundaliData_D9 / kundaliData_D10) must be
+ * cached kundali data (kundaliData / _D9 / _D10 / _western) must be
  * invalidated so charts and AI context are recomputed from the new data.
  *
  * Rules:

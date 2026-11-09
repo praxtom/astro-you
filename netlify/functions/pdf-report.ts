@@ -15,7 +15,10 @@ import { applyCreditChange, CreditError } from "./shared/credits";
 import { enforceIpRateLimit, AuthError } from "./shared/require-auth";
 import {
   createReportFilename,
+  formatYearlyForecastSections,
   getReportProduct,
+  isReportType,
+  MIN_REPORT_PROSE_CHARS,
   type PaidReportType,
 } from "./shared/reports";
 import { createTextPdf } from "./shared/simple-pdf";
@@ -30,10 +33,28 @@ import { requestedDateKey } from "./shared/request-date.js";
 import { isEmptyForecast } from "./shared/forecast-delivery.js";
 import {
   decideReportIdRequest,
+  decideReportRetry,
   REPORT_ID_PATTERN,
+  type ReportIdDecision,
 } from "./shared/report-access.js";
 import { describeError } from "./shared/error-summary.js";
 import { normalizeZodiacMode } from "../../src/lib/zodiac-mode.js";
+
+function jsonResponse(
+  payload: Record<string, unknown>,
+  status: number,
+  extraHeaders: Record<string, string> = {},
+) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "Content-Type": "application/json", ...extraHeaders },
+  });
+}
+
+function isAlreadyExists(err: unknown): boolean {
+  const code = (err as { code?: unknown })?.code;
+  return code === 6 || code === "already-exists";
+}
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
@@ -46,6 +67,7 @@ export default async (req: Request, _context: Context) => {
       birthData,
       reportType = "natal",
       reportId,
+      requestId,
       date,
       compatibilityData,
       person1Name,
@@ -54,10 +76,7 @@ export default async (req: Request, _context: Context) => {
     } = await req.json();
 
     if (!idToken) {
-      return new Response(JSON.stringify({ error: "Missing idToken" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Missing idToken" }, 401);
     }
 
     const decoded = await auth.verifyIdToken(idToken);
@@ -66,52 +85,78 @@ export default async (req: Request, _context: Context) => {
       await enforceIpRateLimit(req, "pdf_report", 20, 60 * 60 * 1000);
     } catch (err) {
       const status = err instanceof AuthError ? err.status : 429;
-      return new Response(
-        JSON.stringify({
-          error: "Too many report requests. Please slow down.",
-        }),
-        { status, headers: { "Content-Type": "application/json" } },
+      return jsonResponse(
+        { error: "Too many report requests. Please slow down." },
+        status,
       );
     }
+
+    for (const [name, value] of [
+      ["reportId", reportId],
+      ["requestId", requestId],
+    ] as const) {
+      if (value !== undefined && value !== null) {
+        if (typeof value !== "string" || !REPORT_ID_PATTERN.test(value)) {
+          return jsonResponse({ error: `Invalid ${name}` }, 400);
+        }
+      }
+    }
+    // Reject an unknown type before anything is written or charged.
+    if (!reportId && !isReportType(reportType)) {
+      return jsonResponse({ error: "Unknown report type" }, 400);
+    }
+
     const storageBucket = getStorageBucket();
     const userRef = db.collection("users").doc(uid);
     const userSnap = await userRef.get();
     const userData = userSnap.data() || {};
 
-    // A supplied reportId is ONLY a free re-download of a completed report the
-    // caller owns. Failed / "generating" docs are rejected (never free, and
-    // never re-charged under their old, possibly refunded, ledger id) — the
-    // client must make a fresh request for a new report.
-    if (reportId !== undefined && reportId !== null) {
-      if (typeof reportId !== "string" || !REPORT_ID_PATTERN.test(reportId)) {
-        return new Response(JSON.stringify({ error: "Invalid reportId" }), {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-    }
-    const reportRef = reportId
-      ? userRef.collection("reports").doc(reportId)
+    // `reportId` is ONLY a free re-download of a completed report the caller
+    // owns. Failed / "generating" docs are rejected (never free, and never
+    // re-charged under their old, possibly refunded, ledger id).
+    //
+    // `requestId` is the client-chosen id for a NEW report. Reusing it (a
+    // network retry of the same click) is idempotent: the report is charged
+    // at most once under ledger id `report_{requestId}`.
+    const targetId: string | null = reportId || requestId || null;
+    const reportRef = targetId
+      ? userRef.collection("reports").doc(targetId)
       : userRef.collection("reports").doc();
-    const existingReportSnap = reportId ? await reportRef.get() : null;
-    const existingReport = existingReportSnap?.data();
-    const decision = reportId
-      ? decideReportIdRequest(uid, existingReport)
-      : null;
+    const existingReportSnap = targetId ? await reportRef.get() : null;
+    const existingReport = existingReportSnap?.exists
+      ? existingReportSnap.data()
+      : undefined;
+
+    let decision: ReportIdDecision | null = null;
+    if (reportId) {
+      decision = decideReportIdRequest(uid, existingReport);
+    } else if (requestId && existingReport) {
+      const retry = decideReportRetry(uid, existingReport);
+      if (retry.kind === "in_progress") {
+        return jsonResponse(
+          {
+            error:
+              "This report is still being prepared. It will appear in your library shortly.",
+            code: "report_in_progress",
+            reportId: reportRef.id,
+          },
+          409,
+        );
+      }
+      decision =
+        retry.kind === "redownload" ? retry : { kind: "not_available" };
+    }
     if (decision?.kind === "not_found") {
-      return new Response(JSON.stringify({ error: "Report not found" }), {
-        status: 404,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Report not found" }, 404);
     }
     if (decision?.kind === "not_available") {
-      return new Response(
-        JSON.stringify({
+      return jsonResponse(
+        {
           error:
             "This report isn't available to download. Please request a new report.",
           code: "report_not_available",
-        }),
-        { status: 409, headers: { "Content-Type": "application/json" } },
+        },
+        409,
       );
     }
 
@@ -122,7 +167,6 @@ export default async (req: Request, _context: Context) => {
       existingReport?.dateKey || date || requestedDateKey(localDate);
     const filename =
       existingReport?.filename || createReportFilename(product.type, dateKey);
-    const isRedownload = decision?.kind === "redownload";
     const savedProfile = userData.profile || userData;
     const effectiveBirthData = withProfileSigns(
       birthData || toBirthData(savedProfile),
@@ -130,7 +174,9 @@ export default async (req: Request, _context: Context) => {
     );
     // Sign PDFs: sidereal Moon sign in Vedic mode, tropical in Western.
     const signOptions = {
-      mode: normalizeZodiacMode(savedProfile?.zodiacMode ?? userData.zodiacMode),
+      mode: normalizeZodiacMode(
+        savedProfile?.zodiacMode ?? userData.zodiacMode,
+      ),
     };
 
     if (decision?.kind === "redownload") {
@@ -158,7 +204,10 @@ export default async (req: Request, _context: Context) => {
           storagePath: decision.storagePath,
         },
       }).catch((auditError) => {
-        console.error("[PDF Report] Audit log failed:", describeError(auditError));
+        console.error(
+          "[PDF Report] Audit log failed:",
+          describeError(auditError),
+        );
       });
 
       const storedArrayBuffer = new ArrayBuffer(storedPdf.byteLength);
@@ -175,74 +224,133 @@ export default async (req: Request, _context: Context) => {
     }
 
     if (!effectiveBirthData?.dob || !effectiveBirthData?.tob) {
-      return new Response(JSON.stringify({ error: "Missing birth data" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Missing birth data" }, 400);
     }
 
     // Charge the credit BEFORE generating so a failure after delivery can't
     // give a free report. applyCreditChange is atomic and throws CreditError
-    // (402) when the balance is insufficient. Refunded on any later failure.
-    let creditCharged = false;
-    if (!isRedownload) {
-      await reportRef.set({
-        reportType: product.type,
-        title: product.title,
-        status: "generating",
-        creditCost: product.creditCost,
-        dateKey,
-        filename,
-        createdAt: FieldValue.serverTimestamp(),
-      });
-
-      if (product.creditCost > 0) {
-        try {
-          await applyCreditChange(
-            { db, FieldValue },
+    // (402) when the balance is insufficient. Refunded on any later failure;
+    // if this function is killed before it can refund, the report reaper
+    // (pdf-report-reaper-scheduled) refunds anything stuck in "generating".
+    const newReportDoc = {
+      reportType: product.type,
+      title: product.title,
+      status: "generating",
+      creditCost: product.creditCost,
+      dateKey,
+      filename,
+      ...(requestId ? { requestId } : {}),
+      createdAt: FieldValue.serverTimestamp(),
+    };
+    if (requestId) {
+      // create() fails if a concurrent retry claimed this id first, so two
+      // in-flight copies of the same request can never both charge.
+      try {
+        await reportRef.create(newReportDoc);
+      } catch (createErr) {
+        if (isAlreadyExists(createErr)) {
+          return jsonResponse(
             {
-              uid,
-              amount: -product.creditCost,
-              type: "report",
-              source: "pdf_report",
-              referenceId: reportRef.id,
-              ledgerId: `report_${reportRef.id}`,
-              metadata: { reportType: product.type, filename },
+              error:
+                "This report is still being prepared. It will appear in your library shortly.",
+              code: "report_in_progress",
+              reportId: reportRef.id,
             },
+            409,
           );
-          creditCharged = true;
-        } catch (err) {
-          if (err instanceof CreditError) {
-            await reportRef.set(
-              { status: "failed", failureReason: "insufficient_credits" },
-              { merge: true },
-            );
-            return new Response(
-              JSON.stringify({ error: "Insufficient credits for this report" }),
-              { status: 402, headers: { "Content-Type": "application/json" } },
-            );
-          }
-          throw err;
         }
+        throw createErr;
+      }
+    } else {
+      await reportRef.set(newReportDoc);
+    }
+
+    let creditCharged = false;
+    if (product.creditCost > 0) {
+      try {
+        await applyCreditChange(
+          { db, FieldValue },
+          {
+            uid,
+            amount: -product.creditCost,
+            type: "report",
+            source: "pdf_report",
+            referenceId: reportRef.id,
+            ledgerId: `report_${reportRef.id}`,
+            metadata: { reportType: product.type, filename },
+          },
+        );
+        creditCharged = true;
+      } catch (err) {
+        if (err instanceof CreditError) {
+          await reportRef.set(
+            { status: "failed", failureReason: "insufficient_credits" },
+            { merge: true },
+          );
+          return jsonResponse(
+            { error: "Insufficient credits for this report" },
+            402,
+          );
+        }
+        // Unknown whether the charge committed: leave the report
+        // "generating" so the reaper refunds it iff the charge entry exists.
+        throw err;
       }
     }
 
-    const refundReport = async (reason: string) => {
-      if (!creditCharged) return;
-      await applyCreditChange(
-        { db, FieldValue },
-        {
-          uid,
-          amount: product.creditCost,
-          type: "refund",
-          source: "pdf_report_refund",
-          referenceId: reportRef.id,
-          ledgerId: `report_refund_${reportRef.id}`,
-          metadata: { reportType: product.type, reason },
-        },
-      ).catch((e) =>
-        console.error("[PDF Report] Refund failed:", describeError(e)),
-      );
+    /**
+     * Refund (if charged) and mark the report failed. If the refund itself
+     * fails, the report is left "generating" (with the reason) so the
+     * scheduled reaper retries the refund instead of the credits being lost.
+     */
+    const refundAndFail = async (reason: string) => {
+      let refunded = true;
+      if (creditCharged) {
+        await applyCreditChange(
+          { db, FieldValue },
+          {
+            uid,
+            amount: product.creditCost,
+            type: "refund",
+            source: "pdf_report_refund",
+            referenceId: reportRef.id,
+            ledgerId: `report_refund_${reportRef.id}`,
+            metadata: { reportType: product.type, reason },
+          },
+        ).catch((e) => {
+          refunded = false;
+          console.error("[PDF Report] Refund failed:", describeError(e));
+        });
+      }
+      await reportRef
+        .set(
+          refunded
+            ? {
+                status: "failed",
+                failureReason: reason,
+                updatedAt: FieldValue.serverTimestamp(),
+              }
+            : {
+                failureReason: reason,
+                refundPending: true,
+                updatedAt: FieldValue.serverTimestamp(),
+              },
+          { merge: true },
+        )
+        .catch((e) =>
+          console.error("[PDF Report] Status update failed:", describeError(e)),
+        );
+    };
+
+    /** Refund, mark the report failed, and build the client error. */
+    const failReport = async (
+      reason: string,
+      status: number,
+      payload: Record<string, unknown>,
+      extraHeaders: Record<string, string> = {},
+    ) => {
+      await refundAndFail(reason);
+      return jsonResponse(payload, status, extraHeaders);
     };
 
     console.log(`[PDF Report] Generating ${product.type} report for ${uid}...`);
@@ -270,92 +378,71 @@ export default async (req: Request, _context: Context) => {
           break;
         case "yearly": {
           const yearly = await getYearlyHoroscope(effectiveBirthData, dateKey);
-          // The wrapper degrades to null on upstream failure. Never sell a
-          // hollow "data was unavailable" PDF: refund and tell the user.
-          if (isEmptyForecast(yearly)) {
-            await refundReport("forecast_unavailable");
-            await reportRef.set(
+          // Readable sections only — never raw JSON. If the upstream payload
+          // is empty or has no real prose, refund rather than sell a hollow PDF.
+          const sections = isEmptyForecast(yearly)
+            ? null
+            : formatYearlyForecastSections(yearly);
+          if (!sections || sections.proseChars < MIN_REPORT_PROSE_CHARS) {
+            return await failReport(
+              "forecast_unavailable",
+              503,
               {
-                status: "failed",
-                failureReason: "forecast_unavailable",
-                updatedAt: FieldValue.serverTimestamp(),
-              },
-              { merge: true },
-            );
-            return new Response(
-              JSON.stringify({
                 error:
                   "Your yearly forecast couldn't be prepared right now. No credits were used — please try again in a little while.",
                 code: "forecast_unavailable",
-              }),
-              {
-                status: 503,
-                headers: {
-                  "Content-Type": "application/json",
-                  "Retry-After": "300",
-                },
               },
+              { "Retry-After": "300" },
             );
           }
           pdfBuffer = createTextPdf(product.title, [
             `Prepared for ${effectiveBirthData.name || "Seeker"}.`,
-            stringifyReportData(yearly),
+            ...sections.blocks,
           ]);
           break;
         }
         case "compatibility": {
           if (!compatibilityData) {
-            await refundReport("missing_compatibility_data");
-            await reportRef.set(
-              { status: "failed", failureReason: "missing_compatibility_data" },
-              { merge: true },
-            );
-            return new Response(
-              JSON.stringify({ error: "Missing compatibility data" }),
-              { status: 400, headers: { "Content-Type": "application/json" } },
-            );
+            return await failReport("missing_compatibility_data", 400, {
+              error: "Missing compatibility data",
+            });
           }
           const narrative = await generateCompatibilityNarrative(
             compatibilityData,
             person1Name || "Person 1",
             person2Name || "Person 2",
           );
+          // No narrative means no report: refund instead of shipping JSON.
+          if (typeof narrative !== "string" || narrative.trim().length < 80) {
+            return await failReport("narrative_unavailable", 503, {
+              error:
+                "Your compatibility report couldn't be written right now. No credits were used — please try again in a little while.",
+              code: "narrative_unavailable",
+            });
+          }
           pdfBuffer = createTextPdf(product.title, [
             `${person1Name || "Person 1"} and ${person2Name || "Person 2"}`,
-            narrative || stringifyReportData(compatibilityData),
+            ...narrative
+              .split(/\n{2,}/)
+              .map((paragraph) => paragraph.trim())
+              .filter(Boolean),
           ]);
           break;
         }
         default:
-          await refundReport("unknown_report_type");
-          return new Response(
-            JSON.stringify({ error: `Unknown report type: ${product.type}` }),
-            { status: 400, headers: { "Content-Type": "application/json" } },
-          );
+          return await failReport("unknown_report_type", 400, {
+            error: "Unknown report type",
+          });
       }
     } catch (genErr) {
       // Generation threw — refund and mark failed so the report isn't stuck.
-      await refundReport("generation_error");
-      await reportRef.set(
-        { status: "failed", failureReason: "generation_error" },
-        { merge: true },
-      );
+      await refundAndFail("generation_error");
       throw genErr;
     }
 
     if (!pdfBuffer) {
-      await refundReport("generation_failed");
-      await reportRef.set(
-        {
-          status: "failed",
-          failureReason: "generation_failed",
-          updatedAt: FieldValue.serverTimestamp(),
-        },
-        { merge: true },
-      );
-      return new Response(JSON.stringify({ error: "Failed to generate PDF" }), {
-        status: 502,
-        headers: { "Content-Type": "application/json" },
+      return await failReport("generation_failed", 502, {
+        error: "Failed to generate PDF",
       });
     }
 
@@ -376,11 +463,7 @@ export default async (req: Request, _context: Context) => {
         },
       });
     } catch (storageErr) {
-      await refundReport("storage_failed");
-      await reportRef.set(
-        { status: "failed", failureReason: "storage_failed" },
-        { merge: true },
-      );
+      await refundAndFail("storage_failed");
       throw storageErr;
     }
 
@@ -390,7 +473,7 @@ export default async (req: Request, _context: Context) => {
         status: "completed",
         completedAt: FieldValue.serverTimestamp(),
         lastDownloadedAt: FieldValue.serverTimestamp(),
-        chargedCredits: isRedownload ? 0 : product.creditCost,
+        chargedCredits: product.creditCost,
         storagePath,
       },
       { merge: true },
@@ -398,17 +481,20 @@ export default async (req: Request, _context: Context) => {
 
     await writeAuditLog({
       uid,
-      action: isRedownload ? "report_redownloaded" : "report_generated",
+      action: "report_generated",
       entityType: "report",
       entityId: reportRef.id,
       metadata: {
         reportType: product.type,
-        chargedCredits: isRedownload ? 0 : product.creditCost,
+        chargedCredits: product.creditCost,
         filename,
         storagePath,
       },
     }).catch((auditError) => {
-      console.error("[PDF Report] Audit log failed:", describeError(auditError));
+      console.error(
+        "[PDF Report] Audit log failed:",
+        describeError(auditError),
+      );
     });
 
     return new Response(pdfBuffer, {
@@ -421,12 +507,9 @@ export default async (req: Request, _context: Context) => {
     });
   } catch (error: any) {
     console.error("[PDF Report] Error:", describeError(error));
-    return new Response(
-      JSON.stringify({ error: "Report generation failed. Please try again." }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      },
+    return jsonResponse(
+      { error: "Report generation failed. Please try again." },
+      500,
     );
   }
 };
@@ -455,17 +538,16 @@ function withProfileSigns(birth: any, profile: any) {
   if (!birth) return birth;
   const sameChart =
     profile?.dob === birth.dob &&
-    String(profile?.tob ?? "").slice(0, 5) === String(birth.tob ?? "").slice(0, 5);
+    String(profile?.tob ?? "").slice(0, 5) ===
+      String(birth.tob ?? "").slice(0, 5);
   if (!sameChart) return birth;
   return {
     ...birth,
-    ...(typeof profile.moonSign === "string" ? { moonSign: profile.moonSign } : {}),
-    ...(typeof profile.sunSign === "string" ? { sunSign: profile.sunSign } : {}),
+    ...(typeof profile.moonSign === "string"
+      ? { moonSign: profile.moonSign }
+      : {}),
+    ...(typeof profile.sunSign === "string"
+      ? { sunSign: profile.sunSign }
+      : {}),
   };
-}
-
-function stringifyReportData(data: any): string {
-  if (typeof data === "string") return data;
-  if (!data) return "";
-  return JSON.stringify(data, null, 2).slice(0, 3500);
 }

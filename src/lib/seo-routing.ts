@@ -1,7 +1,7 @@
 /** Shared by React and prerendering so URLs and search snippets stay aligned. */
 export const PRIVATE_ROUTES = [
   '/onboarding', '/synthesis', '/dashboard', '/transit', '/forecast',
-  '/compatibility', '/consult', '/wallet', '/reports', '/remedies',
+  '/compatibility', '/consult', '/wallet', '/reports', '/remedies', '/payment',
   '/settings', '/admin', '/today', '/guidance', '/chart', '/bonds', '/path',
 ];
 export function isPrivateRoute(path: string): boolean {

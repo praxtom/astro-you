@@ -561,15 +561,12 @@ test("computeBillableCapMinutes lifts the cap when credits are topped up mid-ses
     computeBillableCapMinutes({ maxBillableMinutes: 2, pricePerMin: 5 }, 20, 5),
     4,
   );
-  // Spending credits elsewhere never shrinks the cap reserved at start.
-  assert.equal(
-    computeBillableCapMinutes({ maxBillableMinutes: 2, pricePerMin: 5 }, 0, 5),
-    2,
-  );
   // Falls back to the persona price when the session has none recorded.
   assert.equal(computeBillableCapMinutes({}, 20, 5), 4);
-  // No funded minutes at all → no cap value to apply.
-  assert.equal(computeBillableCapMinutes({}, 4, 5), undefined);
+  // No funded minutes → a 0 cap (stop serving), not "no cap".
+  assert.equal(computeBillableCapMinutes({}, 4, 5), 0);
+  // No price at all → nothing to cap against.
+  assert.equal(computeBillableCapMinutes({}, 20, 0), undefined);
   // Junk values do not produce NaN/Infinity caps.
   assert.equal(
     computeBillableCapMinutes(
@@ -682,29 +679,97 @@ test("finalizeConsultSession still bills a session that had messages", async () 
   assert.equal(result.cost, 10);
 });
 
-test("endConsultSession rejects unknown personas before billing", async () => {
+test("computeBillableCapMinutes follows the LIVE balance: spending elsewhere shrinks the cap", () => {
+  // Started with 100 credits at 5/min (cap 20), then bought a PDF with them.
+  assert.equal(
+    computeBillableCapMinutes({ maxBillableMinutes: 20, pricePerMin: 5 }, 0, 5),
+    0,
+  );
+  assert.equal(
+    computeBillableCapMinutes(
+      { maxBillableMinutes: 20, pricePerMin: 5 },
+      26,
+      5,
+    ),
+    5,
+  );
+  // Credits already charged to this session still fund it.
+  assert.equal(
+    computeBillableCapMinutes(
+      { maxBillableMinutes: 20, pricePerMin: 5, chargedCredits: 25 },
+      25,
+      5,
+    ),
+    10,
+  );
+});
+
+test("finalize bills a retired persona at the price recorded on the session", async () => {
   const { deps, writes } = createDeps(100, 1_800_000, {
     "users/user_123/consultations/session_123": {
-      personaId: "unknown",
+      personaId: "retired-guide",
       status: "active",
-      startedAtMs: 1_700_000,
+      startedAtMs: 1_800_000 - 61_000,
       pricePerMin: 5,
+      messageCount: 2,
     },
   });
 
-  await assert.rejects(
-    () =>
-      endConsultSession(deps, {
-        idToken: "valid-token",
-        sessionId: "session_123",
-      }),
-    (error) =>
-      error instanceof ConsultSessionError &&
-      error.status === 400 &&
-      error.message === "Unknown persona",
+  const result = await endConsultSession(deps, {
+    idToken: "valid-token",
+    sessionId: "session_123",
+  });
+
+  assert.equal(result.minutes, 2);
+  assert.equal(result.cost, 10);
+  const close = writes.find(
+    (w) => w.path === "users/user_123/consultations/session_123",
+  );
+  assert.equal(close?.data.status, "ended");
+});
+
+test("finalize closes an unpriceable session for free and releases the lock", async () => {
+  const { deps, writes } = createDeps(
+    100,
+    1_800_000,
+    {
+      "users/user_123/consultations/session_123": {
+        personaId: "retired-guide",
+        status: "active",
+        startedAtMs: 1_700_000,
+      },
+    },
+    { activeConsultSessionId: "session_123" },
   );
 
-  assert.equal(writes.length, 0);
+  const result = await finalizeConsultSession(deps, {
+    uid: "user_123",
+    sessionId: "session_123",
+    reason: "auto_timeout",
+  });
+
+  assert.deepEqual(result, {
+    success: true,
+    durationSeconds: 0,
+    minutes: 0,
+    cost: 0,
+  });
+  const close = writes.find(
+    (w) => w.path === "users/user_123/consultations/session_123",
+  );
+  assert.equal(close?.data.status, "ended");
+  assert.equal(close?.data.closedWithoutBilling, "persona_unavailable");
+  assert.equal(
+    writes.some((w) => (w.path || "").includes("creditLedger")),
+    false,
+  );
+  assert.ok(
+    writes.find(
+      (w) =>
+        w.path === "users/user_123" && w.data.activeConsultSessionId === null,
+    ),
+    "the user must not stay locked out of consultations",
+  );
 });
 
 test("applyCreditChange writes a ledger entry and updates balance", async () => {
@@ -778,7 +843,7 @@ test("initializeUserCredits creates signup bonus ledger once", async () => {
     balanceAfter: 15,
     duplicate: false,
   });
-  assert.equal(writes.length, 2);
+  assert.equal(writes.length, 3); // + the signupGrants mailbox record
   assert.equal(writes[0].path, "users/user_123");
   assert.equal(writes[0].data.email, "user@example.com");
   assert.deepEqual(writes[0].data.credits, { op: "increment", value: 15 });

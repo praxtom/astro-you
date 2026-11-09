@@ -15,7 +15,7 @@ export function UpgradePrompt({
       <p className="text-white/80 text-sm mb-1">
         {feature} requires {tier}
       </p>
-      <p className="text-white/40 text-xs mb-4">
+      <p className="text-white/55 text-xs mb-4">
         Upgrade to unlock this feature
       </p>
       <button

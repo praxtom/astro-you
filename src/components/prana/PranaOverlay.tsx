@@ -263,7 +263,7 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
                                 className="flex flex-col items-center justify-center space-y-8"
                             >
                                 <motion.h2 
-                                    className="text-2xl md:text-3xl font-display text-white/40 tracking-[0.3em] uppercase text-center"
+                                    className="text-2xl md:text-3xl font-display text-white/55 tracking-[0.3em] uppercase text-center"
                                     animate={{ opacity: [0.3, 0.6, 0.3] }}
                                     transition={{ duration: 2, repeat: Infinity }}
                                 >
@@ -292,12 +292,12 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
                                         <button
                                             key={m}
                                             onClick={() => setMode(m)}
-                                            className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] transition-all ${
+                                            className={`px-4 py-1.5 rounded-full text-[0.6875rem] font-bold uppercase tracking-[0.2em] transition-all ${
                                                 mode === m 
                                                     ? m === 'calm' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' :
                                                       m === 'energize' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
                                                       'bg-violet-500/20 text-violet-300 border border-violet-500/30'
-                                                    : 'text-white/30 hover:text-white/60'
+                                                    : 'text-white/50 hover:text-white/60'
                                             }`}
                                         >
                                             {m}
@@ -364,12 +364,12 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
                                         title="Add 1 minute"
                                     >
                                         <Plus size={16} className="group-hover:scale-110 transition-transform" />
-                                        <span className="text-[10px] font-bold uppercase tracking-widest pr-1">1m</span>
+                                        <span className="text-[0.6875rem] font-bold uppercase tracking-widest pr-1">1m</span>
                                     </button>
                                 </div>
 
                                 {/* Instructions */}
-                                <p className="text-white/40 text-sm text-center max-w-xs">
+                                <p className="text-white/55 text-sm text-center max-w-xs">
                                     {mode === 'calm' && "Focus on extending your exhale to calm the nervous system."}
                                     {mode === 'energize' && "Quick, rhythmic breaths to build inner fire (Agni)."}
                                     {mode === 'balance' && "Equal breath to center the mind."}

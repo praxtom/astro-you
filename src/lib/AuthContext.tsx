@@ -1,11 +1,16 @@
-import { useEffect, useState, ReactNode } from "react";
+import { useEffect, useRef, useState, ReactNode } from "react";
 import {
   type User,
   onAuthStateChanged,
   signOut as firebaseSignOut,
   getRedirectResult,
 } from "firebase/auth";
-import { auth, db, enableAnalytics } from "./firebase";
+import {
+  auth,
+  db,
+  applyPendingAnalyticsOptIn,
+  setAnalyticsConsent,
+} from "./firebase";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { STORAGE_KEYS } from "./constants";
 import {
@@ -66,15 +71,185 @@ async function backfillMigratedSigns(
   }
 }
 
+/**
+ * Account bootstrap for a signed-in user: create the user doc, initialize
+ * credits server-side, migrate a guest profile, and claim a pending referral.
+ * Runs in the BACKGROUND after first render — the app must never sit on a
+ * blank screen waiting for these network round-trips. Consumers that depend
+ * on the doc being ready (profile, credits) read `accountSyncing` from the
+ * auth context and treat "absent while syncing" as "not loaded yet".
+ */
+async function initializeAccount(currentUser: User): Promise<void> {
+  try {
+    const userDocRef = doc(db, "users", currentUser.uid);
+    const docSnap = await getDoc(userDocRef);
+    const existingData = docSnap.exists() ? docSnap.data() : null;
+    const hasProfile = existingData?.profile?.dob;
+
+    // Initialize credits server-side so the credit ledger is complete.
+    // Track success: if init fails, the referral claim below must be
+    // skipped this session — a successful claim would define `credits`,
+    // and the server guard would then treat the signup bonus as already
+    // granted, permanently skipping it. Both retry on next login.
+    let creditsReady = existingData?.credits !== undefined;
+    if (!creditsReady) {
+      const idToken = await currentUser.getIdToken();
+      const initRes = await fetch("/api/credits/initialize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken }),
+      });
+      creditsReady = initRes.ok;
+      if (!initRes.ok) {
+        console.error(
+          "[Auth] Credits initialization failed:",
+          initRes.status,
+        );
+      }
+      await setDoc(
+        userDocRef,
+        {
+          email: currentUser.email,
+          createdAt: existingData?.createdAt || serverTimestamp(),
+        },
+        { merge: true },
+      );
+    }
+
+    // Migrate a guest profile to Firestore if the user has no profile
+    // yet. Only trust artifacts of a real guest onboarding session —
+    // sessionStorage GUEST_PROFILE, or localStorage PROFILE when this
+    // session's GUEST_COMPLETE marker is present. A bare PROFILE left in
+    // localStorage by a previous account on this browser must never
+    // migrate into a new uid.
+    if (!hasProfile) {
+      const guestData = sessionStorage.getItem(
+        STORAGE_KEYS.GUEST_PROFILE,
+      );
+      const guestComplete = sessionStorage.getItem(
+        STORAGE_KEYS.GUEST_COMPLETE,
+      );
+      const localData = guestComplete
+        ? localStorage.getItem(STORAGE_KEYS.PROFILE)
+        : null;
+      const profileJson = guestData || localData;
+
+      if (profileJson) {
+        try {
+          const parsed = JSON.parse(profileJson);
+          if (parsed.dob && parsed.tob) {
+            console.log("[Auth] Migrating guest profile to Firestore");
+            // Whitelist known profile fields — don't persist arbitrary
+            // keys from localStorage into the user document.
+            const profile = {
+              name:
+                typeof parsed.name === "string"
+                  ? parsed.name.slice(0, 100)
+                  : "",
+              dob: String(parsed.dob).slice(0, 20),
+              tob: String(parsed.tob).slice(0, 20),
+              pob:
+                typeof parsed.pob === "string"
+                  ? parsed.pob.slice(0, 200)
+                  : "",
+              gender:
+                typeof parsed.gender === "string"
+                  ? parsed.gender.slice(0, 20)
+                  : "",
+              lat: typeof parsed.lat === "number" ? parsed.lat : null,
+              lng: typeof parsed.lng === "number" ? parsed.lng : null,
+              coordinates: parsed.coordinates ?? null,
+              birthTimeUnknown: Boolean(parsed.birthTimeUnknown),
+            } as Record<string, any>;
+            // Sidereal signs, when the guest session already derived
+            // them — validated, since storage is untrusted.
+            const moonSign = storedSignName(parsed.moonSign);
+            const sunSign = storedSignName(parsed.sunSign);
+            if (moonSign) profile.moonSign = moonSign;
+            if (sunSign) profile.sunSign = sunSign;
+            if (
+              typeof parsed.moonNakshatra === "string" &&
+              parsed.moonNakshatra.trim()
+            ) {
+              profile.moonNakshatra = parsed.moonNakshatra
+                .trim()
+                .slice(0, 40);
+            }
+            await setDoc(
+              userDocRef,
+              { profile, updatedAt: new Date() },
+              { merge: true },
+            );
+            if (
+              !moonSign &&
+              normalizeZodiacMode(parsed.zodiacMode) === "vedic"
+            ) {
+              void backfillMigratedSigns(currentUser, profile);
+            }
+            // Clean up guest session data after migration
+            sessionStorage.removeItem(STORAGE_KEYS.GUEST_PROFILE);
+            sessionStorage.removeItem(STORAGE_KEYS.GUEST_COMPLETE);
+          }
+        } catch {
+          // Ignore invalid JSON
+        }
+      }
+    }
+    const urlReferralCode = captureReferralFromUrl();
+    const pendingReferralCode =
+      getPendingReferralCode() || urlReferralCode;
+    if (
+      creditsReady &&
+      pendingReferralCode &&
+      !existingData?.referredBy &&
+      !existingData?.referralClaimedAt
+    ) {
+      try {
+        const idToken = await currentUser.getIdToken();
+        const response = await fetch("/api/referrals/claim", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            idToken,
+            referralCode: pendingReferralCode,
+          }),
+        });
+
+        // 400/404/409 are permanent (invalid, unknown, or already
+        // claimed) — drop the pending code. Keep it on 429/5xx so the
+        // claim retries on the next login.
+        if (
+          response.ok ||
+          response.status === 400 ||
+          response.status === 404 ||
+          response.status === 409
+        ) {
+          clearPendingReferralCode();
+        }
+      } catch (referralError) {
+        console.warn("[Auth] Referral claim unavailable:", referralError);
+      }
+    }
+  } catch (err) {
+    console.error("[Auth] Error initializing user:", err);
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [authResolved, setAuthResolved] = useState(false);
   const [redirectChecked, setRedirectChecked] = useState(false);
+  const [accountSyncing, setAccountSyncing] = useState(false);
+  const syncedUidRef = useRef<string | null>(null);
 
-  // Handle redirect result on app load - this MUST run before we consider auth ready
+  // A pending Google redirect sign-in must resolve before we treat the first
+  // auth state as final — otherwise a just-redirected user flashes as
+  // signed-out.
   useEffect(() => {
     getRedirectResult(auth)
+      .then((result) => applyPendingAnalyticsOptIn(Boolean(result?.user)))
       .catch((error) => {
+        applyPendingAnalyticsOptIn(false);
         console.error("[Auth] Redirect sign-in failed:", error);
         sessionStorage.removeItem(STORAGE_KEYS.LOGIN_REDIRECT);
         window.dispatchEvent(
@@ -89,180 +264,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
   }, []);
 
-  // Set up auth state listener after redirect check
+  // `loading` covers only Firebase's first auth state (plus the redirect
+  // result). Account bootstrap runs afterwards in the background.
   useEffect(() => {
-    if (!redirectChecked) return;
-
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      setAuthResolved(true);
 
-      // Signing in follows the Terms/Privacy notice shown at the auth modal, so
-      // treat an authenticated session as analytics consent — GA4 stays off for
-      // anonymous visitors who never accepted it.
-      if (currentUser) enableAnalytics();
-
-      // Initialize user doc + migrate guest/localStorage profile data on first login
-      if (currentUser) {
-        try {
-          const userDocRef = doc(db, "users", currentUser.uid);
-          const docSnap = await getDoc(userDocRef);
-          const existingData = docSnap.exists() ? docSnap.data() : null;
-          const hasProfile = existingData?.profile?.dob;
-
-          // Initialize credits server-side so the credit ledger is complete.
-          // Track success: if init fails, the referral claim below must be
-          // skipped this session — a successful claim would define `credits`,
-          // and the server guard would then treat the signup bonus as already
-          // granted, permanently skipping it. Both retry on next login.
-          let creditsReady = existingData?.credits !== undefined;
-          if (!creditsReady) {
-            const idToken = await currentUser.getIdToken();
-            const initRes = await fetch("/api/credits/initialize", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ idToken }),
-            });
-            creditsReady = initRes.ok;
-            if (!initRes.ok) {
-              console.error(
-                "[Auth] Credits initialization failed:",
-                initRes.status,
-              );
-            }
-            await setDoc(
-              userDocRef,
-              {
-                email: currentUser.email,
-                createdAt: existingData?.createdAt || serverTimestamp(),
-              },
-              { merge: true },
-            );
-          }
-
-          // Migrate a guest profile to Firestore if the user has no profile
-          // yet. Only trust artifacts of a real guest onboarding session —
-          // sessionStorage GUEST_PROFILE, or localStorage PROFILE when this
-          // session's GUEST_COMPLETE marker is present. A bare PROFILE left in
-          // localStorage by a previous account on this browser must never
-          // migrate into a new uid.
-          if (!hasProfile) {
-            const guestData = sessionStorage.getItem(
-              STORAGE_KEYS.GUEST_PROFILE,
-            );
-            const guestComplete = sessionStorage.getItem(
-              STORAGE_KEYS.GUEST_COMPLETE,
-            );
-            const localData = guestComplete
-              ? localStorage.getItem(STORAGE_KEYS.PROFILE)
-              : null;
-            const profileJson = guestData || localData;
-
-            if (profileJson) {
-              try {
-                const parsed = JSON.parse(profileJson);
-                if (parsed.dob && parsed.tob) {
-                  console.log("[Auth] Migrating guest profile to Firestore");
-                  // Whitelist known profile fields — don't persist arbitrary
-                  // keys from localStorage into the user document.
-                  const profile = {
-                    name:
-                      typeof parsed.name === "string"
-                        ? parsed.name.slice(0, 100)
-                        : "",
-                    dob: String(parsed.dob).slice(0, 20),
-                    tob: String(parsed.tob).slice(0, 20),
-                    pob:
-                      typeof parsed.pob === "string"
-                        ? parsed.pob.slice(0, 200)
-                        : "",
-                    gender:
-                      typeof parsed.gender === "string"
-                        ? parsed.gender.slice(0, 20)
-                        : "",
-                    lat: typeof parsed.lat === "number" ? parsed.lat : null,
-                    lng: typeof parsed.lng === "number" ? parsed.lng : null,
-                    coordinates: parsed.coordinates ?? null,
-                    birthTimeUnknown: Boolean(parsed.birthTimeUnknown),
-                  } as Record<string, any>;
-                  // Sidereal signs, when the guest session already derived
-                  // them — validated, since storage is untrusted.
-                  const moonSign = storedSignName(parsed.moonSign);
-                  const sunSign = storedSignName(parsed.sunSign);
-                  if (moonSign) profile.moonSign = moonSign;
-                  if (sunSign) profile.sunSign = sunSign;
-                  if (
-                    typeof parsed.moonNakshatra === "string" &&
-                    parsed.moonNakshatra.trim()
-                  ) {
-                    profile.moonNakshatra = parsed.moonNakshatra
-                      .trim()
-                      .slice(0, 40);
-                  }
-                  await setDoc(
-                    userDocRef,
-                    { profile, updatedAt: new Date() },
-                    { merge: true },
-                  );
-                  if (
-                    !moonSign &&
-                    normalizeZodiacMode(parsed.zodiacMode) === "vedic"
-                  ) {
-                    void backfillMigratedSigns(currentUser, profile);
-                  }
-                  // Clean up guest session data after migration
-                  sessionStorage.removeItem(STORAGE_KEYS.GUEST_PROFILE);
-                  sessionStorage.removeItem(STORAGE_KEYS.GUEST_COMPLETE);
-                }
-              } catch {
-                // Ignore invalid JSON
-              }
-            }
-          }
-          const urlReferralCode = captureReferralFromUrl();
-          const pendingReferralCode =
-            getPendingReferralCode() || urlReferralCode;
-          if (
-            creditsReady &&
-            pendingReferralCode &&
-            !existingData?.referredBy &&
-            !existingData?.referralClaimedAt
-          ) {
-            try {
-              const idToken = await currentUser.getIdToken();
-              const response = await fetch("/api/referrals/claim", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  idToken,
-                  referralCode: pendingReferralCode,
-                }),
-              });
-
-              // 400/404/409 are permanent (invalid, unknown, or already
-              // claimed) — drop the pending code. Keep it on 429/5xx so the
-              // claim retries on the next login.
-              if (
-                response.ok ||
-                response.status === 400 ||
-                response.status === 404 ||
-                response.status === 409
-              ) {
-                clearPendingReferralCode();
-              }
-            } catch (referralError) {
-              console.warn("[Auth] Referral claim unavailable:", referralError);
-            }
-          }
-        } catch (err) {
-          console.error("[Auth] Error initializing user:", err);
-        }
+      if (!currentUser) {
+        syncedUidRef.current = null;
+        setAccountSyncing(false);
+        return;
       }
-
-      setLoading(false);
+      // Token refreshes re-fire this listener; bootstrap once per uid.
+      if (syncedUidRef.current === currentUser.uid) return;
+      syncedUidRef.current = currentUser.uid;
+      setAccountSyncing(true);
+      void initializeAccount(currentUser).finally(() => {
+        if (syncedUidRef.current === currentUser.uid) setAccountSyncing(false);
+      });
     });
 
     return unsubscribe;
-  }, [redirectChecked]);
+  }, []);
+
+  const loading = !redirectChecked || !authResolved;
 
   const signOut = async () => {
     await firebaseSignOut(auth);
@@ -283,11 +309,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Reset the anonymous analytics device id so a different account signing in
     // on this browser isn't linked to the previous user's events.
     localStorage.removeItem("astroyou:analytics_id");
+    // The privacy policy says signing out withdraws analytics consent: stop
+    // collection now and forget the opt-in so the next load doesn't restart
+    // GA4. The user can opt in again at sign-in or in Settings.
+    setAnalyticsConsent(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signOut }}>
-      {!loading && children}
+    <AuthContext.Provider value={{ user, loading, accountSyncing, signOut }}>
+      {loading ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex min-h-screen items-center justify-center bg-[#030308]"
+        >
+          <span className="h-2 w-2 animate-pulse rounded-full bg-gold/70" />
+          <span className="sr-only">Loading AstroYou</span>
+        </div>
+      ) : (
+        children
+      )}
     </AuthContext.Provider>
   );
 }

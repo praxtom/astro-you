@@ -14,7 +14,7 @@ export const LunarPhaseIndicator: React.FC<LunarPhaseIndicatorProps> = ({ birthD
         <div className="flex items-center gap-2 text-sm">
             <span className="text-lg leading-none">{lunar.emoji}</span>
             <span className="text-white/60">{lunar.phase}</span>
-            <span className="text-white/30 text-xs">
+            <span className="text-white/50 text-xs">
                 {Math.round(lunar.illumination)}%
             </span>
         </div>

@@ -242,34 +242,72 @@ export function calculateConsultCharge(
   return { charge, underbilled: charge < cost };
 }
 
+function sessionPricePerMin(
+  session: { pricePerMin?: unknown },
+  fallbackPricePerMin: number,
+): number {
+  return typeof session.pricePerMin === "number" && session.pricePerMin > 0
+    ? session.pricePerMin
+    : fallbackPricePerMin;
+}
+
 /**
- * The live billable-minute cap for a session: the greater of the cap reserved
- * at start and what the wallet funds *right now*. Reading it live means a
- * mid-session top-up actually extends the session instead of the meter staying
- * frozen at the balance the user happened to have when they pressed start.
- * Returns `undefined` when there is no cap to apply (zero funded minutes), so
- * callers can treat it as "no cap recorded" exactly as before.
+ * The live billable-minute cap for a session: the minutes funded by the
+ * wallet *right now*, plus any credits this session has already been charged
+ * (`chargedCredits`, for sessions billed incrementally; 0 today because
+ * billing happens once at finalize).
+ *
+ * Deliberately NOT max(startCap, liveCap): the cap reserved at start is not a
+ * hold on the wallet, so honouring it after the user spends the balance
+ * elsewhere (e.g. starts with 100 credits, buys a PDF, keeps chatting) gave
+ * them the full session for ~0. Reading it live also means a mid-session
+ * top-up extends the session.
+ *
+ * Returns 0 when nothing is funded (callers must stop serving) and
+ * `undefined` only when no price is known, so there is no cap to apply.
  */
 export function computeBillableCapMinutes(
+  session: {
+    maxBillableMinutes?: unknown;
+    pricePerMin?: unknown;
+    chargedCredits?: unknown;
+  },
+  currentCredits: number,
+  fallbackPricePerMin: number,
+): number | undefined {
+  const pricePerMin = sessionPricePerMin(session, fallbackPricePerMin);
+  if (!(pricePerMin > 0) || !Number.isFinite(pricePerMin)) return undefined;
+  const credits = Number.isFinite(currentCredits)
+    ? Math.max(0, currentCredits)
+    : 0;
+  const accrued =
+    typeof session.chargedCredits === "number" &&
+    Number.isFinite(session.chargedCredits)
+      ? Math.max(0, session.chargedCredits)
+      : 0;
+  return Math.max(0, Math.floor((credits + accrued) / pricePerMin));
+}
+
+/**
+ * Minutes to METER at finalize (what the session cost at list price). The
+ * amount actually CHARGED is separately limited to the wallet by
+ * calculateConsultCharge, so metering against the larger of the start and
+ * live caps only affects the recorded `meteredCost` / underbilled flag, never
+ * what the user pays.
+ */
+function computeMeteringCapMinutes(
   session: { maxBillableMinutes?: unknown; pricePerMin?: unknown },
   currentCredits: number,
   fallbackPricePerMin: number,
 ): number | undefined {
-  const pricePerMin =
-    typeof session.pricePerMin === "number" && session.pricePerMin > 0
-      ? session.pricePerMin
-      : fallbackPricePerMin;
   const startCap =
     typeof session.maxBillableMinutes === "number" &&
     Number.isFinite(session.maxBillableMinutes)
       ? Math.max(0, Math.floor(session.maxBillableMinutes))
       : 0;
-  const credits = Number.isFinite(currentCredits)
-    ? Math.max(0, currentCredits)
-    : 0;
   const liveCap =
-    pricePerMin > 0 ? Math.max(0, Math.floor(credits / pricePerMin)) : 0;
-
+    computeBillableCapMinutes(session, currentCredits, fallbackPricePerMin) ??
+    0;
   return Math.max(startCap, liveCap) || undefined;
 }
 
@@ -500,31 +538,54 @@ export async function finalizeConsultSession(
       throw new ConsultSessionError("Consultation session is not active", 409);
     }
 
-    const persona = getConsultPersona(String(consultation.personaId || ""));
-    if (!persona) {
-      throw new ConsultSessionError("Unknown persona", 400);
-    }
-
+    const personaId = String(consultation.personaId || "");
+    const persona = getConsultPersona(personaId);
+    const recordedPrice =
+      typeof consultation.pricePerMin === "number" &&
+      Number.isFinite(consultation.pricePerMin) &&
+      consultation.pricePerMin > 0
+        ? consultation.pricePerMin
+        : 0;
+    const pricePerMin = recordedPrice || persona?.pricePerMin || 0;
     const startedAtMs =
       typeof consultation.startedAtMs === "number"
         ? consultation.startedAtMs
         : 0;
-    if (!startedAtMs) {
-      throw new ConsultSessionError(
-        "Consultation session is missing start time",
-        400,
-      );
+
+    // A session that can't be priced or timed (its guide was retired from the
+    // catalogue with no price recorded, or a corrupt record) must still close:
+    // throwing here kept it "active" forever, locking the user out of every
+    // consultation and making the reaper retry it on every run. Close it free.
+    if (!startedAtMs || !(pricePerMin > 0)) {
+      const closeReason = !startedAtMs
+        ? "missing_start_time"
+        : "persona_unavailable";
+      tx.update(consultationRef, {
+        status: "ended",
+        endReason: params.reason ?? "client_end",
+        closedWithoutBilling: closeReason,
+        endedAt: deps.FieldValue.serverTimestamp(),
+        endedAtMs: now,
+        duration: 0,
+        minutes: 0,
+        cost: 0,
+        messageCount: consultation.messageCount ?? params.messageCount ?? 0,
+        updatedAt: deps.FieldValue.serverTimestamp(),
+      });
+      releaseLock();
+      return {
+        success: true as const,
+        durationSeconds: 0,
+        minutes: 0,
+        cost: 0,
+      };
     }
 
-    const pricePerMin =
-      typeof consultation.pricePerMin === "number"
-        ? consultation.pricePerMin
-        : persona.pricePerMin;
     const credits = userSnap.data()?.credits ?? 0;
-    const maxBillableMinutes = computeBillableCapMinutes(
+    const maxBillableMinutes = computeMeteringCapMinutes(
       consultation,
       credits,
-      persona.pricePerMin,
+      pricePerMin,
     );
     const { durationSeconds, minutes, cost } = calculateConsultBill(
       startedAtMs,
@@ -554,7 +615,7 @@ export async function finalizeConsultSession(
           referenceId: params.sessionId,
           ledgerId: `consultation_${params.sessionId}`,
           metadata: {
-            personaId: persona.id,
+            personaId,
             minutes,
             durationSeconds,
             reason: params.reason ?? "client_end",

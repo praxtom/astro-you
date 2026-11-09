@@ -94,6 +94,7 @@ const CHECK_GROUPS: Array<{ key: string; label: string; checks: EnvCheck[] }> =
           key: "RAZORPAY_KEY_ID",
           label: "Razorpay key id",
           required: true,
+          validate: makeRazorpayModeValidator("Razorpay key id"),
           description:
             "Required to create paid checkout orders and subscriptions.",
         },
@@ -165,9 +166,33 @@ const CHECK_GROUPS: Array<{ key: string; label: string; checks: EnvCheck[] }> =
         {
           key: "RESEND_API_KEY",
           label: "Resend email key",
-          required: false,
+          required: true,
           description:
-            "Recommended for OTP, daily digest, and proactive email nudges.",
+            "Required: email OTP sign-in hard-fails without it; also sends the daily digest and support-ticket alerts.",
+        },
+        {
+          key: "DIGEST_FROM_EMAIL",
+          label: "Email sender address",
+          required: true,
+          validate: validateSenderAddress,
+          description:
+            "Required sender for OTP, digest, and admin emails (e.g. `AstroYou <noreply@astroyou.app>`). Its domain must be verified in Resend.",
+        },
+        {
+          key: "INTERNAL_FUNCTION_SECRET",
+          label: "Internal function secret",
+          required: false,
+          validate: makeLongSecretValidator("Internal function secret"),
+          description:
+            "Recommended: dedicated secret for background-function dispatch (daily digest, memory analysis). Falls back to a value derived from OTP_HASH_SECRET.",
+        },
+        {
+          key: "OPS_ALERT_WEBHOOK_URL",
+          label: "Ops alert webhook",
+          required: false,
+          validate: validateHttpsUrl,
+          description:
+            "Recommended: Slack/Discord incoming webhook paged for payment, job, and email failures. Events are always stored in opsEvents.",
         },
         {
           key: "WHATSAPP_ACCESS_TOKEN",
@@ -230,6 +255,7 @@ const CHECK_GROUPS: Array<{ key: string; label: string; checks: EnvCheck[] }> =
           key: "VITE_RAZORPAY_KEY_ID",
           label: "Razorpay browser key id",
           required: true,
+          validate: makeRazorpayModeValidator("Razorpay browser key id"),
           description: "Required to open Razorpay checkout in the browser.",
         },
         {
@@ -237,6 +263,13 @@ const CHECK_GROUPS: Array<{ key: string; label: string; checks: EnvCheck[] }> =
           label: "Firebase VAPID key",
           required: false,
           description: "Recommended for browser push notifications.",
+        },
+        {
+          key: "VITE_SENTRY_DSN",
+          label: "Sentry DSN",
+          required: false,
+          description:
+            "Recommended so client crashes are reported instead of only logged to the user's console.",
         },
       ],
     },
@@ -395,7 +428,52 @@ function makeLongSecretValidator(label: string) {
   };
 }
 
+function validateSenderAddress(value: string) {
+  const trimmed = value.trim();
+  const match = /^(?:[^<>]*<([^<>\s]+)>|([^<>\s]+))$/.exec(trimmed);
+  const address = match?.[1] || match?.[2] || "";
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)
+    ? null
+    : "Email sender must be an address or `Name <address>`.";
+}
+
+function validateHttpsUrl(value: string) {
+  try {
+    return new URL(value).protocol === "https:"
+      ? null
+      : "Ops alert webhook must be an https URL.";
+  } catch {
+    return "Ops alert webhook must be a valid URL.";
+  }
+}
+
+/** Netlify sets CONTEXT to production / deploy-preview / branch-deploy / dev. */
+function deployContext(env: ReadinessEnv) {
+  return env.CONTEXT?.trim().toLowerCase() || "";
+}
+
+function makeRazorpayModeValidator(label: string) {
+  return function validateRazorpayMode(value: string, env: ReadinessEnv) {
+    return deployContext(env) === "production" &&
+      value.trim().startsWith("rzp_test")
+      ? `${label} is a test key (rzp_test) in the production deploy context.`
+      : null;
+  };
+}
+
 function addCrossWarnings(env: ReadinessEnv, warnings: string[]) {
+  const context = deployContext(env);
+  if (context && context !== "production") {
+    const liveKeys = ["RAZORPAY_KEY_ID", "VITE_RAZORPAY_KEY_ID"].filter((key) =>
+      env[key]?.trim().startsWith("rzp_live"),
+    );
+    if (liveKeys.length > 0) {
+      warnings.push(
+        `Live Razorpay keys (${liveKeys.join(", ")}) are configured in the "${context}" deploy context; use rzp_test keys outside production.`,
+      );
+    }
+  }
+
   const serverRazorpay = env.RAZORPAY_KEY_ID?.trim();
   const clientRazorpay = env.VITE_RAZORPAY_KEY_ID?.trim();
   if (serverRazorpay && clientRazorpay && serverRazorpay !== clientRazorpay) {

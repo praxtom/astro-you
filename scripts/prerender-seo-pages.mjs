@@ -264,7 +264,7 @@ const homePage = {
   schemaType: "WebSite",
   updated: SEO_CONTENT_REVIEWED,
   intro:
-    "AstroYou is a Vedic astrology platform that computes your sidereal birth chart from date, exact time, and place, and then interprets it through a Jyotish guide that keeps your context between conversations. Kundali generation, Kundali matching, and daily Panchang are free.",
+    "AstroYou is a Vedic astrology platform that computes your sidereal birth chart from date, exact time, and place, and then interprets it through an AI guide trained on Jyotish that remembers your chart and the key things you share with it. Kundali generation, Kundali matching, and daily Panchang are free.",
   sections: [
     {
       title: "What AstroYou does",
@@ -272,15 +272,15 @@ const homePage = {
     },
     {
       title: "What makes it different from a horoscope app",
-      body: "Sun-sign horoscopes apply to a twelfth of the world. AstroYou requires exact birth time and place because the ascendant advances about one degree every four minutes, and most Vedic interpretation is house-based. It also retains your chart, your dasha timeline, and every prior conversation, so guidance builds instead of restarting.",
+      body: "Sun-sign horoscopes apply to a twelfth of the world. AstroYou requires exact birth time and place because the ascendant advances about one degree every four minutes, and most Vedic interpretation is house-based. It also remembers your chart, your dasha timeline, and the key things you share with it, so guidance builds instead of restarting.",
     },
     {
       title: "What is free",
-      body: "Janam Kundali generation, Kundali matching with the full 36-point Ashtakoot breakdown, Manglik checking, daily Panchang, and 15 guidance credits — no card required. Paid tiers start at ₹499 per month and astrologer sittings run from 5 credits per minute. Full rates are published at /pricing before you sign up.",
+      body: `Janam Kundali generation, Kundali matching with the full 36-point Ashtakoot breakdown, Manglik checking, daily Panchang, and ${entitlements.ENTITLEMENTS.free.limits.monthlyCredits} credits once at signup — no card required. Paid plans start at ₹${entitlements.ENTITLEMENTS.premium.monthlyPriceInr} per month and AI guide sessions run from 5 credits per minute. Full rates are published at /pricing before you sign up.`,
     },
     {
       title: "On AI disclosure",
-      body: "Every AI astrologer on AstroYou is labelled as AI on its consultation profile. Parts of this market present automated responses as human practitioners without saying so; AstroYou's policy is written down on the trust page rather than left implied.",
+      body: "Every guide on AstroYou is an AI, and each one is labelled as an AI guide on its profile. Parts of this market present automated responses as human practitioners without saying so; AstroYou's policy is written down on the trust page rather than left implied.",
     },
     {
       title: "What AstroYou will not do",
@@ -293,21 +293,21 @@ const homePage = {
       value: "Lahiri (Chitrapaksha)",
       source: "The standard used by India's Rashtriya Panchang",
     },
-    { label: "Free tier", value: "15 credits, no card required" },
-    { label: "Paid tiers", value: "From ₹499/month" },
-    { label: "Consultation rate", value: "From 5 credits per minute" },
+    { label: "Free tier", value: `${entitlements.ENTITLEMENTS.free.limits.monthlyCredits} credits once at signup, no card required` },
+    { label: "Paid plans", value: `From ₹${entitlements.ENTITLEMENTS.premium.monthlyPriceInr}/month` },
+    { label: "AI guide session rate", value: "From 5 credits per minute" },
     { label: "Required birth inputs", value: "Date, exact time, and place" },
   ],
   faq: [
     {
       question: "What is AstroYou?",
       answer:
-        "A Vedic astrology platform that generates a free sidereal birth chart from your date, exact time, and place of birth using the Lahiri ayanamsa, and interprets it with a Jyotish guide that remembers your chart, dashas, and previous conversations.",
+        "A Vedic astrology platform that generates a free sidereal birth chart from your date, exact time, and place of birth using the Lahiri ayanamsa, and interprets it with an AI guide trained on Jyotish that remembers your chart, your dashas, and the key things you share with it.",
     },
     {
       question: "Is AstroYou free?",
       answer:
-        "Kundali generation, Kundali matching, Manglik checking, and daily Panchang are free, along with 15 guidance credits and no card requirement. Paid plans start at ₹499 per month; consultation runs from 5 credits per minute.",
+        `Kundali generation, Kundali matching, Manglik checking, and daily Panchang are free, along with ${entitlements.ENTITLEMENTS.free.limits.monthlyCredits} credits once at signup and no card requirement. Paid plans start at ₹${entitlements.ENTITLEMENTS.premium.monthlyPriceInr} per month; AI guide sessions run from 5 credits per minute.`,
     },
     {
       question: "Are the astrologers on AstroYou real people?",
@@ -347,23 +347,31 @@ const homePage = {
 const { CREDIT_PACKS, formatCreditRate } = packs;
 const { ENTITLEMENTS } = entitlements;
 const TIER_ORDER = ["free", "premium", "pro"];
+// Mirrors src/lib/subscriptions.ts PAID_CHAT_FAIR_USE_PER_DAY.
+const PAID_CHAT_FAIR_USE_PER_DAY = 150;
+// Mirrors src/lib/report-pricing.ts (daily PDF lowest, yearly report highest).
+const REPORT_CREDIT_COSTS = "10 to 199 credits each";
+const perCredit = (id) =>
+  `₹${(ENTITLEMENTS[id].monthlyPriceInr / ENTITLEMENTS[id].limits.monthlyCredits).toFixed(2)}`;
 
 const pricingPage = {
   path: "/pricing",
   title: "AstroYou Pricing: Plans, Credits, and Consultation Rates",
-  description: `AstroYou pricing in full. Free tier includes ${ENTITLEMENTS.free.limits.monthlyCredits} credits with no card. Premium is ₹${ENTITLEMENTS.premium.monthlyPriceInr}/month and Pro is ₹${ENTITLEMENTS.pro.monthlyPriceInr}/month. Credit packs from ₹${CREDIT_PACKS[0].amountInRupees}. Consultation from 5 credits per minute.`,
+  description: `AstroYou pricing in full: ${ENTITLEMENTS.free.limits.monthlyCredits} free credits at signup, Premium ₹${ENTITLEMENTS.premium.monthlyPriceInr}/month, Pro ₹${ENTITLEMENTS.pro.monthlyPriceInr}/month, credit packs from ₹${CREDIT_PACKS[0].amountInRupees}.`,
   heading: "Pricing",
   schemaType: "WebPage",
   updated: today,
   intro:
-    "Every rate is listed here in full, before signup. Credits are a single currency shared across Jyotish chat, astrologer sittings, and PDF reports. A machine-readable copy of this page is published at /pricing.md.",
+    "Every rate is listed here in full, before signup. Credits are a single currency shared across Jyotish chat, AI guide sessions, and PDF reports. A machine-readable copy of this page is published at /pricing.md.",
   sections: [
     {
       title: "Subscription plans",
       body: TIER_ORDER.map((id) => {
         const t = ENTITLEMENTS[id];
-        return `${t.displayName}: ${t.monthlyPriceInr === 0 ? "free" : `₹${t.monthlyPriceInr} per month`}, including ${t.limits.monthlyCredits} credits and ${t.limits.consultMinutesPerMonth} consultation minutes.`;
-      }).join(" "),
+        return t.monthlyPriceInr === 0
+          ? `${t.displayName}: free, with ${t.limits.monthlyCredits} credits granted once at signup and Jyotish chat at 1 credit per message.`
+          : `${t.displayName}: ₹${t.monthlyPriceInr} per month, adding ${t.limits.monthlyCredits} credits each billing month (about ${perCredit(id)} per credit) and unlimited Jyotish chat with a fair-use limit of ${PAID_CHAT_FAIR_USE_PER_DAY} messages a day.`;
+      }).join(" ") + " Every reading, forecast, report, and AI guide session is open on every plan, paid for in credits.",
     },
     {
       title: "Credit packs",
@@ -371,11 +379,11 @@ const pricingPage = {
     },
     {
       title: "What credits are spent on",
-      body: "Astrologer sittings start at 5 credits per minute. Jyotish chat and PDF report generation draw from the same balance. Because one currency covers all three, you are never buying capacity you cannot use elsewhere.",
+      body: `AI guide sessions cost 5, 8, or 10 credits per minute depending on the guide; the clock runs from your first message until the session closes, and a partial minute is charged as a full minute. Jyotish chat costs 1 credit per message without a subscription. PDF reports cost ${REPORT_CREDIT_COSTS}. Weekly, monthly, and yearly forecasts, transit readings, and compatibility readings cost a few credits per view. One balance covers all of it.`,
     },
     {
       title: "What is free without paying anything",
-      body: `Janam Kundali generation, Kundali matching with the full Ashtakoot breakdown, Manglik checking, daily Panchang, and ${ENTITLEMENTS.free.limits.monthlyCredits} starter credits. No card is required to reach any of it.`,
+      body: `Janam Kundali generation, Kundali matching with the full Ashtakoot breakdown, Manglik checking, daily Panchang, and ${ENTITLEMENTS.free.limits.monthlyCredits} credits granted once at signup. No card is required to reach any of it.`,
     },
   ],
   facts: [
@@ -385,9 +393,13 @@ const pricingPage = {
         ENTITLEMENTS[id].monthlyPriceInr === 0
           ? "Free"
           : `₹${ENTITLEMENTS[id].monthlyPriceInr}/month`,
-      source: `${ENTITLEMENTS[id].limits.monthlyCredits} credits, ${ENTITLEMENTS[id].limits.consultMinutesPerMonth} consult minutes`,
+      source:
+        ENTITLEMENTS[id].monthlyPriceInr === 0
+          ? `${ENTITLEMENTS[id].limits.monthlyCredits} credits once at signup`
+          : `${ENTITLEMENTS[id].limits.monthlyCredits} credits each billing month`,
     })),
-    { label: "Consultation rate", value: "From 5 credits per minute" },
+    { label: "AI guide session rate", value: "5, 8, or 10 credits per minute" },
+    { label: "Jyotish chat", value: "1 credit per message; unlimited on paid plans" },
     { label: "Machine-readable pricing", value: "/pricing.md" },
   ],
   comparison: {
@@ -403,54 +415,50 @@ const pricingPage = {
         ),
       },
       {
-        criterion: "Monthly credits",
-        values: TIER_ORDER.map(
-          (id) => `${ENTITLEMENTS[id].limits.monthlyCredits}`,
-        ),
-      },
-      {
-        criterion: "Consultation minutes",
-        values: TIER_ORDER.map(
-          (id) => `${ENTITLEMENTS[id].limits.consultMinutesPerMonth}`,
-        ),
-      },
-      {
-        criterion: "PDF reports",
+        criterion: "Credits included",
         values: TIER_ORDER.map((id) =>
-          ENTITLEMENTS[id].features.pdf_reports ? "Yes" : "No",
+          ENTITLEMENTS[id].monthlyPriceInr === 0
+            ? `${ENTITLEMENTS[id].limits.monthlyCredits} once, at signup`
+            : `${ENTITLEMENTS[id].limits.monthlyCredits} per month`,
         ),
       },
       {
-        criterion: "Yearly forecast",
+        criterion: "Effective price per credit",
         values: TIER_ORDER.map((id) =>
-          ENTITLEMENTS[id].features.yearly_report ? "Yes" : "No",
+          ENTITLEMENTS[id].monthlyPriceInr === 0 ? "—" : perCredit(id),
         ),
       },
       {
-        criterion: "Astrocartography",
+        criterion: "Jyotish chat",
         values: TIER_ORDER.map((id) =>
-          ENTITLEMENTS[id].features.astrocartography ? "Yes" : "No",
+          ENTITLEMENTS[id].limits.synthesisMessagesPerDay === -1
+            ? `Unlimited (fair use: ${PAID_CHAT_FAIR_USE_PER_DAY}/day)`
+            : "1 credit per message",
         ),
+      },
+      {
+        criterion: "Reports, forecasts, AI guide sessions",
+        values: TIER_ORDER.map(() => "Open to all, paid in credits"),
       },
     ],
   },
   faq: [
     {
       question: "How much does AstroYou cost?",
-      answer: `The free tier costs nothing and includes ${ENTITLEMENTS.free.limits.monthlyCredits} credits with no card. Premium is ₹${ENTITLEMENTS.premium.monthlyPriceInr} per month with ${ENTITLEMENTS.premium.limits.monthlyCredits} credits; Pro is ₹${ENTITLEMENTS.pro.monthlyPriceInr} per month with ${ENTITLEMENTS.pro.limits.monthlyCredits}. Credit packs start at ₹${CREDIT_PACKS[0].amountInRupees}.`,
+      answer: `The free tier costs nothing and grants ${ENTITLEMENTS.free.limits.monthlyCredits} credits once at signup, with no card. Premium is ₹${ENTITLEMENTS.premium.monthlyPriceInr} per month with ${ENTITLEMENTS.premium.limits.monthlyCredits} credits; Pro is ₹${ENTITLEMENTS.pro.monthlyPriceInr} per month with ${ENTITLEMENTS.pro.limits.monthlyCredits}. Credit packs start at ₹${CREDIT_PACKS[0].amountInRupees}.`,
     },
     {
       question: "What is a credit worth?",
-      answer: `One credit is one minute of astrologer sitting at the base rate of 5 credits per minute, or a share of a PDF report. Packs range from ${CREDIT_PACKS[0].label} at ₹${CREDIT_PACKS[0].amountInRupees} to ${CREDIT_PACKS[CREDIT_PACKS.length - 1].label} at ₹${CREDIT_PACKS[CREDIT_PACKS.length - 1].amountInRupees}.`,
+      answer: `A credit is the unit every paid feature is priced in. An AI guide session costs 5, 8, or 10 credits per minute depending on the guide, Jyotish chat costs 1 credit per message without a subscription, and PDF reports cost ${REPORT_CREDIT_COSTS}. Packs range from ${CREDIT_PACKS[0].label} at ₹${CREDIT_PACKS[0].amountInRupees} (${formatCreditRate(CREDIT_PACKS[0])}) to ${CREDIT_PACKS[CREDIT_PACKS.length - 1].label} at ₹${CREDIT_PACKS[CREDIT_PACKS.length - 1].amountInRupees} (${formatCreditRate(CREDIT_PACKS[CREDIT_PACKS.length - 1])}).`,
     },
     {
       question: "Is there a free plan?",
-      answer: `Yes. Kundali generation, Kundali matching, Manglik checking, and daily Panchang are free permanently, plus ${ENTITLEMENTS.free.limits.monthlyCredits} starter credits and ${ENTITLEMENTS.free.limits.consultMinutesPerMonth} consultation minutes. No card is required.`,
+      answer: `Yes. Kundali generation, Kundali matching, Manglik checking, and daily Panchang are free permanently, plus ${ENTITLEMENTS.free.limits.monthlyCredits} credits granted once at signup. The free credits do not renew each month. No card is required.`,
     },
     {
       question: "Do unused credits expire?",
       answer:
-        "Purchased credits stay in your wallet. Subscription credits refresh monthly with the billing cycle.",
+        "Purchased credits stay in your wallet. Subscription credits are added to your wallet each time a monthly payment succeeds.",
     },
   ],
   links: defaultSeoLinks,
@@ -477,7 +485,7 @@ const supportPages = [
       },
       {
         title: "Credits and billing",
-        body: "Credits are shared across Jyotish chat, astrologer sittings, and PDF reports. Astrologer sittings start at 5 credits per minute. Purchased credits stay in your wallet; subscription credits refresh with the billing cycle.",
+        body: "Credits are shared across Jyotish chat, AI guide sessions, and PDF reports. AI guide sessions start at 5 credits per minute. Purchased credits stay in your wallet; subscription credits are added at each monthly payment.",
       },
       {
         title: "Chart calculation",
@@ -499,7 +507,7 @@ const supportPages = [
       {
         question: "What are credits used for?",
         answer:
-          "Credits are one currency across Jyotish chat, astrologer sittings, and PDF reports. Astrologer sittings start at 5 credits per minute. Purchased credits stay in your wallet; subscription credits refresh with the billing cycle.",
+          "Credits are one currency across Jyotish chat, AI guide sessions, and PDF reports. AI guide sessions start at 5 credits per minute. Purchased credits stay in your wallet; subscription credits are added at each monthly payment.",
       },
       {
         question: "Why does my chart differ from another astrology site?",
@@ -640,7 +648,7 @@ const supportPages = [
       {
         question: "How does subscription billing work?",
         answer:
-          "Subscriptions renew monthly until cancelled. Credits included with a subscription refresh at each billing cycle; credits bought in packs remain in your wallet.",
+          "Subscriptions renew monthly until cancelled. Credits included with a subscription are added at each successful monthly payment; credits bought in packs remain in your wallet.",
       },
       {
         question: "What are the limits on guidance?",
@@ -658,12 +666,15 @@ const supportPages = [
   },
   {
     path: "/experts/apply",
+    // Every guide on AstroYou is AI; this intake page stays reachable for
+    // people who already have the link but is kept out of search.
+    noindex: true,
     title: "Apply as an Astrologer on AstroYou",
     description:
       "Apply to join AstroYou as a practising astrologer. What we look for, how verification works, and how listings are labelled.",
     heading: "Apply as an Expert",
     intro:
-      "AstroYou is opening its consultation roster to practising astrologers. Human practitioners are listed and labelled distinctly from AI astrologers.",
+      "Every guide on AstroYou today is an AI. This page records interest from practising astrologers; applying does not create a listing. If human practitioners are ever listed, they will be labelled distinctly from AI guides.",
     sections: [
       {
         title: "What we look for",
@@ -1045,7 +1056,20 @@ const signPages = signs.flatMap(
 // ── Panchang date pages, with real almanac values ────────────────────────────
 
 const API_BASE = "https://api.astrology-api.io/api/v3";
-const apiKey = process.env.ASTROLOGY_API_KEY || process.env.ASTROYOU_API_KEY;
+// Live Panchang calls spend paid-API quota (up to 180 per cold build). Only
+// production builds — or an explicit PRERENDER_LIVE_PANCHANG=1 — make them;
+// deploy previews, branch deploys and local builds use the cross-build cache
+// or descriptive copy. Netlify sets CONTEXT at build time.
+const BUILD_CONTEXT = process.env.CONTEXT || "";
+const allowLivePanchang =
+  BUILD_CONTEXT === "production" || process.env.PRERENDER_LIVE_PANCHANG === "1";
+const apiKey = allowLivePanchang
+  ? process.env.ASTROLOGY_API_KEY || process.env.ASTROYOU_API_KEY
+  : undefined;
+const panchangSkipReason = allowLivePanchang
+  ? "ASTROLOGY_API_KEY not set"
+  : `live Panchang calls disabled for the "${BUILD_CONTEXT || "local"}" build ` +
+    "(set PRERENDER_LIVE_PANCHANG=1 to force)";
 
 /**
  * Panchang values for a fixed date never change, so they are cached across
@@ -1189,13 +1213,13 @@ async function loadPanchangData() {
   if (!apiKey) {
     if (cached.size) {
       console.warn(
-        `prerender: ASTROLOGY_API_KEY not set — using ${cached.size} cached ` +
+        `prerender: ${panchangSkipReason} — using ${cached.size} cached ` +
           "Panchang dates. Dates outside the cache fall back to descriptive copy.",
       );
       return cached;
     }
     console.warn(
-      "prerender: ASTROLOGY_API_KEY not set and no Panchang cache — date pages " +
+      `prerender: ${panchangSkipReason} and no Panchang cache — date pages ` +
         "will describe what the page offers rather than claiming values that " +
         "are not present.",
     );
@@ -1762,7 +1786,6 @@ const buildStructuredData = (page, canonical) => {
     name: SEO_PUBLISHER.name,
     url: SEO_PUBLISHER.url,
     logo: { "@type": "ImageObject", url: SEO_PUBLISHER.logo },
-    sameAs: SEO_PUBLISHER.sameAs,
   };
 
   const primary = {
@@ -1889,12 +1912,12 @@ ${TIER_ORDER.map((id) => {
   const t = ENTITLEMENTS[id];
   return `### ${t.displayName}
 - Price: ${t.monthlyPriceInr === 0 ? "₹0 (free, no card required)" : `₹${t.monthlyPriceInr}/month`}
-- Monthly credits: ${t.limits.monthlyCredits}
-- Consultation minutes per month: ${t.limits.consultMinutesPerMonth}
-- Jyotish messages per day: ${t.limits.synthesisMessagesPerDay === -1 ? "Unlimited" : t.limits.synthesisMessagesPerDay}
-- PDF reports: ${t.features.pdf_reports ? "Yes" : "No"}
-- Yearly forecast: ${t.features.yearly_report ? "Yes" : "No"}
-- Astrocartography: ${t.features.astrocartography ? "Yes" : "No"}`;
+${t.monthlyPriceInr === 0
+  ? `- Credits: ${t.limits.monthlyCredits}, granted once at signup (not monthly)
+- Jyotish chat: 1 credit per message`
+  : `- Credits: ${t.limits.monthlyCredits} added each billing month (about ${perCredit(id)} per credit)
+- Jyotish chat: unlimited, fair use up to ${PAID_CHAT_FAIR_USE_PER_DAY} messages a day`}
+- Reports, forecasts and AI guide sessions: available, paid in credits`;
 }).join("\n\n")}
 
 ## Credit packs (one-time purchase)
@@ -1903,11 +1926,12 @@ ${CREDIT_PACKS.map((p) => `- ${p.label}: ₹${p.amountInRupees} (${formatCreditR
 
 ## What credits are spent on
 
-- Astrologer sitting: from 5 credits per minute
-- Jyotish chat: draws from the same balance
-- PDF natal report: draws from the same balance
+- AI guide session: 5, 8, or 10 credits per minute depending on the guide; billed from the first message, partial minutes rounded up
+- Jyotish chat: 1 credit per message without a subscription; unlimited (fair use) on Premium and Pro
+- PDF reports: ${REPORT_CREDIT_COSTS}
+- Weekly, monthly, and yearly forecasts, transit and compatibility readings: a few credits per view
 
-Purchased credits remain in the wallet. Subscription credits refresh monthly.
+Purchased credits remain in the wallet. Subscription credits are added at each successful monthly payment.
 
 ## Free without payment
 
@@ -1915,7 +1939,7 @@ Purchased credits remain in the wallet. Subscription credits refresh monthly.
 - Kundali matching (full 36-point Ashtakoot breakdown)
 - Manglik dosha check
 - Daily Panchang
-- ${ENTITLEMENTS.free.limits.monthlyCredits} starter credits, no card required
+- ${ENTITLEMENTS.free.limits.monthlyCredits} credits once at signup, no card required
 
 Human-readable pricing: ${baseUrl}/pricing
 `;
@@ -1928,8 +1952,8 @@ const buildLlmsTxt = (routes) => {
 
 > Vedic astrology platform. Computes a sidereal Janam Kundali from date, exact
 > time, and place of birth using the Lahiri (Chitrapaksha) ayanamsa, then
-> interprets it with a Jyotish guide that retains chart, dasha timeline, and
-> conversation history between sessions.
+> interprets it with an AI guide trained on Jyotish that remembers your chart,
+> dasha timeline, and the key things you share with it.
 
 Last updated: ${today}
 
@@ -1942,7 +1966,7 @@ breakdown, Manglik checking, and daily Panchang are free.
 
 ## AI disclosure
 
-Every AI astrologer on AstroYou is labelled as AI on its consultation profile.
+Every guide on AstroYou is an AI and is labelled as an AI guide on its profile.
 The policy is documented at ${baseUrl}/trust.
 
 ## Limits stated by the product
@@ -1953,10 +1977,10 @@ follows the classical order: behaviour and service before anything costly.
 
 ## Pricing
 
-- Free tier: ${ENTITLEMENTS.free.limits.monthlyCredits} credits, no card required
-- Premium: ₹${ENTITLEMENTS.premium.monthlyPriceInr}/month, ${ENTITLEMENTS.premium.limits.monthlyCredits} credits
-- Pro: ₹${ENTITLEMENTS.pro.monthlyPriceInr}/month, ${ENTITLEMENTS.pro.limits.monthlyCredits} credits
-- Astrologer sittings: from 5 credits per minute
+- Free tier: ${ENTITLEMENTS.free.limits.monthlyCredits} credits once at signup, no card required
+- Premium: ₹${ENTITLEMENTS.premium.monthlyPriceInr}/month, ${ENTITLEMENTS.premium.limits.monthlyCredits} credits each month
+- Pro: ₹${ENTITLEMENTS.pro.monthlyPriceInr}/month, ${ENTITLEMENTS.pro.limits.monthlyCredits} credits each month
+- AI guide sessions: from 5 credits per minute
 - Machine-readable: ${baseUrl}/pricing.md
 
 ## Key pages
@@ -2026,10 +2050,8 @@ ${routes
   .join("\n")}
 </urlset>
 `;
-  await Promise.all([
-    writeFile(path.join(distDir, "sitemap.xml"), xml, "utf8"),
-    writeFile(path.resolve("public/sitemap.xml"), xml, "utf8"),
-  ]);
+  // Build output only: writing public/ dirtied tracked files on every build.
+  await writeFile(path.join(distDir, "sitemap.xml"), xml, "utf8");
   return routes.length;
 };
 
@@ -2047,10 +2069,8 @@ const writeRobots = async () => {
     /^Sitemap:.*$/m,
     `Sitemap: ${baseUrl}/sitemap.xml`,
   );
-  await Promise.all([
-    writeFile(robotsPath, updated, "utf8"),
-    writeFile(path.join(distDir, "robots.txt"), updated, "utf8"),
-  ]);
+  // Source stays untouched; only the deployed copy carries the deploy's URL.
+  await writeFile(path.join(distDir, "robots.txt"), updated, "utf8");
 };
 
 // A catch-all `/panchang/:date` rule made junk like /panchang/foo a soft 404.
@@ -2124,10 +2144,34 @@ await writeRobots();
 
 await Promise.all([
   writeFile(path.join(distDir, "pricing.md"), buildPricingMarkdown(), "utf8"),
-  writeFile(path.resolve("public/pricing.md"), buildPricingMarkdown(), "utf8"),
   writeFile(path.join(distDir, "llms.txt"), buildLlmsTxt(routeCount), "utf8"),
-  writeFile(path.resolve("public/llms.txt"), buildLlmsTxt(routeCount), "utf8"),
 ]);
+
+// Stamp the service worker with this build's id so every deploy purges the
+// previous precache/runtime caches on activate (see public/sw.js).
+{
+  const swPath = path.join(distDir, "sw.js");
+  const buildId = (
+    process.env.DEPLOY_ID ||
+    process.env.COMMIT_REF ||
+    Date.now().toString(36)
+  )
+    .replace(/[^A-Za-z0-9_-]/g, "")
+    .slice(0, 24);
+  try {
+    const sw = await readFile(swPath, "utf8");
+    const stamped = sw.replace(
+      /^const SW_VERSION = "[^"]*";$/m,
+      `const SW_VERSION = "${buildId}";`,
+    );
+    if (stamped === sw) {
+      console.warn("prerender: SW_VERSION line not found in dist/sw.js");
+    }
+    await writeFile(swPath, stamped, "utf8");
+  } catch (error) {
+    console.warn(`prerender: could not stamp dist/sw.js (${error.code || error.name})`);
+  }
+}
 
 console.log(
   `Prerendered ${pages.length} pages (${routeCount} sitemap URLs), ` +

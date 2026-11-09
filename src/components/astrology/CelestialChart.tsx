@@ -834,7 +834,7 @@ export default function CelestialChart({
     `px-3 py-2 md:px-4 rounded-full text-[0.6rem] md:text-[0.65rem] font-bold uppercase tracking-[0.2em] transition-all ${
       active
         ? "bg-gold text-black shadow-[0_0_24px_rgba(255,205,106,0.35)]"
-        : "text-white/40 hover:text-white"
+        : "text-white/55 hover:text-white"
     }`;
 
   return (
@@ -876,7 +876,7 @@ export default function CelestialChart({
               className={`px-3 py-2 rounded-full text-[0.6rem] md:text-[0.65rem] font-bold uppercase tracking-[0.2em] transition-all border ${
                 showWesternPlanets
                   ? "border-gold/40 bg-gold/10 text-gold"
-                  : "bg-white/5 border-white/10 text-white/40 hover:text-white hover:border-white/30"
+                  : "bg-white/5 border-white/10 text-white/55 hover:text-white hover:border-white/30"
               }`}
             >
               Western
@@ -888,7 +888,7 @@ export default function CelestialChart({
                 className={`px-3 py-2 rounded-full text-[0.6rem] md:text-[0.65rem] font-bold uppercase tracking-[0.2em] transition-all border ${
                   showHouseInfo
                     ? "border-gold/40 bg-gold/10 text-gold"
-                    : "bg-white/5 border-white/10 text-white/40 hover:text-white hover:border-white/30"
+                    : "bg-white/5 border-white/10 text-white/55 hover:text-white hover:border-white/30"
                 }`}
               >
                 Learn
@@ -900,7 +900,7 @@ export default function CelestialChart({
               className={`p-3 rounded-full border transition-all ${
                 isRotating
                   ? "border-gold/30 bg-gold/10 text-gold"
-                  : "border-white/10 bg-white/5 text-white/40 hover:text-white"
+                  : "border-white/10 bg-white/5 text-white/55 hover:text-white"
               }`}
               title={isRotating ? "Pause rotation" : "Slow rotation"}
             >
@@ -909,7 +909,7 @@ export default function CelestialChart({
 
             <button
               onClick={onClose}
-              className="p-3 rounded-full border border-white/10 bg-white/5 hover:bg-gold/10 hover:border-gold/30 text-white/40 hover:text-gold transition-all group"
+              className="p-3 rounded-full border border-white/10 bg-white/5 hover:bg-gold/10 hover:border-gold/30 text-white/55 hover:text-gold transition-all group"
               aria-label="Close expanded chart"
             >
               <X
@@ -939,7 +939,7 @@ export default function CelestialChart({
                 </div>
                 <button
                   onClick={() => setSelected(null)}
-                  className="p-1.5 rounded-lg text-white/30 hover:text-gold transition-colors"
+                  className="p-1.5 rounded-lg text-white/50 hover:text-gold transition-colors"
                   aria-label="Dismiss planet details"
                 >
                   <X size={14} />
@@ -953,13 +953,13 @@ export default function CelestialChart({
                   House {selected.house}
                   {timeUnknown ? " from the Moon" : ""} —{" "}
                   {HOUSE_MEANINGS[selected.house]?.short}
-                  <span className="text-white/35">
+                  <span className="text-white/50">
                     {" "}
                     · {HOUSE_MEANINGS[selected.house]?.theme}
                   </span>
                 </p>
                 {selected.nakshatra && (
-                  <p className="text-white/45">
+                  <p className="text-white/55">
                     Nakshatra · {selected.nakshatra}
                   </p>
                 )}
@@ -981,14 +981,14 @@ export default function CelestialChart({
               )}
             </div>
           ) : (
-            <p className="max-w-md text-sm font-display italic text-white/35 leading-relaxed">
+            <p className="max-w-md text-sm font-display italic text-white/50 leading-relaxed">
               Touch a planet to read its placement. "The sky is a map of
               potential; your will determines the path."
             </p>
           )}
 
           <div className="md:text-right">
-            <div className="text-[0.6rem] font-bold uppercase tracking-[0.35em] text-white/35 mb-1.5">
+            <div className="text-[0.6rem] font-bold uppercase tracking-[0.35em] text-white/50 mb-1.5">
               {timeUnknown
                 ? "Chandra Lagna (birth time unknown)"
                 : "Ascendant Lagna"}

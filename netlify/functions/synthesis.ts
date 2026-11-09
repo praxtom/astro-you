@@ -18,10 +18,7 @@ import {
   messagesWithoutChain,
   resolvePreviousInteractionId,
 } from "./shared/interaction-ownership";
-import {
-  PARTIAL_REPLY_NOTE,
-  partialReplyOnTimeout,
-} from "./shared/synthesis-timeout";
+import { PARTIAL_REPLY_NOTE } from "./shared/synthesis-timeout";
 import {
   finishSynthesisTurn,
   runSynthesisPostprocess,
@@ -30,29 +27,29 @@ import {
   type SynthesisPostprocessJob,
 } from "./shared/synthesis-postprocess";
 import { createSynthesisPostprocessDeps } from "./shared/synthesis-postprocess-deps";
-import { isWithinSynthesisInputLimits } from "./shared/synthesis-limits";
+import {
+  isWithinSynthesisInputLimits,
+  resolveSubscriberDailyCap,
+  subscriberFairUseMessage,
+} from "./shared/synthesis-limits";
 import { applyCreditChange, CreditError } from "./shared/credits";
-import { getConsultPersona } from "./shared/consult-session";
 import { isPaidSubscriptionActive } from "./shared/subscription-plans";
-import { CRISIS_SAFETY_REPLY, detectCrisisRisk } from "./shared/safety";
+import { CRISIS_SAFETY_REPLY } from "./shared/safety";
 import {
   raceWithTimeout,
   sanitizeCompatibilityContext,
-  SSE_KEEPALIVE_COMMENT,
-  SSE_OPEN_COMMENT,
-  SYNTHESIS_FIRST_TOKEN_TIMEOUT_MS,
-  SYNTHESIS_KEEPALIVE_MS,
   SYNTHESIS_TIMEOUT_MESSAGE,
-  SYNTHESIS_TOTAL_TIMEOUT_MS,
   TIMED_OUT,
 } from "./shared/synthesis-stream";
-
-const SSE_HEADERS = {
-  "Content-Type": "text/event-stream",
-  "Cache-Control": "no-cache, no-transform",
-  Connection: "keep-alive",
-  "X-Accel-Buffering": "no",
-};
+import {
+  ChatStreamTimeoutError,
+  consumeChatStream,
+  createChatSseStream,
+  crisisSafetyResponse,
+  isCrisisTurn,
+  partialChatReply,
+  SSE_HEADERS,
+} from "./shared/chat-stream";
 
 /** How long "done" may wait for the (concurrently started) chat title. */
 const TITLE_GRACE_MS = 1_500;
@@ -60,18 +57,15 @@ const TITLE_GRACE_MS = 1_500;
 /** Same shape as atman-brain's isValidChatId — also used for message ids. */
 const CLIENT_DOC_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 
-class SynthesisTimeoutError extends Error {
-  constructor() {
-    super("synthesis_timeout");
-    this.name = "SynthesisTimeoutError";
-  }
-}
-
 /**
  * Persist the assistant reply server-side so a user who closes the tab before
  * the client's own write still keeps the answer. The doc id is the
  * client-supplied assistantMessageId, so this is idempotent with the client's
  * setDoc — no duplicate message. Never throws.
+ *
+ * Runs in a transaction that first checks the chat still exists: if the user
+ * deleted it while the reply was streaming, nothing is written (a merge-set
+ * would otherwise recreate an invisible "ghost" chat with no lastUpdatedAt).
  */
 async function persistAssistantReply(input: {
   uid?: string;
@@ -97,10 +91,12 @@ async function persistAssistantReply(input: {
       .doc(uid)
       .collection("chats")
       .doc(chatId);
-    await chatRef
-      .collection("messages")
-      .doc(assistantMessageId)
-      .set(
+    const messageRef = chatRef.collection("messages").doc(assistantMessageId);
+    await db.runTransaction(async (tx) => {
+      const chatSnap = await tx.get(chatRef);
+      if (!chatSnap.exists) return;
+      tx.set(
+        messageRef,
         {
           role: "assistant",
           content,
@@ -110,14 +106,16 @@ async function persistAssistantReply(input: {
         },
         { merge: true },
       );
-    await chatRef.set(
-      {
-        ...(interactionId ? { lastInteractionId: interactionId } : {}),
-        lastInteractionAt: FieldValue.serverTimestamp(),
-        ...(input.generatedTitle ? { title: input.generatedTitle } : {}),
-      },
-      { merge: true },
-    );
+      tx.set(
+        chatRef,
+        {
+          ...(interactionId ? { lastInteractionId: interactionId } : {}),
+          lastInteractionAt: FieldValue.serverTimestamp(),
+          ...(input.generatedTitle ? { title: input.generatedTitle } : {}),
+        },
+        { merge: true },
+      );
+    });
   } catch (persistErr: any) {
     // Never fail the response over persistence — the client also writes.
     console.error(
@@ -125,37 +123,6 @@ async function persistAssistantReply(input: {
       persistErr?.name || "error",
     );
   }
-}
-
-/**
- * Fixed safety reply, streamed in the same SSE format the client parses.
- * No model call, no credit charge, no memory writes.
- */
-function crisisSafetyResponse(): Response {
-  const encoder = new TextEncoder();
-  const frame = (data: unknown) =>
-    encoder.encode(`data: ${JSON.stringify(data)}\n\n`);
-  const readable = new ReadableStream({
-    start(controller) {
-      controller.enqueue(encoder.encode(SSE_OPEN_COMMENT));
-      controller.enqueue(frame({ type: "delta", text: CRISIS_SAFETY_REPLY }));
-      controller.enqueue(
-        frame({
-          type: "done",
-          content: CRISIS_SAFETY_REPLY,
-          interactionId: null,
-          suggestAction: null,
-          brainUpdated: false,
-          generatedTitle: null,
-          conversationSummary: null,
-          suggestedRoutine: null,
-          safety: "crisis",
-        }),
-      );
-      controller.close();
-    },
-  });
-  return new Response(readable, { status: 200, headers: SSE_HEADERS });
 }
 
 export default async (req: Request, context: Context) => {
@@ -184,7 +151,8 @@ export default async (req: Request, context: Context) => {
     messageCount,
     yogaData,
     panchangData,
-    personaId,
+    // personaId is deliberately NOT read: named personas are paid
+    // consultations (/api/consult/message), never available at chat price.
     idToken,
     chatId,
     assistantMessageId,
@@ -255,7 +223,7 @@ export default async (req: Request, context: Context) => {
   // reservation or any model call, for guests and signed-in users alike. A
   // person in crisis must never hit a paywall or a trial cap, and the model
   // must never improvise around self-harm.
-  if (detectCrisisRisk(messages[messages.length - 1].content)) {
+  if (isCrisisTurn(messages)) {
     if (uid) {
       await persistAssistantReply({
         uid,
@@ -264,7 +232,12 @@ export default async (req: Request, context: Context) => {
         content: CRISIS_SAFETY_REPLY,
       });
     }
-    return crisisSafetyResponse();
+    return crisisSafetyResponse({
+      suggestAction: null,
+      brainUpdated: false,
+      generatedTitle: null,
+      conversationSummary: null,
+    });
   }
 
   // Authenticated users: hourly cap keyed on uid (and additionally credit-gated
@@ -327,6 +300,27 @@ export default async (req: Request, context: Context) => {
       // fail closed on memory: if we can't confirm memory is on, don't write.
       console.error("[Synthesis] Subscription lookup failed:", subError);
       memoryPaused = true;
+    }
+  }
+  // Unmetered is not unlimited: a daily fair-use ceiling on top of the hourly
+  // cap keeps one subscription from running an unbounded model bill.
+  if (uid && unmeteredChat) {
+    const dailyCap = resolveSubscriberDailyCap();
+    const fairUse = await checkRateLimit({
+      scope: "synthesis_subscriber_day",
+      key: uid,
+      limit: dailyCap,
+      windowMs: 24 * 60 * 60 * 1000,
+    });
+    if (!fairUse.allowed) {
+      return new Response(
+        JSON.stringify({
+          error: subscriberFairUseMessage(dailyCap),
+          code: "fair_use_daily",
+          resetAt: fairUse.resetAt.toISOString(),
+        }),
+        { status: 429, headers: { "Content-Type": "application/json" } },
+      );
     }
   }
   if (uid && !unmeteredChat) {
@@ -432,73 +426,30 @@ export default async (req: Request, context: Context) => {
     );
   }
 
-  const encoder = new TextEncoder();
   // Title only the opening turn of a chat (by what the client claimed — a
   // refused chain id still means this is a follow-up, not a new chat).
   const isFirstMessage = !clientPreviousInteractionId;
   const lastUserMessage = messages[messages.length - 1].content;
+  const waitUntil =
+    typeof (context as any)?.waitUntil === "function"
+      ? (p: Promise<unknown>) => (context as any).waitUntil(p)
+      : undefined;
 
-  // Cancel the upstream Gemini stream if the client disconnects mid-response,
-  // so we don't keep consuming a stream nobody is reading.
-  const abortController = new AbortController();
-
-  // Keepalive timer lives outside start() so cancel() can clear it.
-  let heartbeat: ReturnType<typeof setInterval> | undefined;
-  let streamClosed = false;
-  // Text already streamed to the client (for a timeout after first token).
-  let streamedText = "";
-
-  const readable = new ReadableStream({
-    async start(controller) {
-      const enqueueRaw = (chunk: string) => {
-        if (streamClosed) return;
-        try {
-          controller.enqueue(encoder.encode(chunk));
-        } catch {
-          streamClosed = true;
-        }
-      };
-      const send = (data: any) => {
-        enqueueRaw(`data: ${JSON.stringify(data)}\n\n`);
-      };
-      const close = () => {
-        if (heartbeat) clearInterval(heartbeat);
-        heartbeat = undefined;
-        if (streamClosed) return;
-        streamClosed = true;
-        try {
-          controller.close();
-        } catch {
-          // already closed/cancelled
-        }
-      };
-
-      // Push bytes immediately and keep pushing SSE comments (ignored by the
-      // client parser) so the CDN never sees an idle connection while the
-      // model is thinking or post-processing runs — that idle gap produced a
-      // 504 "Inactivity Timeout" page in production.
-      enqueueRaw(SSE_OPEN_COMMENT);
-      heartbeat = setInterval(
-        () => enqueueRaw(SSE_KEEPALIVE_COMMENT),
-        SYNTHESIS_KEEPALIVE_MS,
-      );
+  // The shared chat stream pushes bytes immediately and keeps pushing SSE
+  // comments (ignored by the client parser) so the CDN never sees an idle
+  // connection — that idle gap produced a 504 "Inactivity Timeout" page in
+  // production — and aborts the upstream Gemini stream if the client
+  // disconnects mid-response.
+  const readable = createChatSseStream(
+    async ({ send, close, abortController }) => {
+      // Text already streamed to the client (for a timeout after first token).
+      let streamedText = "";
+      // When this turn was requested; memory writes from its post-processing
+      // are dropped if the user cleared memory after this point.
+      const startedAt = Date.now();
 
       try {
-        let fullContent = "";
-        let interactionId = "";
-        let suggestedRoutine: any = undefined;
-
-        // Stream AI response. The persona is resolved from a server-side
-        // registry by id — we never accept a raw persona prompt from the
-        // client (that would let a caller inject system instructions /
-        // jailbreak the guidance policy).
-        const persona = personaId
-          ? getConsultPersona(String(personaId))
-          : undefined;
-        const personaOverride = persona
-          ? `\n\nPERSONA OVERRIDE:\nYour name is ${persona.name}. ${persona.promptModifier}`
-          : undefined;
-
+        // Always the default Jyotish guide (no persona override).
         const iterator = synthesizeStream(
           messages.map((m: any) => ({
             role: m.role as "user" | "assistant",
@@ -507,7 +458,7 @@ export default async (req: Request, context: Context) => {
           userContext,
           kundaliSummary,
           previousInteractionId,
-          personaOverride,
+          undefined,
           abortController.signal,
         );
         // Title runs CONCURRENTLY with the reply (from the user's message
@@ -518,39 +469,17 @@ export default async (req: Request, context: Context) => {
           isFirstMessage && uid && typeof chatId === "string" && chatId
             ? generateChatTitle(lastUserMessage).catch(() => null)
             : null;
-        const startedAt = Date.now();
-        let gotFirstToken = false;
-
-        while (true) {
-          const deadline =
-            startedAt +
-            (gotFirstToken
-              ? SYNTHESIS_TOTAL_TIMEOUT_MS
-              : Math.min(
-                  SYNTHESIS_FIRST_TOKEN_TIMEOUT_MS,
-                  SYNTHESIS_TOTAL_TIMEOUT_MS,
-                ));
-          const next = await raceWithTimeout(
-            iterator.next(),
-            deadline - Date.now(),
-          );
-          if (next === TIMED_OUT) {
-            abortController.abort();
-            void iterator.return(undefined).catch(() => undefined);
-            throw new SynthesisTimeoutError();
-          }
-          if (next.done) break;
-          const event = next.value;
-          if (event.type === "delta") {
-            gotFirstToken = true;
-            streamedText += event.text;
-            send({ type: "delta", text: event.text });
-          } else if (event.type === "complete") {
-            fullContent = event.content;
-            interactionId = event.interactionId;
-            suggestedRoutine = event.suggestedRoutine;
-          }
-        }
+        // First-token / total deadlines; aborts the upstream on timeout.
+        const turn = await consumeChatStream(iterator, {
+          abortController,
+          onDelta: (text) => {
+            streamedText += text;
+            send({ type: "delta", text });
+          },
+        });
+        const fullContent = turn.content;
+        const interactionId = turn.interactionId;
+        const suggestedRoutine = turn.suggestedRoutine;
 
         // If the model produced nothing, the user got no value — refund.
         if (!fullContent.trim()) {
@@ -602,6 +531,7 @@ export default async (req: Request, context: Context) => {
           uid && !memoryPaused
             ? {
                 uid,
+                requestedAt: startedAt,
                 chatId: validChatId,
                 interactionId: interactionId || undefined,
                 userMessage: lastUserMessage,
@@ -667,6 +597,11 @@ export default async (req: Request, context: Context) => {
           }
         };
 
+        // 1-2 tappable follow-ups, as their own event just before "done".
+        if (turn.chips.length > 0) {
+          send({ type: "chips", chips: turn.chips });
+        }
+
         await finishSynthesisTurn({
           sendDone: () =>
             send({
@@ -683,16 +618,12 @@ export default async (req: Request, context: Context) => {
             }),
           close,
           afterResponse,
-          waitUntil:
-            typeof (context as any)?.waitUntil === "function"
-              ? (p) => (context as any).waitUntil(p)
-              : undefined,
+          waitUntil,
         });
       } catch (error: any) {
-        const timedOut = error instanceof SynthesisTimeoutError;
-        const partialContent = timedOut
-          ? partialReplyOnTimeout(streamedText)
-          : null;
+        const timedOut = error instanceof ChatStreamTimeoutError;
+        // Hidden-tag fragments are stripped from the partial text too.
+        const partialContent = timedOut ? partialChatReply(streamedText) : null;
         if (partialContent) {
           // The user already received (part of) a reply: keep the charge and
           // finish calmly with what streamed, rather than refunding content
@@ -711,13 +642,17 @@ export default async (req: Request, context: Context) => {
             suggestedRoutine: null,
             partial: true,
           });
-          close();
-          await persistAssistantReply({
+          // Keep the function alive for the write: after close() an
+          // un-awaited promise may be frozen with the instance.
+          const persisted = persistAssistantReply({
             uid,
             chatId,
             assistantMessageId,
             content,
           });
+          if (waitUntil) waitUntil(persisted);
+          else await persisted;
+          close();
           return;
         }
         // Log the error type only — AI SDK messages can echo prompt or
@@ -740,14 +675,7 @@ export default async (req: Request, context: Context) => {
         close();
       }
     },
-    cancel() {
-      // Client disconnected — stop consuming the upstream Gemini stream.
-      streamClosed = true;
-      if (heartbeat) clearInterval(heartbeat);
-      heartbeat = undefined;
-      abortController.abort();
-    },
-  });
+  );
 
   return new Response(readable, {
     status: 200,

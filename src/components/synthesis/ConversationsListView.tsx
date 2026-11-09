@@ -204,7 +204,7 @@ export function BlueprintToggleButton({
       type="button"
       onClick={onToggle}
       className={`flex items-center justify-center rounded-xl p-2 transition-colors ${
-        isOpen ? "text-gold" : "text-white/35 hover:text-gold"
+        isOpen ? "text-gold" : "text-white/50 hover:text-gold"
       }`}
       title={label}
       aria-label={label}
@@ -227,7 +227,7 @@ export function BlueprintPanelControls({
   return (
     <div className="flex w-full items-center justify-between gap-3">
       <div className="flex items-center gap-1 rounded-full border border-gold/30 bg-gold/5 p-1 text-gold">
-        <div className="flex items-center gap-1.5 px-2 text-[0.65rem] font-mono">
+        <div className="flex items-center gap-1.5 px-2 text-[0.6875rem] font-mono">
           <Sparkles size={10} />
           <span className="font-sans text-white/55">Credits</span>
           <span>{credits}</span>
@@ -292,7 +292,7 @@ export function ChartTypeSelector({
   return (
     <div>
       <div className="flex items-start gap-3">
-        <span className="mt-0.5 shrink-0 rounded-full border border-gold/30 bg-gold/10 px-2 py-1 font-mono text-[0.62rem] font-bold text-gold">
+        <span className="mt-0.5 shrink-0 rounded-full border border-gold/30 bg-gold/10 px-2 py-1 font-mono text-[0.6875rem] font-bold text-gold">
           {value}
         </span>
         <div className="min-w-0 flex-1">
@@ -313,16 +313,16 @@ export function ChartTypeSelector({
             <ChevronDown
               size={14}
               aria-hidden="true"
-              className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 text-white/40"
+              className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 text-white/55"
             />
           </div>
-          <p className="mt-1 text-xs leading-5 text-white/40">
+          <p className="mt-1 text-xs leading-5 text-white/55">
             {details.description}
           </p>
           {loading && (
             <p
               role="status"
-              className="mt-1 flex items-center gap-1.5 text-[0.62rem] text-gold/75"
+              className="mt-1 flex items-center gap-1.5 text-[0.6875rem] text-gold/75"
             >
               <Loader2 size={10} className="animate-spin" />
               <span>Calculating {value} chart</span>
@@ -354,7 +354,7 @@ export function ConversationPanelHeader({
         <button
           type="button"
           onClick={onHome}
-          className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-white/45 transition-colors hover:bg-white/5 hover:text-gold"
+          className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-white/55 transition-colors hover:bg-white/5 hover:text-gold"
         >
           <ChevronLeft size={16} />
           <span>Home</span>
@@ -363,7 +363,7 @@ export function ConversationPanelHeader({
           ref={closeButtonRef}
           type="button"
           onClick={onClose}
-          className="rounded-lg p-2 text-white/30 transition-colors hover:bg-white/5 hover:text-white/70"
+          className="rounded-lg p-2 text-white/50 transition-colors hover:bg-white/5 hover:text-white/70"
           aria-label="Close conversations"
         >
           <X size={15} />
@@ -453,7 +453,7 @@ export function SynthesisHeaderNavigation({
       <button
         type="button"
         onClick={onHome}
-        className="flex items-center gap-2 rounded-xl px-2.5 py-2 text-sm text-white/45 transition-colors hover:text-gold"
+        className="flex items-center gap-2 rounded-xl px-2.5 py-2 text-sm text-white/55 transition-colors hover:text-gold"
       >
         <ChevronLeft size={16} />
         <span>Home</span>
@@ -463,7 +463,7 @@ export function SynthesisHeaderNavigation({
         type="button"
         onClick={onToggleHistory}
         className={`rounded-xl p-2 transition-colors ${
-          historyOpen ? "text-gold" : "text-white/35 hover:text-gold"
+          historyOpen ? "text-gold" : "text-white/50 hover:text-gold"
         }`}
         title="Conversations"
         aria-label="Toggle conversations"
@@ -542,7 +542,7 @@ export function ConversationListView({
           className={`rounded-lg p-1.5 transition-colors ${
             searchOpen
               ? "bg-white/8 text-white/75"
-              : "text-white/35 hover:bg-white/5 hover:text-white/70"
+              : "text-white/50 hover:bg-white/5 hover:text-white/70"
           }`}
           aria-label={
             searchOpen ? "Close conversation search" : "Search conversations"
@@ -564,7 +564,7 @@ export function ConversationListView({
             onChange={(event) => onSearchChange(event.target.value)}
             aria-label="Search conversations"
             autoFocus
-            className="w-full rounded-lg border border-white/8 bg-white/5 px-3 py-2 text-xs text-white/80 placeholder:text-white/30 focus:border-white/20 focus:outline-none"
+            className="w-full rounded-lg border border-white/8 bg-white/5 px-3 py-2 text-xs text-white/80 placeholder:text-white/50 focus:border-white/20 focus:outline-none"
           />
         </div>
       )}
@@ -618,7 +618,7 @@ export function ConversationListView({
                           event.stopPropagation();
                           onCancelDelete();
                         }}
-                        className="rounded p-1 text-white/45 transition-colors hover:bg-white/8 hover:text-white/75"
+                        className="rounded p-1 text-white/55 transition-colors hover:bg-white/8 hover:text-white/75"
                         aria-label="Cancel delete"
                       >
                         <X size={13} />
@@ -631,7 +631,7 @@ export function ConversationListView({
                         event.stopPropagation();
                         onDeleteClick(chat.id);
                       }}
-                      className="absolute right-1.5 rounded-md p-1.5 text-white/30 opacity-0 transition-[color,background-color,opacity] hover:bg-white/8 hover:text-white/70 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
+                      className="absolute right-1.5 rounded-md p-1.5 text-white/50 opacity-0 transition-[color,background-color,opacity] hover:bg-white/8 hover:text-white/70 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
                       aria-label={`Delete ${chat.title || "conversation"}`}
                     >
                       <Trash2 size={15} />

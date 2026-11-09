@@ -1,5 +1,5 @@
 import { Config, Context } from "@netlify/functions";
-import { db } from "./shared/firebase-admin";
+import { db, FieldValue } from "./shared/firebase-admin";
 import {
   AuthError,
   enforceRateLimit,
@@ -39,6 +39,21 @@ export default async (req: Request, _context: Context) => {
       limit: 10,
       windowMs: 60 * 60 * 1000,
     });
+
+    // Stamp the reset first: a post-processing job requested before this
+    // moment drops its memory write instead of restoring forgotten memory.
+    // The client stamps it in the same transaction as the clear; this is the
+    // server-side guarantee. update() so a missing user doc isn't created.
+    await db
+      .collection("users")
+      .doc(decoded.uid)
+      .update({ memoryResetAt: FieldValue.serverTimestamp() })
+      .catch((err: unknown) => {
+        console.warn(
+          "[MemoryForgetAll] Reset stamp failed:",
+          err instanceof Error ? err.name : "error",
+        );
+      });
 
     const result = await forgetAllInteractions(
       {

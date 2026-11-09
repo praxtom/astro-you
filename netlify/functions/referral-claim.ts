@@ -1,10 +1,13 @@
 import { Config, Context } from "@netlify/functions";
 import { auth, db, FieldValue } from "./shared/firebase-admin";
 import {
+  REFERRAL_CLAIM_WINDOW_DAYS,
   ReferralError,
   buildReferralClaimRecord,
+  isWithinReferralClaimWindow,
   normalizeReferralCode,
 } from "./shared/referrals";
+import { signupGrantKey } from "./shared/credits";
 import { enforceIpRateLimit, AuthError } from "./shared/require-auth";
 
 export default async (req: Request, _context: Context) => {
@@ -28,6 +31,20 @@ export default async (req: Request, _context: Context) => {
       throw err;
     }
     const code = normalizeReferralCode(body.referralCode);
+
+    // Referral codes are for new accounts only. The Auth record's creation
+    // time is server-owned (the user doc's createdAt is client-writable).
+    const authUser = await auth.getUser(decoded.uid);
+    const createdMs = Date.parse(authUser.metadata?.creationTime || "");
+    if (
+      !isWithinReferralClaimWindow(Number.isNaN(createdMs) ? null : createdMs)
+    ) {
+      throw new ReferralError(
+        `Referral codes can only be used within ${REFERRAL_CLAIM_WINDOW_DAYS} days of creating your account`,
+        403,
+      );
+    }
+
     const referrerSnap = await db
       .collection("users")
       .where("referral.code", "==", code)
@@ -50,25 +67,29 @@ export default async (req: Request, _context: Context) => {
       },
       createdAt,
     );
+    // The mailbox-level record also stops "delete account, sign up again,
+    // claim again" from farming the referee bonus.
+    const grantKey = signupGrantKey(decoded.email);
 
     const result = await db.runTransaction(async (tx) => {
-      const referrerRef = db.collection("users").doc(referrerUid);
       const refereeRef = db.collection("users").doc(decoded.uid);
       const refereeClaimRef = refereeRef.collection("referralClaims").doc(code);
-      const referrerReferralRef = referrerRef
+      const referrerReferralRef = db
+        .collection("users")
+        .doc(referrerUid)
         .collection("referrals")
         .doc(decoded.uid);
-      const referrerLedgerRef = referrerRef
-        .collection("creditLedger")
-        .doc(`referral_referrer_${decoded.uid}`);
       const refereeLedgerRef = refereeRef
         .collection("creditLedger")
         .doc(`referral_referee_${code}`);
+      const grantRef = grantKey
+        ? db.collection("signupGrants").doc(grantKey)
+        : null;
 
-      const [claimSnap, referrerUserSnap, refereeUserSnap] = await Promise.all([
+      const [claimSnap, refereeUserSnap, grantSnap] = await Promise.all([
         tx.get(refereeClaimRef),
-        tx.get(referrerRef),
         tx.get(refereeRef),
+        grantRef ? tx.get(grantRef) : Promise.resolve(null),
       ]);
 
       if (claimSnap.exists) {
@@ -81,8 +102,10 @@ export default async (req: Request, _context: Context) => {
       if (refereeData.referredBy) {
         throw new ReferralError("You have already used a referral code", 409);
       }
+      if (grantSnap?.exists && grantSnap.data()?.referralClaimedAt) {
+        throw new ReferralError("You have already used a referral code", 409);
+      }
 
-      const referrerBalance = referrerUserSnap.data()?.credits ?? 0;
       const refereeBalance = refereeData.credits ?? 0;
 
       tx.set(refereeClaimRef, claim);
@@ -96,20 +119,9 @@ export default async (req: Request, _context: Context) => {
         },
         { merge: true },
       );
-      tx.update(referrerRef, {
-        credits: FieldValue.increment(claim.referrerRewardCredits),
-      });
-
-      tx.set(referrerLedgerRef, {
-        type: "referral_bonus",
-        amount: claim.referrerRewardCredits,
-        source: "referral",
-        referenceId: decoded.uid,
-        balanceBefore: referrerBalance,
-        balanceAfter: referrerBalance + claim.referrerRewardCredits,
-        metadata: { code, refereeUid: decoded.uid },
-        createdAt,
-      });
+      // The referrer's reward is NOT paid here: it is granted after the
+      // referee's first successful payment (grantReferrerRewardAfterPayment),
+      // capped per referrer per month.
       tx.set(refereeLedgerRef, {
         type: "referral_bonus",
         amount: claim.refereeRewardCredits,
@@ -120,6 +132,13 @@ export default async (req: Request, _context: Context) => {
         metadata: { code, referrerUid },
         createdAt,
       });
+      if (grantRef) {
+        tx.set(
+          grantRef,
+          { referralClaimedAt: createdAt, referralUid: decoded.uid },
+          { merge: true },
+        );
+      }
 
       return { duplicate: false };
     });
@@ -130,6 +149,7 @@ export default async (req: Request, _context: Context) => {
         duplicate: result.duplicate,
         referrerRewardCredits: claim.referrerRewardCredits,
         refereeRewardCredits: claim.refereeRewardCredits,
+        referrerRewardStatus: "pending_payment",
       },
       200,
     );

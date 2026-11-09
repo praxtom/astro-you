@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Compass,
@@ -16,7 +17,23 @@ import TransitPositionsTable from "../components/astrology/TransitPositionsTable
 import BirthProfileRequired from "../components/BirthProfileRequired";
 import { StatusNotice } from "../components/ui/StatusNotice";
 import { useTransit } from "../hooks/useTransit";
+import { useUserProfile } from "../hooks/useUserProfile";
+import { useSubscription } from "../hooks/useSubscription";
+import { useRequestBirthData } from "../hooks/useRequestBirthData";
+import { useAuth } from "../lib/useAuth";
+import AuthModal from "../components/AuthModal";
+import { viewerDateKey } from "../lib/viewer-timezone";
+import {
+  FEATURE_CREDIT_COST,
+  chargeConfirmationKey,
+  chargeWindowKey,
+  creditLabel,
+  hasConfirmedCharge,
+  rememberChargeConfirmation,
+} from "../lib/feature-pricing";
 import { PLANETS } from "../lib/astrology";
+
+const TRANSIT_COST = FEATURE_CREDIT_COST.transit;
 
 const SIGN_NAMES: Record<string, string> = {
   Ari: "Aries",
@@ -87,8 +104,48 @@ function extractPositions(data: any): any[] {
 export default function TransitOracle() {
   const [currentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<"visual" | "table">("visual");
-  const { data, predictions, aiSummary, loading, error, needsProfile, retry } =
-    useTransit();
+  const [transitDate] = useState(() => viewerDateKey());
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const { user } = useAuth();
+  const { credits } = useSubscription();
+  const { birthData: profileBirthData, loading: profileLoading } =
+    useUserProfile();
+  const birthData = useRequestBirthData(profileBirthData);
+  const hasBirthData = Boolean(birthData?.dob && birthData.tob);
+
+  // Each chart's transits for a date cost credits once (transit.ts). Say so
+  // up front and ask once per date per session before the first charge.
+  const [, setConfirmNonce] = useState(0);
+  const chargeKey =
+    user && hasBirthData
+      ? chargeConfirmationKey(
+          user.uid,
+          "transit",
+          chargeWindowKey("transit", transitDate),
+          birthData,
+        )
+      : null;
+  const needsChargeConfirm = chargeKey ? !hasConfirmedCharge(chargeKey) : false;
+  const confirmCharge = () => {
+    if (!chargeKey) return;
+    rememberChargeConfirmation(chargeKey);
+    setConfirmNonce((n) => n + 1);
+  };
+
+  const {
+    data,
+    predictions,
+    aiSummary,
+    loading: transitLoading,
+    error,
+    errorKind,
+    needsProfile: transitNeedsProfile,
+    retry,
+  } = useTransit(birthData, transitDate, {
+    enabled: !profileLoading && !needsChargeConfirm,
+  });
+  const loading = profileLoading || transitLoading;
+  const needsProfile = !profileLoading && (!hasBirthData || transitNeedsProfile);
 
   // Format date for display
   const formattedDate = currentDate.toLocaleDateString("en-US", {
@@ -104,7 +161,7 @@ export default function TransitOracle() {
         {/* Title Section */}
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-4 gap-4">
           <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-[0.2em] mb-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[0.6875rem] font-black uppercase tracking-[0.2em] mb-2">
               <Clock size={12} /> Live Planetary Movements
             </div>
             <h1 className="type-page-title mb-3">
@@ -130,6 +187,9 @@ export default function TransitOracle() {
             <div className="mt-1 text-xs text-white/55 uppercase tracking-[0.2em]">
               Updates Automatically
             </div>
+            <div className="mt-1 text-xs text-white/55">
+              Today's reading · {creditLabel(TRANSIT_COST)}, once per day
+            </div>
           </div>
         </div>
 
@@ -137,6 +197,59 @@ export default function TransitOracle() {
           <BirthProfileRequired
             title="Add your birth details"
             description="Transits are read against your birth chart. Create your birth profile to see where today's planets fall in your houses."
+          />
+        ) : needsChargeConfirm ? (
+          <div
+            role="region"
+            aria-label="Unlock today's transits"
+            className="max-w-2xl rounded-2xl border border-gold/20 bg-gold/5 p-5 md:p-6"
+          >
+            <p className="text-xs font-bold uppercase tracking-widest text-gold/80">
+              Today's transits · {creditLabel(TRANSIT_COST)}
+            </p>
+            <p className="mt-2 text-base leading-relaxed text-white/80">
+              Today's planets read over your birth chart, with a written
+              summary, cost {creditLabel(TRANSIT_COST)}. Opening them again
+              today is free.
+            </p>
+            <p className="mt-1 text-sm text-white/55">
+              You have {creditLabel(credits)}.
+            </p>
+            <div className="mt-4">
+              {credits >= TRANSIT_COST ? (
+                <button
+                  type="button"
+                  onClick={confirmCharge}
+                  className="min-h-11 rounded-xl bg-gold px-5 py-2.5 text-sm font-bold text-black transition hover:bg-gold/90"
+                >
+                  Open for {creditLabel(TRANSIT_COST)}
+                </button>
+              ) : (
+                <Link
+                  to="/wallet"
+                  className="inline-flex min-h-11 items-center rounded-xl bg-gold px-5 py-2.5 text-sm font-bold text-black transition hover:bg-gold/90"
+                >
+                  Top up credits
+                </Link>
+              )}
+            </div>
+          </div>
+        ) : errorKind === "credits" ? (
+          <StatusNotice
+            tone="info"
+            size="section"
+            className="max-w-2xl"
+            message={error}
+            action={{ label: "Top up credits", to: "/wallet" }}
+          />
+        ) : errorKind === "auth" ? (
+          <StatusNotice
+            tone="info"
+            size="section"
+            className="max-w-2xl"
+            title="Sign in to see your transits"
+            message="Transits are read over your own birth chart, so they need your AstroYou account."
+            action={{ label: "Sign in", onClick: () => setShowAuthModal(true) }}
           />
         ) : (
         <>
@@ -436,6 +549,12 @@ export default function TransitOracle() {
 
         </>
         )}
+
+        <AuthModal
+          isOpen={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+          onSuccess={() => setShowAuthModal(false)}
+        />
 
         <AskJyotishBridge
           eyebrow="Take this further"

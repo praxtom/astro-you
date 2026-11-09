@@ -51,6 +51,8 @@ const INSUFFICIENT_CREDITS_MSG =
   "Insufficient credits to start this consultation.";
 const TIME_UP_MSG = "Your funded time is up.";
 const SESSION_CLOSED_MSG = "This sitting was closed. Start a new one.";
+/** Transcript turns sent per message (server cap is 60). */
+const CONSULT_HISTORY_MESSAGES = 20;
 
 const getPreferredConsultLanguage = (
   persona: AstrologerPersona | undefined,
@@ -131,6 +133,8 @@ export default function ConsultChat() {
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [billingError, setBillingError] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
+  // 1-2 follow-up suggestions under the latest reply; tapping sends one.
+  const [replyChips, setReplyChips] = useState<string[]>([]);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [replyAnnouncement, setReplyAnnouncement] = useState("");
   const [activeConflict, setActiveConflict] = useState<{
@@ -546,6 +550,7 @@ export default function ConsultChat() {
 
     sendingRef.current = true;
     setSendError(null);
+    setReplyChips([]);
     setReplyAnnouncement("");
 
     // First message starts the meter; later messages reuse the session.
@@ -606,7 +611,9 @@ export default function ConsultChat() {
         body: JSON.stringify({
           idToken,
           sessionId: info.sessionId,
-          messages: [...messages, userMsg],
+          // The model only replays the last few turns; a long sitting must
+          // not outgrow the server's transcript limit (60 messages).
+          messages: [...messages, userMsg].slice(-CONSULT_HISTORY_MESSAGES),
           birthData,
           kundaliData,
           previousInteractionId: interactionId,
@@ -646,6 +653,20 @@ export default function ConsultChat() {
           }
           if (data.type === "delta") {
             chunkText += data.text;
+          } else if (data.type === "chips") {
+            if (Array.isArray(data.chips)) {
+              setReplyChips(
+                data.chips
+                  .filter(
+                    (chip: unknown): chip is string =>
+                      typeof chip === "string" &&
+                      chip.trim().length > 0 &&
+                      chip.length <= 80,
+                  )
+                  .map((chip: string) => chip.trim())
+                  .slice(0, 2),
+              );
+            }
           } else if (data.type === "done") {
             // Reply complete — re-enable input now; the trailing `brain`
             // event is optional bookkeeping and must not hold the composer.
@@ -995,7 +1016,7 @@ export default function ConsultChat() {
                   navigate("/consult");
                 }
               }}
-              className="min-h-11 min-w-11 p-2.5 flex items-center justify-center rounded-lg text-white/35 hover:text-gold transition-colors"
+              className="min-h-11 min-w-11 p-2.5 flex items-center justify-center rounded-lg text-white/50 hover:text-gold transition-colors"
               aria-label="Leave the sitting"
             >
               <ArrowLeft size={16} />
@@ -1006,16 +1027,12 @@ export default function ConsultChat() {
                 <p className="font-display italic text-base leading-tight truncate">
                   {persona.name}
                 </p>
-                <span className="shrink-0 text-[0.65rem] uppercase tracking-widest border border-white/15 rounded-full px-2 py-0.5 text-white/60">
-                  AI guide
-                </span>
               </div>
               <p
-                className="flex items-center gap-1.5 text-[0.65rem] font-bold uppercase tracking-[0.25em]"
+                className="text-[0.6875rem] font-bold uppercase tracking-[0.25em]"
                 style={{ color: accent }}
               >
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                With you now · {preferredLanguage}
+                AI guide · {preferredLanguage}
               </p>
             </div>
           </div>
@@ -1029,7 +1046,7 @@ export default function ConsultChat() {
                   {cost} cr
                 </>
               ) : (
-                <span className="font-sans text-[0.65rem] uppercase tracking-wider">
+                <span className="font-sans text-[0.6875rem] uppercase tracking-wider">
                   Meter starts with your first message
                 </span>
               )}
@@ -1038,7 +1055,7 @@ export default function ConsultChat() {
               <button
                 onClick={() => buyCredits(DEFAULT_CREDIT_PACK.minutes)}
                 disabled={isPaying}
-                className="hidden sm:flex text-[0.65rem] text-red-300 items-center gap-1 rounded-full border border-red-400/20 px-2.5 py-1 hover:bg-red-500/10"
+                className="hidden sm:flex text-[0.6875rem] text-red-300 items-center gap-1 rounded-full border border-red-400/20 px-2.5 py-1 hover:bg-red-500/10"
               >
                 {isPaying ? (
                   <Loader2 size={11} className="animate-spin" />
@@ -1051,7 +1068,7 @@ export default function ConsultChat() {
             {sessionActive && sessionInfo && (
               <button
                 onClick={() => endSession()}
-                className="min-h-11 px-4 rounded-full border border-red-400/25 text-red-300 text-[0.65rem] font-bold uppercase tracking-[0.15em] hover:bg-red-500/10 transition-colors"
+                className="min-h-11 px-4 rounded-full border border-red-400/25 text-red-300 text-[0.6875rem] font-bold uppercase tracking-[0.15em] hover:bg-red-500/10 transition-colors"
               >
                 End
               </button>
@@ -1066,7 +1083,7 @@ export default function ConsultChat() {
           {/* Welcome */}
           <div className="max-w-2xl">
             <p
-              className="text-[0.6rem] font-bold uppercase tracking-[0.3em] mb-1.5"
+              className="text-[0.6875rem] font-bold uppercase tracking-[0.3em] mb-1.5"
               style={{ color: `${accent}99` }}
             >
               {persona.name}
@@ -1076,8 +1093,8 @@ export default function ConsultChat() {
               style={{ borderColor: `${accent}55` }}
             >
               <p className="font-display italic text-base text-white/70 leading-relaxed">
-                Namaste. I am {persona.name}. I have read your chart, and I
-                will keep what we discuss for our next sitting. We will speak in{" "}
+                Namaste. I am {persona.name}. I have read your chart, and I will
+                keep what we discuss for our next sitting. We will speak in{" "}
                 {preferredLanguage}. What shall we look at today?
               </p>
             </div>
@@ -1091,7 +1108,7 @@ export default function ConsultChat() {
                   key={q}
                   onClick={() => sendMessage(q)}
                   disabled={isStreaming || !canCompose}
-                  className="px-4 py-2 rounded-full border border-white/10 text-xs text-white/45 hover:text-gold hover:border-gold/30 transition-colors disabled:opacity-40"
+                  className="px-4 py-2 rounded-full border border-white/10 text-xs text-white/55 hover:text-gold hover:border-gold/30 transition-colors disabled:opacity-40"
                 >
                   {q}
                 </button>
@@ -1113,6 +1130,25 @@ export default function ConsultChat() {
             />
           ))}
 
+          {/* Follow-up chips under the latest reply — tap to ask */}
+          {!isStreaming &&
+            replyChips.length > 0 &&
+            canCompose &&
+            messages[messages.length - 1]?.role === "assistant" && (
+              <div className="flex flex-wrap gap-2 pl-5">
+                {replyChips.map((chip) => (
+                  <button
+                    key={chip}
+                    type="button"
+                    onClick={() => sendMessage(chip)}
+                    className="min-h-11 px-4 py-2 rounded-full border border-white/10 text-left text-xs text-white/55 hover:text-gold hover:border-gold/30 transition-colors"
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </div>
+            )}
+
           {isStreaming && messages[messages.length - 1]?.role === "user" && (
             <div
               className="max-w-2xl pl-5 border-l flex items-center gap-3 py-1"
@@ -1123,7 +1159,7 @@ export default function ConsultChat() {
                 className="animate-spin"
                 style={{ color: accent }}
               />
-              <span className="text-[0.65rem] uppercase tracking-[0.3em] text-white/35 animate-pulse">
+              <span className="text-[0.6875rem] uppercase tracking-[0.3em] text-white/50 animate-pulse">
                 {persona.name.split(" ")[0]} is writing…
               </span>
             </div>
@@ -1136,7 +1172,7 @@ export default function ConsultChat() {
                 You have a sitting in progress with{" "}
                 {conflictPersona?.name ?? "another guide"}.
               </p>
-              <p className="mt-2 text-xs text-white/40">
+              <p className="mt-2 text-xs text-white/55">
                 Only one meter can run at a time.
               </p>
               {conflictError && (
@@ -1147,14 +1183,14 @@ export default function ConsultChat() {
                   onClick={() =>
                     navigate(`/consult/${activeConflict.activePersonaId}/chat`)
                   }
-                  className="w-full min-h-11 px-4 py-2.5 rounded-xl bg-gold text-black text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors"
+                  className="w-full min-h-11 px-4 py-2.5 rounded-xl bg-gold text-black text-[0.6875rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors"
                 >
                   Resume
                 </button>
                 <button
                   onClick={endConflictAndStartHere}
                   disabled={conflictEnding}
-                  className="w-full min-h-11 px-4 py-2.5 rounded-xl border border-white/15 text-white/70 text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:border-gold/30 hover:text-gold transition-colors disabled:opacity-50"
+                  className="w-full min-h-11 px-4 py-2.5 rounded-xl border border-white/15 text-white/70 text-[0.6875rem] font-bold uppercase tracking-[0.2em] hover:border-gold/30 hover:text-gold transition-colors disabled:opacity-50"
                 >
                   {conflictEnding ? "Ending…" : "End it and start here"}
                 </button>
@@ -1169,12 +1205,12 @@ export default function ConsultChat() {
                 <PersonaPortrait persona={persona} />
               </div>
               <p className="text-sm text-white/80 mt-3">{SESSION_CLOSED_MSG}</p>
-              <p className="mt-2 text-xs text-white/40">
+              <p className="mt-2 text-xs text-white/55">
                 The meter has stopped; anything owed was settled when it closed.
               </p>
               <button
                 onClick={startNewSitting}
-                className="mt-5 w-full min-h-11 px-4 py-2.5 rounded-xl bg-gold text-black text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors"
+                className="mt-5 w-full min-h-11 px-4 py-2.5 rounded-xl bg-gold text-black text-[0.6875rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors"
               >
                 Start a new sitting
               </button>
@@ -1192,7 +1228,7 @@ export default function ConsultChat() {
                 <p className="text-sm text-white/80 mt-3">
                   The sitting could not begin.
                 </p>
-                <p className="mt-2 text-xs text-white/40">{billingError}</p>
+                <p className="mt-2 text-xs text-white/55">{billingError}</p>
                 {paymentError && (
                   <p className="mt-2 text-xs text-red-400">{paymentError}</p>
                 )}
@@ -1200,14 +1236,14 @@ export default function ConsultChat() {
                   <button
                     onClick={() => buyCredits(DEFAULT_CREDIT_PACK.minutes)}
                     disabled={isPaying}
-                    className="mt-5 w-full min-h-11 px-4 py-2.5 rounded-xl bg-gold text-black text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors disabled:opacity-50"
+                    className="mt-5 w-full min-h-11 px-4 py-2.5 rounded-xl bg-gold text-black text-[0.6875rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors disabled:opacity-50"
                   >
                     {isPaying ? "Opening…" : "Add time"}
                   </button>
                 )}
                 <button
                   onClick={() => navigate(`/consult/${persona.id}/profile`)}
-                  className="mt-3 w-full min-h-11 px-4 py-2.5 rounded-xl border border-gold/30 text-gold text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:bg-gold hover:text-black transition-colors"
+                  className="mt-3 w-full min-h-11 px-4 py-2.5 rounded-xl border border-gold/30 text-gold text-[0.6875rem] font-bold uppercase tracking-[0.2em] hover:bg-gold hover:text-black transition-colors"
                 >
                   Back to dossier
                 </button>
@@ -1224,11 +1260,11 @@ export default function ConsultChat() {
               </p>
               <div className="mt-4 space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-white/40">Duration</span>
+                  <span className="text-white/55">Duration</span>
                   <span>{displayedMinutes} min</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-white/40">Rate</span>
+                  <span className="text-white/55">Rate</span>
                   <span>{pricePerMin} credits / min</span>
                 </div>
                 <div className="flex justify-between border-t border-white/10 pt-2">
@@ -1248,7 +1284,7 @@ export default function ConsultChat() {
                 <button
                   onClick={() => buyCredits(DEFAULT_CREDIT_PACK.minutes)}
                   disabled={isPaying}
-                  className="mt-4 w-full min-h-11 px-4 py-2.5 rounded-xl bg-gold text-black text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors disabled:opacity-50"
+                  className="mt-4 w-full min-h-11 px-4 py-2.5 rounded-xl bg-gold text-black text-[0.6875rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors disabled:opacity-50"
                 >
                   {isPaying ? "Opening…" : "Add time"}
                 </button>
@@ -1294,7 +1330,7 @@ export default function ConsultChat() {
               <button
                 onClick={() => buyCredits(DEFAULT_CREDIT_PACK.minutes)}
                 disabled={isPaying}
-                className="shrink-0 min-h-11 px-3 py-1.5 rounded-lg bg-gold text-black text-[0.65rem] font-bold uppercase tracking-[0.15em]"
+                className="shrink-0 min-h-11 px-3 py-1.5 rounded-lg bg-gold text-black text-[0.6875rem] font-bold uppercase tracking-[0.15em]"
               >
                 {isPaying ? "Opening" : "Add time"}
               </button>
@@ -1315,7 +1351,7 @@ export default function ConsultChat() {
                 }}
                 aria-label={`Message ${persona.name}`}
                 placeholder={`Write to ${persona.name.split(" ")[0]}…`}
-                className="flex-1 min-w-0 bg-transparent outline-none text-base sm:text-sm text-white/85 placeholder:text-white/30"
+                className="flex-1 min-w-0 bg-transparent outline-none text-base sm:text-sm text-white/85 placeholder:text-white/50"
                 disabled={isStreaming || !canCompose}
               />
               <button
@@ -1371,8 +1407,8 @@ export default function ConsultChat() {
             >
               How was the sitting?
             </p>
-            <p className="text-white/40 text-sm mb-1">with {persona.name}</p>
-            <p className="text-white/30 text-xs mb-6">
+            <p className="text-white/55 text-sm mb-1">with {persona.name}</p>
+            <p className="text-white/50 text-xs mb-6">
               {displayedMinutes} min · {displayedCost} credits
             </p>
             <div className="flex justify-center gap-2 mb-6">
@@ -1398,7 +1434,7 @@ export default function ConsultChat() {
               placeholder="What felt useful? Optional."
               className="w-full min-h-24 mb-4 rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm outline-none focus:border-gold/40 resize-none placeholder:text-white/25"
             />
-            <label className="mb-4 flex items-start gap-3 rounded-xl border border-white/10 bg-white/3 p-3 text-left text-xs text-white/45">
+            <label className="mb-4 flex items-start gap-3 rounded-xl border border-white/10 bg-white/3 p-3 text-left text-xs text-white/55">
               <input
                 type="checkbox"
                 checked={shareReviewPublic}
@@ -1456,7 +1492,7 @@ export default function ConsultChat() {
                 navigate("/consult");
               }}
               disabled={reviewSubmitting}
-              className="w-full py-3 min-h-11 rounded-xl bg-gold text-black text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors disabled:opacity-50"
+              className="w-full py-3 min-h-11 rounded-xl bg-gold text-black text-[0.6875rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors disabled:opacity-50"
             >
               {reviewSubmitting ? "Saving…" : "Done"}
             </button>

@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   HelpCircle,
   Loader2,
+  Mail,
   MessageSquare,
   ReceiptText,
   Send,
@@ -13,6 +14,7 @@ import {
 import AuthModal from "../components/AuthModal";
 import { useAuth } from "../lib/useAuth";
 import { trackAcquisitionEvent } from "../lib/acquisition";
+import { SUPPORT_EMAIL } from "../lib/legal-policies";
 
 const SUPPORT_CATEGORIES = [
   { value: "refund", label: "Refund review" },
@@ -301,7 +303,19 @@ export default function Support() {
               )}
               {user ? "Open ticket" : "Sign in to open ticket"}
             </button>
-            <p className="type-meta mt-3 text-white/35">
+            {!user && (
+              <p className="type-body-sm mt-3 text-white/60">
+                Not signed in? You can also email{" "}
+                <a
+                  href={`mailto:${SUPPORT_EMAIL}`}
+                  className="font-bold text-gold hover:text-gold/80"
+                >
+                  {SUPPORT_EMAIL}
+                </a>
+                .
+              </p>
+            )}
+            <p className="type-meta mt-3 text-white/50">
               Refund requests are reviewed under the{" "}
               <Link to="/refund-policy" className="text-gold hover:text-gold/80">
                 Refund Policy
@@ -314,7 +328,7 @@ export default function Support() {
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <p className="platform-eyebrow">Ticket history</p>
-                <p className="type-body-sm text-white/35 mt-1">
+                <p className="type-body-sm text-white/50 mt-1">
                   {tickets.length} recent
                 </p>
               </div>
@@ -332,6 +346,18 @@ export default function Support() {
                 >
                   Sign in
                 </button>
+                {/* Sign-in problems are support problems too: never gate the only
+                    contact route behind login. */}
+                <p className="type-body-sm mt-4 text-white/60">
+                  Can't sign in, or no account? Email us — no login needed.
+                </p>
+                <a
+                  href={`mailto:${SUPPORT_EMAIL}`}
+                  className="mt-2 inline-flex min-h-11 items-center gap-2 break-all text-sm font-bold text-gold hover:text-gold/80"
+                >
+                  <Mail size={15} className="shrink-0" />
+                  {SUPPORT_EMAIL}
+                </a>
               </div>
             ) : loadingTickets ? (
               <div className="py-8 text-center text-white/60">
@@ -345,7 +371,7 @@ export default function Support() {
             ) : tickets.length === 0 ? (
               <div className="py-8 text-center">
                 <MessageSquare className="mx-auto mb-3 text-white/20" size={30} />
-                <p className="type-body-sm text-white/45">
+                <p className="type-body-sm text-white/55">
                   No support tickets yet.
                 </p>
               </div>
@@ -360,11 +386,11 @@ export default function Support() {
                       <p className="type-body-sm text-white/75 line-clamp-2">
                         {ticket.subject || "Support ticket"}
                       </p>
-                      <span className="rounded-full border border-white/10 px-2 py-1 type-meta text-white/45">
+                      <span className="rounded-full border border-white/10 px-2 py-1 type-meta text-white/55">
                         {ticket.status || "open"}
                       </span>
                     </div>
-                    <p className="type-meta text-white/35 mt-2">
+                    <p className="type-meta text-white/50 mt-2">
                       {ticket.category || "support"}{" "}
                       {formatTicketDate(ticket.createdAt) &&
                         `· ${formatTicketDate(ticket.createdAt)}`}
@@ -404,7 +430,7 @@ export default function Support() {
           ].map((item) => (
             <article key={item.title} className="platform-panel p-4">
               <h2 className="type-card-title text-white">{item.title}</h2>
-              <p className="type-body-sm mt-2 text-white/45">{item.body}</p>
+              <p className="type-body-sm mt-2 text-white/55">{item.body}</p>
               <Link
                 to={item.link}
                 className="mt-4 inline-flex text-sm font-bold text-gold hover:text-gold/80"

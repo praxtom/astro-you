@@ -1,6 +1,7 @@
 import { Config, Context } from "@netlify/functions";
 import { generateProactiveNudge } from "./shared/gemini";
 import { buildUserContext } from "./shared/user-context";
+import { selectNudgePartner } from "./shared/nudge-partner";
 import {
   verifyToken,
   enforceIpRateLimit,
@@ -38,7 +39,7 @@ export default async (req: Request, _context: Context) => {
   }
 
   try {
-    const { triggerType, idToken } = await req.json();
+    const { triggerType, idToken, partnerData } = await req.json();
 
     // This endpoint generates AI content (paid Gemini call). It MUST be
     // authenticated and rate-limited, and the user's context is loaded
@@ -67,10 +68,19 @@ export default async (req: Request, _context: Context) => {
       });
     }
 
+    // Full context: the weekly-cached transits and dasha ground the prompt.
     const { userContext } = await buildUserContext({ uid: decoded.uid });
-    const nudge = await generateProactiveNudge(userContext, trigger);
+    const partner =
+      trigger === "synastry_alert"
+        ? selectNudgePartner(userContext.atman?.keyRelationships, partnerData)
+        : null;
+    const nudge = await generateProactiveNudge(userContext, trigger, {
+      partner,
+    });
 
-    return new Response(JSON.stringify(nudge), {
+    // No grounding data or generation failed: no nudge (never a canned line
+    // presented as personal guidance).
+    return new Response(JSON.stringify(nudge ?? { skipped: true }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });

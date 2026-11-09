@@ -1,8 +1,10 @@
 import { Config, Context } from "@netlify/functions";
 import { db, auth, FieldValue } from "./shared/firebase-admin";
-import { applyCreditChange } from "./shared/credits";
+import { settleTopupPayment } from "./shared/hosted-payments";
+import { hostedProvider } from "./shared/hosted-razorpay";
 import { writeAuditLog } from "./shared/audit-log";
 import { verifyCheckoutSignature } from "./shared/razorpay-payments";
+import { grantReferrerRewardAfterPayment } from "./shared/referrals";
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
@@ -51,13 +53,7 @@ export default async (req: Request, _context: Context) => {
     const decoded = await auth.verifyIdToken(idToken);
     const uid = decoded.uid;
 
-    // Verify the payment signature. NOTE: this proves the response genuinely
-    // came from Razorpay for this order, which is sufficient under standard
-    // Checkout with automatic capture (payments arrive already captured). If
-    // this account is ever switched to manual capture, add an explicit
-    // `orders.fetchPayments`/`payments.fetch` status check here before
-    // granting credits, otherwise authorized-but-uncaptured payments would
-    // be credited.
+    // Check the signature, then fetch the payment before granting any credits.
     const isValidSignature = verifyCheckoutSignature({
       orderId: razorpay_order_id,
       paymentId: razorpay_payment_id,
@@ -102,38 +98,28 @@ export default async (req: Request, _context: Context) => {
       });
     }
 
-    const creditResult = await applyCreditChange(
-      { db, FieldValue },
-      {
-        uid,
-        amount: minutes,
-        type: "purchase",
-        source: "razorpay",
-        referenceId: razorpay_payment_id,
-        ledgerId: `razorpay_${razorpay_payment_id}`,
-        metadata: {
-          razorpay_order_id,
-          razorpay_payment_id,
-          paymentOrderId: orderRef.id,
-          amountInRupees: orderData.amountInRupees,
-          // What was actually charged, so a USD receipt is not recorded as
-          // rupees. Older records predate these fields.
-          amount: orderData.amount ?? orderData.amountInRupees,
-          currency: orderData.currency ?? "INR",
-        },
-      },
-    );
+    const payment = await hostedProvider.payment(razorpay_payment_id);
+    const creditResult = await settleTopupPayment({ db, FieldValue }, {
+      orderId: razorpay_order_id, payment, uid, checkoutId: orderData.hostedCheckoutId,
+    });
+    if (creditResult.status !== "paid") {
+      return new Response(JSON.stringify({
+        error: creditResult.status === "refunded" ? "This payment was refunded." : "Payment has not been captured yet.",
+        status: creditResult.status,
+      }), { status: 409, headers: { "Content-Type": "application/json" } });
+    }
 
-    await orderRef.set(
-      {
-        status: "paid",
-        razorpayPaymentId: razorpay_payment_id,
-        paidAt: FieldValue.serverTimestamp(),
-        balanceAfter: creditResult.balanceAfter,
-        duplicate: creditResult.duplicate,
-      },
-      { merge: true },
-    );
+    // The referee's first successful payment unlocks their referrer's reward.
+    // Best effort and idempotent — the payment itself is already settled.
+    await grantReferrerRewardAfterPayment({ db, FieldValue }, uid, {
+      source: "topup",
+      referenceId: razorpay_payment_id,
+    }).catch((referralError) => {
+      console.error(
+        "[Razorpay Verify] Referral reward failed:",
+        referralError?.message || referralError,
+      );
+    });
 
     await writeAuditLog({
       uid,

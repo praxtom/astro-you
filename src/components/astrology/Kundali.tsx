@@ -175,7 +175,7 @@ const Kundali: React.FC<KundaliProps> = ({ data, className = "" }) => {
       </svg>
 
       {timeUnknown && (
-        <p className="mt-2 text-center text-xs text-white/40">
+        <p className="mt-2 text-center text-xs text-white/55">
           House 1 is your Moon sign (Chandra Lagna, birth time unknown) — add
           your birth time to see your rising sign.
         </p>

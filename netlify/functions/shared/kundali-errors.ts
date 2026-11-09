@@ -42,6 +42,29 @@ export function chartErrorResponse(error: any): ChartErrorResponse | null {
   return { status: 422, body: { error: message, code: kind } };
 }
 
+/**
+ * True when the error means our astrology-API allowance is spent — an
+ * upstream quota 429, or the local budget/breaker in shared/astro-budget.ts
+ * refusing the call (both throw the same `quota_exhausted` error).
+ */
+export function isUpstreamQuotaError(error: any): boolean {
+  return chartErrorKind(error) === "quota_exhausted";
+}
+
+/** Body of the retryable 503 every astrology endpoint returns on quota. */
+export const UPSTREAM_QUOTA_BODY = Object.freeze({
+  error: "Astrology service is temporarily unavailable. Please try again later.",
+  code: "upstream_quota",
+});
+
+/** The 503 `upstream_quota` response (not a generic 500 "try again"). */
+export function upstreamQuotaResponse(): Response {
+  return new Response(JSON.stringify(UPSTREAM_QUOTA_BODY), {
+    status: 503,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 /** Copy for chart types that cannot be cast without an exact birth time. */
 export const TIME_UNKNOWN_MESSAGE =
   "This chart needs an exact birth time. Add your birth time in your profile to unlock it.";

@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../../lib/useAuth";
 import { useHeaderScroll, useUserProfile } from "../../hooks";
+import { useDialog } from "../../hooks/useDialog";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import {
@@ -12,6 +13,7 @@ import {
   HelpCircle,
   LayoutDashboard,
   Flame,
+  LogIn,
   LogOut,
   Menu,
   ScrollText,
@@ -63,6 +65,10 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
+  // Escape closes the mobile menu, Tab stays inside it, focus returns to the
+  // toggle when it closes.
+  useDialog(mobileMenuRef, () => setIsMobileMenuOpen(false), isMobileMenuOpen);
   // The five spaces, plus home. Money/account pages live in the avatar menu.
   const activeSpace = getSpaceForPath(location.pathname);
   const internalNavItems = [
@@ -264,7 +270,7 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                   </span>
                   <ChevronDown
                     size={14}
-                    className={`text-white/30 transition-all duration-300 ${
+                    className={`text-white/50 transition-all duration-300 ${
                       isUserMenuOpen
                         ? "rotate-180 text-gold/70"
                         : "group-hover:text-white/50"
@@ -310,7 +316,7 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                           handleLogout();
                           closeUserMenu();
                         }}
-                        className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-white/45 transition-colors hover:bg-white/5 hover:text-white/70"
+                        className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-white/55 transition-colors hover:bg-white/5 hover:text-white/70"
                       >
                         <LogOut size={14} />
                         <span>Sign out</span>
@@ -324,17 +330,27 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                 {isInternal ? (
                   /* Guest Mode in internal pages */
                   <div className="flex items-center gap-4">
-                    <div className="flex flex-col items-end">
+                    <div className="hidden xl:flex flex-col items-end">
                       <span className="text-gold font-display text-sm uppercase drop-shadow-[0_0_8px_rgba(255,215,0,0.3)]">
                         ✦ Seeker
                       </span>
-                      <span className="text-[10px] uppercase text-gold/40 font-black mt-0.5">
+                      <span className="text-[0.6875rem] uppercase text-gold/40 font-black mt-0.5">
                         Guest Mode
                       </span>
                     </div>
+                    {onShowAuth && (
+                      <button
+                        type="button"
+                        onClick={onShowAuth}
+                        className="inline-flex min-h-11 items-center gap-2 rounded-full bg-gold px-5 text-sm font-bold text-black transition-all hover:bg-gold/90 active:scale-95"
+                      >
+                        <LogIn size={15} />
+                        Sign in
+                      </button>
+                    )}
                     <button
                       onClick={() => navigate("/")}
-                      className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-white/40 hover:text-white"
+                      className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-white/55 hover:text-white"
                       title="Exit to Landing"
                       aria-label="Exit to landing page"
                     >
@@ -353,20 +369,38 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
             )}
           </div>
 
-          {/* Mobile Menu Toggle */}
-          <button
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="lg:hidden w-11 h-11 flex items-center justify-center rounded-full bg-white/5 border border-white/10 text-white z-[1001]"
-            aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
-            aria-expanded={isMobileMenuOpen}
-          >
-            {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Guests on phones get sign-in in the bar itself, not only in the menu. */}
+            {!user && isInternal && onShowAuth && !isMobileMenuOpen && (
+              <button
+                type="button"
+                onClick={onShowAuth}
+                className="md:hidden inline-flex min-h-11 items-center rounded-full bg-gold px-4 text-sm font-bold text-black active:scale-95"
+              >
+                Sign in
+              </button>
+            )}
+            {/* Mobile Menu Toggle */}
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="lg:hidden w-11 h-11 flex items-center justify-center rounded-full bg-white/5 border border-white/10 text-white z-[1001]"
+              aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={isMobileMenuOpen}
+              aria-controls="mobile-menu"
+            >
+              {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
         </div>
       </header>
 
       {/* Mobile Menu Overlay */}
       <div
+        id="mobile-menu"
+        ref={mobileMenuRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Menu"
         inert={!isMobileMenuOpen}
         aria-hidden={!isMobileMenuOpen}
         className={`fixed inset-0 z-[999] bg-[#030308]/95 backdrop-blur-3xl transition-all duration-500 flex flex-col items-center justify-center gap-6 ${
@@ -421,7 +455,7 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                 <span className="text-gold text-xl font-semibold">
                   {profile?.name || user.displayName || "Seeker"}
                 </span>
-                <span className="text-xs uppercase text-white/40">
+                <span className="text-xs uppercase text-white/55">
                   Currently Logged In
                 </span>
               </div>
@@ -443,7 +477,7 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                   navigate("/wallet");
                   setIsMobileMenuOpen(false);
                 }}
-                className="flex items-center gap-2 text-white/40 hover:text-white transition-colors"
+                className="flex items-center gap-2 text-white/55 hover:text-white transition-colors"
               >
                 <Wallet size={16} />
                 <span className="text-sm uppercase">Wallet</span>
@@ -465,7 +499,7 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                   navigate("/support");
                   setIsMobileMenuOpen(false);
                 }}
-                className="flex items-center gap-2 text-white/40 hover:text-white transition-colors"
+                className="flex items-center gap-2 text-white/55 hover:text-white transition-colors"
               >
                 <HelpCircle size={16} />
                 <span className="text-sm uppercase">Support</span>
@@ -476,7 +510,7 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                   navigate("/settings");
                   setIsMobileMenuOpen(false);
                 }}
-                className="flex items-center gap-2 text-white/40 hover:text-white transition-colors"
+                className="flex items-center gap-2 text-white/55 hover:text-white transition-colors"
               >
                 <Settings size={16} />
                 <span className="text-sm uppercase">Settings</span>
@@ -487,7 +521,7 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                   handleLogout();
                   setIsMobileMenuOpen(false);
                 }}
-                className="flex items-center gap-2 text-white/40 hover:text-white transition-colors"
+                className="flex items-center gap-2 text-white/55 hover:text-white transition-colors"
               >
                 <LogOut size={16} />
                 <span className="text-sm uppercase">Logout</span>
@@ -496,15 +530,30 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
           ) : (
             <>
               {isInternal ? (
-                <button
-                  onClick={() => {
-                    navigate("/");
-                    setIsMobileMenuOpen(false);
-                  }}
-                  className="px-6 py-2.5 bg-white/5 border border-white/10 rounded-full text-white/60 hover:text-white transition-all uppercase text-xs font-bold"
-                >
-                  Exit Guest Mode
-                </button>
+                <>
+                  {onShowAuth && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileMenuOpen(false);
+                        onShowAuth();
+                      }}
+                      className="inline-flex min-h-11 items-center gap-2 rounded-full bg-gold px-8 text-sm font-bold text-black"
+                    >
+                      <LogIn size={16} />
+                      Sign in
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      navigate("/");
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="min-h-11 px-6 py-2.5 bg-white/5 border border-white/10 rounded-full text-white/60 hover:text-white transition-all uppercase text-xs font-bold"
+                  >
+                    Exit Guest Mode
+                  </button>
+                </>
               ) : (
                 <button
                   className="px-6 py-2.5 bg-white text-black font-bold rounded-full hover:bg-gold hover:text-black transition-all shadow-[0_0_20px_rgba(255,255,255,0.15)]"
@@ -519,6 +568,17 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
             </>
           )}
         </div>
+
+        {/* The header's toggle sits outside this trapped region, so keyboard
+            and screen-reader users get a close control inside it too. */}
+        <button
+          type="button"
+          onClick={() => setIsMobileMenuOpen(false)}
+          className="inline-flex min-h-11 items-center gap-2 rounded-full px-5 text-xs font-bold uppercase text-white/55 hover:text-white"
+        >
+          <X size={16} />
+          Close menu
+        </button>
       </div>
     </>
   );

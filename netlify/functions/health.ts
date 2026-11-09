@@ -1,4 +1,5 @@
 import { Config, Context } from "@netlify/functions";
+import { assessJobFreshness } from "./shared/ops-alerts";
 
 /**
  * Public liveness/readiness probe for uptime monitors (e.g. Netlify/UptimeRobot).
@@ -6,8 +7,45 @@ import { Config, Context } from "@netlify/functions";
  * Reports whether the critical server credentials are configured, WITHOUT
  * touching upstream services or leaking any secret values — just booleans, so a
  * misconfigured deploy is visible without a paid probe or a signed-in user.
- * Always returns 200 for "up"; 503 when a required credential is missing.
+ *
+ * `jobsFresh` is false when any scheduled job that records `jobRuns/{job}` has
+ * not succeeded within 2× its schedule (null when it could not be checked).
+ * The Firestore read is cached per instance for a minute so a public probe
+ * cannot be used to run up read costs.
+ *
+ * 200 when everything is fine; 503 when a required credential is missing or a
+ * job is stale.
  */
+
+const JOBS_CACHE_MS = 60_000;
+let jobsCache: { at: number; fresh: boolean | null; stale: string[] } | null =
+  null;
+
+async function checkJobsFresh(): Promise<{
+  fresh: boolean | null;
+  stale: string[];
+}> {
+  if (jobsCache && Date.now() - jobsCache.at < JOBS_CACHE_MS) {
+    return { fresh: jobsCache.fresh, stale: jobsCache.stale };
+  }
+  let result: { fresh: boolean | null; stale: string[] };
+  try {
+    // Lazy: a missing/invalid service account must not crash the probe.
+    const { db } = await import("./shared/firebase-admin");
+    const snap = await db.collection("jobRuns").limit(50).get();
+    const stale = assessJobFreshness(
+      snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+    )
+      .filter((job) => job.stale)
+      .map((job) => job.job);
+    result = { fresh: stale.length === 0, stale };
+  } catch {
+    result = { fresh: null, stale: [] };
+  }
+  jobsCache = { at: Date.now(), ...result };
+  return result;
+}
+
 export default async (_req: Request, _context: Context) => {
   const required: Record<string, boolean> = {
     firebaseAdmin: Boolean(process.env.FIREBASE_SERVICE_ACCOUNT),
@@ -21,14 +59,23 @@ export default async (_req: Request, _context: Context) => {
       process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET,
     ),
     otpSecret: Boolean(process.env.OTP_HASH_SECRET),
+    // Email OTP sign-in and the digest both need Resend plus a verified sender.
+    email: Boolean(
+      process.env.RESEND_API_KEY?.trim() &&
+      process.env.DIGEST_FROM_EMAIL?.trim(),
+    ),
   };
 
-  const ok = Object.values(required).every(Boolean);
+  const jobs = required.firebaseAdmin
+    ? await checkJobsFresh()
+    : { fresh: null, stale: [] as string[] };
+  const ok = Object.values(required).every(Boolean) && jobs.fresh !== false;
 
   return new Response(
     JSON.stringify({
       status: ok ? "ok" : "degraded",
-      checks: required,
+      checks: { ...required, jobsFresh: jobs.fresh },
+      staleJobs: jobs.stale,
       time: new Date().toISOString(),
     }),
     {

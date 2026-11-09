@@ -132,7 +132,7 @@ export default function AstroMap() {
 
         {profileLoading ? (
           <div className="flex items-center justify-center py-20" aria-busy="true">
-            <Loader2 size={32} className="animate-spin text-white/30" />
+            <Loader2 size={32} className="animate-spin text-white/50" />
           </div>
         ) : !requestBirthData?.dob ? (
           <BirthProfileRequired
@@ -178,7 +178,7 @@ export default function AstroMap() {
 
             {loading && (
               <div className="flex items-center justify-center py-20" aria-busy="true">
-                <Loader2 size={32} className="animate-spin text-white/30" />
+                <Loader2 size={32} className="animate-spin text-white/50" />
               </div>
             )}
 

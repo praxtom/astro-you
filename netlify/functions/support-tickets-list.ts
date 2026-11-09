@@ -1,5 +1,8 @@
 import { Config, Context } from "@netlify/functions";
 import { auth, db } from "./shared/firebase-admin";
+import { AuthError, enforceRateLimit } from "./shared/require-auth";
+
+const HOUR_MS = 60 * 60 * 1000;
 
 function serializeDate(value: any): string | null {
   if (!value) return null;
@@ -21,6 +24,12 @@ export default async (req: Request, _context: Context) => {
     }
 
     const decoded = await auth.verifyIdToken(body.idToken);
+    await enforceRateLimit({
+      scope: "support_tickets_list",
+      key: decoded.uid,
+      limit: 120,
+      windowMs: HOUR_MS,
+    });
     const safeLimit =
       typeof body.limit === "number" && Number.isFinite(body.limit)
         ? Math.min(30, Math.max(1, Math.floor(body.limit)))
@@ -46,6 +55,9 @@ export default async (req: Request, _context: Context) => {
 
     return json({ tickets }, 200);
   } catch (error: any) {
+    if (error instanceof AuthError) {
+      return json({ error: error.message }, error.status);
+    }
     console.error("[Support Tickets List] Error:", error);
     return json({ error: "Could not load support tickets" }, 500);
   }

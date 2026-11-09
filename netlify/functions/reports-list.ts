@@ -1,5 +1,8 @@
 import { Config, Context } from "@netlify/functions";
 import { auth, db } from "./shared/firebase-admin";
+import { AuthError, enforceRateLimit } from "./shared/require-auth";
+
+const HOUR_MS = 60 * 60 * 1000;
 
 type ReportDocument = Record<string, any>;
 
@@ -36,6 +39,12 @@ export default async (req: Request, _context: Context) => {
     }
 
     const decoded = await auth.verifyIdToken(idToken);
+    await enforceRateLimit({
+      scope: "reports_list",
+      key: decoded.uid,
+      limit: 120,
+      windowMs: HOUR_MS,
+    });
     const safeLimit = Math.min(Math.max(Number(limit) || 30, 1), 50);
     const snap = await db
       .collection("users")
@@ -52,6 +61,12 @@ export default async (req: Request, _context: Context) => {
       headers: { "Content-Type": "application/json" },
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return new Response(JSON.stringify({ error: error.message }), {
+        status: error.status,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
     console.error("[Reports List] Failed:", error);
     return new Response(JSON.stringify({ error: "Could not load reports" }), {
       status: 500,

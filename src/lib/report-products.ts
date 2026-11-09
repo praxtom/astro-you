@@ -57,3 +57,46 @@ export const REPORT_PRODUCTS: ClientReportProduct[] = [
     requiresCompatibilityFlow: true,
   },
 ];
+
+/**
+ * Client-chosen id for ONE paid report purchase, sent to /api/pdf-report as
+ * `requestId`. The server uses it as the report id and charges at most once
+ * per id, so retrying the same click after a network failure can't double
+ * charge. Use a fresh id for each new purchase. Matches the server's
+ * REPORT_ID_PATTERN (letters, digits, "_" and "-").
+ */
+export function createReportRequestId(): string {
+  const random =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+  return `req_${random}`;
+}
+
+/**
+ * POST /api/pdf-report, retrying a network drop once with the SAME body (so
+ * the same `requestId`): the server either finishes the original purchase
+ * (served free) or answers 409 `report_in_progress` — never a second charge.
+ * Callers keep the requestId until the server answers, so a later click after
+ * two failed attempts also reuses it.
+ */
+export async function postPdfReport(
+  body: Record<string, unknown> & { requestId: string },
+): Promise<Response> {
+  const send = () =>
+    fetch("/api/pdf-report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  try {
+    return await send();
+  } catch {
+    await new Promise((resolve) => window.setTimeout(resolve, 1500));
+    return send();
+  }
+}
+
+/** The 409 the server sends while a retried purchase is still generating. */
+export const REPORT_IN_PROGRESS_MESSAGE =
+  "This report is still being prepared. It will appear in your Reports library shortly.";

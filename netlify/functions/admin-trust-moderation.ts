@@ -1,6 +1,7 @@
 import { Config, Context } from "@netlify/functions";
 import { db, FieldValue } from "./shared/firebase-admin.js";
 import { AdminAuthError, requireAdmin } from "./shared/admin-auth.js";
+import { auditLogExpiresAt } from "./shared/audit-log.js";
 import {
   buildTrustModerationDecision,
   TrustRecordError,
@@ -115,6 +116,7 @@ export default async (req: Request, _context: Context) => {
         note: decision.patch.moderationNote,
       },
       createdAt: FieldValue.serverTimestamp(),
+      expiresAt: auditLogExpiresAt(),
     });
 
     await batch.commit();

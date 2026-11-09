@@ -76,7 +76,7 @@ function RemedyItem({ remedy, onAddRoutine, addedRoutines, canAddRoutine }: Reme
                         transition-all duration-200
                         ${isAdded
                             ? 'bg-emerald-500/20 text-emerald-400 opacity-100'
-                            : 'bg-white/5 text-white/40 hover:bg-amber-500/20 hover:text-amber-300 opacity-0 group-hover:opacity-100'
+                            : 'bg-white/5 text-white/55 hover:bg-amber-500/20 hover:text-amber-300 opacity-0 group-hover:opacity-100'
                         }
                     `}
                 >
@@ -173,7 +173,7 @@ export const RemediesCard: React.FC<RemediesCardProps> = ({ birthData }) => {
                             <PersonalCardNotice kind={errorKind} thing="personal remedies" onRetry={retry} />
                         </div>
                     ) : (
-                        <p className="mt-3 text-xs leading-relaxed text-white/35">
+                        <p className="mt-3 text-xs leading-relaxed text-white/50">
                             {hasBirthProfile
                                 ? 'Your chart did not call for specific remedies right now — these daily practices suit every chart.'
                                 : 'Add birth details to receive chart-specific remedies.'}
@@ -204,7 +204,7 @@ export const RemediesCard: React.FC<RemediesCardProps> = ({ birthData }) => {
                     {allRemedies.length > 3 && (
                         <button
                             onClick={() => setExpanded(!expanded)}
-                            className="mt-3 block text-[0.75rem] font-bold uppercase tracking-[0.18em] text-white/45 hover:text-gold transition-colors"
+                            className="mt-3 block text-[0.75rem] font-bold uppercase tracking-[0.18em] text-white/55 hover:text-gold transition-colors"
                         >
                             {expanded ? 'Show less' : `View all ${allRemedies.length} remedies`}
                         </button>

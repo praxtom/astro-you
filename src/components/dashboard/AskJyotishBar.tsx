@@ -83,7 +83,7 @@ export const AskJyotishBar: React.FC<AskJyotishBarProps> = ({ lastChat }) => {
       {lastChat && (
         <button
           onClick={() => navigate(`/synthesis/${lastChat.chatId}`)}
-          className="mt-3 text-xs text-white/35 hover:text-gold transition-colors inline-flex items-center gap-1.5"
+          className="mt-3 text-xs text-white/50 hover:text-gold transition-colors inline-flex items-center gap-1.5"
         >
           <span className="w-1 h-1 rounded-full bg-gold/60" />
           Continue “

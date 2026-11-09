@@ -228,7 +228,7 @@ test("L2: synthesis rejects malformed chat/message ids with 400", () => {
   // Validation must happen before the first persistence (crisis path).
   assert.ok(
     synth.indexOf("CLIENT_DOC_ID_PATTERN.test(chatId)") <
-      synth.indexOf("detectCrisisRisk("),
+      synth.indexOf("isCrisisTurn("),
   );
 });
 

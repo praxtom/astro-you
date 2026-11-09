@@ -44,7 +44,8 @@ export const PUBLIC_PAGE_META = [
   { path: '/human-design', title: 'Human Design & Your Birth Profile', description: 'Explore your Human Design profile and how it differs from Vedic astrology. Birth details are required for personal results.' },
   { path: '/advanced-vedic', title: 'Advanced Vedic Chart Analysis', description: 'Explore divisional charts and advanced Vedic analysis using your birth profile.' },
   { path: '/astromap', title: 'Astrocartography & Your Birth Chart', description: 'Explore how places relate to your birth chart through astrocartography. Add your birth details for a personal map.' },
-  { path: '/experts/apply', title: 'Apply as an Astrologer', description: 'Learn about applying as an astrologer on AstroYou and the profile review process.' },
+  // Reachable, but kept out of search: every guide on AstroYou is AI.
+  { path: '/experts/apply', title: 'Apply as an Astrologer', description: 'Learn about applying as an astrologer on AstroYou and the profile review process.', noindex: true },
   { path: '/privacy', title: 'Privacy Policy', description: 'Read how AstroYou collects, uses and protects your account, birth details and guidance data.' },
   { path: '/terms', title: 'Terms of Service', description: 'Read the terms for using AstroYou, including accounts, credits, AI guidance and service limits.' },
   { path: '/refund-policy', title: 'Refund Policy', description: 'Read how AstroYou reviews failed payments, duplicate charges and requests involving credits, reports or consultations.' },

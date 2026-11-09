@@ -4,6 +4,9 @@ import {
   buildPushTokenRecord,
   createPushTokenDocId,
 } from "./shared/push-tokens";
+import { AuthError, enforceRateLimit } from "./shared/require-auth";
+
+const HOUR_MS = 60 * 60 * 1000;
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST" && req.method !== "DELETE") {
@@ -16,6 +19,12 @@ export default async (req: Request, _context: Context) => {
     if (!idToken) return json({ error: "Missing auth token" }, 401);
 
     const decoded = await auth.verifyIdToken(idToken);
+    await enforceRateLimit({
+      scope: "push_token",
+      key: decoded.uid,
+      limit: 30,
+      windowMs: HOUR_MS,
+    });
     const userRef = db.collection("users").doc(decoded.uid);
 
     if (req.method === "DELETE") {
@@ -73,6 +82,9 @@ export default async (req: Request, _context: Context) => {
 
     return json({ ok: true, active: true });
   } catch (err: any) {
+    if (err instanceof AuthError) {
+      return json({ error: err.message }, err.status);
+    }
     console.error("[PushToken] Error:", err);
     return json({ error: "Push token update failed" }, 400);
   }

@@ -91,13 +91,13 @@ export const FestivalCard: React.FC<FestivalCardProps> = ({ region }) => {
             <div className="mt-3 space-y-3">
                 {festivals.map((f, i) => (
                     <div key={i} className="flex items-baseline gap-4">
-                        <span className="text-[0.9rem] text-white/45 min-w-14 tabular-nums">
+                        <span className="text-[0.9rem] text-white/55 min-w-14 tabular-nums">
                             {formatDate(f.date)}
                         </span>
                         <div className="flex-1 min-w-0">
                             <p className="font-display text-[1.3rem] leading-snug text-white/85">{f.name}</p>
                             {f.significance && (
-                                <p className="text-[0.92rem] leading-relaxed text-white/45">{f.significance}</p>
+                                <p className="text-[0.92rem] leading-relaxed text-white/55">{f.significance}</p>
                             )}
                         </div>
                     </div>

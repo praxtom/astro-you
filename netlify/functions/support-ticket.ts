@@ -3,7 +3,17 @@ import { auth, db, FieldValue } from "./shared/firebase-admin";
 import {
   SupportTicketError,
   buildSupportTicketRecord,
+  notifyAdminsOfSupportTicket,
 } from "./shared/support-tickets";
+import { AuthError, enforceRateLimit } from "./shared/require-auth";
+import {
+  isDuplicateSubmission,
+  releaseSubmission,
+  submissionFingerprint,
+} from "./shared/rate-limit.js";
+
+const HOUR_MS = 60 * 60 * 1000;
+const DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
@@ -17,6 +27,12 @@ export default async (req: Request, _context: Context) => {
     }
 
     const decoded = await auth.verifyIdToken(body.idToken);
+    await enforceRateLimit({
+      scope: "support_ticket",
+      key: decoded.uid,
+      limit: 10,
+      windowMs: HOUR_MS,
+    });
     const createdAt = FieldValue.serverTimestamp();
     const record = buildSupportTicketRecord(
       {
@@ -26,6 +42,34 @@ export default async (req: Request, _context: Context) => {
       },
       createdAt,
     );
+
+    // Reject the identical ticket re-sent within 2 minutes (double submit,
+    // client retry). Fingerprint the normalized record minus timestamps.
+    const dedupeKey = {
+      scope: "support_ticket",
+      key: decoded.uid,
+      fingerprint: submissionFingerprint(
+        buildSupportTicketRecord(
+          { ...body, uid: decoded.uid, email: decoded.email || body.email },
+          null,
+        ),
+      ),
+    };
+    if (
+      await isDuplicateSubmission({
+        ...dedupeKey,
+        windowMs: DUPLICATE_WINDOW_MS,
+      })
+    ) {
+      return json(
+        {
+          error:
+            "We already received this exact ticket a moment ago. No need to send it again.",
+          code: "duplicate_submission",
+        },
+        409,
+      );
+    }
 
     const userTicketRef = db
       .collection("users")
@@ -37,7 +81,11 @@ export default async (req: Request, _context: Context) => {
     const batch = db.batch();
     batch.set(userTicketRef, ticketRecord);
     batch.set(db.collection("supportTickets").doc(userTicketRef.id), ticketRecord);
-    await batch.commit();
+    await batch.commit().catch(async (commitError) => {
+      await releaseSubmission(dedupeKey);
+      throw commitError;
+    });
+    await notifyAdminsOfSupportTicket({ ...record, ticketId: userTicketRef.id });
 
     return json(
       {
@@ -48,6 +96,9 @@ export default async (req: Request, _context: Context) => {
       200,
     );
   } catch (error: any) {
+    if (error instanceof AuthError) {
+      return json({ error: error.message }, error.status);
+    }
     console.error("[Support Ticket] Error:", error);
     const status = error instanceof SupportTicketError ? error.status : 500;
     return json(

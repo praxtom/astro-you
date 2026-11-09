@@ -1,9 +1,23 @@
-import { schedule } from "@netlify/functions";
+import type { Config } from "@netlify/functions";
 import { db } from "./shared/firebase-admin";
 import { persistAtmanMaintenance } from "./shared/atman-brain";
 import { processUsersPaged } from "./shared/scheduled-users";
+import { recordJobRun } from "./shared/ops-alerts";
 
-export const handler = schedule("15 2 * * *", async () => {
+export default async (_req: Request) => {
+  try {
+    return await runBrainMaintenance();
+  } catch (err) {
+    console.error("[BrainMaintenanceScheduled] Run failed:", err);
+    await recordJobRun("brain-maintenance", { ok: false, note: "run_threw" });
+    return new Response(JSON.stringify({ error: "brain_maintenance_failed" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+};
+
+async function runBrainMaintenance(): Promise<Response> {
   const maxUsers = Number(process.env.BRAIN_MAINTENANCE_BATCH_SIZE || 1000);
   let changed = 0;
   let decayedPatterns = 0;
@@ -29,15 +43,24 @@ export const handler = schedule("15 2 * * *", async () => {
     },
   );
 
-  return {
-    statusCode: 200,
-    body: JSON.stringify({
-      processed,
-      reachedEnd,
-      changed,
-      decayedPatterns,
-      archivedPatterns,
-      failed,
-    }),
+  const summary = {
+    processed,
+    reachedEnd,
+    changed,
+    decayedPatterns,
+    archivedPatterns,
+    failed,
   };
-});
+  await recordJobRun("brain-maintenance", {
+    ok: true,
+    processed,
+    failed,
+    note: reachedEnd ? undefined : "batch_limit",
+  });
+  return new Response(JSON.stringify(summary), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+export const config: Config = { schedule: "15 2 * * *" };

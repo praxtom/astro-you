@@ -5,9 +5,26 @@ import {
   getWeeklyHoroscope,
   getMonthlyHoroscope,
   getYearlyHoroscope,
-  getDashaPeriods,
-  getPanchang,
+  resolveHoroscopeSign,
+  type BirthData,
 } from "./shared/astro-api";
+import {
+  chartBirthData,
+  getCachedDashaPeriods,
+  getCachedPanchang,
+} from "./shared/astro-cached.js";
+import { getCachedOrFetch } from "./shared/cache.js";
+import {
+  CHART_CACHE_COLLECTION,
+  birthChartCacheKey,
+  clampedTodayKey,
+  isCalendarDateKey,
+  stripEchoedBirthInputs,
+} from "./shared/chart-cache.js";
+import {
+  isUpstreamQuotaError,
+  upstreamQuotaResponse,
+} from "./shared/kundali-errors.js";
 import {
   verifyToken,
   enforceIpRateLimit,
@@ -80,6 +97,45 @@ const PERIOD_FEATURE: Record<string, MeteredFeature> = {
   monthly: "horoscope_monthly",
   yearly: "horoscope_yearly",
 };
+
+type ForecastPeriod = "daily" | "weekly" | "monthly" | "yearly";
+
+/** Cache lifetime per window; the window itself is part of the key. */
+const PERSONAL_FORECAST_TTL_HOURS: Record<ForecastPeriod, number> = {
+  daily: 20,
+  weekly: 8 * 24,
+  monthly: 32 * 24,
+  yearly: 367 * 24,
+};
+
+/**
+ * A personal forecast through chart_cache, keyed by an HMAC of the chart plus
+ * the forecast window — re-opening the same day/week/month/year (tab
+ * switches, refreshes, other devices) costs no upstream call. A null/empty
+ * upstream result is never cached.
+ */
+async function cachedPersonalForecast(
+  period: ForecastPeriod,
+  bd: BirthData,
+  windowKey: string,
+  fetcher: () => Promise<any>,
+): Promise<any> {
+  return stripEchoedBirthInputs(
+    await getCachedOrFetch(
+      CHART_CACHE_COLLECTION,
+      birthChartCacheKey(`HOROSCOPE_${period.toUpperCase()}`, bd, {
+        window: windowKey,
+      }),
+      async () => stripEchoedBirthInputs(await fetcher()),
+      PERSONAL_FORECAST_TTL_HOURS[period],
+    ),
+  );
+}
+
+/** Settled value, or the fallback (quota errors are collected by the caller). */
+function settledValue<T>(result: PromiseSettledResult<T>, fallback: T): T {
+  return result.status === "fulfilled" ? result.value : fallback;
+}
 
 /** ISO week key (e.g. "2026-W28") — the natural billing window for weekly. */
 function isoWeekKey(dateStr: string): string {
@@ -178,11 +234,19 @@ export default async (req: Request, _context: Context) => {
       `[Horoscope] Fetching ${period} forecast for ${date || "today"}...`,
     );
 
+    // Same normalization (and therefore cache keys) as /api/kundali.
+    const bd = chartBirthData(birthData);
+    // The forecast's day: an explicit date, else the caller's local today.
+    const dayKey = isCalendarDateKey(date) ? date : clampedTodayKey(localDate);
+
     if (period === "weekly") {
       // Weekly: fetch weekly horoscope + dashas (no narrative needed)
       const [horoscopeData, dashaData] = await Promise.all([
-        getWeeklyHoroscope(birthData, date),
-        getDashaPeriods(birthData),
+        cachedPersonalForecast("weekly", bd, isoWeekKey(dayKey), () =>
+          getWeeklyHoroscope(bd, dayKey),
+        ),
+        // Dashas only decorate a paid forecast — never fail it over them.
+        getCachedDashaPeriods(bd).catch(() => [] as any[]),
       ]);
 
       // Paid window: an empty upstream result must refund, not 200 a blank
@@ -211,8 +275,11 @@ export default async (req: Request, _context: Context) => {
 
     if (period === "monthly") {
       const [monthlyData, dashaData] = await Promise.all([
-        getMonthlyHoroscope(birthData, date),
-        getDashaPeriods(birthData),
+        cachedPersonalForecast("monthly", bd, dayKey.slice(0, 7), () =>
+          getMonthlyHoroscope(bd, dayKey),
+        ),
+        // Dashas only decorate a paid forecast — never fail it over them.
+        getCachedDashaPeriods(bd).catch(() => [] as any[]),
       ]);
 
       // Paid window: an empty upstream result must refund, not 200 a blank
@@ -241,8 +308,11 @@ export default async (req: Request, _context: Context) => {
 
     if (period === "yearly") {
       const [yearlyData, dashaData] = await Promise.all([
-        getYearlyHoroscope(birthData, date),
-        getDashaPeriods(birthData),
+        cachedPersonalForecast("yearly", bd, dayKey.slice(0, 4), () =>
+          getYearlyHoroscope(bd, dayKey),
+        ),
+        // Dashas only decorate a paid forecast — never fail it over them.
+        getCachedDashaPeriods(bd).catch(() => [] as any[]),
       ]);
 
       // Paid window: an empty upstream result must refund, not 200 a blank
@@ -271,18 +341,47 @@ export default async (req: Request, _context: Context) => {
 
     // Default: daily horoscope (structured), narrative, dashas, and panchang in parallel
     // The narrative is sign-based: the sidereal Moon sign in Vedic mode.
+    // Every part is cached: the personal forecast per chart + day, the
+    // sign narrative in the shared horoscope_signs collection (same key as
+    // /api/sign-horoscope and /api/daily-prediction), dashas and panchang in
+    // the same entries /api/kundali uses. A repeat view costs no upstream call.
     const signContext = await loadSignContext(decoded.uid, birthData);
-    const [horoscopeData, narrativeData, dashaData, panchangData] =
-      await Promise.all([
-        getDailyHoroscope(birthData, date),
-        getDailyHoroscopeText(signContext.birth as typeof birthData, date, {
-          mode: signContext.mode,
-        }),
-        getDashaPeriods(birthData),
-        getPanchang(date, birthData.pob, birthData.lat, birthData.lng).catch(
-          () => null,
-        ),
-      ]);
+    const sign = resolveHoroscopeSign(signContext.birth as BirthData, {
+      mode: signContext.mode,
+    });
+    const settled = await Promise.allSettled([
+      cachedPersonalForecast("daily", bd, dayKey, () =>
+        getDailyHoroscope(bd, dayKey),
+      ),
+      getCachedOrFetch(`horoscope_signs`, `${sign}_daily_${dayKey}`, async () => {
+        const result = await getDailyHoroscopeText(
+          signContext.birth as typeof birthData,
+          dayKey,
+          { sign },
+        );
+        // Never cache an upstream failure as an empty doc.
+        if (!result) throw new Error("Sign narrative upstream returned no data");
+        return result;
+      }),
+      getCachedDashaPeriods(bd),
+      getCachedPanchang(dayKey, {
+        city: birthData.pob,
+        lat: bd.lat,
+        lng: bd.lng,
+      }),
+    ]);
+    const quotaHit = settled.some(
+      (r) => r.status === "rejected" && isUpstreamQuotaError(r.reason),
+    );
+    const horoscopeData = settledValue(settled[0], null);
+    const narrativeData = settledValue(settled[1], null);
+    const dashaData = settledValue(settled[2], [] as any[]);
+    const panchangData = settledValue(settled[3], null);
+    // Free view: degrade part by part, but when the allowance is spent and
+    // there is no forecast at all, say "temporarily unavailable" (503).
+    if (quotaHit && !horoscopeData && !narrativeData) {
+      return upstreamQuotaResponse();
+    }
 
     // Find current dasha
     const currentDasha = dashaData?.find((d: any) => d.isCurrent);
@@ -306,6 +405,9 @@ export default async (req: Request, _context: Context) => {
   } catch (error: any) {
     console.error("[Horoscope] Function error:", describeError(error));
     if (charge) await charge.refund();
+    // Spent astrology allowance (upstream 429 or our own budget/breaker):
+    // a retryable 503, not a generic 500.
+    if (isUpstreamQuotaError(error)) return upstreamQuotaResponse();
     return new Response(
       JSON.stringify({ error: "Horoscope request failed. Please try again." }),
       {

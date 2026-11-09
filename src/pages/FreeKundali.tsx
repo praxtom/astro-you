@@ -220,7 +220,7 @@ export default function FreeKundali() {
                     setForm((f) => ({ ...f, name: e.target.value }))
                   }
                   placeholder="Your name"
-                  className="platform-field placeholder:text-white/40"
+                  className="platform-field placeholder:text-white/50"
                 />
               </div>
 
@@ -265,7 +265,7 @@ export default function FreeKundali() {
                   I don't know my birth time
                 </label>
                 {timeUnknown && (
-                  <p className="mt-1 text-xs text-white/35">
+                  <p className="mt-1 text-xs text-white/50">
                     We'll still show your Moon sign, nakshatra and planets by
                     sign. Rising sign and houses need an exact birth time.
                   </p>
@@ -315,7 +315,7 @@ export default function FreeKundali() {
               <h2 className="text-xl font-display text-white/70">
                 What is a Kundali?
               </h2>
-              <p className="text-white/40 text-sm max-w-md mx-auto leading-relaxed">
+              <p className="text-white/55 text-sm max-w-md mx-auto leading-relaxed">
                 A Kundali (also known as Janam Kundali or birth chart) is a
                 Vedic astrological map of the sky at the exact moment of your
                 birth. It reveals your Ascendant (Lagna), Moon sign (Rashi), Sun
@@ -335,7 +335,7 @@ export default function FreeKundali() {
                   <Link
                     key={to}
                     to={to}
-                    className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-white/45 transition-colors hover:border-gold/30 hover:text-gold"
+                    className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-white/55 transition-colors hover:border-gold/30 hover:text-gold"
                   >
                     {label}
                   </Link>
@@ -352,7 +352,7 @@ export default function FreeKundali() {
             className="max-w-2xl mx-auto"
           >
             {form.name && (
-              <p className="text-center text-white/40 mb-6">
+              <p className="text-center text-white/55 mb-6">
                 Kundali for{" "}
                 <span className="text-white/70 font-medium">{form.name}</span>
               </p>
@@ -387,7 +387,7 @@ export default function FreeKundali() {
                   key={item.label}
                   className="rounded-xl border border-white/10 bg-white/[0.03] p-5 text-center"
                 >
-                  <p className="text-white/40 text-xs uppercase tracking-wider mb-1">
+                  <p className="text-white/55 text-xs uppercase tracking-wider mb-1">
                     {item.label}
                   </p>
                   <p className="text-xl font-display text-gold">
@@ -423,7 +423,7 @@ export default function FreeKundali() {
                   <p className="text-sm font-semibold text-white/80">
                     {item.title}
                   </p>
-                  <p className="mt-1 text-sm text-white/40">{item.copy}</p>
+                  <p className="mt-1 text-sm text-white/55">{item.copy}</p>
                 </div>
               ))}
             </div>
@@ -454,7 +454,7 @@ export default function FreeKundali() {
                             textOf(planet?.planet) ||
                             `Planet ${i + 1}`}
                         </span>
-                        <span className="text-white/30 ml-auto">
+                        <span className="text-white/50 ml-auto">
                           {textOf(planet?.sign) || textOf(planet?.rashi) || "—"}
                         </span>
                       </div>
@@ -477,7 +477,7 @@ export default function FreeKundali() {
                 </span>
                 .
               </p>
-              <p className="text-white/40 text-sm">
+              <p className="text-white/55 text-sm">
                 Unlock your complete Vedic reading with Dasha predictions,
                 remedies, and personalized guidance.
               </p>
@@ -494,7 +494,7 @@ export default function FreeKundali() {
                 <ArrowRight className="w-5 h-5" />
               </span>
             </Link>
-            <p className="text-center text-white/30 text-sm mt-3">
+            <p className="text-center text-white/50 text-sm mt-3">
               Create a free account to save this chart and unlock Dasha,
               remedies, and chart-aware guidance
             </p>
@@ -533,7 +533,7 @@ export default function FreeKundali() {
                     );
                   }
                 }}
-                className="px-4 py-2 rounded-xl border border-white/10 text-white/40 hover:text-gold hover:border-gold/30 text-xs uppercase tracking-widest transition-all flex items-center gap-2"
+                className="px-4 py-2 rounded-xl border border-white/10 text-white/55 hover:text-gold hover:border-gold/30 text-xs uppercase tracking-widest transition-all flex items-center gap-2"
               >
                 <Share2 size={14} />
                 Share My Kundali
@@ -541,7 +541,7 @@ export default function FreeKundali() {
             </div>
             <button
               onClick={() => setResult(null)}
-              className="block mx-auto mt-4 text-white/40 hover:text-white/60 text-sm underline underline-offset-4 transition-colors"
+              className="block mx-auto mt-4 text-white/55 hover:text-white/60 text-sm underline underline-offset-4 transition-colors"
             >
               Generate another Kundali
             </button>

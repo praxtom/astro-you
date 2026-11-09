@@ -133,7 +133,7 @@ const SadhanaPathGenerator: React.FC = () => {
             {loading && (
                 <div className="flex flex-col items-center py-8 gap-3">
                     <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-violet-500" />
-                    <p className="text-[10px] text-violet-400 uppercase tracking-widest animate-pulse">Consulting the Oracle...</p>
+                    <p className="text-[0.6875rem] text-violet-400 uppercase tracking-widest animate-pulse">Consulting the Oracle...</p>
                 </div>
             )}
 
@@ -148,15 +148,15 @@ const SadhanaPathGenerator: React.FC = () => {
                             className="bg-violet-900/10 border border-violet-500/20 rounded-lg p-3"
                         >
                             <div className="flex items-center justify-between mb-1">
-                                <span className="text-[10px] font-bold text-violet-400 uppercase tracking-widest">Day {step.day}</span>
-                                <span className="text-[10px] text-white/30 italic">{step.intention}</span>
+                                <span className="text-[0.6875rem] font-bold text-violet-400 uppercase tracking-widest">Day {step.day}</span>
+                                <span className="text-[0.6875rem] text-white/50 italic">{step.intention}</span>
                             </div>
                             <p className="text-sm text-white/90">{step.practice}</p>
                         </motion.div>
                     ))}
                     <button
                         onClick={() => setPath(null)}
-                        className="w-full py-2 text-[10px] text-violet-400/40 uppercase tracking-widest hover:text-violet-400 transition-colors"
+                        className="w-full py-2 text-[0.6875rem] text-violet-400/40 uppercase tracking-widest hover:text-violet-400 transition-colors"
                     >
                         Reset Path
                     </button>
@@ -190,7 +190,7 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
 
     if (!atmanState) {
         return (
-            <div className="text-center text-white/40 py-8">
+            <div className="text-center text-white/55 py-8">
                 <Brain size={32} className="mx-auto mb-3 opacity-50" />
                 <p className="text-sm">The Guru is still learning about you...</p>
                 <p className="text-xs mt-1">Chat more to build your Karmic profile.</p>
@@ -301,7 +301,7 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                         </p>
                         {journalInsights.map((insight) => (
                             <div key={insight.id} className="rounded-xl border border-white/10 bg-black/20 p-3">
-                                <p className="text-[10px] uppercase tracking-widest text-white/55 mb-2">
+                                <p className="text-[0.6875rem] uppercase tracking-widest text-white/55 mb-2">
                                     {insight.type === 'pattern' ? 'Pattern' : 'Life Event'}
                                 </p>
                                 <input
@@ -335,7 +335,7 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                 <div className="flex justify-between items-center mb-6">
                     <div>
                         <h4 className="text-white font-medium text-sm">Spiritual Evolution</h4>
-                        <p className="text-[10px] text-white/40 uppercase tracking-widest mt-0.5">Your Current Soul Map</p>
+                        <p className="text-[0.6875rem] text-white/55 uppercase tracking-widest mt-0.5">Your Current Soul Map</p>
                     </div>
                 </div>
                 <GrowthRadar atmanData={atmanState} size={240} />
@@ -345,8 +345,8 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
             {atmanState.emotionalHistory && atmanState.emotionalHistory.length > 0 && (
                 <div className="bg-white/5 rounded-xl border border-white/10 p-4">
                     <div className="flex justify-between items-center mb-3">
-                        <span className="text-[10px] text-white/40 uppercase tracking-widest font-medium">Emotional Pulse</span>
-                        <span className="text-[10px] text-white/20 uppercase tracking-tighter">Last 7 Sessions</span>
+                        <span className="text-[0.6875rem] text-white/55 uppercase tracking-widest font-medium">Emotional Pulse</span>
+                        <span className="text-[0.6875rem] text-white/20 uppercase tracking-tighter">Last 7 Sessions</span>
                     </div>
                     <div className="flex items-center gap-2">
                         {atmanState.emotionalHistory.slice(-7).map((entry, idx) => {
@@ -380,13 +380,13 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                     <div className="flex items-center gap-2">
                         <Sparkles size={16} className="text-violet-400" />
                         <span className="text-white font-medium">Known Patterns</span>
-                        <span className="text-white/40 text-xs">
+                        <span className="text-white/55 text-xs">
                             ({atmanState.knownPatterns?.length || 0})
                         </span>
                     </div>
                     {expandedSection === 'patterns' ? 
-                        <ChevronUp size={16} className="text-white/40" /> : 
-                        <ChevronDown size={16} className="text-white/40" />
+                        <ChevronUp size={16} className="text-white/55" /> : 
+                        <ChevronDown size={16} className="text-white/55" />
                     }
                 </button>
                 
@@ -420,11 +420,11 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                                             >
                                                 <div className="flex items-center justify-between mb-2">
                                                     <div className="flex items-center gap-2">
-                                                        <span className={`text-sm ${isArchived ? 'text-white/35' : isVerified ? 'text-emerald-300' : 'text-white/80'}`}>
+                                                        <span className={`text-sm ${isArchived ? 'text-white/50' : isVerified ? 'text-emerald-300' : 'text-white/80'}`}>
                                                             {patternText}
                                                         </span>
                                                         {isArchived && (
-                                                            <span className="text-[10px] uppercase text-white/30">
+                                                            <span className="text-[0.6875rem] uppercase text-white/50">
                                                                 Archived
                                                             </span>
                                                         )}
@@ -457,7 +457,7 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                                                         {isWeighted && isVerified && (
                                                             <button
                                                                 onClick={() => handleDismissPattern(patternObj.id)}
-                                                                className="p-1 rounded hover:bg-white/5 text-white/20 hover:text-white/40"
+                                                                className="p-1 rounded hover:bg-white/5 text-white/20 hover:text-white/55"
                                                                 title="Remove pattern"
                                                             >
                                                                 <X size={12} />
@@ -476,7 +476,7 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                                                                 className={`h-full ${isVerified ? 'bg-emerald-500/40' : 'bg-violet-500/40'}`}
                                                             />
                                                         </div>
-                                                        <span className="text-[10px] text-white/20 uppercase tracking-tighter flex items-center gap-1">
+                                                        <span className="text-[0.6875rem] text-white/20 uppercase tracking-tighter flex items-center gap-1">
                                                             <TrendingUp size={8} />
                                                             Strength
                                                         </span>
@@ -486,7 +486,7 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                                         );
                                     })
                                 ) : (
-                                    <p className="text-white/40 text-sm text-center py-4">
+                                    <p className="text-white/55 text-sm text-center py-4">
                                         No patterns discovered yet. Keep chatting with the Guru.
                                     </p>
                                 )}
@@ -505,13 +505,13 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                     <div className="flex items-center gap-2">
                         <Calendar size={16} className="text-blue-400" />
                         <span className="text-white font-medium">Life Events</span>
-                        <span className="text-white/40 text-xs">
+                        <span className="text-white/55 text-xs">
                             ({atmanState.activeEvents?.length || 0})
                         </span>
                     </div>
                     {expandedSection === 'events' ? 
-                        <ChevronUp size={16} className="text-white/40" /> : 
-                        <ChevronDown size={16} className="text-white/40" />
+                        <ChevronUp size={16} className="text-white/55" /> : 
+                        <ChevronDown size={16} className="text-white/55" />
                     }
                 </button>
                 
@@ -544,7 +544,7 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                                                 <div className="flex items-center gap-2">
                                                     <span className="font-medium">{event.title}</span>
                                                     {showAnniversaryBadge && (
-                                                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30 font-bold uppercase tracking-wider">
+                                                        <span className="text-[0.6875rem] px-1.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30 font-bold uppercase tracking-wider">
                                                             Reflect: {daysSince}d
                                                         </span>
                                                     )}
@@ -576,7 +576,7 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                                         </div>
                                     )})
                                 ) : (
-                                    <p className="text-white/40 text-sm text-center py-4">
+                                    <p className="text-white/55 text-sm text-center py-4">
                                         No active life events tracked.
                                     </p>
                                 )}
@@ -615,7 +615,7 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                                 className="border-t border-emerald-500/10"
                             >
                                 <div className="p-4 space-y-3">
-                                    <p className="text-[10px] text-emerald-400/60 uppercase tracking-widest mb-1">Evidences of your transformation</p>
+                                    <p className="text-[0.6875rem] text-emerald-400/60 uppercase tracking-widest mb-1">Evidences of your transformation</p>
                                     {atmanState.contradictedPatterns.map((contradiction, idx) => (
                                         <div 
                                             key={idx}
@@ -672,13 +672,13 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
 	                    <div className="flex items-center gap-2">
 	                        <History size={16} className="text-gold" />
 	                        <span className="text-white font-medium">Recent Nudges</span>
-	                        <span className="text-white/40 text-xs">
+	                        <span className="text-white/55 text-xs">
 	                            ({atmanState.nudgeHistory?.length || 0})
 	                        </span>
 	                    </div>
 	                    {expandedSection === 'nudges' ?
-	                        <ChevronUp size={16} className="text-white/40" /> :
-	                        <ChevronDown size={16} className="text-white/40" />
+	                        <ChevronUp size={16} className="text-white/55" /> :
+	                        <ChevronDown size={16} className="text-white/55" />
 	                    }
 	                </button>
 
@@ -699,7 +699,7 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
 	                                        >
 	                                            <div className="flex items-center justify-between gap-3 mb-1">
 	                                                <p className="text-sm text-white/85 font-medium">{nudge.title}</p>
-	                                                <span className="text-[10px] text-white/30">
+	                                                <span className="text-[0.6875rem] text-white/50">
 	                                                    {new Date(nudge.date).toLocaleDateString()}
 	                                                </span>
 	                                            </div>
@@ -707,7 +707,7 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
 	                                        </div>
 	                                    ))
 	                                ) : (
-	                                    <p className="text-white/40 text-sm text-center py-4">
+	                                    <p className="text-white/55 text-sm text-center py-4">
 	                                        No proactive nudges yet.
 	                                    </p>
 	                                )}
@@ -726,13 +726,13 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                     <div className="flex items-center gap-2">
                         <Users size={16} className="text-pink-400" />
                         <span className="text-white font-medium">The Sangha (Inner Circle)</span>
-                        <span className="text-white/40 text-xs">
+                        <span className="text-white/55 text-xs">
                             ({atmanState.keyRelationships?.length || 0})
                         </span>
                     </div>
                     {expandedSection === 'relationships' ? 
-                        <ChevronUp size={16} className="text-white/40" /> : 
-                        <ChevronDown size={16} className="text-white/40" />
+                        <ChevronUp size={16} className="text-white/55" /> : 
+                        <ChevronDown size={16} className="text-white/55" />
                     }
                 </button>
                 
@@ -785,7 +785,7 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                                 className="border-t border-violet-500/10"
                             >
                                 <div className="p-4 space-y-3">
-                                    <p className="text-[10px] text-violet-400/60 uppercase tracking-widest mb-1">Connections across life domains</p>
+                                    <p className="text-[0.6875rem] text-violet-400/60 uppercase tracking-widest mb-1">Connections across life domains</p>
                                     {atmanState.karmicThreads.map((thread, idx) => (
                                         <div 
                                             key={`${idx}-${thread}`}
@@ -815,13 +815,13 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
             <div className="grid grid-cols-2 gap-3">
                 <div className="bg-white/5 rounded-xl border border-white/10 p-4 text-center">
                     <div className="text-2xl font-display text-gold">{atmanState.meditationStreak || 0}</div>
-                    <div className="text-xs text-white/40 uppercase tracking-wider">Day Streak</div>
+                    <div className="text-xs text-white/55 uppercase tracking-wider">Day Streak</div>
                 </div>
                 <div className="bg-white/5 rounded-xl border border-white/10 p-4 text-center">
                     <div className="text-2xl font-display text-violet-400 capitalize">
                         {atmanState.preferredPractice || 'Unknown'}
                     </div>
-                    <div className="text-xs text-white/40 uppercase tracking-wider">Preferred Practice</div>
+                    <div className="text-xs text-white/55 uppercase tracking-wider">Preferred Practice</div>
                 </div>
             </div>
         </div>

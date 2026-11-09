@@ -11,7 +11,7 @@ interface YogaCardProps {
 const strengthColor: Record<string, string> = {
     strong: 'text-emerald-300/80',
     moderate: 'text-amber-300/80',
-    weak: 'text-white/40',
+    weak: 'text-white/55',
 };
 
 function StrengthBadge({ strength }: { strength?: Yoga['strength'] }) {
@@ -55,7 +55,7 @@ export const YogaCard: React.FC<YogaCardProps> = ({ birthData }) => {
                                     <span className="font-display text-[1.6rem] leading-snug text-white/92">{yoga.name}</span>
                                     <StrengthBadge strength={yoga.strength} />
                                     {(yoga.category || yoga.type) && (
-                                        <span className="text-[0.85rem] text-white/35">{yoga.category || yoga.type}</span>
+                                        <span className="text-[0.85rem] text-white/50">{yoga.category || yoga.type}</span>
                                     )}
                                     {yoga.isAuspicious && (
                                         <span className="text-emerald-400 text-xs">&#x2726;</span>
@@ -65,7 +65,7 @@ export const YogaCard: React.FC<YogaCardProps> = ({ birthData }) => {
                                     {yoga.description}
                                 </p>
                                 {yoga.planets?.length > 0 && (
-                                    <p className="text-white/35 text-[0.85rem] mt-1">
+                                    <p className="text-white/50 text-[0.85rem] mt-1">
                                         {yoga.planets.join(' \u00b7 ')}
                                     </p>
                                 )}

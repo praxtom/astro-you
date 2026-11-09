@@ -36,6 +36,51 @@ const RELATION_DYNAMICS: KeyRelationship["dynamic"][] = ["supportive", "conflict
 const ROUTINE_TYPES: UserRoutine["type"][] = ["morning", "evening", "habit"];
 const ROUTINE_FREQUENCIES: UserRoutine["frequency"][] = ["daily", "weekly"];
 
+/**
+ * Write-time caps for the append-only Atman arrays, so the user document can
+ * never creep toward Firestore's 1 MB limit. They match the server brain's
+ * caps (shared/atman-brain.ts) so client and server trim the same way.
+ */
+export const ATMAN_ARRAY_CAPS = {
+    knownPatterns: 200,
+    lifeEvents: 150,
+    contradictedPatterns: 50,
+    karmicThreads: 30,
+    emotionalHistory: 30,
+    savedAdvice: 20,
+    nudgeHistory: 80,
+} as const;
+
+/**
+ * Append `incoming` to `existing`, skipping entries whose key is already
+ * present, and keep only the newest `cap` entries. Pure, so client writes can
+ * cap arrays that would otherwise grow without bound through arrayUnion.
+ */
+export function appendCapped<T>(
+    existing: readonly T[] | undefined,
+    incoming: readonly T[],
+    cap: number,
+    keyOf: (item: T) => string = defaultCapKey,
+): T[] {
+    const merged: T[] = Array.isArray(existing) ? [...existing] : [];
+    const seen = new Set(merged.map(keyOf));
+    for (const item of incoming) {
+        const key = keyOf(item);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        merged.push(item);
+    }
+    return cap > 0 ? merged.slice(-cap) : [];
+}
+
+function defaultCapKey(item: unknown): string {
+    if (typeof item === "string") return item.trim().toLowerCase();
+    if (item && typeof item === "object" && typeof (item as { id?: unknown }).id === "string") {
+        return `id:${(item as { id: string }).id}`;
+    }
+    return JSON.stringify(item);
+}
+
 export function createInitialAtmanData(now = new Date()): AtmanData {
     return {
         schemaVersion: ATMAN_SCHEMA_VERSION,
@@ -130,6 +175,26 @@ export function normalizeAtmanData(atman?: Partial<AtmanData>, now = new Date())
             nudgeHistory,
         },
     };
+}
+
+/**
+ * Field-level (`atman.<key>`) updates that migrate an old Atman record to the
+ * current schema. Writing key by key — never `{ atman: ... }` wholesale —
+ * means a migration can't drop fields this code version doesn't know about,
+ * and can't erase anything written outside the keys it touches.
+ */
+export function buildAtmanMigrationUpdates(
+    existing: Partial<AtmanData>,
+    now = new Date(),
+): Record<string, unknown> {
+    const normalized = normalizeAtmanData(existing, now);
+    if (!normalized) return {};
+    const updates: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(normalized)) {
+        if (value === undefined) continue;
+        updates[`atman.${key}`] = value;
+    }
+    return updates;
 }
 
 export function validateAtmanData(atman: Partial<AtmanData>): string[] {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { PageShell } from "../components/layout/PageShell";
 import { AskJyotishBridge } from "../components/layout/AskJyotishBridge";
@@ -24,11 +24,31 @@ import { useRequestBirthData } from "../hooks/useRequestBirthData";
 import { useAuth } from "../lib/useAuth";
 import AuthModal from "../components/AuthModal";
 import { REPORT_PRICING, type ReportType } from "../lib/report-pricing";
+import {
+  createReportRequestId,
+  postPdfReport,
+  REPORT_IN_PROGRESS_MESSAGE,
+} from "../lib/report-products";
 import { CardSkeleton, FullPageSkeleton } from "../components/ui/Skeleton";
 import { StatusNotice } from "../components/ui/StatusNotice";
 import type { ForecastData } from "../types";
 import { postJson } from "../lib/apiFetch";
 import { viewerDateKey } from "../lib/viewer-timezone";
+import {
+  FEATURE_CREDIT_COST,
+  FORECAST_PERIOD_FEATURE,
+  chargeConfirmationKey,
+  chargeWindowKey,
+  creditLabel,
+  hasConfirmedCharge,
+  rememberChargeConfirmation,
+} from "../lib/feature-pricing";
+
+const PERIOD_WINDOW_NAME = {
+  weekly: "this week",
+  monthly: "this month",
+  yearly: "this year",
+} as const;
 
 const getAreaIcon = (area: string) => {
   switch (area.toLowerCase()) {
@@ -97,17 +117,45 @@ const DailyForecast: React.FC = () => {
     "daily" | "weekly" | "monthly" | "yearly"
   >("daily");
   const [downloading, setDownloading] = useState(false);
+  // One requestId per PDF purchase, kept until the server answers so a retry
+  // after a network drop can never charge twice (same as Reports.tsx).
+  const pendingPdfRequestIds = useRef<Partial<Record<ReportType, string>>>({});
   const [feedbackSignal, setFeedbackSignal] = useState<
     "accurate" | "partly" | "missed" | null
   >(null);
   const [feedbackNotes, setFeedbackNotes] = useState("");
   const [feedbackStatus, setFeedbackStatus] = useState("");
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  // Bumped when the user confirms a charge, so the session flag is re-read.
+  const [, setConfirmNonce] = useState(0);
+
+  // Weekly/monthly/yearly spend credits once per chart per period window.
+  // Show the price, and ask once per window per session before the first
+  // request that would spend it.
+  const periodFeature = FORECAST_PERIOD_FEATURE[period];
+  const periodCost = periodFeature ? FEATURE_CREDIT_COST[periodFeature] : 0;
+  const chargeKey =
+    user && periodFeature && birthData
+      ? chargeConfirmationKey(
+          user.uid,
+          periodFeature,
+          chargeWindowKey(periodFeature, viewerDateKey()),
+          birthData,
+        )
+      : null;
+  // Read every render (a cheap sessionStorage lookup); confirming bumps
+  // confirmNonce, which re-renders and so re-reads it.
+  const needsChargeConfirm = chargeKey ? !hasConfirmedCharge(chargeKey) : false;
+  const confirmCharge = () => {
+    if (!chargeKey) return;
+    rememberChargeConfirmation(chargeKey);
+    setConfirmNonce((n) => n + 1);
+  };
 
   useEffect(() => {
     if (profileLoading) return;
 
-    if (!birthData) {
+    if (!birthData || needsChargeConfirm) {
       setForecast(null);
       setError(null);
       setErrorKind(null);
@@ -184,7 +232,7 @@ const DailyForecast: React.FC = () => {
 
     fetchForecast();
     return () => controller.abort();
-  }, [birthData, profileLoading, period, retryNonce, user]);
+  }, [birthData, profileLoading, period, retryNonce, user, needsChargeConfirm]);
 
   // The forecast PDF goes through the priced reports flow (/api/pdf-report),
   // which charges credits and saves the report to the user's library.
@@ -221,26 +269,34 @@ const DailyForecast: React.FC = () => {
     setDownloading(true);
     try {
       const idToken = await user.getIdToken();
-      const response = await fetch("/api/pdf-report", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          idToken,
-          birthData: {
-            name: birthData.name || profile?.name || "Seeker",
-            dob: birthData.dob,
-            tob: birthData.tob,
-            pob: birthData.pob || profile?.pob || "",
-            lat: birthData.coordinates?.lat ?? profile?.coordinates?.lat,
-            lng: birthData.coordinates?.lng ?? profile?.coordinates?.lng,
-          },
-          reportType: pdfReportType,
-          date: viewerDateKey(),
-          localDate: viewerDateKey(),
-        }),
+      const requestId =
+        pendingPdfRequestIds.current[pdfReportType] ?? createReportRequestId();
+      pendingPdfRequestIds.current[pdfReportType] = requestId;
+      const response = await postPdfReport({
+        idToken,
+        requestId,
+        birthData: {
+          name: birthData.name || profile?.name || "Seeker",
+          dob: birthData.dob,
+          tob: birthData.tob,
+          pob: birthData.pob || profile?.pob || "",
+          lat: birthData.coordinates?.lat ?? profile?.coordinates?.lat,
+          lng: birthData.coordinates?.lng ?? profile?.coordinates?.lng,
+        },
+        reportType: pdfReportType,
+        date: viewerDateKey(),
+        localDate: viewerDateKey(),
       });
+      // The server answered: this purchase attempt is settled either way.
+      delete pendingPdfRequestIds.current[pdfReportType];
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
+        if (
+          response.status === 409 &&
+          payload?.code === "report_in_progress"
+        ) {
+          throw new Error(payload.error || REPORT_IN_PROGRESS_MESSAGE);
+        }
         if (response.status === 402) {
           throw new Error(
             payload?.error ||
@@ -278,7 +334,8 @@ const DailyForecast: React.FC = () => {
     signal: "accurate" | "partly" | "missed",
   ) => {
     if (!user) {
-      navigate("/onboarding", { replace: true });
+      // Sign in on this page (its own AuthModal), not a detour to onboarding.
+      setShowAuthModal(true);
       return;
     }
     setFeedbackSignal(signal);
@@ -377,22 +434,34 @@ const DailyForecast: React.FC = () => {
             aria-label="Forecast period"
             className="grid grid-cols-4 gap-1.5 sm:flex sm:gap-2"
           >
-          {(["daily", "weekly", "monthly", "yearly"] as const).map((p) => (
-            <button
-              key={p}
-              type="button"
-              role="tab"
-              aria-selected={period === p}
-              onClick={() => setPeriod(p)}
-              className={`min-h-11 min-w-0 px-1.5 sm:px-4 py-1.5 rounded-xl border text-xs sm:text-sm font-bold uppercase tracking-wide sm:tracking-widest transition-all ${
-                period === p
-                  ? "bg-gold/10 border-gold/50 text-gold"
-                  : "bg-white/5 border-white/10 text-white/60 hover:border-white/30"
-              }`}
-            >
-              {p.charAt(0).toUpperCase() + p.slice(1)}
-            </button>
-          ))}
+          {(["daily", "weekly", "monthly", "yearly"] as const).map((p) => {
+            const feature = FORECAST_PERIOD_FEATURE[p];
+            const cost = feature ? FEATURE_CREDIT_COST[feature] : 0;
+            const name = p.charAt(0).toUpperCase() + p.slice(1);
+            return (
+              <button
+                key={p}
+                type="button"
+                role="tab"
+                aria-selected={period === p}
+                aria-label={cost ? `${name}, ${creditLabel(cost)}` : `${name}, free`}
+                onClick={() => setPeriod(p)}
+                className={`min-h-11 min-w-0 px-1.5 sm:px-4 py-1.5 rounded-xl border text-xs sm:text-sm font-bold uppercase tracking-wide sm:tracking-widest transition-all ${
+                  period === p
+                    ? "bg-gold/10 border-gold/50 text-gold"
+                    : "bg-white/5 border-white/10 text-white/60 hover:border-white/30"
+                }`}
+              >
+                <span className="block">{name}</span>
+                <span
+                  className="block text-[0.68rem] font-semibold normal-case tracking-normal opacity-70"
+                  aria-hidden="true"
+                >
+                  {cost ? creditLabel(cost) : "Free"}
+                </span>
+              </button>
+            );
+          })}
           </div>
           {forecast && !loading && (
             <div className="flex gap-2 sm:ml-auto">
@@ -475,7 +544,52 @@ const DailyForecast: React.FC = () => {
           </div>
         )}
 
-        {loading ? (
+        {needsChargeConfirm && period !== "daily" ? (
+          <div
+            role="region"
+            aria-label={`Unlock your ${period} forecast`}
+            className="rounded-2xl border border-gold/20 bg-gold/5 p-5 md:p-6"
+          >
+            <p className="text-xs font-bold uppercase tracking-widest text-gold/80">
+              {period.charAt(0).toUpperCase() + period.slice(1)} ·{" "}
+              {creditLabel(periodCost)}
+            </p>
+            <p className="mt-2 text-base leading-relaxed text-white/80">
+              Your {period} forecast is read from your chart and costs{" "}
+              {creditLabel(periodCost)} for {PERIOD_WINDOW_NAME[period]}.
+              Opening it again {PERIOD_WINDOW_NAME[period]} is free.
+            </p>
+            <p className="mt-1 text-sm text-white/55">
+              You have {creditLabel(credits)}.
+            </p>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              {credits >= periodCost ? (
+                <button
+                  type="button"
+                  onClick={confirmCharge}
+                  className="min-h-11 rounded-xl bg-gold px-5 py-2.5 text-sm font-bold text-black transition hover:bg-gold/90"
+                >
+                  Open for {creditLabel(periodCost)}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => navigate("/wallet")}
+                  className="min-h-11 rounded-xl bg-gold px-5 py-2.5 text-sm font-bold text-black transition hover:bg-gold/90"
+                >
+                  Top up credits
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setPeriod("daily")}
+                className="min-h-11 rounded-xl border border-white/15 px-5 py-2.5 text-sm font-semibold text-white/75 transition hover:border-white/30 hover:text-white"
+              >
+                Back to daily (free)
+              </button>
+            </div>
+          </div>
+        ) : loading ? (
           <div aria-busy="true" aria-live="polite" className="space-y-4">
             <span className="sr-only">Loading your {period} forecast</span>
             <CardSkeleton />
@@ -961,7 +1075,7 @@ const DailyForecast: React.FC = () => {
             />
 
             <div className="text-center py-8 border-t border-white/5">
-              <p className="text-white/20 text-[10px] uppercase tracking-[0.3em] font-light font-sans max-w-md mx-auto leading-relaxed">
+              <p className="text-white/20 text-[0.6875rem] uppercase tracking-[0.3em] font-light font-sans max-w-md mx-auto leading-relaxed">
                 As above, so below. Infinite wisdom is yours.
               </p>
             </div>

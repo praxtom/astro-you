@@ -62,10 +62,18 @@ export function normalizePlatformLanguage(
 
 export function getPlatformLanguage(value: unknown): PlatformLanguage {
   const code = normalizePlatformLanguage(value);
-  return PLATFORM_LANGUAGES.find((language) => language.code === code) || PLATFORM_LANGUAGES[0];
+  return (
+    PLATFORM_LANGUAGES.find((language) => language.code === code) ||
+    PLATFORM_LANGUAGES[0]
+  );
 }
 
+/**
+ * Chat language rule: mirror the language AND script of the user's latest
+ * message (Hinglish → Hinglish, Devanagari Hindi → Devanagari Hindi); the
+ * profile language is only the fallback when the message gives no signal.
+ */
 export function buildResponseLanguageInstruction(value: unknown): string {
   const language = getPlatformLanguage(value);
-  return `Preferred response language: ${language.label}. ${language.responseInstruction}`;
+  return `Reply in the same language and script the user writes their latest message in. Hinglish (Hindi typed in Roman letters) gets a Hinglish reply in Roman letters; Hindi in Devanagari gets Devanagari Hindi; English gets English; the same for any other language. If they mix Hindi and English, mix the same way. Only when the message gives no clear signal (e.g. "ok", an emoji, a name) use their profile language, ${language.label}: ${language.responseInstruction}`;
 }

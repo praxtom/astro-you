@@ -1,6 +1,15 @@
 import { Config, Context } from "@netlify/functions";
 import { auth, db, FieldValue } from "./shared/firebase-admin";
 import { buildRemedyRequestRecord, getRemedyProduct } from "./shared/remedy-products";
+import { AuthError, enforceRateLimit } from "./shared/require-auth";
+import {
+  isDuplicateSubmission,
+  releaseSubmission,
+  submissionFingerprint,
+} from "./shared/rate-limit.js";
+
+const HOUR_MS = 60 * 60 * 1000;
+const DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
@@ -17,7 +26,35 @@ export default async (req: Request, _context: Context) => {
     }
 
     const decoded = await auth.verifyIdToken(body.idToken);
+    await enforceRateLimit({
+      scope: "remedy_request",
+      key: decoded.uid,
+      limit: 10,
+      windowMs: HOUR_MS,
+    });
     const product = getRemedyProduct(body.productId);
+    const notes = typeof body.notes === "string" ? body.notes : "";
+    // Reject the identical request re-sent within 2 minutes.
+    const dedupeKey = {
+      scope: "remedy_request",
+      key: decoded.uid,
+      fingerprint: submissionFingerprint({ productId: product.id, notes }),
+    };
+    if (
+      await isDuplicateSubmission({
+        ...dedupeKey,
+        windowMs: DUPLICATE_WINDOW_MS,
+      })
+    ) {
+      return json(
+        {
+          error:
+            "We already received this exact request a moment ago. No need to send it again.",
+          code: "duplicate_submission",
+        },
+        409,
+      );
+    }
     const createdAt = FieldValue.serverTimestamp();
     const requestRef = db
       .collection("users")
@@ -28,7 +65,7 @@ export default async (req: Request, _context: Context) => {
     const record = buildRemedyRequestRecord({
       uid: decoded.uid,
       productId: product.id,
-      notes: typeof body.notes === "string" ? body.notes : "",
+      notes,
       createdAt,
     });
     const requestRecord = {
@@ -40,7 +77,10 @@ export default async (req: Request, _context: Context) => {
     const batch = db.batch();
     batch.set(requestRef, requestRecord);
     batch.set(db.collection("remedyRequests").doc(requestRef.id), requestRecord);
-    await batch.commit();
+    await batch.commit().catch(async (commitError) => {
+      await releaseSubmission(dedupeKey);
+      throw commitError;
+    });
 
     return json(
       {
@@ -52,6 +92,9 @@ export default async (req: Request, _context: Context) => {
       200,
     );
   } catch (error: any) {
+    if (error instanceof AuthError) {
+      return json({ error: error.message }, error.status);
+    }
     console.error("[Remedy Request] Error:", error);
     const message =
       error?.message && String(error.message).startsWith("Unsupported remedy product")

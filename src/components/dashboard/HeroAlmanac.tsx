@@ -2,6 +2,8 @@ import React, { useMemo } from "react";
 import { Flame, Share2 } from "lucide-react";
 import type { PanchangData } from "../../hooks/usePanchang";
 import type { LunarPhaseData } from "../../hooks/useLunarPhase";
+import { GlossaryTerm } from "../ui/GlossaryTerm";
+import type { GlossaryKey } from "../../lib/glossary";
 
 interface HeroAlmanacProps {
   name: string;
@@ -16,6 +18,8 @@ interface HeroAlmanacProps {
   /** The day's reading, shown once, under the greeting. */
   reading?: string;
   readingLoading?: boolean;
+  /** Where the panchang is computed, e.g. "Pune" or "New Delhi (default)". */
+  placeLabel?: string;
 }
 
 /** Render-safe string: the astrology API sometimes returns objects where strings are expected. */
@@ -181,6 +185,7 @@ export const HeroAlmanac: React.FC<HeroAlmanacProps> = ({
   onShareSign,
   reading,
   readingLoading,
+  placeLabel,
 }) => {
   const today = useMemo(() => {
     const now = new Date();
@@ -197,6 +202,7 @@ export const HeroAlmanac: React.FC<HeroAlmanacProps> = ({
 
   const bandCells = useMemo((): Array<{
     label: string;
+    glossary?: GlossaryKey;
     value?: string;
     sub?: string;
     caution?: boolean;
@@ -204,16 +210,18 @@ export const HeroAlmanac: React.FC<HeroAlmanacProps> = ({
     return [
       {
         label: "Tithi",
+        glossary: "tithi",
         value: asText(panchang?.tithi),
         sub: asText(panchang?.tithiEnd) && `till ${panchang?.tithiEnd}`,
       },
       {
         label: "Nakshatra",
+        glossary: "nakshatra",
         value: asText(panchang?.nakshatra),
         sub: asText(panchang?.nakshatraEnd) && `till ${panchang?.nakshatraEnd}`,
       },
-      { label: "Yoga", value: asText(panchang?.yoga) },
-      { label: "Karana", value: asText(panchang?.karana) },
+      { label: "Yoga", glossary: "yoga", value: asText(panchang?.yoga) },
+      { label: "Karana", glossary: "karana", value: asText(panchang?.karana) },
       {
         label: "Moon",
         value: lunar
@@ -229,7 +237,7 @@ export const HeroAlmanac: React.FC<HeroAlmanacProps> = ({
       {/* Date rule — the greeting below carries the heading weight. */}
       <div className="flex items-baseline gap-4 animate-reveal-progressive">
         <span className="hidden sm:block flex-1 h-px bg-linear-to-r from-gold/25 to-transparent" />
-        <p className="ml-auto text-white/55 text-[0.65rem] uppercase tracking-[0.25em]">
+        <p className="ml-auto text-white/55 text-[0.6875rem] uppercase tracking-[0.25em]">
           {today.dateLine}
         </p>
       </div>
@@ -255,7 +263,7 @@ export const HeroAlmanac: React.FC<HeroAlmanacProps> = ({
           <div className="mt-5 flex flex-wrap items-center gap-3">
             {emotionalState && (
               <span
-                className={`text-[0.65rem] font-bold uppercase tracking-[0.2em] px-3 py-1.5 rounded-full border ${
+                className={`text-[0.6875rem] font-bold uppercase tracking-[0.2em] px-3 py-1.5 rounded-full border ${
                   EMOTION_STYLES[emotionalState] ??
                   "text-white/60 border-white/10 bg-white/5"
                 }`}
@@ -264,14 +272,14 @@ export const HeroAlmanac: React.FC<HeroAlmanacProps> = ({
               </span>
             )}
             {(meditationStreak ?? 0) > 0 && (
-              <span className="inline-flex items-center gap-1.5 text-[0.65rem] font-bold uppercase tracking-[0.2em] text-amber-300/90 px-3 py-1.5 rounded-full border border-amber-400/25 bg-amber-400/5">
+              <span className="inline-flex items-center gap-1.5 text-[0.6875rem] font-bold uppercase tracking-[0.2em] text-amber-300/90 px-3 py-1.5 rounded-full border border-amber-400/25 bg-amber-400/5">
                 <Flame size={11} />
                 {meditationStreak} day sādhanā
               </span>
             )}
             <button
               onClick={onShareSign}
-              className="inline-flex items-center gap-1.5 text-[0.65rem] font-bold uppercase tracking-[0.2em] text-white/40 px-3 py-1.5 rounded-full border border-white/10 hover:text-gold hover:border-gold/30 transition-colors"
+              className="inline-flex items-center gap-1.5 text-[0.6875rem] font-bold uppercase tracking-[0.2em] text-white/55 px-3 py-1.5 rounded-full border border-white/10 hover:text-gold hover:border-gold/30 transition-colors"
               title="Share your sign"
             >
               <Share2 size={11} />
@@ -287,7 +295,14 @@ export const HeroAlmanac: React.FC<HeroAlmanacProps> = ({
       </div>
 
       {/* Almanac band */}
-      <div className="mt-10 border-y border-white/8">
+      {placeLabel && (
+        <p className="mt-10 mb-2 text-[0.75rem] text-white/55">
+          Panchang for {placeLabel}
+        </p>
+      )}
+      <div
+        className={`${placeLabel ? "" : "mt-10 "}border-y border-white/8`}
+      >
         <div className="flex overflow-x-auto snap-x scrollbar-none [&::-webkit-scrollbar]:hidden divide-x divide-white/8">
           {bandCells.map((cell) => (
             <div
@@ -296,10 +311,14 @@ export const HeroAlmanac: React.FC<HeroAlmanacProps> = ({
             >
               <p
                 className={`text-[0.7rem] font-bold uppercase tracking-[0.25em] ${
-                  cell.caution ? "text-red-300/50" : "text-white/30"
+                  cell.caution ? "text-red-300/50" : "text-white/50"
                 }`}
               >
-                {cell.label}
+                {cell.glossary ? (
+                  <GlossaryTerm k={cell.glossary}>{cell.label}</GlossaryTerm>
+                ) : (
+                  cell.label
+                )}
               </p>
               <p
                 className={`mt-1.5 font-display text-[1.35rem] leading-tight ${
@@ -307,13 +326,13 @@ export const HeroAlmanac: React.FC<HeroAlmanacProps> = ({
                 }`}
               >
                 {cell.value ?? (
-                  <span className="text-white/40">
+                  <span className="text-white/55">
                     {panchangLoading ? "…" : "—"}
                   </span>
                 )}
               </p>
               {cell.sub && (
-                <p className="mt-0.5 text-xs text-white/45">{cell.sub}</p>
+                <p className="mt-0.5 text-xs text-white/55">{cell.sub}</p>
               )}
             </div>
           ))}

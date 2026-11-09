@@ -61,6 +61,9 @@ function getSigilScene(id: string): SigilScene {
  * drop a file there AND add the id to GUIDES_WITH_ARTWORK below. Otherwise
  * renders the guide's generative celestial sigil — a unique seeded
  * constellation in their signature color, with serif initials.
+ *
+ * The guides are AI. Any artwork added here must read as an illustration,
+ * never as a photograph of a real practitioner: no photoreal faces.
  */
 const GUIDES_WITH_ARTWORK = new Set<string>([
   // e.g. "guru-vidyanath" once /assets/guides/guru-vidyanath.png exists
@@ -88,7 +91,7 @@ export function PersonaPortrait({
       >
         <img
           src={`/assets/guides/${persona.id}.png`}
-          alt={persona.name}
+          alt={`${persona.name}, AI guide (illustration)`}
           className="w-full h-full object-cover"
           onError={() => setImageFailed(true)}
         />

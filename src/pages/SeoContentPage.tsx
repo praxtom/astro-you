@@ -58,7 +58,6 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
         name: SEO_PUBLISHER.name,
         url: SEO_PUBLISHER.url,
         logo: { "@type": "ImageObject", url: SEO_PUBLISHER.logo },
-        sameAs: SEO_PUBLISHER.sameAs,
       },
       keywords: page.keywords.join(", "),
     },
@@ -152,7 +151,7 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
           <p className="mt-4 max-w-2xl text-lg leading-relaxed text-white/60">
             {page.intro}
           </p>
-          <p className="mt-4 text-xs text-white/35">
+          <p className="mt-4 text-xs text-white/50">
             Reviewed {reviewed} by {SEO_AUTHOR.name} — {SEO_AUTHOR.role}
           </p>
         </div>
@@ -175,7 +174,7 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
 
         {page.facts && page.facts.length > 0 && (
           <section className="mt-10 border-t border-white/10 pt-8">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-white/35">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-white/50">
               Key facts
             </h2>
             <dl className="mt-4 divide-y divide-white/[0.07]">
@@ -184,13 +183,13 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
                   key={fact.label}
                   className="flex items-baseline justify-between gap-6 py-3"
                 >
-                  <dt className="text-sm text-white/45">{fact.label}</dt>
+                  <dt className="text-sm text-white/55">{fact.label}</dt>
                   <dd className="text-right">
                     <span className="text-sm font-semibold text-white/85">
                       {fact.value}
                     </span>
                     {fact.source && (
-                      <span className="mt-0.5 block text-xs text-white/35">
+                      <span className="mt-0.5 block text-xs text-white/50">
                         {fact.source}
                       </span>
                     )}
@@ -203,7 +202,7 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
 
         {page.comparison && (
           <section className="mt-10 border-t border-white/10 pt-8">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-white/35">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-white/50">
               {page.comparison.caption}
             </h2>
             <div className="mt-4 overflow-x-auto">
@@ -247,7 +246,7 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
         )}
 
         <section className="mt-10 border-t border-white/10 pt-8">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-white/35">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-white/50">
             Common questions
           </h2>
           <div className="mt-4 grid gap-3">
@@ -269,7 +268,7 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
 
         {clusterPages.length > 0 && (
           <section className="mt-10 border-t border-white/10 pt-8">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-white/35">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-white/50">
               {clusterTitle}
             </h2>
             <div className="mt-4 flex flex-wrap gap-2">
@@ -314,7 +313,7 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
         </div>
 
         <section className="mt-12 border-t border-white/10 pt-8">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-white/35">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-white/50">
             Related guides
           </h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -327,7 +326,7 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
                 <span className="text-sm font-semibold text-white/80">
                   {related.heading}
                 </span>
-                <span className="mt-2 line-clamp-2 block text-xs leading-relaxed text-white/40">
+                <span className="mt-2 line-clamp-2 block text-xs leading-relaxed text-white/55">
                   {related.description}
                 </span>
               </Link>
@@ -335,7 +334,7 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
           </div>
         </section>
 
-        <section className="mt-12 border-t border-white/10 pt-8 text-xs leading-relaxed text-white/35">
+        <section className="mt-12 border-t border-white/10 pt-8 text-xs leading-relaxed text-white/50">
           <p>{SEO_AUTHOR.statement}</p>
           <p className="mt-2">
             Astrological guidance is offered for reflection and self-awareness.

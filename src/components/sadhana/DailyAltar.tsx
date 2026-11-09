@@ -165,7 +165,7 @@ export const DailyAltar: React.FC<DailyAltarProps> = ({
                                             onChange={(e) => setIntention(e.target.value)}
                                             onBlur={handleSaveIntention}
                                             placeholder="Today, I align with..."
-                                            className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-lg font-serif italic text-white/90 focus:outline-none focus:border-gold/30 focus:bg-white/10 transition-all resize-none min-h-[100px] placeholder:text-white/45"
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-lg font-serif italic text-white/90 focus:outline-none focus:border-gold/30 focus:bg-white/10 transition-all resize-none min-h-[100px] placeholder:text-white/50"
                                         />
                                         <div className="absolute bottom-3 right-3 text-white/20">
                                             <PenTool size={14} />
@@ -196,7 +196,7 @@ export const DailyAltar: React.FC<DailyAltarProps> = ({
                                             onBlur={handleSaveGratitude}
                                             disabled={activeTab === 'morning'}
                                             placeholder={activeTab === 'morning' ? "Unlock this in the evening..." : "I am grateful for..."}
-                                            className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-lg font-serif italic text-white/90 focus:outline-none focus:border-indigo-500/30 focus:bg-white/10 transition-all resize-none min-h-[100px] placeholder:text-white/45 disabled:cursor-not-allowed"
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-lg font-serif italic text-white/90 focus:outline-none focus:border-indigo-500/30 focus:bg-white/10 transition-all resize-none min-h-[100px] placeholder:text-white/50 disabled:cursor-not-allowed"
                                         />
                                     </div>
                                 </section>

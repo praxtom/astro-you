@@ -1,161 +1,78 @@
-import { useCallback, useState } from "react";
-import { useAuth } from "../lib/useAuth";
-import { loadRazorpayCheckout } from "../lib/razorpay-loader";
-import { getCreditPack } from "../lib/credit-packs";
-import { trackAcquisitionEvent } from "../lib/acquisition";
-import { useCurrency } from "./useCurrency";
-import { getPackAmount } from "../lib/credit-packs";
-import { toMinorUnits } from "../lib/currency";
-
-type RazorpayCheckoutResponse = {
-  razorpay_order_id: string;
-  razorpay_payment_id: string;
-  razorpay_signature: string;
-};
-
-type RazorpayConstructor = new (options: {
-  key: string;
-  amount: number;
-  currency: string;
-  name: string;
-  description: string;
-  order_id: string;
-  handler: (response: RazorpayCheckoutResponse) => Promise<void>;
-  prefill?: { name?: string; email?: string };
-  theme?: { color: string };
-  modal?: { ondismiss?: () => void };
-}) => { open: () => void };
-
-interface RazorpayOrderResponse {
-  id: string;
-  amount: number;
-  currency: string;
-}
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useAuth } from '../lib/useAuth';
+import { getCreditPack, getPackAmount } from '../lib/credit-packs';
+import { useCurrency } from './useCurrency';
+import {
+  isRazorpayHostedUrl,
+  safePaymentReturnPath,
+} from '../lib/payment-navigation';
 
 export function useCreditTopup() {
   const { user } = useAuth();
   const { currency } = useCurrency();
   const [isPaying, setIsPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const controller = useRef<AbortController | null>(null);
+  useEffect(() => () => controller.current?.abort(), []);
 
-  const buyCredits = useCallback(
-    async (minutes: number): Promise<boolean> => {
-      if (!user) {
-        setError("Please sign in before buying credits.");
-        return false;
-      }
-
+  const buyCredits = useCallback(async (minutes: number): Promise<boolean> => {
+    if (!user) {
+      setError('Please sign in before buying credits.');
+      return false;
+    }
+    if (controller.current) return false;
+    const request = new AbortController();
+    controller.current = request;
+    setIsPaying(true);
+    setError(null);
+    try {
       const pack = getCreditPack(minutes);
+      const response = await fetch('/api/pay/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: request.signal,
+        body: JSON.stringify({
+          idToken: await user.getIdToken(),
+          minutes: pack.minutes,
+          currency,
+          amount: getPackAmount(pack, currency),
+          checkoutMode: 'hosted',
+          returnPath: safePaymentReturnPath(
+            `${window.location.pathname}${window.location.search}`,
+          ),
+        }),
+      });
+      const checkout = await response.json();
+      if (!response.ok) {
+        throw new Error(checkout.error || 'Could not start payment.');
+      }
+      if (!isRazorpayHostedUrl(checkout.shortUrl) ||
+          typeof checkout.checkoutId !== 'string') {
+        throw new Error('Hosted checkout is unavailable. Please try again.');
+      }
       try {
-        await loadRazorpayCheckout();
+        localStorage.setItem(
+          `astroyou:pending-payment:${user.uid}`, checkout.checkoutId,
+        );
       } catch {
-        setError("Payment system is still loading.");
-        return false;
+        // Payment can proceed without optional browser recovery storage.
       }
-
-      const Razorpay = (window as Window & { Razorpay?: RazorpayConstructor })
-        .Razorpay;
-      if (!Razorpay || !import.meta.env.VITE_RAZORPAY_KEY_ID) {
-        setError("Payment setup is not available.");
-        return false;
+      const destination = checkout.status === 'paid'
+        ? `/payment/return?checkout=${encodeURIComponent(checkout.checkoutId)}`
+        : checkout.shortUrl;
+      window.location.assign(destination);
+      // Only the authenticated return page confirms completion after settlement.
+      return false;
+    } catch (err) {
+      if (!(err instanceof DOMException && err.name === 'AbortError')) {
+        setError(err instanceof Error ? err.message : 'Could not start payment.');
       }
-
-      setIsPaying(true);
-      setError(null);
-
-      try {
-        const idToken = await user.getIdToken();
-        const orderResponse = await fetch("/api/pay/create-order", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            idToken,
-            minutes: pack.minutes,
-            currency,
-            // Confirmed in the same currency the server will charge in.
-            amount: getPackAmount(pack, currency),
-          }),
-        });
-        const order = (await orderResponse
-          .json()
-          .catch(() => ({}))) as Partial<RazorpayOrderResponse> & {
-          error?: string;
-        };
-        if (!orderResponse.ok || !order.id) {
-          throw new Error(order.error || "Could not start payment.");
-        }
-        const orderId = order.id;
-
-        return await new Promise<boolean>((resolve) => {
-          const checkout = new Razorpay({
-            key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-            // Minor units, straight from the Razorpay order.
-            amount:
-              order.amount ||
-              toMinorUnits(getPackAmount(pack, currency), currency),
-            currency: order.currency || currency,
-            name: "AstroYou",
-            description: `${pack.label} for AstroYou`,
-            order_id: orderId,
-            prefill: {
-              name: user.displayName || "",
-              email: user.email || "",
-            },
-            theme: { color: "#ffcd6a" },
-            modal: {
-              ondismiss: () => {
-                setIsPaying(false);
-                resolve(false);
-              },
-            },
-            handler: async (response) => {
-              try {
-                const verifyResponse = await fetch("/api/pay/verify", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    ...response,
-                    idToken: await user.getIdToken(),
-                  }),
-                });
-                const verifyData = await verifyResponse
-                  .json()
-                  .catch(() => ({}));
-                if (!verifyResponse.ok || verifyData.status !== "success") {
-                  throw new Error(
-                    verifyData.error || "Payment verification failed.",
-                  );
-                }
-                trackAcquisitionEvent("credit_topup_completed", {
-                  amount: pack.amountInRupees,
-                  minutes: pack.minutes,
-                });
-                setIsPaying(false);
-                resolve(true);
-              } catch (err) {
-                const message =
-                  err instanceof Error
-                    ? err.message
-                    : "Payment verification failed.";
-                setError(message);
-                setIsPaying(false);
-                resolve(false);
-              }
-            },
-          });
-
-          checkout.open();
-        });
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Payment failed to initialize.";
-        setError(message);
-        setIsPaying(false);
-        return false;
-      }
-    },
-    [user, currency],
-  );
+      return false;
+    } finally {
+      controller.current = null;
+      if (!request.signal.aborted) setIsPaying(false);
+    }
+  }, [user, currency]);
 
   return { buyCredits, isPaying, error };
 }

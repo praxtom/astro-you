@@ -222,8 +222,9 @@ otps/{email}/
 - **Theme**: Dark cosmic (bg-[#030308], white text, gold accents)
 - **Gold**: `text-gold` (custom Tailwind color ~#E5B96A)
 - **Cards**: `bg-white/5 border border-white/10 rounded-[2rem]` or `glass` class
-- **Labels**: `text-white/40 text-xs uppercase tracking-widest font-bold`
+- **Labels**: `text-white/55 text-xs uppercase tracking-widest font-bold`
 - **Values**: `text-white/80`
+- **Legibility floor**: minimum text size 11px, minimum text opacity 50% on the dark background (4.5:1 contrast).
 - **Animations**: Framer Motion (`motion.div` with fade/slide)
 - **Icons**: Lucide React
 - **Fonts**: Inter (body), display font for headings

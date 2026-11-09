@@ -275,16 +275,17 @@ export default function Consult() {
             </h1>
           </div>
           <div className="lg:pb-2">
-            <p className="text-sm text-white/45 leading-relaxed max-w-md">
-              Every guide in the Circle already knows your birth chart, your
-              dasha timing, and what you've shared before — no queues, and no
-              premium per-minute meter running while you think. Choose the voice
+            <p className="text-sm text-white/55 leading-relaxed max-w-md">
+              Every guide in the Circle is an AI that reads your birth chart,
+              your dasha timing, and the key things you have shared. There is
+              no queue. Sessions are billed per minute on the clock from your
+              first message, with partial minutes rounded up. Choose the voice
               that fits the question.
             </p>
             {user && (
               <button
                 onClick={() => navigate("/pricing")}
-                className="mt-4 text-[0.65rem] uppercase tracking-[0.25em] text-white/35 hover:text-gold transition-colors"
+                className="mt-4 text-[0.6875rem] uppercase tracking-[0.25em] text-white/50 hover:text-gold transition-colors"
               >
                 {credits} credits · {tier} — top up
               </button>
@@ -301,7 +302,7 @@ export default function Consult() {
           {/* ── Attuned to you now ── */}
           {attuned.length > 0 && (
             <section className="order-1 lg:order-2 mt-8 lg:mt-10 animate-reveal-progressive">
-              <p className="text-[0.6rem] font-bold uppercase tracking-[0.35em] text-white/25 mb-4">
+              <p className="text-[0.6875rem] font-bold uppercase tracking-[0.35em] text-white/25 mb-4">
                 Attuned to you now
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -316,7 +317,7 @@ export default function Consult() {
                       <p className="font-display italic text-lg text-white/90 leading-tight">
                         {persona.name}
                       </p>
-                      <p className="text-xs text-white/40 mt-0.5">{reason}</p>
+                      <p className="text-xs text-white/55 mt-0.5">{reason}</p>
                     </div>
                     <ArrowUpRight
                       size={15}
@@ -332,7 +333,7 @@ export default function Consult() {
           <section className="order-2 lg:order-3 mt-10 border-y border-white/8 animate-reveal-progressive">
             <div className="flex flex-col lg:flex-row lg:items-center divide-y lg:divide-y-0 lg:divide-x divide-white/8">
               <label className="relative flex items-center gap-3 px-1 py-3 lg:flex-1">
-                <Search size={15} className="text-white/30 shrink-0 ml-1" />
+                <Search size={15} className="text-white/50 shrink-0 ml-1" />
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
@@ -343,7 +344,7 @@ export default function Consult() {
               <label className="relative flex items-center gap-2 px-1 lg:px-4 py-3">
                 <Globe
                   size={14}
-                  className="text-white/30 shrink-0 ml-1 lg:ml-0"
+                  className="text-white/50 shrink-0 ml-1 lg:ml-0"
                 />
                 <select
                   aria-label="Language"
@@ -367,10 +368,10 @@ export default function Consult() {
                   <button
                     key={specialty}
                     onClick={() => setFilter(specialty)}
-                    className={`inline-flex items-center min-h-11 rounded-full px-4 text-[0.65rem] font-bold uppercase tracking-[0.15em] whitespace-nowrap transition-all ${
+                    className={`inline-flex items-center min-h-11 rounded-full px-4 text-[0.6875rem] font-bold uppercase tracking-[0.15em] whitespace-nowrap transition-all ${
                       filter === specialty
                         ? "bg-gold text-black"
-                        : "text-white/35 hover:text-white"
+                        : "text-white/50 hover:text-white"
                     }`}
                   >
                     {specialty}
@@ -403,7 +404,7 @@ export default function Consult() {
                     setFilter("All");
                     setLanguageFilter("All languages");
                   }}
-                  className="mt-5 px-5 py-2.5 rounded-xl border border-gold/30 text-gold text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:bg-gold hover:text-black transition-colors"
+                  className="mt-5 px-5 py-2.5 rounded-xl border border-gold/30 text-gold text-[0.6875rem] font-bold uppercase tracking-[0.2em] hover:bg-gold hover:text-black transition-colors"
                 >
                   Clear filters
                 </button>
@@ -415,7 +416,7 @@ export default function Consult() {
         {/* ── Past sittings ── */}
         {history.length > 0 && (
           <section className="mt-14 animate-reveal-progressive">
-            <p className="text-[0.6rem] font-bold uppercase tracking-[0.35em] text-white/25 mb-4">
+            <p className="text-[0.6875rem] font-bold uppercase tracking-[0.35em] text-white/25 mb-4">
               Past sittings
             </p>
             <div className="border-t border-white/8">
@@ -449,7 +450,7 @@ export default function Consult() {
                     {persona && (
                       <button
                         onClick={() => beginSession(persona)}
-                        className="text-[0.65rem] font-bold uppercase tracking-[0.2em] text-white/30 hover:text-gold transition-colors"
+                        className="text-[0.6875rem] font-bold uppercase tracking-[0.2em] text-white/50 hover:text-gold transition-colors"
                       >
                         Sit again
                       </button>
@@ -495,7 +496,8 @@ export default function Consult() {
 
       {/* Billing terms: real information, so readable, not a decorative footer. */}
       <p className="container mx-auto max-w-6xl px-6 pb-10 text-sm text-white/55">
-        Guidance is billed by the minute and charged only when the sitting
+        Guidance is billed by the minute from your first message, with a
+        partial minute charged as a full one, and settled when the session
         closes.
       </p>
     </div>
@@ -535,18 +537,13 @@ function GuideCard({
           <h3 className="font-display italic text-2xl text-white/95 leading-tight">
             {persona.name}
           </h3>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2">
-            <p
-              className="text-[0.6rem] font-bold uppercase tracking-[0.25em]"
-              style={{ color: accent }}
-            >
-              {persona.title}
-            </p>
-            <span className="rounded-full border border-white/20 bg-white/8 px-2.5 py-1 text-[0.65rem] font-bold uppercase tracking-[0.15em] text-white/60">
-              AI guide
-            </span>
-          </div>
-          <p className="mt-2 text-[0.65rem] uppercase tracking-[0.15em] text-white/30">
+          <p
+            className="mt-1.5 text-[0.6875rem] font-bold uppercase tracking-[0.25em]"
+            style={{ color: accent }}
+          >
+            {persona.title}
+          </p>
+          <p className="mt-2 text-[0.6875rem] uppercase tracking-[0.15em] text-white/50">
             {persona.languages.join(" · ")}
           </p>
         </div>
@@ -565,17 +562,13 @@ function GuideCard({
       </p>
 
       <div className="mt-3 flex items-center gap-3 text-xs min-h-5">
-        <span className="inline-flex items-center gap-1.5 text-emerald-300/90">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          Available now
-        </span>
         {trustDisplay.hasApprovedReviews ? (
           <>
             <span className="inline-flex items-center gap-1 text-gold">
               <Star size={12} className="fill-current" />
               {trustDisplay.ratingLabel}
             </span>
-            <span className="text-white/35">{trustDisplay.reviewLabel}</span>
+            <span className="text-white/50">{trustDisplay.reviewLabel}</span>
           </>
         ) : (
           <span className="text-white/25 italic">New to the Circle</span>
@@ -585,14 +578,14 @@ function GuideCard({
       <div className="mt-auto pt-5 flex items-center gap-3">
         <button
           onClick={onBegin}
-          className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gold text-black text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors"
+          className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gold text-black text-[0.6875rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors"
         >
           <Sparkles size={13} />
           Begin the sitting
         </button>
         <button
           onClick={onDossier}
-          className="px-4 py-2.5 rounded-xl border border-white/10 text-white/45 text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:text-white hover:border-white/25 transition-colors"
+          className="px-4 py-2.5 rounded-xl border border-white/10 text-white/55 text-[0.6875rem] font-bold uppercase tracking-[0.2em] hover:text-white hover:border-white/25 transition-colors"
         >
           Dossier
         </button>
@@ -734,7 +727,7 @@ function TranscriptDrawer({
             >
               {persona?.name || item.personaName || "Consultation"}
             </p>
-            <p className="text-xs text-white/35 mt-0.5">
+            <p className="text-xs text-white/50 mt-0.5">
               {item.createdAt?.toDate?.()?.toLocaleDateString() || ""} ·{" "}
               {Math.ceil((item.duration || 0) / 60)} min · {item.cost || 0}{" "}
               credits
@@ -742,7 +735,7 @@ function TranscriptDrawer({
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg text-white/30 hover:text-gold transition-colors"
+            className="p-2 rounded-lg text-white/50 hover:text-gold transition-colors"
             aria-label="Close"
           >
             <X size={16} />
@@ -751,14 +744,14 @@ function TranscriptDrawer({
 
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           {transcript === null ? (
-            <div className="flex items-center justify-center gap-3 py-16 text-white/35">
+            <div className="flex items-center justify-center gap-3 py-16 text-white/50">
               <Loader2 size={15} className="animate-spin" />
               <span className="text-xs uppercase tracking-[0.25em]">
                 Opening the sitting…
               </span>
             </div>
           ) : transcript.length === 0 ? (
-            <p className="py-16 text-center font-display italic text-white/35">
+            <p className="py-16 text-center font-display italic text-white/50">
               No transcript was kept for this sitting.
             </p>
           ) : (
@@ -790,7 +783,7 @@ function TranscriptDrawer({
           <footer className="p-5 border-t border-white/5">
             <button
               onClick={() => onSitAgain(persona)}
-              className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gold text-black text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors"
+              className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gold text-black text-[0.6875rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors"
             >
               <Sparkles size={13} />
               Sit with {persona.name.split(" ")[0]} again

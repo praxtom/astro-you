@@ -2,6 +2,7 @@ import React from "react";
 import { useSadeSati } from "../../hooks/useSadeSati";
 import { PersonalCardNotice } from "./PersonalCardNotice";
 import { FactLabel, FactSkeleton } from "./primitives";
+import { GlossaryTerm } from "../ui/GlossaryTerm";
 
 interface SadeSatiCardProps {
   birthData: any;
@@ -12,7 +13,9 @@ export const SadeSatiCard: React.FC<SadeSatiCardProps> = ({ birthData }) => {
   const { sadeSati, loading, error, errorKind, retry } = useSadeSati(birthData);
 
   const label = (
-    <FactLabel>Sade Sati</FactLabel>
+    <FactLabel>
+      <GlossaryTerm k="sade-sati">Sade Sati</GlossaryTerm>
+    </FactLabel>
   );
 
   if (loading) return <FactSkeleton />;
@@ -67,7 +70,7 @@ export const SadeSatiCard: React.FC<SadeSatiCardProps> = ({ birthData }) => {
       </p>
       {isActive && sadeSati?.remedies?.[0] && (
         <p className="mt-3 text-[0.98rem] leading-relaxed text-white/65">
-          <span className="text-white/40">A helpful practice: </span>
+          <span className="text-white/55">A helpful practice: </span>
           {sadeSati.remedies[0]}
         </p>
       )}

@@ -19,7 +19,14 @@ import {
   AlertCircle,
 } from "lucide-react";
 import LocationInput from "./LocationInput";
+import ChartDataNotice from "./ChartDataNotice";
 import { useErrorToast } from "./ui/toast-context";
+import {
+  CHART_UPLOAD_TOO_LARGE,
+  MAX_CHART_UPLOAD_BYTES,
+  birthDateProblem,
+  todayInputValue,
+} from "../lib/onboarding-rules";
 
 type Step = "upload" | "identity" | "temporal" | "spatial" | "present";
 
@@ -50,6 +57,7 @@ interface OnboardingModalProps {
     currentLocation?: string;
     birthTimeUnknown?: boolean;
     coordinates?: { lat: number; lng: number };
+    currentCoordinates?: { lat: number; lng: number };
   } | null;
   /**
    * Open on the "Upload Kundali" step. Only the landing page's "I already
@@ -103,6 +111,10 @@ export default function OnboardingModal({
   // Geocoded birth-place coordinates, captured when the user picks a
   // LocationInput suggestion. Optional: manual typing leaves this null.
   const [birthCoordinates, setBirthCoordinates] =
+    useState<BirthCoordinates | null>(null);
+  // Current-location coordinates (suggestion pick or the locate button), used
+  // by the dashboard Panchang. Optional: manual typing leaves this null.
+  const [currentCoordinates, setCurrentCoordinates] =
     useState<BirthCoordinates | null>(null);
 
   // Focus trap for accessibility
@@ -170,6 +182,12 @@ export default function OnboardingModal({
             existingProfile.coordinates?.lng,
           ),
         );
+        setCurrentCoordinates(
+          parseSuggestionCoordinates(
+            existingProfile.currentCoordinates?.lat,
+            existingProfile.currentCoordinates?.lng,
+          ),
+        );
       } else {
         const saved = localStorage.getItem(STORAGE_KEYS.PROFILE);
         if (saved) {
@@ -194,6 +212,12 @@ export default function OnboardingModal({
               parseSuggestionCoordinates(
                 parsed.coordinates?.lat,
                 parsed.coordinates?.lng,
+              ),
+            );
+            setCurrentCoordinates(
+              parseSuggestionCoordinates(
+                parsed.currentCoordinates?.lat,
+                parsed.currentCoordinates?.lng,
               ),
             );
           } catch {
@@ -230,6 +254,9 @@ export default function OnboardingModal({
       async (position) => {
         try {
           const { latitude, longitude } = position.coords;
+          setCurrentCoordinates(
+            parseSuggestionCoordinates(latitude, longitude),
+          );
 
           // Reverse geocoding using Nominatim
           const response = await fetch(
@@ -263,6 +290,9 @@ export default function OnboardingModal({
           console.error("Location error:", error);
           // Fallback to coords
           const { latitude, longitude } = position.coords;
+          setCurrentCoordinates(
+            parseSuggestionCoordinates(latitude, longitude),
+          );
           const locString = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
           const newData = { ...formData, currentLocation: locString };
           setFormData(newData);
@@ -291,8 +321,8 @@ export default function OnboardingModal({
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setParseError("Image too large. Maximum size is 10MB.");
+    if (file.size > MAX_CHART_UPLOAD_BYTES) {
+      setParseError(CHART_UPLOAD_TOO_LARGE);
       return;
     }
 
@@ -371,14 +401,28 @@ export default function OnboardingModal({
   const finalizeJourney = async (override?: typeof formData) => {
     const draft = override ?? formData;
     // Current location is optional and defaults to the birth place.
-    const data = draft.currentLocation.trim()
+    const hasCurrentLocation = Boolean(draft.currentLocation.trim());
+    const data = hasCurrentLocation
       ? draft
       : { ...draft, currentLocation: draft.pob };
+    // Coordinates only travel with a typed/picked current location; an empty
+    // one falls back to the birth place (and its coordinates) downstream.
+    // Same text as the birth place (e.g. "skip") → the birth coordinates
+    // apply downstream; never pair it with coordinates of an earlier pick.
+    const savedCurrentCoordinates =
+      hasCurrentLocation &&
+      draft.currentLocation.trim() !== draft.pob.trim()
+        ? currentCoordinates
+        : null;
     setIsSaving(true);
     setFormError(null);
-    const storedProfile = JSON.stringify(
-      birthCoordinates ? { ...data, coordinates: birthCoordinates } : data,
-    );
+    const storedProfile = JSON.stringify({
+      ...data,
+      ...(birthCoordinates ? { coordinates: birthCoordinates } : {}),
+      ...(savedCurrentCoordinates
+        ? { currentCoordinates: savedCurrentCoordinates }
+        : {}),
+    });
     try {
       if (user) {
         // Logged-in user: Save to Firestore
@@ -399,6 +443,9 @@ export default function OnboardingModal({
           ...data,
           parsedChart: parsedChart, // Save reference to parsed chart if any
         };
+        // Stale current coordinates would point Panchang at the old place.
+        profilePayload.currentCoordinates =
+          savedCurrentCoordinates ?? deleteField();
         if (birthCoordinates) {
           profilePayload.coordinates = birthCoordinates;
         } else if (
@@ -437,6 +484,7 @@ export default function OnboardingModal({
           updates.kundaliData = deleteField();
           updates.kundaliData_D9 = deleteField();
           updates.kundaliData_D10 = deleteField();
+          updates.kundaliData_western = deleteField();
           // The saved signs belong to the old chart too; useKundali
           // re-derives them from the new D1 as soon as the dashboard loads it.
           profilePayload.moonSign = deleteField();
@@ -473,6 +521,7 @@ export default function OnboardingModal({
       setStep("temporal");
     } else if (step === "temporal") {
       if (!formData.dob || !formData.tob) return;
+      if (dobProblem) return;
       setStep("spatial");
     } else if (step === "spatial") {
       if (!formData.pob) return;
@@ -502,6 +551,8 @@ export default function OnboardingModal({
     setFormData((prev) => ({ ...prev, currentLocation: prev.pob }));
     void finalizeJourney({ ...formData, currentLocation: formData.pob });
   };
+
+  const dobProblem = birthDateProblem(formData.dob);
 
   const prevStep = () => {
     if (step === "identity") {
@@ -653,8 +704,8 @@ export default function OnboardingModal({
                               <p className="text-sm text-white/80 font-medium mb-1">
                                 Click to upload chart
                               </p>
-                              <p className="text-[10px] text-white/55">
-                                JPG, PNG or WebP
+                              <p className="text-[0.6875rem] text-white/55">
+                                JPG, PNG or WebP, up to 4.5 MB
                               </p>
                             </div>
                           )}
@@ -714,7 +765,7 @@ export default function OnboardingModal({
                                   </div>
                                   {parsedChart.birthDetails.dob && (
                                     <div>
-                                      <p className="text-[10px] text-white/55 uppercase">
+                                      <p className="text-[0.6875rem] text-white/55 uppercase">
                                         Date
                                       </p>
                                       <p className="text-sm">
@@ -724,7 +775,7 @@ export default function OnboardingModal({
                                   )}
                                   {parsedChart.birthDetails.tob && (
                                     <div>
-                                      <p className="text-[10px] text-white/55 uppercase">
+                                      <p className="text-[0.6875rem] text-white/55 uppercase">
                                         Time
                                       </p>
                                       <p className="text-sm">
@@ -840,6 +891,13 @@ export default function OnboardingModal({
                             name="birth-date"
                             autoComplete="bday"
                             type="date"
+                            max={todayInputValue()}
+                            aria-invalid={dobProblem ? true : undefined}
+                            aria-describedby={
+                              dobProblem
+                                ? "onboarding-birth-date-error"
+                                : undefined
+                            }
                             className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 focus:border-gold/50 transition-colors outline-none text-white font-sans appearance-none"
                             value={formData.dob}
                             onChange={(e) =>
@@ -893,6 +951,15 @@ export default function OnboardingModal({
                           I don't know my exact birth time
                         </span>
                       </label>
+                      {dobProblem && (
+                        <p
+                          id="onboarding-birth-date-error"
+                          role="alert"
+                          className="mt-3 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-100"
+                        >
+                          {dobProblem}
+                        </p>
+                      )}
                       {formData.birthTimeUnknown && (
                         <div className="mt-4 p-3 rounded-lg bg-gold/5 border border-gold/10">
                           <p className="text-xs text-gold/60 leading-relaxed">
@@ -959,19 +1026,33 @@ export default function OnboardingModal({
                             autoComplete="off"
                             label="Current Location"
                             value={formData.currentLocation}
-                            onChange={(val) =>
+                            onChange={(val) => {
+                              // Typing invalidates an earlier pick's coordinates.
+                              setCurrentCoordinates(null);
                               saveStepData({
                                 ...formData,
                                 currentLocation: val,
-                              })
-                            }
+                              });
+                            }}
+                            onSelect={(suggestion) => {
+                              setCurrentCoordinates(
+                                parseSuggestionCoordinates(
+                                  suggestion.lat,
+                                  suggestion.lon,
+                                ),
+                              );
+                              saveStepData({
+                                ...formData,
+                                currentLocation: suggestion.display_name,
+                              });
+                            }}
                             placeholder="Search current city…"
                           />
                         </div>
 
                         <div className="flex items-center gap-4">
                           <div className="flex-1 h-px bg-white/5"></div>
-                          <span className="text-[10px] uppercase tracking-widest text-white/55 font-bold">
+                          <span className="text-[0.6875rem] uppercase tracking-widest text-white/55 font-bold">
                             or
                           </span>
                           <div className="flex-1 h-px bg-white/5"></div>
@@ -1002,6 +1083,7 @@ export default function OnboardingModal({
 
             {/* Footer */}
             <div className="p-4 sm:p-5 border-t border-white/5 bg-black/20">
+              {step === "present" && <ChartDataNotice className="mb-3" />}
               {formError && (
                 <p
                   role="alert"
@@ -1016,7 +1098,8 @@ export default function OnboardingModal({
                   isSaving ||
                   (step === "identity" &&
                     (!formData.name || !formData.gender)) ||
-                  (step === "temporal" && (!formData.dob || !formData.tob)) ||
+                  (step === "temporal" &&
+                    (!formData.dob || !formData.tob || Boolean(dobProblem))) ||
                   (step === "spatial" && !formData.pob)
                 }
                 className="btn btn-primary w-full py-3 rounded-xl font-bold tracking-widest uppercase flex items-center justify-center gap-2 group disabled:opacity-30 disabled:grayscale transition-[color,background-color,border-color,transform,opacity] hover:scale-[1.02] active:scale-[0.98]"
@@ -1042,7 +1125,7 @@ export default function OnboardingModal({
                 </button>
               )}
               {step === "upload" && (
-                <p className="text-center mt-4 text-[10px] text-white/55 uppercase tracking-[0.2em]">
+                <p className="text-center mt-4 text-[0.6875rem] text-white/55 uppercase tracking-[0.2em]">
                   Secure • Encrypted • Private
                 </p>
               )}

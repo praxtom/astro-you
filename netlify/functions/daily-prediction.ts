@@ -3,6 +3,10 @@ import { getDailyHoroscopeText, BirthData } from "./shared/astro-api.js";
 import { getCachedOrFetch } from "./shared/cache.js";
 import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit.js";
 import { SIGN_ANCHOR_DOB, normalizeSign } from "./sign-horoscope.js";
+import {
+  isUpstreamQuotaError,
+  upstreamQuotaResponse,
+} from "./shared/kundali-errors.js";
 
 const json = (body: any, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -110,6 +114,8 @@ export default async (req: Request, _context: Context) => {
 
     return json({ success: true, data });
   } catch (error: any) {
+    // Spent astrology allowance (upstream or our global budget): 503.
+    if (isUpstreamQuotaError(error)) return upstreamQuotaResponse();
     console.error("[DailyPrediction] Error:", error);
     // Generic message — never leak upstream internals to the client.
     return json({ error: "Daily prediction failed. Please try again." }, 500);

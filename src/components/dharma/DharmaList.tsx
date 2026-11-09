@@ -20,7 +20,7 @@ export const DharmaList: React.FC<DharmaListProps> = ({ routines, userId, onComp
 
     if (!routines || routines.length === 0) {
         return (
-            <div className="text-white/40 text-sm text-center py-4 italic">
+            <div className="text-white/55 text-sm text-center py-4 italic">
                 No active practices yet.
             </div>
         );
@@ -28,7 +28,7 @@ export const DharmaList: React.FC<DharmaListProps> = ({ routines, userId, onComp
 
     return (
         <div className="space-y-3">
-            <h3 className="mb-3 border-b border-white/10 pb-2 text-[0.6rem] font-bold uppercase tracking-[0.28em] text-gold/70">
+            <h3 className="mb-3 border-b border-white/10 pb-2 text-[0.6875rem] font-bold uppercase tracking-[0.28em] text-gold/70">
                 Daily Practices
             </h3>
 
@@ -73,7 +73,7 @@ export const DharmaList: React.FC<DharmaListProps> = ({ routines, userId, onComp
                                             <h4 className={`font-medium ${isCompletedToday ? 'text-gold line-through' : 'text-white'}`}>
                                                 {routine.title}
                                             </h4>
-                                            <div className="flex items-center gap-2 text-xs text-white/40 mt-1">
+                                            <div className="flex items-center gap-2 text-xs text-white/55 mt-1">
                                                 <span className="flex items-center gap-1">
                                                     <Clock size={10} /> {routine.durationMinutes}m
                                                 </span>
@@ -84,7 +84,7 @@ export const DharmaList: React.FC<DharmaListProps> = ({ routines, userId, onComp
 
                                         <ChevronDown
                                             size={14}
-                                            className={`text-white/30 transition-transform duration-200 shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
+                                            className={`text-white/50 transition-transform duration-200 shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
                                         />
                                     </button>
 

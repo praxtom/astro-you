@@ -32,7 +32,7 @@ export const SoulInsightCard: React.FC<SoulInsightCardProps> = ({
                         <Sparkles size={20} className="text-emerald-400" />
                     </div>
                     <div className="flex-1">
-                        <p className="text-[10px] uppercase tracking-widest text-emerald-400 font-bold mb-1">Soul Growth</p>
+                        <p className="text-[0.6875rem] uppercase tracking-widest text-emerald-400 font-bold mb-1">Soul Growth</p>
                         <p className="text-white/90 text-sm leading-relaxed">{latestGrowth}</p>
                     </div>
                 </div>
@@ -59,7 +59,7 @@ export const SoulInsightCard: React.FC<SoulInsightCardProps> = ({
                             <TrendingUp size={20} className="text-violet-400" />
                         </div>
                         <div className="flex-1">
-                            <p className="text-[10px] uppercase tracking-widest text-violet-400 font-bold mb-1">Vibe Shift</p>
+                            <p className="text-[0.6875rem] uppercase tracking-widest text-violet-400 font-bold mb-1">Vibe Shift</p>
                             <p className="text-white/90 text-sm leading-relaxed">
                                 Your energy has shifted from <span className="text-violet-300 font-medium capitalize">{fromState}</span> to <span className="text-violet-300 font-medium capitalize">{toState}</span> over the past few sessions.
                             </p>
@@ -84,7 +84,7 @@ export const SoulInsightCard: React.FC<SoulInsightCardProps> = ({
                         <Zap size={20} className="text-amber-400" />
                     </div>
                     <div className="flex-1">
-                        <p className="text-[10px] uppercase tracking-widest text-amber-400 font-bold mb-1">Soul Nudge</p>
+                        <p className="text-[0.6875rem] uppercase tracking-widest text-amber-400 font-bold mb-1">Soul Nudge</p>
                         <p className="text-white/90 text-sm leading-relaxed mb-3">
                             Your recent vibe suggests a moment of stillness might help. Would you like a personalized 3-day path?
                         </p>
@@ -113,7 +113,7 @@ export const SoulInsightCard: React.FC<SoulInsightCardProps> = ({
                         <Heart size={20} className="text-sky-400" />
                     </div>
                     <div className="flex-1">
-                        <p className="text-[10px] uppercase tracking-widest text-sky-400/60 font-bold mb-1">Soul State</p>
+                        <p className="text-[0.6875rem] uppercase tracking-widest text-sky-400/60 font-bold mb-1">Soul State</p>
                         <p className="text-white/60 text-sm leading-relaxed italic">
                             Your energy is flowing with clarity. Continue walking your path with awareness.
                         </p>

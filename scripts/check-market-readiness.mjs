@@ -6,24 +6,24 @@ const checks = [
   {
     key: "tests",
     label: "TypeScript and function tests",
-    command: ["pnpm", ["test"]],
+    command: ["npm", ["test"]],
   },
   {
     key: "build",
     label: "Production build and SEO prerender",
-    command: ["pnpm", ["run", "build"]],
+    command: ["npm", ["run", "build"]],
   },
   {
     key: "launch",
     label: "Production environment readiness",
-    command: ["pnpm", ["run", "check:launch"]],
+    command: ["npm", ["run", "check:launch"]],
   },
   ...(includeLiveServices
     ? [
         {
           key: "services",
           label: "Live Firebase service access",
-          command: ["pnpm", ["run", "check:services"]],
+          command: ["npm", ["run", "check:services"]],
         },
       ]
     : []),
@@ -57,7 +57,7 @@ for (const result of results) {
 }
 
 if (!includeLiveServices) {
-  console.log("\nLive services were skipped. Run `pnpm run check:market:live` before launch.");
+  console.log("\nLive services were skipped. Run `npm run check:market:live` before launch.");
 }
 
 console.log(`\nMarket readiness: ${failed.length > 0 ? "BLOCKED" : "READY"}`);

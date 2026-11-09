@@ -132,6 +132,28 @@ interface AdminOperationItem {
   updatedAt?: string | null;
 }
 
+interface OpsEventItem {
+  id: string;
+  kind: string;
+  severity: string;
+  count: number;
+  context?: string | null;
+  details?: Record<string, unknown>;
+  createdAt?: string | null;
+  lastAt?: string | null;
+}
+
+interface JobHealthItem {
+  job: string;
+  stale: boolean;
+  ok: boolean;
+  lastRunAt?: string | null;
+  lastOkAt?: string | null;
+  processed?: number;
+  failed?: number;
+  note?: string | null;
+}
+
 interface ExpertApplicationItem {
   id: string;
   fullName: string;
@@ -185,6 +207,9 @@ export default function Admin() {
   const [operationsLoading, setOperationsLoading] = useState(false);
   const [operationsBusyId, setOperationsBusyId] = useState<string | null>(null);
   const [operationsStatus, setOperationsStatus] = useState("");
+  const [opsEvents, setOpsEvents] = useState<OpsEventItem[]>([]);
+  const [jobHealth, setJobHealth] = useState<JobHealthItem[]>([]);
+  const [staleJobs, setStaleJobs] = useState<string[]>([]);
   const [expertApplications, setExpertApplications] = useState<ExpertApplicationItem[]>([]);
   const [expertsLoading, setExpertsLoading] = useState(false);
   const [expertsBusyId, setExpertsBusyId] = useState<string | null>(null);
@@ -416,6 +441,9 @@ export default function Admin() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not load operations queue");
       setOperationItems(Array.isArray(data.items) ? data.items : []);
+      setOpsEvents(Array.isArray(data.opsEvents) ? data.opsEvents : []);
+      setJobHealth(Array.isArray(data.jobs) ? data.jobs : []);
+      setStaleJobs(Array.isArray(data.staleJobs) ? data.staleJobs : []);
     } catch (err: any) {
       if (/admin access/i.test(err.message || "")) {
         navigate("/dashboard");
@@ -536,7 +564,7 @@ export default function Admin() {
     return (
       <div>
         <div className="container mx-auto flex min-h-[70vh] items-center justify-center px-6 pt-28">
-          <Loader2 size={28} className="animate-spin text-white/30" />
+          <Loader2 size={28} className="animate-spin text-white/50" />
         </div>
       </div>
     );
@@ -585,7 +613,7 @@ export default function Admin() {
       <div className="platform-main">
         <button
           onClick={() => navigate("/dashboard")}
-          className="mb-4 flex items-center gap-2 text-sm text-white/40 hover:text-white"
+          className="mb-4 flex items-center gap-2 text-sm text-white/55 hover:text-white"
         >
           <ArrowLeft size={16} /> Dashboard
         </button>
@@ -596,7 +624,7 @@ export default function Admin() {
 
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 size={32} className="animate-spin text-white/30" />
+            <Loader2 size={32} className="animate-spin text-white/50" />
           </div>
         ) : adminError ? (
           <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
@@ -642,19 +670,19 @@ export default function Admin() {
                       {stats.paidConversionRate.toFixed(1)}
                       %
                     </p>
-                    <p className="text-xs text-white/40">Paid conversion</p>
+                    <p className="text-xs text-white/55">Paid conversion</p>
                   </div>
                   <div>
                     <p className="type-kpi text-white">
                       {stats.estimatedMrr.toLocaleString()}
                     </p>
-                    <p className="text-xs text-white/40">MRR</p>
+                    <p className="text-xs text-white/55">MRR</p>
                   </div>
                   <div>
                     <p className="type-kpi text-white">
                       {stats.payingUsers}
                     </p>
-                    <p className="text-xs text-white/40">Paying users</p>
+                    <p className="text-xs text-white/55">Paying users</p>
                   </div>
                 </div>
               </div>
@@ -665,7 +693,7 @@ export default function Admin() {
                     <h2 className="text-gold text-sm font-bold uppercase tracking-widest">
                       Launch Readiness
                     </h2>
-                    <p className="mt-1 text-xs text-white/35">
+                    <p className="mt-1 text-xs text-white/50">
                       Required production configuration without exposing secret values.
                     </p>
                   </div>
@@ -679,7 +707,7 @@ export default function Admin() {
                 </div>
 
                 {!launchReadiness ? (
-                  <p className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/35">
+                  <p className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/50">
                     Readiness check is unavailable until admin configuration can be verified.
                   </p>
                 ) : (
@@ -736,7 +764,7 @@ export default function Admin() {
                     <h2 className="text-gold text-sm font-bold uppercase tracking-widest">
                       Funnel
                     </h2>
-                    <p className="mt-1 text-xs text-white/35">
+                    <p className="mt-1 text-xs text-white/50">
                       Recent first-party events from SEO, onboarding, consults, and payments.
                     </p>
                   </div>
@@ -750,7 +778,7 @@ export default function Admin() {
                 </div>
 
                 {!funnelSummary ? (
-                  <p className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/35">
+                  <p className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/50">
                     Funnel metrics are unavailable until analytics events are recorded.
                   </p>
                 ) : (
@@ -801,7 +829,7 @@ export default function Admin() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-white/40 text-xs uppercase tracking-widest border-b border-white/10">
+                      <tr className="text-white/55 text-xs uppercase tracking-widest border-b border-white/10">
                         <th className="text-left py-2 px-2">Name</th>
                         <th className="text-left py-2 px-2">Email</th>
                         <th className="text-left py-2 px-2">UID</th>
@@ -818,7 +846,7 @@ export default function Admin() {
                           <td className="py-2 px-2 text-white/60">
                             {u.email || "\u2014"}
                           </td>
-                          <td className="max-w-36 truncate py-2 px-2 font-mono text-xs text-white/35">
+                          <td className="max-w-36 truncate py-2 px-2 font-mono text-xs text-white/50">
                             {u.id}
                           </td>
                           <td className="py-2 px-2 text-center">
@@ -828,7 +856,7 @@ export default function Admin() {
                                   ? "bg-gold/20 text-gold"
                                   : u.tier === "premium"
                                     ? "bg-amber-500/20 text-amber-400"
-                                    : "bg-white/10 text-white/40"
+                                    : "bg-white/10 text-white/55"
                               }`}
                             >
                               {u.tier}
@@ -849,7 +877,7 @@ export default function Admin() {
                   <div className="mb-4 flex items-start justify-between gap-3">
                     <div>
                       <p className="platform-eyebrow">Credit adjustment</p>
-                      <p className="mt-1 type-body-sm text-white/40">
+                      <p className="mt-1 type-body-sm text-white/55">
                         Refund or correct credits from the server-owned ledger.
                       </p>
                     </div>
@@ -858,7 +886,7 @@ export default function Admin() {
 
                   <form onSubmit={submitCreditAdjustment} className="grid gap-3">
                     <label>
-                      <span className="type-meta uppercase text-white/40">Target UID</span>
+                      <span className="type-meta uppercase text-white/55">Target UID</span>
                       <input
                         value={creditForm.targetUid}
                         onChange={(event) =>
@@ -874,7 +902,7 @@ export default function Admin() {
 
                     <div className="grid gap-3 sm:grid-cols-[1fr_12rem]">
                       <label>
-                        <span className="type-meta uppercase text-white/40">Amount</span>
+                        <span className="type-meta uppercase text-white/55">Amount</span>
                         <input
                           value={creditForm.amount}
                           onChange={(event) =>
@@ -889,7 +917,7 @@ export default function Admin() {
                         />
                       </label>
                       <label>
-                        <span className="type-meta uppercase text-white/40">Type</span>
+                        <span className="type-meta uppercase text-white/55">Type</span>
                         <select
                           value={creditForm.type}
                           onChange={(event) =>
@@ -909,7 +937,7 @@ export default function Admin() {
                     </div>
 
                     <label>
-                      <span className="type-meta uppercase text-white/40">Reason</span>
+                      <span className="type-meta uppercase text-white/55">Reason</span>
                       <textarea
                         value={creditForm.reason}
                         onChange={(event) =>
@@ -944,7 +972,7 @@ export default function Admin() {
                   <div className="mb-4 flex items-start justify-between gap-3">
                     <div>
                       <p className="platform-eyebrow">Audit logs</p>
-                      <p className="mt-1 type-body-sm text-white/40">
+                      <p className="mt-1 type-body-sm text-white/55">
                         Recent admin, billing, trust, and account actions.
                       </p>
                     </div>
@@ -965,10 +993,10 @@ export default function Admin() {
 
                   {auditLoading ? (
                     <div className="flex items-center justify-center py-10">
-                      <Loader2 size={22} className="animate-spin text-white/30" />
+                      <Loader2 size={22} className="animate-spin text-white/50" />
                     </div>
                   ) : auditLogs.length === 0 ? (
-                    <p className="rounded-lg border border-white/10 bg-white/[0.03] p-3 type-body-sm text-white/35">
+                    <p className="rounded-lg border border-white/10 bg-white/[0.03] p-3 type-body-sm text-white/50">
                       No audit logs found.
                     </p>
                   ) : (
@@ -983,20 +1011,20 @@ export default function Admin() {
                               <p className="type-card-title truncate text-white/85">
                                 {log.action || "audit_action"}
                               </p>
-                              <p className="mt-1 type-meta text-white/35">
+                              <p className="mt-1 type-meta text-white/50">
                                 {log.entityType || "entity"}
                                 {log.entityId ? ` · ${log.entityId}` : ""}
                               </p>
                             </div>
-                            <span className="shrink-0 type-meta text-white/30">
+                            <span className="shrink-0 type-meta text-white/50">
                               {formatAdminDate(log.createdAt)}
                             </span>
                           </div>
-                          <p className="mt-2 break-all font-mono text-[11px] text-white/35">
+                          <p className="mt-2 break-all font-mono text-[11px] text-white/50">
                             {log.uid || "system"}
                           </p>
                           {log.metadata && (
-                            <p className="mt-2 line-clamp-2 type-body-sm text-white/45">
+                            <p className="mt-2 line-clamp-2 type-body-sm text-white/55">
                               {summarizeMetadata(log.metadata)}
                             </p>
                           )}
@@ -1013,7 +1041,7 @@ export default function Admin() {
                     <h2 className="text-gold text-sm font-bold uppercase tracking-widest">
                       Expert Applications
                     </h2>
-                    <p className="mt-1 text-xs text-white/35">
+                    <p className="mt-1 text-xs text-white/50">
                       Move real astrologer applicants through intake, review, and listing setup.
                     </p>
                   </div>
@@ -1034,12 +1062,12 @@ export default function Admin() {
 
                 {expertsLoading ? (
                   <div className="flex items-center justify-center py-10">
-                    <Loader2 size={24} className="animate-spin text-white/30" />
+                    <Loader2 size={24} className="animate-spin text-white/50" />
                   </div>
                 ) : (
                   <div className="grid gap-3">
                     {expertApplications.length === 0 && (
-                      <p className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/35">
+                      <p className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/50">
                         No expert applications found.
                       </p>
                     )}
@@ -1055,15 +1083,15 @@ export default function Admin() {
                                 <UserCheck size={12} />
                                 applicant
                               </span>
-                              <span className="rounded-full bg-white/5 px-2 py-1 text-[11px] text-white/45">
+                              <span className="rounded-full bg-white/5 px-2 py-1 text-[11px] text-white/55">
                                 {item.status}
                               </span>
-                              <span className="rounded-full bg-white/5 px-2 py-1 text-[11px] text-white/35">
+                              <span className="rounded-full bg-white/5 px-2 py-1 text-[11px] text-white/50">
                                 {item.reviewStage || "intake"}
                               </span>
                             </div>
                             <p className="font-semibold text-white/85">{item.fullName}</p>
-                            <p className="mt-1 text-xs text-white/35">
+                            <p className="mt-1 text-xs text-white/50">
                               {item.email}
                               {item.city ? ` · ${item.city}` : ""}
                               {typeof item.experienceYears === "number"
@@ -1114,9 +1142,124 @@ export default function Admin() {
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
                     <h2 className="text-gold text-sm font-bold uppercase tracking-widest">
+                      System Health
+                    </h2>
+                    <p className="mt-1 text-xs text-white/55">
+                      Scheduled jobs and recent operational alerts.
+                    </p>
+                  </div>
+                  <button
+                    onClick={loadOperationsQueue}
+                    disabled={operationsLoading}
+                    className="rounded-lg border border-white/10 px-3 py-2 text-xs text-white/55 hover:text-gold disabled:opacity-40"
+                  >
+                    {operationsLoading ? "Loading" : "Refresh"}
+                  </button>
+                </div>
+
+                {staleJobs.length > 0 && (
+                  <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
+                    Stale jobs (no successful run in 2× their schedule):{" "}
+                    <span className="font-semibold">{staleJobs.join(", ")}</span>
+                  </div>
+                )}
+
+                {jobHealth.length === 0 ? (
+                  <p className="mb-4 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/55">
+                    No job runs recorded yet.
+                  </p>
+                ) : (
+                  <div className="mb-4 grid gap-2 sm:grid-cols-2">
+                    {jobHealth.map((job) => (
+                      <div
+                        key={job.job}
+                        className={`rounded-xl border p-3 ${
+                          job.stale
+                            ? "border-red-500/25 bg-red-500/10"
+                            : "border-white/10 bg-white/[0.03]"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="truncate text-sm font-semibold text-white/85">
+                            {job.job}
+                          </p>
+                          <span
+                            className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-widest ${
+                              job.stale
+                                ? "bg-red-500/20 text-red-200"
+                                : job.ok
+                                  ? "bg-emerald-500/15 text-emerald-300"
+                                  : "bg-amber-500/20 text-amber-300"
+                            }`}
+                          >
+                            {job.stale ? "Stale" : job.ok ? "OK" : "Failed"}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-white/55">
+                          Last OK {formatAdminDate(job.lastOkAt) || "never"}
+                          {" · "}
+                          {job.processed ?? 0} done
+                          {job.failed ? ` · ${job.failed} failed` : ""}
+                          {job.note ? ` · ${job.note}` : ""}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {opsEvents.length === 0 ? (
+                  <p className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/55">
+                    No recent alerts.
+                  </p>
+                ) : (
+                  <div className="grid gap-2">
+                    {opsEvents.slice(0, 15).map((event) => (
+                      <div
+                        key={event.id}
+                        className="flex flex-col gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-widest ${
+                                event.severity === "critical"
+                                  ? "bg-red-500/20 text-red-200"
+                                  : event.severity === "warning"
+                                    ? "bg-amber-500/20 text-amber-300"
+                                    : "bg-white/5 text-white/60"
+                              }`}
+                            >
+                              {event.severity}
+                            </span>
+                            <span className="text-sm font-semibold text-white/85">
+                              {event.kind}
+                            </span>
+                            {event.count > 1 && (
+                              <span className="text-xs text-white/55">×{event.count}</span>
+                            )}
+                          </div>
+                          {event.details && Object.keys(event.details).length > 0 && (
+                            <p className="mt-1 truncate text-xs text-white/55">
+                              {summarizeMetadata(event.details)}
+                            </p>
+                          )}
+                        </div>
+                        <p className="shrink-0 text-xs text-white/55">
+                          {formatAdminDate(event.lastAt ?? event.createdAt)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="platform-panel p-4 mt-6">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-gold text-sm font-bold uppercase tracking-widest">
                       Operations Queue
                     </h2>
-                    <p className="mt-1 text-xs text-white/35">
+                    <p className="mt-1 text-xs text-white/50">
                       Resolve support issues and remedy requests from one place.
                     </p>
                   </div>
@@ -1137,12 +1280,12 @@ export default function Admin() {
 
                 {operationsLoading ? (
                   <div className="flex items-center justify-center py-10">
-                    <Loader2 size={24} className="animate-spin text-white/30" />
+                    <Loader2 size={24} className="animate-spin text-white/50" />
                   </div>
                 ) : (
                   <div className="grid gap-3">
                     {operationItems.length === 0 && (
-                      <p className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/35">
+                      <p className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/50">
                         No open operations found.
                       </p>
                     )}
@@ -1162,21 +1305,21 @@ export default function Admin() {
                                 )}
                                 {item.kind}
                               </span>
-                              <span className="rounded-full bg-white/5 px-2 py-1 text-[11px] text-white/45">
+                              <span className="rounded-full bg-white/5 px-2 py-1 text-[11px] text-white/55">
                                 {item.status}
                               </span>
-                              <span className="rounded-full bg-white/5 px-2 py-1 text-[11px] text-white/35">
+                              <span className="rounded-full bg-white/5 px-2 py-1 text-[11px] text-white/50">
                                 Priority {item.priorityScore}
                               </span>
                             </div>
                             <p className="font-semibold text-white/85">{item.title}</p>
-                            <p className="mt-1 text-xs uppercase tracking-wider text-white/35">
+                            <p className="mt-1 text-xs uppercase tracking-wider text-white/50">
                               {item.subtitle}
                             </p>
                             <p className="mt-2 text-sm leading-relaxed text-white/60">
                               {item.detail || "No additional detail provided."}
                             </p>
-                            <p className="mt-2 text-xs text-white/30">
+                            <p className="mt-2 text-xs text-white/50">
                               {item.email || item.uid}
                               {item.referenceId ? ` · ${item.referenceId}` : ""}
                             </p>
@@ -1231,7 +1374,7 @@ export default function Admin() {
                     <h2 className="text-gold text-sm font-bold uppercase tracking-widest">
                       Trust Moderation
                     </h2>
-                    <p className="mt-1 text-xs text-white/35">
+                    <p className="mt-1 text-xs text-white/50">
                       Approve only real, submitted reviews and testimonials.
                     </p>
                   </div>
@@ -1252,12 +1395,12 @@ export default function Admin() {
 
                 {moderationLoading ? (
                   <div className="flex items-center justify-center py-10">
-                    <Loader2 size={24} className="animate-spin text-white/30" />
+                    <Loader2 size={24} className="animate-spin text-white/50" />
                   </div>
                 ) : (
                   <div className="grid gap-3">
                     {moderationItems.length === 0 && (
-                      <p className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/35">
+                      <p className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/50">
                         No trust submissions found.
                       </p>
                     )}
@@ -1273,7 +1416,7 @@ export default function Admin() {
                                 <ShieldCheck size={12} />
                                 {item.kind || "trust item"}
                               </span>
-                              <span className="rounded-full bg-white/5 px-2 py-1 text-[11px] text-white/40">
+                              <span className="rounded-full bg-white/5 px-2 py-1 text-[11px] text-white/55">
                                 {item.publicStatus || "unknown"}
                               </span>
                               {item.rating && (
@@ -1287,7 +1430,7 @@ export default function Admin() {
                                 ? item.story || "No story text"
                                 : item.reviewText || "No review text"}
                             </p>
-                            <p className="mt-2 text-xs text-white/35">
+                            <p className="mt-2 text-xs text-white/50">
                               {item.publicName || item.email || item.uid || item.personaId || "Unknown source"}
                             </p>
                           </div>
@@ -1369,7 +1512,7 @@ function MetricCard({
       <p className={`text-2xl font-display ${color}`}>
         {value.toLocaleString()}
       </p>
-      <p className="text-xs text-white/40 mt-1">{label}</p>
+      <p className="text-xs text-white/55 mt-1">{label}</p>
     </div>
   );
 }
@@ -1386,7 +1529,7 @@ function FunnelMetric({
       <p className="text-lg font-display text-white/90">
         {typeof value === "number" ? value.toLocaleString() : value}
       </p>
-      <p className="mt-1 text-[11px] uppercase tracking-widest text-white/35">
+      <p className="mt-1 text-[11px] uppercase tracking-widest text-white/50">
         {label}
       </p>
     </div>
@@ -1402,11 +1545,11 @@ function RankList({
 }) {
   return (
     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-      <p className="mb-2 text-xs font-bold uppercase tracking-widest text-white/45">
+      <p className="mb-2 text-xs font-bold uppercase tracking-widest text-white/55">
         {title}
       </p>
       {rows.length === 0 ? (
-        <p className="text-sm text-white/30">No data yet.</p>
+        <p className="text-sm text-white/50">No data yet.</p>
       ) : (
         <div className="space-y-2">
           {rows.map((row) => (
@@ -1433,7 +1576,7 @@ function ReadinessSummaryCard({
   return (
     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-[11px] uppercase tracking-widest text-white/35">
+        <p className="text-[11px] uppercase tracking-widest text-white/50">
           {label}
         </p>
         <ReadinessBadge status={status} />
@@ -1463,12 +1606,12 @@ function ReadinessGroupPanel({ group }: { group: ReadinessGroup }) {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm text-white/75">{item.label}</p>
-                <p className="mt-1 text-xs leading-relaxed text-white/35">
+                <p className="mt-1 text-xs leading-relaxed text-white/50">
                   {item.description}
                 </p>
               </div>
               <span
-                className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-widest ${
+                className={`shrink-0 rounded-full px-2 py-1 text-[0.6875rem] font-bold uppercase tracking-widest ${
                   item.status === "configured"
                     ? "bg-emerald-500/10 text-emerald-300"
                     : item.status === "warning"
@@ -1494,7 +1637,7 @@ function LiveServicesPanel({ report }: { report: LiveServicesReport }) {
           <p className="text-sm font-bold uppercase tracking-widest text-white/55">
             Live service access
           </p>
-          <p className="mt-1 text-xs text-white/35">
+          <p className="mt-1 text-xs text-white/50">
             Confirms configured credentials can actually reach Firebase services.
           </p>
         </div>
@@ -1509,7 +1652,7 @@ function LiveServicesPanel({ report }: { report: LiveServicesReport }) {
             <div className="flex items-start justify-between gap-3">
               <p className="text-sm text-white/75">{check.label}</p>
               <span
-                className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-widest ${
+                className={`shrink-0 rounded-full px-2 py-1 text-[0.6875rem] font-bold uppercase tracking-widest ${
                   check.status === "pass"
                     ? "bg-emerald-500/10 text-emerald-300"
                     : "bg-red-500/10 text-red-300"
@@ -1540,7 +1683,7 @@ function ReadinessBadge({ status }: { status: ReadinessStatus }) {
 
   return (
     <span
-      className={`rounded-full border px-2 py-1 text-[10px] font-bold uppercase tracking-widest ${className}`}
+      className={`rounded-full border px-2 py-1 text-[0.6875rem] font-bold uppercase tracking-widest ${className}`}
     >
       {status}
     </span>

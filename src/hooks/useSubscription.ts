@@ -3,7 +3,7 @@
  * Handles feature gating based on subscription tier
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useAuth } from "../lib/useAuth";
@@ -30,9 +30,6 @@ interface UseSubscriptionResult {
   loading: boolean;
   error: string | null;
 
-  // Actions
-  useCredit: () => Promise<boolean>;
-  addCredits: (amount: number) => Promise<void>;
   canAccess: (feature: FeatureType) => boolean;
   checkFeature: (feature: keyof TierConfig["limits"]) => boolean;
   canUseFeature: (feature: FeatureKey) => boolean;
@@ -66,16 +63,25 @@ const LEGACY_FEATURE_MAP: Record<LegacyFeatureType, FeatureKey> = {
  * Normalize the many shapes a date can arrive in (Firestore Timestamp, Date,
  * ISO string, epoch number) to milliseconds. Firestore client reads return a
  * Timestamp, and `new Date(timestamp)` yields an Invalid Date — so this guard
- * is required for subscription expiry comparisons to work at all.
+ * is required for subscription date handling to work at all.
  */
-function toTimeMs(value: unknown): number | null {
+export function subscriptionTimeMs(value: unknown): number | null {
   if (value === null || value === undefined) return null;
-  if (value instanceof Date) return value.getTime();
+  if (value instanceof Date) {
+    const ms = value.getTime();
+    return Number.isNaN(ms) ? null : ms;
+  }
   if (
     typeof value === "object" &&
     typeof (value as { toDate?: () => Date }).toDate === "function"
   ) {
     return (value as { toDate: () => Date }).toDate().getTime();
+  }
+  if (
+    typeof value === "object" &&
+    typeof (value as { seconds?: unknown }).seconds === "number"
+  ) {
+    return (value as { seconds: number }).seconds * 1000;
   }
   if (typeof value === "string" || typeof value === "number") {
     const ms = new Date(value).getTime();
@@ -84,15 +90,52 @@ function toTimeMs(value: unknown): number | null {
   return null;
 }
 
+/** Locale date for a subscription field (Timestamp/Date/string), or null. */
+export function formatSubscriptionDate(value: unknown): string | null {
+  const ms = subscriptionTimeMs(value);
+  return ms === null ? null : new Date(ms).toLocaleDateString();
+}
+
+// Mirrors PAID_ACCESS_STATUSES in netlify/functions/shared/subscription-plans.ts.
+const PAID_ACCESS_STATUSES = new Set([
+  "active",
+  "cancelling",
+  "pending",
+  "completed",
+]);
+
+/**
+ * Client mirror of the server's isPaidSubscriptionActive: a paid tier, a
+ * status that still grants access, and — when an expiry is recorded — not past
+ * it plus the grace window. A missing expiresAt on an access-granting status
+ * is active, exactly as the server treats it (revocation always sets
+ * tier/status), so the client never paywalls someone the server serves.
+ */
+export function isPaidSubscriptionActive(
+  subscription: Partial<SubscriptionData> | null | undefined,
+  nowMs = Date.now(),
+): boolean {
+  if (!subscription) return false;
+  if (subscription.tier !== "premium" && subscription.tier !== "pro") {
+    return false;
+  }
+  if (!PAID_ACCESS_STATUSES.has(String(subscription.status ?? ""))) {
+    return false;
+  }
+  const expiresAtMs = subscriptionTimeMs(subscription.expiresAt);
+  if (expiresAtMs === null) return true;
+  const graceMs = SUBSCRIPTION_GRACE_DAYS * 24 * 60 * 60 * 1000;
+  return expiresAtMs + graceMs > nowMs;
+}
+
 export function useSubscription(): UseSubscriptionResult {
-  const { user } = useAuth();
+  const { user, accountSyncing } = useAuth();
   const [subscription, setSubscription] = useState<SubscriptionData>({
     tier: "free",
   });
   const [credits, setCredits] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const creditLockRef = useRef(false);
 
   // Subscribe to subscription/credit data in real time so top-ups and
   // webhook-driven subscription changes reflect without a page reload.
@@ -115,7 +158,8 @@ export function useSubscription(): UseSubscriptionResult {
         if (docSnap.exists()) {
           const data = docSnap.data();
           setSubscription(data.subscription || { tier: "free" });
-          setCredits(data.credits || 0);
+          // May be negative after a refunded payment's credits are taken back.
+          setCredits(typeof data.credits === "number" ? data.credits : 0);
         }
         setLoading(false);
       },
@@ -129,67 +173,11 @@ export function useSubscription(): UseSubscriptionResult {
     return () => unsubscribe();
   }, [user]);
 
-  // Check subscription validity. Mirrors the server's grace window
-  // (netlify/functions/shared/subscription-plans.ts) so the client doesn't
-  // paywall a subscriber the server still treats as active — the server-side
-  // lapse sweeper downgrades the tier once the grace window truly passes.
-  const isSubscriptionActive = useCallback(() => {
-    if (subscription.tier === "free") return true;
-    const expiresAtMs = toTimeMs(subscription.expiresAt);
-    if (expiresAtMs === null) return false;
-    const graceMs = SUBSCRIPTION_GRACE_DAYS * 24 * 60 * 60 * 1000;
-    return expiresAtMs + graceMs > Date.now();
-  }, [subscription]);
-
-  // Use one credit
-  const useCredit = async (): Promise<boolean> => {
-    if (!user) return false;
-
-    // Premium/Pro users don't use credits for chat
-    if (subscription.tier !== "free" && isSubscriptionActive()) {
-      return true;
-    }
-
-    // Prevent concurrent credit usage
-    if (creditLockRef.current) return false;
-    if (credits <= 0) return false;
-
-    creditLockRef.current = true;
-    try {
-      const idToken = await user.getIdToken();
-      const res = await fetch("/api/credits/use", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken, source: "subscription_hook" }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Credit usage failed");
-      if (typeof data.balanceAfter === "number") {
-        setCredits(data.balanceAfter);
-      } else {
-        setCredits((prev) => prev - 1);
-      }
-      return true;
-    } catch (err) {
-      console.error("Credit usage error:", err);
-      return false;
-    } finally {
-      creditLockRef.current = false;
-    }
-  };
-
-  // Add credits
-  const addCredits = async (amount: number): Promise<void> => {
-    if (!user) return;
-
-    try {
-      if (amount <= 0) throw new Error("Credit amount must be positive");
-      throw new Error("Credits can only be added after payment verification.");
-    } catch (err: any) {
-      console.error("Error adding credits:", err);
-      setError(err.message);
-    }
-  };
+  // Same rule as the server (see isPaidSubscriptionActive above).
+  const isSubscriptionActive = useCallback(
+    () => isPaidSubscriptionActive(subscription),
+    [subscription],
+  );
 
   // Check feature access
   const canAccess = (feature: FeatureType): boolean => {
@@ -225,10 +213,10 @@ export function useSubscription(): UseSubscriptionResult {
     isSubscribed: activeTier !== "free",
     isPremium: activeTier === "premium" || activeTier === "pro",
     isPro: activeTier === "pro",
-    loading,
+    // Credits are initialized in the background after sign-in; a 0 balance
+    // while that runs is "not loaded yet", not "out of credits".
+    loading: loading || (accountSyncing && credits === 0),
     error,
-    useCredit,
-    addCredits,
     canAccess,
     checkFeature,
     canUseFeature: canUseEntitledFeature,

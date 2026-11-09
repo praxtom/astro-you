@@ -39,10 +39,18 @@ export interface SynthesisPostprocessJob {
   summaryMessages?: ChatMessage[];
   /** Minimal context the analysis prompt needs (name + atman). */
   context: { name: string; atman?: unknown };
+  /**
+   * Epoch ms when the turn was requested. Memory writes are dropped when the
+   * user reset memory ("Forget everything" / forget this chat) after it.
+   * Falls back to the job start time when absent.
+   */
+  requestedAt?: number;
 }
 
 export interface SynthesisPostprocessDeps {
   isMemoryPaused(uid: string): Promise<boolean>;
+  /** Clock for the requestedAt fallback (tests). */
+  now?: () => number;
   analyze(
     messages: ChatMessage[],
     context: SynthesisPostprocessJob["context"],
@@ -59,6 +67,7 @@ export interface SynthesisPostprocessDeps {
     interactionId?: string;
     userMessage: string;
     assistantMessage: string;
+    requestedAt: number;
   }): Promise<unknown>;
   readChatSummary(uid: string, chatId: string): Promise<string | undefined>;
   summarize(
@@ -66,8 +75,27 @@ export interface SynthesisPostprocessDeps {
     userName: string,
     previousSummary?: string,
   ): Promise<string>;
-  /** Must NOT create the chat doc if it was deleted meanwhile. */
-  writeChatSummary(uid: string, chatId: string, summary: string): Promise<void>;
+  /**
+   * Must NOT create the chat doc if it was deleted meanwhile, and must skip
+   * the write when memory was paused or reset after `requestedAt`.
+   */
+  writeChatSummary(
+    uid: string,
+    chatId: string,
+    summary: string,
+    requestedAt: number,
+  ): Promise<void>;
+}
+
+/** The job's requestedAt when valid, else the job start time. */
+export function resolvePostprocessRequestedAt(
+  job: Pick<SynthesisPostprocessJob, "requestedAt">,
+  jobStartedAt: number,
+): number {
+  const value = job.requestedAt;
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? value
+    : jobStartedAt;
 }
 
 export interface SynthesisPostprocessResult {
@@ -114,6 +142,10 @@ export async function runSynthesisPostprocess(
   if (!isValidPostprocessJob(job)) {
     return { skipped: "invalid", brainUpdated: false, summaryWritten: false };
   }
+  const requestedAt = resolvePostprocessRequestedAt(
+    job,
+    deps.now?.() ?? Date.now(),
+  );
   // Re-check at processing time: the user may have paused memory since the
   // request started. Fail closed — if we can't confirm, don't write.
   const paused = await safe("memoryPaused lookup", () =>
@@ -146,7 +178,7 @@ export async function runSynthesisPostprocess(
             previous,
           );
           if (!summary) return false;
-          await deps.writeChatSummary(job.uid, chatId!, summary);
+          await deps.writeChatSummary(job.uid, chatId!, summary, requestedAt);
           return true;
         })
       : Promise.resolve(false),
@@ -161,6 +193,7 @@ export async function runSynthesisPostprocess(
       interactionId: job.interactionId,
       userMessage: job.userMessage,
       assistantMessage: job.assistantMessage,
+      requestedAt,
     }),
   );
 

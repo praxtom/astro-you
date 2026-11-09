@@ -47,20 +47,20 @@ export function DashaCard({ periods, loading, errorKind, onRetry, hasBirthData }
                 <div className="mt-2 space-y-3">
                     <div>
                         <p className="font-display text-[1.6rem] leading-snug text-white/92">
-                            {maha.planet} <span className="text-white/45 text-base"><GlossaryTerm k="mahadasha">Mahadasha</GlossaryTerm></span>
+                            {maha.planet} <span className="text-white/55 text-base"><GlossaryTerm k="mahadasha">Mahadasha</GlossaryTerm></span>
                         </p>
                         <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-white/45 text-[0.95rem]">until {fmtDate(maha.endDate)}</span>
+                            <span className="text-white/55 text-[0.95rem]">until {fmtDate(maha.endDate)}</span>
                             <span className="text-gold/75 text-[0.95rem]">{timeLeft(maha.endDate)}</span>
                         </div>
                     </div>
                     {antar && (
                         <div>
                             <p className="font-display text-[1.3rem] leading-snug text-white/85">
-                                {antar.planet} <span className="text-white/45 text-base"><GlossaryTerm k="antardasha">Antardasha</GlossaryTerm></span>
+                                {antar.planet} <span className="text-white/55 text-base"><GlossaryTerm k="antardasha">Antardasha</GlossaryTerm></span>
                             </p>
                             <div className="flex items-center gap-2 mt-0.5">
-                                <span className="text-white/45 text-[0.95rem]">until {fmtDate(antar.endDate)}</span>
+                                <span className="text-white/55 text-[0.95rem]">until {fmtDate(antar.endDate)}</span>
                                 <span className="text-gold/75 text-[0.95rem]">{timeLeft(antar.endDate)}</span>
                             </div>
                         </div>

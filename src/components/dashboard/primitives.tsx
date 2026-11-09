@@ -51,7 +51,7 @@ export function DashSection({
           {title}
         </h2>
         {aside && (
-          <div className="shrink-0 pb-1 text-xs text-white/40">{aside}</div>
+          <div className="shrink-0 pb-1 text-xs text-white/55">{aside}</div>
         )}
       </div>
       {children}
@@ -175,7 +175,7 @@ export function FactLabel({
       ? "text-red-300/60"
       : tone === "gold"
         ? "text-gold/75"
-        : "text-white/45";
+        : "text-white/55";
   return (
     <p
       className={`text-[0.78rem] font-semibold uppercase tracking-[0.08em] ${color}`}

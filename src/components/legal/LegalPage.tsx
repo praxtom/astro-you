@@ -20,7 +20,7 @@ export function LegalPage({
       <div className="platform-main max-w-4xl">
         <Link
           to="/"
-          className="mb-6 inline-flex items-center gap-2 text-sm text-white/40 transition-colors hover:text-white"
+          className="mb-6 inline-flex items-center gap-2 text-sm text-white/55 transition-colors hover:text-white"
         >
           <ArrowLeft size={16} />
           Back to home
@@ -30,7 +30,7 @@ export function LegalPage({
           <p className="platform-eyebrow mb-2">AstroYou policy</p>
           <h1 className="type-page-title max-w-3xl">{title}</h1>
           <p className="platform-copy mt-3 max-w-2xl">{description}</p>
-          <p className="type-meta mt-4 text-white/35">
+          <p className="type-meta mt-4 text-white/50">
             Effective date: {effectiveDate}
           </p>
         </section>

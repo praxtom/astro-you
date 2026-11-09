@@ -8,11 +8,11 @@
     />
 
     <!-- Primary Meta Tags -->
-    <title>AstroYou | Celestial Intelligence</title>
-    <meta name="title" content="AstroYou | Celestial Intelligence" />
+    <title>AstroYou | AI Jyotish Guide &amp; Free Kundali</title>
+    <meta name="title" content="AstroYou | AI Jyotish Guide &amp; Free Kundali" />
     <meta
       name="description"
-      content="Discover your cosmic blueprint with Vedic astrology. Get personalized Kundali readings, daily horoscopes, and celestial guidance from the Voice of the Stars."
+      content="Free Vedic Kundali, Kundali matching and daily Panchang, plus an AI guide trained on Jyotish that reads your birth chart. Free to start."
     />
     <meta
       name="keywords"
@@ -28,10 +28,10 @@
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://astroyou.app/" />
-    <meta property="og:title" content="AstroYou | Celestial Intelligence" />
+    <meta property="og:title" content="AstroYou | AI Jyotish Guide &amp; Free Kundali" />
     <meta
       property="og:description"
-      content="Discover your cosmic blueprint with Vedic astrology. Get personalized Kundali readings, daily horoscopes, and celestial guidance."
+      content="Free Vedic Kundali, Kundali matching and daily Panchang, plus an AI guide trained on Jyotish that reads your birth chart. Free to start."
     />
     <meta property="og:image" content="https://astroyou.app/og-image.png" />
     <meta property="og:site_name" content="AstroYou" />
@@ -40,10 +40,10 @@
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:url" content="https://astroyou.app/" />
-    <meta name="twitter:title" content="AstroYou | Celestial Intelligence" />
+    <meta name="twitter:title" content="AstroYou | AI Jyotish Guide &amp; Free Kundali" />
     <meta
       name="twitter:description"
-      content="Discover your cosmic blueprint with Vedic astrology. Get personalized Kundali readings, daily horoscopes, and celestial guidance."
+      content="Free Vedic Kundali, Kundali matching and daily Panchang, plus an AI guide trained on Jyotish that reads your birth chart. Free to start."
     />
     <meta name="twitter:image" content="https://astroyou.app/og-image.png" />
 
@@ -66,14 +66,14 @@
     <!-- Canonical URL -->
     <link rel="canonical" href="https://astroyou.app/" />
 
-    <!-- Preconnect for performance -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-
-    <!-- Fonts -->
+    <!-- Fonts: self-hosted (src/styles/fonts.css) so no visitor IP reaches
+         Google before consent. Preload the body face to avoid a late swap. -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap"
-      rel="stylesheet"
+      rel="preload"
+      href="/fonts/PlusJakartaSans-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
     />
 
     <!-- Machine-readable context for AI agents -->
@@ -106,10 +106,6 @@
               "width": 512,
               "height": 512
             },
-            "sameAs": [
-              "https://astroyou.app/trust",
-              "https://astroyou.app/help"
-            ],
             "knowsAbout": [
               "Vedic astrology",
               "Jyotish",
@@ -131,7 +127,7 @@
           {
             "@type": "WebApplication",
             "name": "AstroYou",
-            "description": "Vedic astrology platform that computes a sidereal Janam Kundali using the Lahiri ayanamsa and interprets it with a Jyotish guide that retains chart, dasha, and conversation history.",
+            "description": "Vedic astrology platform that computes a sidereal Janam Kundali using the Lahiri ayanamsa and interprets it with an AI Jyotish guide that remembers your chart and the key things you share with it.",
             "url": "https://astroyou.app",
             "applicationCategory": "LifestyleApplication",
             "operatingSystem": "Web",
@@ -148,7 +144,7 @@
               "Kundali matching with 36-point Ashtakoot scoring",
               "Daily Panchang",
               "Vimshottari dasha timeline",
-              "Chart-aware Jyotish guidance"
+              "Chart-aware AI Jyotish guidance"
             ]
           }
         ]

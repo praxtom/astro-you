@@ -37,8 +37,8 @@ export const CREDIT_PACKS: CreditPack[] = [
     amountInRupees: 99,
     amounts: { INR: 99, USD: 5.99 },
     label: "120 credits",
-    description: "Enough for a focused astrologer sitting.",
-    badge: "Popular",
+    description: "Enough for a focused AI guide session.",
+    badge: "Recommended",
     recommended: true,
   },
   {

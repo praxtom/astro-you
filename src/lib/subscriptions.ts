@@ -26,8 +26,23 @@ export interface TierConfig {
     priorityPersonas: boolean;
   };
   badge: string; // Emoji for display
-  popular?: boolean;
+  /** Editorial pick, not a popularity claim: no sales data backs a ranking. */
+  recommended?: boolean;
 }
+
+/**
+ * Daily fair-use cap on "unlimited" Jyotish chat for paid subscribers.
+ * Copy only: the server enforces its own limit.
+ */
+export const PAID_CHAT_FAIR_USE_PER_DAY = 150;
+
+/** Effective INR per credit when a plan's monthly credits are fully used. */
+function perCreditInr(tier: SubscriptionTier): string {
+  const { monthlyPriceInr, limits } = ENTITLEMENTS[tier];
+  return `₹${(monthlyPriceInr / limits.monthlyCredits).toFixed(2)}`;
+}
+
+const formatCredits = (n: number) => n.toLocaleString("en-IN");
 
 export const TIERS: Record<SubscriptionTier, TierConfig> = {
   free: {
@@ -36,12 +51,12 @@ export const TIERS: Record<SubscriptionTier, TierConfig> = {
     price: ENTITLEMENTS.free.monthlyPriceInr,
     prices: ENTITLEMENTS.free.monthlyPrices,
     badge: "✦",
+    // Every line here must match what the server actually does today.
     features: [
-      "15 starter credits",
-      "Daily horoscope",
-      "Birth chart analysis",
-      "Up to 3 consultation minutes",
-      "Basic compatibility check",
+      `${ENTITLEMENTS.free.limits.monthlyCredits} credits once, when you sign up`,
+      "Jyotish chat at 1 credit per message",
+      "Free Kundali, Kundali matching and daily Panchang",
+      "Forecasts, reports and AI guide sessions open to you for credits",
     ],
     limits: {
       credits: ENTITLEMENTS.free.limits.monthlyCredits,
@@ -59,15 +74,12 @@ export const TIERS: Record<SubscriptionTier, TierConfig> = {
     price: ENTITLEMENTS.premium.monthlyPriceInr,
     prices: ENTITLEMENTS.premium.monthlyPrices,
     badge: "⭐",
-    popular: true,
+    recommended: true,
     features: [
-      "Unlimited Jyotish chat",
-      "Daily + Weekly + Monthly forecasts",
-      "700 monthly credits",
-      "Up to 140 consultation minutes",
-      "PDF natal reports",
-      "Vedic remedies & doshas",
-      "All dashboard widgets",
+      `${formatCredits(ENTITLEMENTS.premium.limits.monthlyCredits)} credits added each month you're billed`,
+      `Unlimited Jyotish chat (fair use: ${PAID_CHAT_FAIR_USE_PER_DAY} messages a day)`,
+      `About ${perCreditInr("premium")} per credit`,
+      "Spend credits on AI guide sessions, forecasts and PDF reports",
     ],
     limits: {
       credits: ENTITLEMENTS.premium.limits.monthlyCredits,
@@ -86,14 +98,10 @@ export const TIERS: Record<SubscriptionTier, TierConfig> = {
     prices: ENTITLEMENTS.pro.monthlyPrices,
     badge: "👑",
     features: [
-      "Everything in Premium",
-      "1,600 monthly credits",
-      "Up to 320 consultation minutes",
-      "Yearly forecast & predictions",
-      "Astrocartography maps",
-      "Priority access to all guides",
-      "Numerology + Tarot readings",
-      "Priority support",
+      `${formatCredits(ENTITLEMENTS.pro.limits.monthlyCredits)} credits added each month you're billed`,
+      `Unlimited Jyotish chat (fair use: ${PAID_CHAT_FAIR_USE_PER_DAY} messages a day)`,
+      `About ${perCreditInr("pro")} per credit — the lowest rate`,
+      "Spend credits on AI guide sessions, forecasts and PDF reports",
     ],
     limits: {
       credits: ENTITLEMENTS.pro.limits.monthlyCredits,

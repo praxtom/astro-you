@@ -40,7 +40,6 @@ import {
   getYogaAnalysis,
   getRemedies,
   getManglikDosha,
-  getPanchang,
   getFestivalCalendar,
   getNatalChartSVG,
   getRenderedNatalChart,
@@ -80,12 +79,9 @@ import {
   isGuestChartType,
   NAME_DEPENDENT_CHART_TYPES,
   normalizeSubjectName,
-  panchangCacheDocId,
   refreshDashaCurrentFlags,
-  resolvePanchangPlace,
   serverDateKey,
   stripEchoedBirthInputs,
-  stripPanchangLocation,
 } from "./shared/chart-cache";
 import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit";
 import { verifyToken, AuthError } from "./shared/require-auth";
@@ -97,6 +93,13 @@ import {
 } from "./shared/kundali-errors";
 import { normalizeZodiacMode } from "../../src/lib/zodiac-mode.js";
 import { normalizeFestivalRegion } from "../../src/lib/festival-regions.js";
+import { getCachedPanchang } from "./shared/astro-cached.js";
+import {
+  localDashaPeriods,
+  localNatalChart,
+  tryLocalEngine,
+} from "./shared/astro-engine.js";
+import { parseBudget } from "./shared/astro-budget.js";
 
 const json = (body: any, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -119,7 +122,27 @@ const PUBLIC_CHART_TYPES = new Set([
 // chat and the guest dashboard render these before signup. Upstream (paid)
 // calls for guests are gated by the stricter fail-closed per-IP budget below;
 // server-cache hits cost nothing upstream and do not consume it.
-const GUEST_REQUESTS_PER_IP_PER_HOUR = 8;
+// Env ASTRO_GUEST_UPSTREAM_PER_IP_HOUR. Sized for shared carrier (CGNAT) IPs:
+// one new guest dashboard is 3 misses; the global astrology budget
+// (shared/astro-budget.ts) caps the total whatever the IP mix.
+const DEFAULT_GUEST_UPSTREAM_PER_IP_HOUR = 15;
+function guestUpstreamPerIpHour(): number {
+  return parseBudget(
+    process.env.ASTRO_GUEST_UPSTREAM_PER_IP_HOUR,
+    DEFAULT_GUEST_UPSTREAM_PER_IP_HOUR,
+  );
+}
+
+/**
+ * Request ceilings per hour, counted for every request (cache hits too).
+ * Signed-in users are keyed by uid, so many users behind one carrier IP no
+ * longer share a bucket; guests and public types are keyed by IP with a
+ * ceiling high enough for a shared IP — paid upstream calls are bounded
+ * separately (guest budget above, global budget in astro-api).
+ */
+const USER_REQUESTS_PER_TYPE_PER_HOUR = 60;
+const IP_REQUESTS_PER_TYPE_PER_HOUR = 200;
+const IP_PANCHANG_REQUESTS_PER_HOUR = 300;
 
 class GuestBudgetError extends Error {
   constructor() {
@@ -231,32 +254,18 @@ export default async (req: Request, _context: Context) => {
     // unchanged for everyone who never touches the setting.
     const zodiacMode = normalizeZodiacMode(body.zodiacMode);
 
-    const rateLimit = await checkRateLimit({
-      scope: `astro_${String(chartType).toLowerCase()}`,
-      key: getRequestIdentifier(req),
-      limit: chartType === "PANCHANG" ? 120 : 40,
-      windowMs: 60 * 60 * 1000,
-    });
-    if (!rateLimit.allowed) {
-      return json(
-        {
-          error: "Too many astrology requests. Please try again later.",
-          resetAt: rateLimit.resetAt.toISOString(),
-        },
-        429,
-      );
-    }
-
     // Authentication: all chart types except the public/landing ones require a
     // verified Firebase ID token. This prevents anonymous abuse of the paid
     // astrology API. Public types (panchang/festivals/eclipses/tarot) stay open
-    // for the marketing pages but remain rate-limited above. Guests may also
+    // for the marketing pages but remain rate-limited below. Guests may also
     // request the basic natal set (GUEST_CHART_TYPES) under a strict
     // fail-closed per-IP budget; authenticated behavior is unchanged.
     let isGuest = false;
+    let uid: string | null = null;
     if (!PUBLIC_CHART_TYPES.has(String(chartType))) {
       try {
-        await verifyToken(body.idToken);
+        const decoded: any = await verifyToken(body.idToken);
+        uid = typeof decoded?.uid === "string" ? decoded.uid : null;
       } catch (err) {
         if (!isGuestChartType(chartType)) {
           const status = err instanceof AuthError ? err.status : 401;
@@ -267,6 +276,26 @@ export default async (req: Request, _context: Context) => {
         }
         isGuest = true;
       }
+    }
+
+    const rateLimit = await checkRateLimit({
+      scope: `astro_${String(chartType).toLowerCase()}`,
+      key: uid ? `uid:${uid}` : getRequestIdentifier(req),
+      limit: uid
+        ? USER_REQUESTS_PER_TYPE_PER_HOUR
+        : chartType === "PANCHANG"
+          ? IP_PANCHANG_REQUESTS_PER_HOUR
+          : IP_REQUESTS_PER_TYPE_PER_HOUR,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!rateLimit.allowed) {
+      return json(
+        {
+          error: "Too many astrology requests. Please try again later.",
+          resetAt: rateLimit.resetAt.toISOString(),
+        },
+        429,
+      );
     }
 
     // Panchang doesn't need birthData. The cache key covers exactly what is
@@ -285,19 +314,9 @@ export default async (req: Request, _context: Context) => {
       const dateKey = isCalendarDateKey(date)
         ? date
         : clampedTodayKey(body.localDate);
-      const place = resolvePanchangPlace({ city, lat, lng });
-      // Sanitized on write AND on read: entries cached before the
-      // sanitizer existed may still carry the requester's location.
-      const data = stripPanchangLocation(
-        await getCachedOrFetch(
-          "panchang",
-          panchangCacheDocId(dateKey, place),
-          async () =>
-            stripPanchangLocation(
-              await getPanchang(dateKey, place.city, place.lat, place.lng),
-            ),
-        ),
-      );
+      // Shared entry (shared/astro-cached.ts): the daily forecast and chat
+      // context read the same doc for the same day and place.
+      const data = await getCachedPanchang(dateKey, { city, lat, lng });
       return json({ data });
     }
 
@@ -415,7 +434,7 @@ export default async (req: Request, _context: Context) => {
         const allowed = await allowAnonRequest(
           req,
           "kundali_guest",
-          GUEST_REQUESTS_PER_IP_PER_HOUR,
+          guestUpstreamPerIpHour(),
           60 * 60 * 1000,
         );
         if (!allowed) throw new GuestBudgetError();
@@ -514,7 +533,11 @@ export default async (req: Request, _context: Context) => {
 
     switch (chartType) {
       case "DASHAS": {
-        const periods = await cached(() => getDashaPeriods(bd));
+        // ASTRO_ENGINE=local: in-house Vimshottari (no upstream call, so no
+        // guest budget or cache needed); null → the API path below.
+        const periods =
+          tryLocalEngine("dashas", () => localDashaPeriods(bd)) ??
+          (await cached(() => getDashaPeriods(bd)));
         // Dasha dates follow the Moon's exact longitude, which moves ~6 deg
         // in 12 hours — with a noon placeholder they can be years off.
         return json({
@@ -629,7 +652,12 @@ export default async (req: Request, _context: Context) => {
         return json({ data: await cached(() => getVarshaphal(bd, body.year)) });
       }
       case "D1": {
-        const data = await cached(() => getNatalChart(bd, zodiacMode));
+        // ASTRO_ENGINE=local serves the Vedic (Lahiri, whole-sign) D1 only.
+        const data =
+          (zodiacMode === "western"
+            ? null
+            : tryLocalEngine("D1", () => localNatalChart(bd))) ??
+          (await cached(() => getNatalChart(bd, zodiacMode)));
         return json(birthTimeUnknown ? shapeTimeUnknownChart(data) : data);
       }
       default: {

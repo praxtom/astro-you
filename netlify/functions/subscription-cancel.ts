@@ -1,6 +1,10 @@
 import { Config, Context } from "@netlify/functions";
 import Razorpay from "razorpay";
-import { auth, db } from "./shared/firebase-admin";
+import { auth, db, FieldValue } from "./shared/firebase-admin";
+import {
+  currentSubscriptionId,
+  pendingSubscriptionId,
+} from "./shared/subscription-plans";
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID || "",
@@ -23,21 +27,36 @@ export default async (req: Request, _context: Context) => {
     const uid = decoded.uid;
     const userDoc = await db.collection("users").doc(uid).get();
     const subscription = userDoc.data()?.subscription || {};
-    const subId =
-      subscription.razorpaySubscriptionId || subscription.razorpaySubId;
+    const subId = currentSubscriptionId(subscription);
+    const pendingId = pendingSubscriptionId(subscription);
 
-    if (!subId) {
+    if (!subId && !pendingId) {
       return new Response(JSON.stringify({ error: "No active subscription" }), {
         status: 400,
         headers: { "Content-Type": "application/json" },
       });
     }
 
+    // An unpaid plan-change checkout is abandoned along with the plan: cancel
+    // it immediately so the old payment link can never start billing.
+    if (pendingId) {
+      try {
+        await razorpay.subscriptions.cancel(pendingId, false);
+      } catch (pendingErr: any) {
+        console.warn(
+          "[Subscription Cancel] Could not cancel pending checkout:",
+          pendingErr?.statusCode ?? pendingErr?.name ?? "error",
+        );
+      }
+    }
+
     // Cancel at end of billing period. The 2nd arg is `cancelAtCycleEnd` —
     // passing false would cancel IMMEDIATELY and forfeit the paid period.
     // Razorpay emits subscription.cancelled at cycle end, and the webhook
     // downgrades the tier then.
-    await razorpay.subscriptions.cancel(subId, true);
+    if (subId) {
+      await razorpay.subscriptions.cancel(subId, true);
+    }
 
     await db
       .collection("users")
@@ -45,9 +64,14 @@ export default async (req: Request, _context: Context) => {
       .set(
         {
           subscription: {
-            status: "cancelling",
-            cancelRequestedAt: new Date(),
-            cancelAtPeriodEnd: true,
+            ...(subId
+              ? {
+                  status: "cancelling",
+                  cancelRequestedAt: new Date(),
+                  cancelAtPeriodEnd: true,
+                }
+              : {}),
+            ...(pendingId ? { pendingSubscription: FieldValue.delete() } : {}),
           },
         },
         { merge: true },

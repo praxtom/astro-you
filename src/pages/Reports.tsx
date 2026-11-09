@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
 import { AlertCircle, Download, FileText, Loader2, Wallet } from "lucide-react";
@@ -21,6 +21,7 @@ import { useCreditTopup } from "../hooks/useCreditTopup";
 import { DEFAULT_CREDIT_PACK } from "../lib/credit-packs";
 import { trackAcquisitionEvent } from "../lib/acquisition";
 import {
+  createReportRequestId,
   REPORT_PRODUCTS,
   type ClientReportProduct,
   type ClientReportType,
@@ -54,6 +55,11 @@ export default function Reports() {
   const [libraryLoading, setLibraryLoading] = useState(true);
   const [success, setSuccess] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  // One request id per purchase attempt, kept until the server answers, so a
+  // retry after a dropped connection reuses it and is never charged twice.
+  const pendingRequestIds = useRef<Partial<Record<ClientReportType, string>>>(
+    {},
+  );
 
   // "My Chart" leads with the chart itself; the report store follows. Guests
   // see the chart they just cast (session profile) too.
@@ -182,20 +188,43 @@ export default function Reports() {
         lat: birthData.coordinates?.lat ?? profile?.coordinates?.lat,
         lng: birthData.coordinates?.lng ?? profile?.coordinates?.lng,
       };
-      const response = await fetch("/api/pdf-report", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          idToken,
-          birthData: reportBirthData,
-          reportType: product.type,
-          date: viewerDateKey(),
-          localDate: viewerDateKey(),
-        }),
-      });
+      const requestId =
+        pendingRequestIds.current[product.type] ?? createReportRequestId();
+      pendingRequestIds.current[product.type] = requestId;
+      const send = () =>
+        fetch("/api/pdf-report", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            idToken,
+            requestId,
+            birthData: reportBirthData,
+            reportType: product.type,
+            date: viewerDateKey(),
+            localDate: viewerDateKey(),
+          }),
+        });
+      let response: Response;
+      try {
+        response = await send();
+      } catch {
+        // Network drop: retry once with the SAME request id. The server either
+        // finishes the original (served free) or reports it in progress.
+        await new Promise((resolve) => window.setTimeout(resolve, 1500));
+        response = await send();
+      }
+      // The server answered: this purchase attempt is settled either way.
+      delete pendingRequestIds.current[product.type];
       const errorPayload = response.ok
         ? null
         : await response.json().catch(() => null);
+      if (response.status === 409 && errorPayload?.code === "report_in_progress") {
+        await loadReports();
+        throw new Error(
+          errorPayload.error ||
+            "This report is still being prepared. It will appear in your library shortly.",
+        );
+      }
       if (!response.ok) {
         throw new Error(errorPayload?.error || "Could not generate report.");
       }
@@ -351,14 +380,14 @@ export default function Reports() {
           <aside className="platform-panel p-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="type-meta uppercase text-white/35">Credits</p>
+                <p className="type-meta uppercase text-white/50">Credits</p>
                 <p className="type-kpi text-white mt-1">{credits}</p>
               </div>
               <Wallet className="text-gold" size={24} />
             </div>
             <div className="mt-2 grid grid-cols-[1fr_auto] items-center gap-2">
               <div className="flex items-center justify-between gap-2">
-                <span className="type-body-sm text-white/45">Plan</span>
+                <span className="type-body-sm text-white/55">Plan</span>
                 <span className="type-body-sm text-gold capitalize">
                   {tier}
                 </span>
@@ -392,7 +421,7 @@ export default function Reports() {
             <div className="flex items-end justify-between gap-4">
               <div>
                 <h2 className="type-section-title">Create a Report</h2>
-                <p className="type-body-sm text-white/40">
+                <p className="type-body-sm text-white/55">
                   Credit cost is shown before generation.
                 </p>
               </div>
@@ -544,7 +573,7 @@ function ReportProductRow({
         </div>
         <div>
           <h3 className="type-card-title text-white">{product.title}</h3>
-          <p className="type-body-sm text-white/45">{product.description}</p>
+          <p className="type-body-sm text-white/55">{product.description}</p>
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-3 md:justify-end">
@@ -600,7 +629,7 @@ function SavedReportRow({
           <p className="type-card-title text-white">
             {report.title || "AstroYou Report"}
           </p>
-          <p className="type-meta text-white/35 mt-1">
+          <p className="type-meta text-white/50 mt-1">
             {report.reportType || "report"} · {report.status || "unknown"} ·{" "}
             {report.chargedCredits ?? report.creditCost ?? 0} credits
           </p>

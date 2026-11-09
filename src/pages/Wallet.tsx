@@ -21,7 +21,7 @@ import AuthModal from "../components/AuthModal";
 import { StatusNotice } from "../components/ui/StatusNotice";
 import { useAuth } from "../lib/useAuth";
 import { db } from "../lib/firebase";
-import { useSubscription } from "../hooks";
+import { useSubscription, usePendingPayment } from "../hooks";
 import { useCreditTopup } from "../hooks/useCreditTopup";
 import { CREDIT_PACKS, formatCreditRate } from "../lib/credit-packs";
 import { useCurrency } from "../hooks/useCurrency";
@@ -90,6 +90,8 @@ function labelForLedgerType(type?: string) {
       return "Signup credits";
     case "refund":
       return "Refund";
+    case "refund_clawback":
+      return "Payment refunded — credits returned";
     case "admin_adjustment":
       return "Adjustment";
     case "synthesis":
@@ -116,6 +118,7 @@ export default function Wallet() {
   });
   const [selectedPack, setSelectedPack] = useState<number | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const pendingCheckoutId = usePendingPayment();
 
   const loadActivity = useCallback(async () => {
     if (!user) return;
@@ -244,6 +247,10 @@ export default function Wallet() {
           <ArrowLeft size={16} /> Back
         </button>
 
+        {pendingCheckoutId && <div className="platform-panel mb-4 p-4">
+          <p className="text-white/70">You have a recent payment to confirm.</p>
+          <button className="mt-2 text-gold" onClick={() => navigate(`/payment/return?checkout=${encodeURIComponent(pendingCheckoutId)}`)}>Check payment status</button>
+        </div>}
         <section className="grid grid-cols-1 lg:grid-cols-[1fr_20rem] gap-4 items-start mb-4">
           <div>
             <p className="platform-eyebrow mb-2">Wallet</p>
@@ -251,7 +258,7 @@ export default function Wallet() {
               Credits, charges, and receipts in one place.
             </h1>
             <p className="platform-copy mt-3 max-w-2xl">
-              Track purchases, astrologer sittings, report charges, refunds,
+              Track purchases, AI guide sessions, report charges, refunds,
               and plan credits without guessing where your balance went.
             </p>
           </div>
@@ -394,7 +401,7 @@ export default function Wallet() {
               <p className="platform-eyebrow mb-3">Where credits go</p>
               <div className="space-y-3 type-body-sm">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-white/60">Astrologer sittings</span>
+                  <span className="text-white/60">AI guide sessions</span>
                   <span className="text-gold">5-10/min</span>
                 </div>
                 <div className="flex items-center justify-between gap-3">

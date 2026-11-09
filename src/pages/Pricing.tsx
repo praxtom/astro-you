@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { isRazorpayHostedUrl } from "../lib/payment-navigation";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { requestSignIn } from "../lib/auth-prompt";
 import { ArrowRight, Check, Loader2, Wallet } from "lucide-react";
 import { useAuth } from "../lib/useAuth";
 import {
@@ -8,16 +10,32 @@ import {
   formatCreditRate,
 } from "../lib/credit-packs";
 import { trackAcquisitionEvent } from "../lib/acquisition";
-import { TIERS, type TierConfig } from "../lib/subscriptions";
+import {
+  PAID_CHAT_FAIR_USE_PER_DAY,
+  TIERS,
+  type TierConfig,
+} from "../lib/subscriptions";
+import { REPORT_PRICING } from "../lib/report-pricing";
+import { PERSONAS } from "../lib/personas";
 import { useCreditTopup } from "../hooks/useCreditTopup";
 import { TrustProofStrip } from "../components/trust/TrustProofStrip";
 import { useCurrency } from "../hooks/useCurrency";
 import {
   formatMoney,
   SUPPORTED_CURRENCIES,
-  type Currency,
 } from "../lib/currency";
 import { getPackAmount } from "../lib/credit-packs";
+
+/** Per-minute rates actually charged by the guides, lowest first. */
+const GUIDE_RATES = [...new Set(PERSONAS.map((p) => p.pricePerMin))].sort(
+  (a, b) => a - b,
+);
+const GUIDE_RATE_LABEL = `${GUIDE_RATES.slice(0, -1).join(", ")} or ${
+  GUIDE_RATES[GUIDE_RATES.length - 1]
+}`;
+const REPORT_COSTS = Object.values(REPORT_PRICING).sort(
+  (a, b) => a.creditCost - b.creditCost,
+);
 
 export default function Pricing() {
   const navigate = useNavigate();
@@ -42,7 +60,9 @@ export default function Pricing() {
 
     if (!user) {
       trackAcquisitionEvent("pricing_login_required", { tier: tier.id });
-      navigate("/onboarding");
+      // Sign in here, then land back on Pricing with this checkout resumed.
+      if (!requestSignIn({ returnTo: `/pricing?resume=${tier.id}` }))
+        navigate("/onboarding");
       return;
     }
 
@@ -58,7 +78,8 @@ export default function Pricing() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Could not start checkout");
       trackAcquisitionEvent("payment_checkout_started", { tier: tier.id });
-      if (data.shortUrl) window.location.assign(data.shortUrl);
+      if (!isRazorpayHostedUrl(data.shortUrl)) throw new Error("Hosted subscription checkout is unavailable. Please try again shortly.");
+      window.location.assign(data.shortUrl);
     } catch (err) {
       console.error("Subscription checkout error:", err);
       setError(
@@ -72,11 +93,39 @@ export default function Pricing() {
   const handleTopup = async (minutes = selectedPack.minutes) => {
     if (!user) {
       trackAcquisitionEvent("topup_login_required");
-      navigate("/onboarding");
+      if (!requestSignIn({ returnTo: `/pricing?resume=topup-${minutes}` }))
+        navigate("/onboarding");
       return;
     }
     await buyCredits(minutes);
   };
+
+  // Resume the checkout a guest picked before signing in (?resume=<tier> or
+  // ?resume=topup-<minutes>). Runs once: the param is removed first.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const resume = searchParams.get("resume");
+  useEffect(() => {
+    if (!user || !resume) return;
+    setSearchParams(
+      (params) => {
+        params.delete("resume");
+        return params;
+      },
+      { replace: true },
+    );
+    const topup = /^topup-(\d+)$/.exec(resume);
+    if (topup) {
+      const pack = CREDIT_PACKS.find((p) => p.minutes === Number(topup[1]));
+      if (pack) {
+        setSelectedPackMinutes(pack.minutes);
+        void handleTopup(pack.minutes);
+      }
+      return;
+    }
+    const tier = Object.values(TIERS).find((t) => t.id === resume);
+    if (tier && tier.id !== "free") void handleSelect(tier);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, resume]);
 
   return (
     <div>
@@ -84,7 +133,7 @@ export default function Pricing() {
         {/* Currency — the choice persists on the profile, so signed-in only. */}
         {user && SUPPORTED_CURRENCIES.length > 1 && (
           <div className="mb-4 flex items-center justify-end gap-2">
-            <span className="type-meta text-white/35">Currency</span>
+            <span className="type-meta text-white/50">Credit pack currency</span>
             <div
               className="flex overflow-hidden rounded-xl border border-white/10"
               role="group"
@@ -99,7 +148,7 @@ export default function Pricing() {
                   className={`px-3 py-1.5 text-xs font-bold transition-colors ${
                     currency === code
                       ? "bg-gold/15 text-gold"
-                      : "text-white/40 hover:text-white/70"
+                      : "text-white/55 hover:text-white/70"
                   }`}
                 >
                   {code}
@@ -115,15 +164,16 @@ export default function Pricing() {
               Start free. Pay when guidance becomes a habit.
             </h1>
             <p className="platform-copy mt-3 max-w-2xl">
-              Subscriptions unlock recurring credits and deeper tools. Credit
-              packs are available when you only need astrologer sittings or
-              reports.
+              Subscriptions add credits every month and make Jyotish chat
+              unlimited. Credit packs are there when you only need AI guide
+              sessions or reports.
             </p>
           </div>
           <aside className="platform-panel-strong p-3">
             <p className="type-body-sm text-white/55">
-              Credits are shared across Jyotish chat, astrologer sittings, and
-              PDF reports. Astrologer sittings start at 5 credits/min.
+              Credits are shared across Jyotish chat, AI guide sessions, and
+              PDF reports. AI guide sessions start at {GUIDE_RATES[0]}{" "}
+              credits/min.
             </p>
             <div className="mt-2 flex items-end justify-between border-t border-gold/20 pt-2">
               <div>
@@ -133,7 +183,7 @@ export default function Pricing() {
                 <p className="type-card-title text-white mt-1">
                   {selectedPack.label}
                 </p>
-                <p className="type-meta text-white/35 mt-1">
+                <p className="type-meta text-white/50 mt-1">
                   {formatCreditRate(selectedPack, currency)}
                 </p>
               </div>
@@ -172,7 +222,6 @@ export default function Pricing() {
               isLoading={loadingTier === tier.id}
               isDisabled={loadingTier !== null}
               onSelect={() => handleSelect(tier)}
-              currency={currency}
             />
           ))}
         </section>
@@ -183,7 +232,7 @@ export default function Pricing() {
               <p className="platform-eyebrow mb-2">Credit Packs</p>
               <h2 className="type-section-title">Top up only when needed.</h2>
             </div>
-            <p className="hidden sm:block type-body-sm text-white/40">
+            <p className="hidden sm:block type-body-sm text-white/55">
               Unused purchased credits stay in your wallet.
             </p>
           </div>
@@ -221,12 +270,12 @@ export default function Pricing() {
                       <p className="type-price text-gold">
                         {formatMoney(getPackAmount(pack, currency), currency)}
                       </p>
-                      <p className="type-meta text-white/35 mt-1">
+                      <p className="type-meta text-white/50 mt-1">
                         {formatCreditRate(pack, currency)}
                       </p>
                     </div>
                   </div>
-                  <p className="type-body-sm text-white/45 mt-3">
+                  <p className="type-body-sm text-white/55 mt-3">
                     {pack.description}
                   </p>
                 </button>
@@ -236,11 +285,50 @@ export default function Pricing() {
         </section>
 
         <section className="mt-4 platform-panel p-4">
+          <p className="platform-eyebrow mb-2">What things cost</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div>
+              <p className="type-card-title text-white">Jyotish chat</p>
+              <p className="type-body-sm text-white/55 mt-1">
+                1 credit per message on the free plan and credit packs.
+                Unlimited on Premium and Pro, with a fair-use limit of{" "}
+                {PAID_CHAT_FAIR_USE_PER_DAY} messages a day.
+              </p>
+            </div>
+            <div>
+              <p className="type-card-title text-white">AI guide sessions</p>
+              <p className="type-body-sm text-white/55 mt-1">
+                {GUIDE_RATE_LABEL} credits per minute, depending on the guide.
+                The clock runs from your first message until the session
+                closes, and a partial minute is charged as a full minute. A
+                session where you send nothing costs nothing.
+              </p>
+            </div>
+            <div>
+              <p className="type-card-title text-white">PDF reports</p>
+              <ul className="type-body-sm text-white/55 mt-1 space-y-0.5">
+                {REPORT_COSTS.map((report) => (
+                  <li key={report.type}>
+                    {report.title}: {report.creditCost} credits
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <p className="type-body-sm text-white/55 mt-3">
+            Weekly, monthly and yearly forecasts, transit readings and
+            compatibility readings cost a few credits per view, for every
+            plan. Free Kundali, Kundali matching and daily Panchang cost
+            nothing.
+          </p>
+        </section>
+
+        <section className="mt-4 platform-panel p-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
             <div>
               <p className="platform-eyebrow mb-2">Billing</p>
               <p className="type-body-sm text-white/55">
-                Razorpay checkout. Cancel anytime.
+                Razorpay checkout in INR. Cancel anytime.
               </p>
             </div>
             <div>
@@ -274,45 +362,45 @@ function PlanCard({
   isLoading,
   isDisabled,
   onSelect,
-  currency,
 }: {
   tier: TierConfig;
   isLoading: boolean;
   isDisabled: boolean;
   onSelect: () => void;
-  currency: Currency;
 }) {
   return (
     <article
       className={`platform-panel p-4 flex flex-col ${
-        tier.popular ? "border-gold/35 bg-gold/[0.07]" : ""
+        tier.recommended ? "border-gold/35 bg-gold/[0.07]" : ""
       }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          {tier.popular && (
+          {tier.recommended && (
             <span className="platform-chip mb-3 text-gold border-gold/25">
-              Most chosen
+              Recommended
             </span>
           )}
           <h2 className="type-section-title text-white">{tier.name}</h2>
-          <p className="type-body-sm text-white/45 mt-2">
+          <p className="type-body-sm text-white/55 mt-2">
             {tier.id === "free"
               ? "Good for trying the platform."
               : tier.id === "premium"
-                ? "Best for daily use and reports."
-                : "For heavy consults and advanced tools."}
+                ? "For daily chat and regular readings."
+                : "For frequent AI guide sessions and reports."}
           </p>
         </div>
         <div className="text-right">
-          {tier.prices[currency] === 0 ? (
+          {/* Plans bill through one INR Razorpay plan per tier, so the
+              price shown is always the rupee price, whatever the toggle. */}
+          {tier.prices.INR === 0 ? (
             <p className="type-price">Free</p>
           ) : (
             <>
               <p className="type-price">
-                {formatMoney(tier.prices[currency], currency)}
+                {formatMoney(tier.prices.INR, "INR")}
               </p>
-              <p className="type-meta text-white/35">per month</p>
+              <p className="type-meta text-white/50">per month</p>
             </>
           )}
         </div>
@@ -320,13 +408,15 @@ function PlanCard({
 
       <div className="my-4 grid grid-cols-2 gap-3">
         <div className="border-t border-white/10 pt-3">
-          <p className="type-meta text-white/35">Credits</p>
+          <p className="type-meta text-white/50">
+            {tier.id === "free" ? "Credits, once" : "Credits / month"}
+          </p>
           <p className="type-card-title text-white">{tier.limits.credits}</p>
         </div>
         <div className="border-t border-white/10 pt-3">
-          <p className="type-meta text-white/35">Consult time</p>
+          <p className="type-meta text-white/50">Jyotish chat</p>
           <p className="type-card-title text-white">
-            {tier.limits.consultMinutesPerMonth} min
+            {tier.limits.synthesisUnlimited ? "Unlimited" : "1 credit / msg"}
           </p>
         </div>
       </div>
@@ -344,12 +434,14 @@ function PlanCard({
         onClick={onSelect}
         disabled={isDisabled}
         className={`mt-4 w-full ${
-          tier.popular ? "platform-button-primary" : "platform-button-secondary"
+          tier.recommended
+            ? "platform-button-primary"
+            : "platform-button-secondary"
         } disabled:opacity-50`}
       >
         {isLoading
           ? "Starting..."
-          : tier.prices[currency] === 0
+          : tier.prices.INR === 0
             ? "Get started"
             : "Subscribe"}
         {!isLoading && <ArrowRight size={15} />}

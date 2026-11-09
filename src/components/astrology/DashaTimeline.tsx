@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 interface DashaPeriod {
   planet: string;
@@ -27,6 +27,34 @@ const PLANET_ABBR: Record<string, string> = {
 const monthYear = (d: string) =>
   new Date(d).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
 const year = (d: string) => new Date(d).getFullYear();
+const shortYear = (d: string) => `’${String(year(d)).slice(-2)}`;
+
+/** Rendered width of an element, tracked across resizes (phone ↔ desktop). */
+function useWidth<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  // A phone-ish default so the first paint never over-labels.
+  const [width, setWidth] = useState(320);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    setWidth(el.getBoundingClientRect().width || 320);
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([entry]) => {
+      if (entry) setWidth(entry.contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, width] as const;
+}
+
+// Label budgets in pixels, so labels never collide at 360px: a segment shows
+// its full name, the two-letter abbreviation, or nothing (its title still
+// names it), and a year only when it fits beside its neighbours.
+const FULL_NAME_PX = 72;
+const ABBR_PX = 26;
+const FULL_YEAR_PX = 44;
+const SHORT_YEAR_PX = 30;
 
 function span(start: string, end: string, originMs: number, totalMs: number) {
   const s = new Date(start).getTime() - originMs;
@@ -55,9 +83,10 @@ function Track({
     new Date(items[items.length - 1].endDate).getTime() - originMs || 1;
   const nowPct = ((Date.now() - originMs) / totalMs) * 100;
   const nowVisible = nowPct > 0 && nowPct < 100;
+  const [labelsRef, trackPx] = useWidth<HTMLDivElement>();
 
   return (
-    <div>
+    <div ref={labelsRef}>
       <div className="relative" style={{ paddingTop: nowVisible ? 18 : 0 }}>
         <div className={`relative ${height}`}>
           {items.map((p, i) => {
@@ -104,25 +133,41 @@ function Track({
             originMs,
             totalMs,
           );
-          // Narrow periods go unlabelled (their title still names them), but the
-          // running period is always labelled.
-          if (width < 7 && !p.isCurrent) return null;
-          const name =
-            width < 12 ? PLANET_ABBR[p.planet] || p.planet : p.planet;
+          const px = (width / 100) * trackPx;
+          // Narrow periods go unlabelled (their title still names them), but
+          // the running period is always labelled, at least abbreviated.
+          if (px < ABBR_PX && !p.isCurrent) return null;
+          const abbr = PLANET_ABBR[p.planet] || p.planet;
+          const name = px >= FULL_NAME_PX ? p.planet : abbr;
+          const yearText = !showYears
+            ? null
+            : px >= FULL_YEAR_PX
+              ? String(year(p.startDate))
+              : px >= SHORT_YEAR_PX
+                ? shortYear(p.startDate)
+                : null;
           return (
             <div
               key={`l-${p.planet}-${i}`}
-              className="absolute top-0 overflow-hidden whitespace-nowrap"
-              style={{ left: `${left}%`, width: `${width}%` }}
+              className="absolute top-0 overflow-hidden whitespace-nowrap pr-1"
+              style={{
+                left: `${left}%`,
+                // The running period may need a little more than its share
+                // for its abbreviation; never less than the abbreviation.
+                width: p.isCurrent
+                  ? `max(${width}%, ${ABBR_PX}px)`
+                  : `${width}%`,
+              }}
+              title={`${p.planet}: ${monthYear(p.startDate)} to ${monthYear(p.endDate)}`}
             >
               <p
                 className={`font-display text-[1.1rem] leading-tight ${p.isCurrent ? "text-gold" : "text-white/60"}`}
               >
                 {name}
               </p>
-              {showYears && width >= 9 && (
-                <p className="text-[0.78rem] tabular-nums text-white/45">
-                  {year(p.startDate)}
+              {yearText && (
+                <p className="text-[0.78rem] tabular-nums text-white/55">
+                  {yearText}
                 </p>
               )}
             </div>
@@ -144,7 +189,7 @@ export function DashaTimeline({ periods }: DashaTimelineProps) {
 
   return (
     <div>
-      <div className="flex items-baseline justify-between gap-4 mb-2 text-[0.9rem] text-white/55">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-2 text-[0.9rem] text-white/55">
         <span>
           Mahadashas, {monthYear(periods[0].startDate)} to{" "}
           {monthYear(periods[periods.length - 1].endDate)}
@@ -160,7 +205,7 @@ export function DashaTimeline({ periods }: DashaTimelineProps) {
 
       {subs.length > 0 && current && (
         <div className="mt-10">
-          <div className="flex items-baseline justify-between gap-4 mb-2 text-[0.9rem] text-white/55">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-2 text-[0.9rem] text-white/55">
             <span>Antardashas within {current.planet}</span>
             {currentSub && (
               <span>

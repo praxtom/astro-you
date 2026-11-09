@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import AuthModal from "../components/AuthModal";
 import { postJson } from "../lib/apiFetch";
@@ -31,6 +31,11 @@ import type { KeyRelationship } from "../types/user";
 import { useAuth } from "../lib/useAuth";
 import LocationInput from "../components/LocationInput";
 import { viewerDateKey } from "../lib/viewer-timezone";
+import {
+  createReportRequestId,
+  postPdfReport,
+  REPORT_IN_PROGRESS_MESSAGE,
+} from "../lib/report-products";
 import { GlossaryTerm } from "../components/ui/GlossaryTerm";
 
 interface LoveInfluence {
@@ -262,6 +267,13 @@ export default function Compatibility() {
 
   const [isMatching, setIsMatching] = useState(false);
   const [isDownloadingReport, setIsDownloadingReport] = useState(false);
+  // One requestId per compatibility PDF purchase, tied to the match it was
+  // bought for and kept until the server answers, so a retry after a network
+  // drop can never charge twice. A new match is a new purchase.
+  const pendingReportRequest = useRef<{
+    match: unknown;
+    requestId: string;
+  } | null>(null);
   const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
   // Set when the seeker's birth time is unknown and noon was used: the Moon
   // can change nakshatra within a day, and Ashtakoot is Moon-based.
@@ -397,21 +409,34 @@ export default function Compatibility() {
     setError(null);
     try {
       const idToken = await user.getIdToken();
-      const response = await fetch("/api/pdf-report", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          idToken,
-          reportType: "compatibility",
-          birthData,
-          compatibilityData: matchResult,
-          person1Name: birthData?.name || "Seeker",
-          person2Name: partnerData.name || "Partner",
-        }),
+      const pending = pendingReportRequest.current;
+      const requestId =
+        pending && pending.match === matchResult
+          ? pending.requestId
+          : createReportRequestId();
+      pendingReportRequest.current = { match: matchResult, requestId };
+      const response = await postPdfReport({
+        idToken,
+        requestId,
+        reportType: "compatibility",
+        birthData,
+        compatibilityData: matchResult,
+        person1Name: birthData?.name || "Seeker",
+        person2Name: partnerData.name || "Partner",
       });
+      // The server answered: this purchase attempt is settled either way.
+      pendingReportRequest.current = null;
       const errorPayload = response.ok
         ? null
         : await response.json().catch(() => null);
+      if (
+        response.status === 409 &&
+        errorPayload?.code === "report_in_progress"
+      ) {
+        throw new UserFacingError(
+          errorPayload.error || REPORT_IN_PROGRESS_MESSAGE,
+        );
+      }
       if (!response.ok) {
         if (response.status === 402) {
           throw new UserFacingError(
@@ -465,7 +490,7 @@ export default function Compatibility() {
               <Users size={14} />
               Your Inner Circle
               {atmanState?.keyRelationships?.length ? (
-                <span className="text-white/35">
+                <span className="text-white/50">
                   ({atmanState.keyRelationships.length})
                 </span>
               ) : null}
@@ -502,7 +527,7 @@ export default function Compatibility() {
                     setPartnerData({ ...partnerData, name: e.target.value })
                   }
                   placeholder="Partner's Name"
-                  className="platform-field text-white placeholder:text-white/40"
+                  className="platform-field text-white placeholder:text-white/50"
                 />
               </div>
 
@@ -691,7 +716,7 @@ export default function Compatibility() {
                   <div className="text-7xl md:text-8xl font-display font-bold text-white tracking-tighter">
                     {matchResult.overall_score}%
                   </div>
-                  <div className="text-gold/40 uppercase tracking-[0.4em] text-[10px] font-black mt-2">
+                  <div className="text-gold/40 uppercase tracking-[0.4em] text-[0.6875rem] font-black mt-2">
                     Harmony Index
                   </div>
                 </div>
@@ -722,7 +747,7 @@ export default function Compatibility() {
                     );
                   }
                 }}
-                className="mt-4 p-2 rounded-xl border border-white/10 text-white/40 hover:text-gold hover:border-gold/30 transition-all inline-flex items-center gap-1.5"
+                className="mt-4 p-2 rounded-xl border border-white/10 text-white/55 hover:text-gold hover:border-gold/30 transition-all inline-flex items-center gap-1.5"
                 title="Share result"
               >
                 <Share2 size={16} />
@@ -860,7 +885,7 @@ export default function Compatibility() {
               </p>
             )}
             {matchResult.vedicMatching && matchResult.orientationAssumed && (
-              <p className="text-xs text-white/40 text-center -mt-2">
+              <p className="text-xs text-white/55 text-center -mt-2">
                 Traditional Ashtakoot matching assumes a bride and groom; we
                 used the order you entered.
               </p>
@@ -959,7 +984,7 @@ export default function Compatibility() {
                 </div>
 
                 <section className="glass p-5 md:p-6 rounded-[2rem] border-white/5">
-                  <h3 className="text-sm font-black uppercase tracking-widest text-white/40 mb-5 flex items-center gap-2">
+                  <h3 className="text-sm font-black uppercase tracking-widest text-white/55 mb-5 flex items-center gap-2">
                     Celestial Aspects
                   </h3>
                   <div className="grid grid-cols-1 gap-4">
@@ -969,7 +994,7 @@ export default function Compatibility() {
                           key={i}
                           className="bg-white/[0.02] border border-white/5 rounded-3xl p-5 group hover:border-gold/20 hover:bg-white/[0.04] transition-all"
                         >
-                          <div className="text-[10px] text-gold/60 font-black uppercase tracking-widest mb-2 group-hover:text-gold transition-colors">
+                          <div className="text-[0.6875rem] text-gold/60 font-black uppercase tracking-widest mb-2 group-hover:text-gold transition-colors">
                             {aspect.factor}
                           </div>
                           <div className="text-sm text-white/60 font-light leading-relaxed font-sans">
@@ -987,7 +1012,7 @@ export default function Compatibility() {
                             key={i}
                             className="bg-white/5 border border-white/10 rounded-2xl p-4 transition-all"
                           >
-                            <div className="text-[10px] text-gold/80 font-bold uppercase mb-1">
+                            <div className="text-[0.6875rem] text-gold/80 font-bold uppercase mb-1">
                               {title.replace(/_/g, " ")}
                             </div>
                             <div className="text-sm text-white/60 font-light">
@@ -1016,7 +1041,7 @@ export default function Compatibility() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 pt-6 border-t border-white/5">
                       <div>
-                        <div className="text-[10px] uppercase tracking-widest text-emerald-400 font-black mb-4 flex items-center gap-2">
+                        <div className="text-[0.6875rem] uppercase tracking-widest text-emerald-400 font-black mb-4 flex items-center gap-2">
                           <ShieldCheck size={12} /> Synergy Points
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -1031,7 +1056,7 @@ export default function Compatibility() {
                         </div>
                       </div>
                       <div>
-                        <div className="text-[10px] uppercase tracking-widest text-orange-400 font-black mb-4 flex items-center gap-2">
+                        <div className="text-[0.6875rem] uppercase tracking-widest text-orange-400 font-black mb-4 flex items-center gap-2">
                           <Target size={12} /> Growth Hedges
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -1061,7 +1086,7 @@ export default function Compatibility() {
                           <h3 className="text-2xl font-display font-bold">
                             Cosmic Wisdom
                           </h3>
-                          <p className="text-sm text-white/40 font-light">
+                          <p className="text-sm text-white/55 font-light">
                             Deep synthesis of your shared path
                           </p>
                         </div>
@@ -1178,9 +1203,9 @@ function ScoreMetric({
 }) {
   return (
     <div className="glass p-5 rounded-3xl border border-white/5 text-center group hover:border-gold/20 transition-all">
-      <div className="flex items-center justify-center gap-2 text-white/30 mb-4 group-hover:text-gold/60 transition-colors">
+      <div className="flex items-center justify-center gap-2 text-white/50 mb-4 group-hover:text-gold/60 transition-colors">
         {icon}
-        <span className="text-[10px] uppercase tracking-widest font-black">
+        <span className="text-[0.6875rem] uppercase tracking-widest font-black">
           {label}
         </span>
       </div>
@@ -1206,14 +1231,14 @@ function DynamicItem({
 }) {
   return (
     <div className="group/item">
-      <div className="text-[10px] uppercase tracking-widest text-white/30 mb-2 group-hover/item:text-gold/40 transition-colors font-black">
+      <div className="text-[0.6875rem] uppercase tracking-widest text-white/50 mb-2 group-hover/item:text-gold/40 transition-colors font-black">
         {label}
       </div>
       <div className="text-sm font-sans font-light text-white/90 mb-1">
         {value || "N/A"}
       </div>
       {interpretation && (
-        <div className="text-[11px] font-sans font-light italic text-white/40 leading-relaxed">
+        <div className="text-[11px] font-sans font-light italic text-white/55 leading-relaxed">
           {interpretation}
         </div>
       )}
@@ -1253,7 +1278,7 @@ function LoveLanguageCard({
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-5">
             <div>
-              <div className="text-[10px] uppercase tracking-widest text-gold/40 font-black mb-3">
+              <div className="text-[0.6875rem] uppercase tracking-widest text-gold/40 font-black mb-3">
                 Primary Mode
               </div>
               <div className="text-xl font-display text-white">
@@ -1261,7 +1286,7 @@ function LoveLanguageCard({
               </div>
             </div>
             <div>
-              <div className="text-[10px] uppercase tracking-widest text-gold/40 font-black mb-3">
+              <div className="text-[0.6875rem] uppercase tracking-widest text-gold/40 font-black mb-3">
                 Secondary
               </div>
               <div className="text-xl font-display text-white/60">
@@ -1310,7 +1335,7 @@ function InfluenceItem({
         {icon[0]}
       </div>
       <div>
-        <div className="text-[10px] uppercase tracking-widest font-black text-white/40 mb-1">
+        <div className="text-[0.6875rem] uppercase tracking-widest font-black text-white/55 mb-1">
           {icon} in {sign}
         </div>
         <div className="text-xs text-white/60 font-light italic leading-relaxed">
@@ -1361,13 +1386,13 @@ function VedicGunaMilan({
               Vedic compatibility (
               <GlossaryTerm k="guna-milan">Guna Milan</GlossaryTerm>)
             </h3>
-            <p className="text-xs text-white/40 font-light">
+            <p className="text-xs text-white/55 font-light">
               Traditional 36-point score
             </p>
           </div>
         </div>
 
-        <p className="mb-5 text-xs leading-relaxed text-white/45">
+        <p className="mb-5 text-xs leading-relaxed text-white/55">
           A traditional 36-point Vedic score. It was designed for marriage
           matching and assigns the two charts traditional roles, so read it as
           one lens among several rather than a verdict.
@@ -1377,7 +1402,7 @@ function VedicGunaMilan({
         <div className="flex items-baseline gap-4 mb-6">
           <div className="text-5xl md:text-6xl font-display font-bold tracking-tight text-white">
             {totalScore}
-            <span className="text-white/30 text-3xl md:text-4xl"> / 36</span>
+            <span className="text-white/50 text-3xl md:text-4xl"> / 36</span>
           </div>
           <span
             className={`text-sm font-black uppercase tracking-widest ${quality.color}`}
@@ -1392,16 +1417,16 @@ function VedicGunaMilan({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/10">
-                  <th className="text-left py-2 px-3 text-white/40 text-xs uppercase tracking-widest">
+                  <th className="text-left py-2 px-3 text-white/55 text-xs uppercase tracking-widest">
                     Guna
                   </th>
-                  <th className="text-center py-2 px-3 text-white/40 text-xs uppercase tracking-widest">
+                  <th className="text-center py-2 px-3 text-white/55 text-xs uppercase tracking-widest">
                     Score
                   </th>
-                  <th className="text-left py-2 px-3 text-white/40 text-xs uppercase tracking-widest w-1/3">
+                  <th className="text-left py-2 px-3 text-white/55 text-xs uppercase tracking-widest w-1/3">
                     Match
                   </th>
-                  <th className="text-left py-2 px-3 text-white/40 text-xs uppercase tracking-widest hidden md:table-cell">
+                  <th className="text-left py-2 px-3 text-white/55 text-xs uppercase tracking-widest hidden md:table-cell">
                     Interpretation
                   </th>
                 </tr>
@@ -1431,7 +1456,7 @@ function VedicGunaMilan({
                           />
                         </div>
                       </td>
-                      <td className="py-3 px-3 text-white/40 text-xs hidden md:table-cell">
+                      <td className="py-3 px-3 text-white/55 text-xs hidden md:table-cell">
                         {g.description || g.interpretation || ""}
                       </td>
                     </tr>
@@ -1526,7 +1551,7 @@ function VedicGunaMilan({
                     key={label}
                     className="p-4 rounded-xl bg-white/5 border border-white/10"
                   >
-                    <p className="text-[10px] text-white/40 uppercase tracking-widest mb-1">
+                    <p className="text-[0.6875rem] text-white/55 uppercase tracking-widest mb-1">
                       {label}
                     </p>
                     <p
@@ -1538,7 +1563,7 @@ function VedicGunaMilan({
                         "Not Manglik"
                       )}
                     </p>
-                    <p className="text-xs text-white/40 mt-1 leading-relaxed">
+                    <p className="text-xs text-white/55 mt-1 leading-relaxed">
                       {isManglik
                         ? "Mars sits in a placement tradition links with friction in partnership. Many practitioners read it as tension to manage rather than a verdict."
                         : "Mars isn't in a traditional Manglik placement in this chart."}

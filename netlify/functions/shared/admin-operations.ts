@@ -1,11 +1,10 @@
+import { assessJobFreshness, toMillis } from "./ops-alerts.js";
+
 export type AdminOperationKind = "support" | "remedy";
-export type SupportOperationStatus = "open" | "in_progress" | "resolved" | "closed";
+export type SupportOperationStatus =
+  "open" | "in_progress" | "resolved" | "closed";
 export type RemedyOperationStatus =
-  | "requested"
-  | "reviewing"
-  | "quoted"
-  | "fulfilled"
-  | "cancelled";
+  "requested" | "reviewing" | "quoted" | "fulfilled" | "cancelled";
 
 export interface AdminActor {
   uid: string;
@@ -84,7 +83,8 @@ export function buildOperationsQueueItem(
   const product = isRecord(record.product) ? record.product : {};
   const category = cleanString(product.category, 40) || "remedy";
   const fulfillment = cleanString(product.fulfillment, 40) || "review";
-  const price = typeof product.priceInRupees === "number" ? product.priceInRupees : 0;
+  const price =
+    typeof product.priceInRupees === "number" ? product.priceInRupees : 0;
 
   return {
     id,
@@ -99,7 +99,8 @@ export function buildOperationsQueueItem(
     detail: cleanString(record.notes, 800),
     referenceId: cleanString(record.productId, 100) || null,
     status: cleanString(record.status, 40) || "requested",
-    priorityScore: fulfillment === "partner" ? 80 : fulfillment === "review" ? 60 : 40,
+    priorityScore:
+      fulfillment === "partner" ? 80 : fulfillment === "review" ? 60 : 40,
     createdAt,
     updatedAt,
   };
@@ -121,7 +122,8 @@ export function buildAdminOperationUpdate(
   }
 
   const status = cleanString(input.status, 40);
-  const allowedStatuses = kind === "support" ? SUPPORT_STATUSES : REMEDY_STATUSES;
+  const allowedStatuses =
+    kind === "support" ? SUPPORT_STATUSES : REMEDY_STATUSES;
   if (!allowedStatuses.includes(status as never)) {
     throw new AdminOperationsError(`Valid ${kind} status is required`);
   }
@@ -147,9 +149,50 @@ export function buildAdminOperationUpdate(
     kind,
     itemId,
     collectionName: kind === "support" ? "supportTickets" : "remedyRequests",
-    userCollectionName: kind === "support" ? "supportTickets" : "remedyRequests",
+    userCollectionName:
+      kind === "support" ? "supportTickets" : "remedyRequests",
     patch,
   };
+}
+
+/**
+ * Admin view of operational health: recent `opsEvents` (already sanitized at
+ * write time — uid is the only identity they carry) plus `jobRuns` freshness.
+ */
+export function buildOpsHealthView(
+  events: Array<Record<string, any>>,
+  runs: Array<Record<string, any>>,
+  now: Date = new Date(),
+) {
+  const opsEvents = events.map((event) => ({
+    id: cleanString(event.id, 200),
+    kind: cleanString(event.kind, 64) || "unknown",
+    severity: cleanString(event.severity, 20) || "warning",
+    count: typeof event.count === "number" ? event.count : 1,
+    context: cleanString(event.context, 40) || null,
+    details: isRecord(event.details) ? event.details : {},
+    createdAt: toIso(event.createdAt),
+    lastAt: toIso(event.lastAt ?? event.createdAt),
+  }));
+  const jobs = assessJobFreshness(runs, now).map((job) => {
+    const run = runs.find((r) => (r.job || r.id) === job.job) || {};
+    return {
+      ...job,
+      processed: typeof run.processed === "number" ? run.processed : 0,
+      failed: typeof run.failed === "number" ? run.failed : 0,
+      note: cleanString(run.note, 80) || null,
+    };
+  });
+  return {
+    opsEvents,
+    jobs,
+    staleJobs: jobs.filter((job) => job.stale).map((job) => job.job),
+  };
+}
+
+function toIso(value: unknown): string | null {
+  const ms = toMillis(value);
+  return ms === null ? null : new Date(ms).toISOString();
 }
 
 function getSupportPriorityScore(category: string, priority: string) {
@@ -159,7 +202,9 @@ function getSupportPriorityScore(category: string, priority: string) {
 }
 
 function cleanString(value: unknown, maxLength: number) {
-  return typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, maxLength) : "";
+  return typeof value === "string"
+    ? value.trim().replace(/\s+/g, " ").slice(0, maxLength)
+    : "";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

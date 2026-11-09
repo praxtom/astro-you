@@ -91,13 +91,31 @@ export function isAuthorizedInternalRequest(
   const ok = a.length === b.length && timingSafeEqual(a, b);
   if (!ok) {
     // The dispatcher already got a 202 and cannot see this — surface it here.
-    logOnce("receiver_mismatch", () =>
+    logOnce("receiver_mismatch", () => {
       console.error(
         "[InternalDispatch] Internal secret mismatch: the dispatching function and this background function resolved different secrets. INTERNAL_FUNCTION_SECRET / OTP_HASH_SECRET must be identical across all functions.",
-      ),
-    );
+      );
+      // Real runtime only (callers passing their own env are tests/tools).
+      if (env === process.env) reportInternalAuthMismatch();
+    });
   }
   return ok;
+}
+
+/**
+ * Fire-and-forget ops alert, loaded lazily so this module never pulls in
+ * Firebase Admin at import time. Never throws.
+ */
+function reportInternalAuthMismatch(): void {
+  void import("./ops-alerts.js")
+    .then(({ reportOpsEvent }) =>
+      reportOpsEvent(
+        "internal_auth_mismatch",
+        { source: "internal-dispatch" },
+        { severity: "critical", dedupeKey: "internal-dispatch" },
+      ),
+    )
+    .catch(() => undefined);
 }
 
 /**

@@ -1,21 +1,8 @@
 import { Config, Context } from "@netlify/functions";
-import Razorpay from "razorpay";
-import { auth, db, getStorageBucket } from "./shared/firebase-admin";
+import { auth } from "./shared/firebase-admin";
 import { writeAuditLog } from "./shared/audit-log";
-import {
-  normalizeInteractionIds,
-  readAllInteractionIds,
-  type RetentionDb,
-} from "./shared/interaction-retention";
-import { purgeInteractionsBestEffort } from "./shared/interaction-purge";
-
-// Statuses that Razorpay can no longer bill — everything else (active,
-// pending, halted, paused, cancelling, ...) must be cancelled at Razorpay
-// BEFORE we destroy the account, or the subscriber keeps getting auto-charged
-// with no remaining mapping back to a user.
-const NON_BILLABLE_STATUSES = new Set(["cancelled", "completed", "expired"]);
-
-type SubscriptionCancellation = "none" | "cancelled" | "cancel_failed";
+import { openDeletionJob, runDeletionJob } from "./shared/account-deletion";
+import { isRecentLogin } from "./shared/recent-login";
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
@@ -28,22 +15,38 @@ export default async (req: Request, _context: Context) => {
       return json({ error: "Missing delete confirmation" }, 400);
     }
 
-    const decoded = await auth.verifyIdToken(idToken);
+    let decoded;
+    try {
+      decoded = await auth.verifyIdToken(idToken, true);
+    } catch {
+      return json({ error: "Invalid or expired auth token" }, 401);
+    }
     const uid = decoded.uid;
-    const userRef = db.collection("users").doc(uid);
 
-    // Snapshot everything we need BEFORE any destructive step: the user doc
-    // holds the Razorpay subscription mapping and the email keys the otps doc.
-    const userSnap = await userRef.get();
-    const userData = userSnap.data() || {};
-    const email = (
-      decoded.email ||
-      userData.profile?.email ||
-      userData.email ||
-      ""
-    )
-      .toLowerCase()
-      .trim();
+    // Deleting an account is irreversible: a stolen or long-lived session
+    // must not be enough. Require a sign-in within the last 10 minutes; the
+    // client re-authenticates and retries on this code.
+    if (!isRecentLogin(decoded.auth_time)) {
+      return json(
+        {
+          error: "Please sign in again to confirm account deletion.",
+          code: "recent_login_required",
+        },
+        401,
+      );
+    }
+
+    // Email-keyed cleanup (expert applications, the OTP doc) must only ever
+    // target an address the server verified for this account — never a
+    // profile field — so one user can't trigger deletion of another's data.
+    const email =
+      decoded.email_verified === true && typeof decoded.email === "string"
+        ? decoded.email.toLowerCase().trim()
+        : "";
+
+    // Record the job BEFORE any destructive step so a timeout or a failed
+    // cleanup step is retried by account-deletion-retry-scheduled.
+    await openDeletionJob(uid, email);
 
     await writeAuditLog({
       uid,
@@ -55,196 +58,22 @@ export default async (req: Request, _context: Context) => {
       },
     });
 
-    // Stop billing FIRST — the account is being destroyed, so cancel
-    // immediately (not at cycle end). On failure we log the subscription id
-    // for manual support cancellation and continue with deletion.
-    const subscriptionCancellation = await cancelActiveSubscription(
+    const { subscriptionCancellation, failedSteps } = await runDeletionJob(
       uid,
-      userData.subscription,
+      { requestUrl: req.url },
     );
 
-    // Collect the user's stored Gemini interaction ids BEFORE the subtree is
-    // deleted (the log lives under it). Purged after Firestore cleanup.
-    const interactionIds = await collectInteractionIds(uid);
-
-    // Delete the Auth user next so access is revoked immediately. If a later
-    // Firestore/Storage cleanup step fails, the worst case is orphaned data —
-    // not a re-loginable account that would get signup credits re-granted.
-    await auth.deleteUser(uid);
-
-    // recursiveDelete walks the whole doc tree via BulkWriter — parallel and
-    // resilient for heavy users, unlike a sequential doc-by-doc walk that can
-    // hit the function timeout with no retry path (the auth user is gone).
-    await db.recursiveDelete(userRef);
-
-    // Erase the referee-side records this user seeded in OTHER users' trees —
-    // recursiveDelete(userRef) only clears this user's own subtree, so their
-    // (masked) email would otherwise persist forever under each referrer.
-    await db
-      .collectionGroup("referrals")
-      .where("refereeUid", "==", uid)
-      .get()
-      .then(async (snap) => {
-        await Promise.all(snap.docs.map((d) => d.ref.delete()));
-      })
-      .catch((refErr) => {
-        console.error("[Delete Account] Referral cleanup failed:", refErr);
-      });
-
-    // Purge this user's records from top-level collections that live OUTSIDE
-    // their subtree — recursiveDelete(userRef) doesn't reach them, so they would
-    // otherwise survive deletion (erasure-request failure). Best-effort: a
-    // failure here must not block the deletion the user requested. At large
-    // scale these should move to a batched/background purge.
-    for (const coll of [
-      "analyticsEvents",
-      "trustModerationQueue",
-      "supportTickets",
-      "remedyRequests",
-      "predictionFeedbackAggregateQueue",
-    ]) {
-      await db
-        .collection(coll)
-        .where("uid", "==", uid)
-        .get()
-        .then((snap) => Promise.all(snap.docs.map((d) => d.ref.delete())))
-        .catch((cleanupErr) => {
-          console.error(`[Delete Account] ${coll} cleanup failed:`, cleanupErr);
-        });
-    }
-
-    // expertApplications is written by the anonymous public application
-    // endpoint (shared/expert-applications.ts) and never carries a `uid` —
-    // only the applicant's email. A uid-filtered query would always return
-    // nothing, so match on email instead (same key the OTP doc below uses).
-    if (email) {
-      await db
-        .collection("expertApplications")
-        .where("email", "==", email)
-        .get()
-        .then((snap) => Promise.all(snap.docs.map((d) => d.ref.delete())))
-        .catch((cleanupErr) => {
-          console.error(
-            "[Delete Account] expertApplications cleanup failed:",
-            cleanupErr,
-          );
-        });
-    }
-
-    // The OTP login doc is keyed by email, outside the user tree.
-    if (email) {
-      await db
-        .collection("otps")
-        .doc(email)
-        .delete()
-        .catch((otpError) => {
-          console.error("[Delete Account] OTP cleanup failed:", otpError);
-        });
-    }
-
-    await getStorageBucket()
-      .deleteFiles({
-        prefix: `users/${safeSegment(uid)}/`,
-        force: true,
-      })
-      .catch((storageError) => {
-        console.error("[Delete Account] Storage cleanup failed:", storageError);
-      });
-
-    // Purge Gemini-side conversation copies — best-effort, never blocking.
-    const interactionPurge = await purgeInteractionsBestEffort(interactionIds, {
-      requestUrl: req.url,
-    }).catch(() => ({ queued: 0, mode: "none" as const }));
-
-    await writeAuditLog({
-      uid,
-      action: "account_deleted",
-      entityType: "user",
-      entityId: uid,
-      metadata: {
-        subscriptionCancellation,
-        interactionsPurgeQueued: interactionPurge.queued,
-      },
+    // Access is revoked and the rest is queued for retry — from the user's
+    // point of view the deletion has been accepted either way.
+    return json({
+      status: failedSteps.length === 0 ? "success" : "pending_cleanup",
+      subscriptionCancellation,
     });
-
-    return json({ status: "success", subscriptionCancellation });
   } catch (err: any) {
     console.error("[Delete Account] Error:", err);
     return json({ error: "Could not delete account. Please try again." }, 500);
   }
 };
-
-/**
- * Interaction ids from the server-side log only. Chat docs' lastInteractionId
- * is client-writable, so it is never purged on its own (an interaction id is
- * a bearer token — a planted id would delete someone else's interaction).
- * Never throws.
- */
-async function collectInteractionIds(uid: string): Promise<string[]> {
-  try {
-    const logged = await readAllInteractionIds(db as unknown as RetentionDb, uid);
-    return normalizeInteractionIds(logged);
-  } catch (err) {
-    console.error(
-      "[Delete Account] Interaction id collection failed:",
-      err instanceof Error ? err.name : "error",
-    );
-    return [];
-  }
-}
-
-async function cancelActiveSubscription(
-  uid: string,
-  subscription: Record<string, any> | undefined,
-): Promise<SubscriptionCancellation> {
-  const subscriptionId =
-    subscription?.razorpaySubscriptionId || subscription?.razorpaySubId;
-  const status = String(subscription?.status || "");
-  if (!subscriptionId || NON_BILLABLE_STATUSES.has(status)) {
-    return "none";
-  }
-
-  try {
-    const razorpay = new Razorpay({
-      key_id: process.env.RAZORPAY_KEY_ID || "",
-      key_secret: process.env.RAZORPAY_KEY_SECRET || "",
-    });
-    // false = cancel immediately, not at cycle end — the account is going away.
-    await razorpay.subscriptions.cancel(subscriptionId, false);
-    await writeAuditLog({
-      uid,
-      action: "account_delete_subscription_cancelled",
-      entityType: "subscription",
-      entityId: subscriptionId,
-      metadata: { previousStatus: status },
-    }).catch((auditError) => {
-      console.error("[Delete Account] Audit log failed:", auditError);
-    });
-    return "cancelled";
-  } catch (cancelError: any) {
-    // Razorpay treats cancelling an already-cancelled/completed subscription
-    // as an error — that still means billing has stopped, so proceed.
-    const description = String(
-      cancelError?.error?.description || cancelError?.message || cancelError,
-    );
-    console.error(
-      `[Delete Account] Razorpay cancellation failed for ${subscriptionId}:`,
-      description,
-    );
-    // Record the subscription id so support can cancel it manually — the user
-    // doc that held the mapping is about to be deleted.
-    await writeAuditLog({
-      uid,
-      action: "account_delete_subscription_cancel_failed",
-      entityType: "subscription",
-      entityId: subscriptionId,
-      metadata: { previousStatus: status, error: description.slice(0, 500) },
-    }).catch((auditError) => {
-      console.error("[Delete Account] Audit log failed:", auditError);
-    });
-    return "cancel_failed";
-  }
-}
 
 function json(payload: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -254,7 +83,3 @@ function json(payload: Record<string, unknown>, status = 200) {
 }
 
 export const config: Config = { path: "/api/account/delete" };
-
-function safeSegment(value: string) {
-  return value.replace(/[^a-zA-Z0-9_.-]/g, "_").slice(0, 160);
-}

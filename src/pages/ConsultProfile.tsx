@@ -124,7 +124,7 @@ export default function ConsultProfile() {
 
         <button
           onClick={() => navigate("/consult")}
-          className="mb-8 flex items-center gap-2 text-[0.65rem] font-bold uppercase tracking-[0.25em] text-white/35 hover:text-gold transition-colors"
+          className="mb-8 flex items-center gap-2 text-[0.6875rem] font-bold uppercase tracking-[0.25em] text-white/50 hover:text-gold transition-colors"
         >
           <ArrowLeft size={13} /> The Circle
         </button>
@@ -134,7 +134,7 @@ export default function ConsultProfile() {
           <PersonaPortrait persona={persona} size="xl" />
           <div className="min-w-0 flex-1">
             <p
-              className="text-[0.6rem] font-bold uppercase tracking-[0.35em] mb-2"
+              className="text-[0.6875rem] font-bold uppercase tracking-[0.35em] mb-2"
               style={{ color: accent }}
             >
               {persona.title}
@@ -142,14 +142,7 @@ export default function ConsultProfile() {
             <h1 className="type-page-title">
               {persona.name}
             </h1>
-            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-white/40">
-              <span className="inline-flex items-center gap-1.5 text-emerald-300/90">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Available now
-              </span>
-              <span className="rounded-full border border-white/20 bg-white/8 px-2.5 py-1 text-[0.65rem] font-bold uppercase tracking-[0.15em] text-white/60">
-                AI guide · always available
-              </span>
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-white/55">
               <span className="text-gold font-display text-base">
                 {persona.pricePerMin} credits / min
               </span>
@@ -179,13 +172,13 @@ export default function ConsultProfile() {
               <p className="font-display italic text-xl md:text-2xl text-white/75 leading-relaxed">
                 {persona.profileIntro}
               </p>
-              <p className="mt-4 text-sm text-white/40 leading-relaxed">
+              <p className="mt-4 text-sm text-white/55 leading-relaxed">
                 {persona.guidanceStyle}
               </p>
             </section>
 
             <section className="animate-reveal-progressive">
-              <p className="text-[0.6rem] font-bold uppercase tracking-[0.35em] text-white/25 mb-4">
+              <p className="text-[0.6875rem] font-bold uppercase tracking-[0.35em] text-white/25 mb-4">
                 Reads with
               </p>
               <div className="flex flex-wrap gap-2">
@@ -201,7 +194,7 @@ export default function ConsultProfile() {
             </section>
 
             <section className="animate-reveal-progressive">
-              <p className="text-[0.6rem] font-bold uppercase tracking-[0.35em] text-white/25 mb-4">
+              <p className="text-[0.6875rem] font-bold uppercase tracking-[0.35em] text-white/25 mb-4">
                 Best for
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 border-t border-l border-white/8">
@@ -220,7 +213,7 @@ export default function ConsultProfile() {
             </section>
 
             <section className="animate-reveal-progressive">
-              <p className="text-[0.6rem] font-bold uppercase tracking-[0.35em] text-white/25 mb-4">
+              <p className="text-[0.6875rem] font-bold uppercase tracking-[0.35em] text-white/25 mb-4">
                 Open with one of these
               </p>
               <div className="space-y-2">
@@ -248,25 +241,25 @@ export default function ConsultProfile() {
 
           {/* ── Before you sit ── */}
           <aside className="lg:sticky lg:top-28 rounded-3xl border border-white/10 bg-white/3 backdrop-blur-xl p-6 animate-reveal-progressive">
-            <p className="text-[0.6rem] font-bold uppercase tracking-[0.35em] text-white/25">
+            <p className="text-[0.6875rem] font-bold uppercase tracking-[0.35em] text-white/25">
               Before you sit
             </p>
 
             <div className="mt-5 space-y-3 text-sm">
               <div className="flex items-baseline justify-between">
-                <span className="text-white/40">Balance</span>
+                <span className="text-white/55">Balance</span>
                 <span className="font-display text-lg text-white">
                   {isGuest ? "—" : creditsLoading ? "…" : `${credits} credits`}
                 </span>
               </div>
               <div className="flex items-baseline justify-between border-t border-white/8 pt-3">
-                <span className="text-white/40">Rate</span>
+                <span className="text-white/55">Rate</span>
                 <span className="font-display text-lg text-gold">
                   {persona.pricePerMin} credits / min
                 </span>
               </div>
               <div className="flex items-baseline justify-between border-t border-white/8 pt-3">
-                <span className="text-white/40">Time available</span>
+                <span className="text-white/55">Time available</span>
                 <span className="font-display text-lg text-white">
                   {isGuest
                     ? "—"
@@ -276,12 +269,12 @@ export default function ConsultProfile() {
                 </span>
               </div>
               {isGuest && (
-                <p className="text-xs text-white/30">
+                <p className="text-xs text-white/50">
                   Sign in to see your balance.
                 </p>
               )}
               <label className="block border-t border-white/8 pt-3">
-                <span className="text-white/40 text-xs">Language</span>
+                <span className="text-white/55 text-xs">Language</span>
                 <select
                   value={selectedLanguage}
                   onChange={(event) => setSelectedLanguage(event.target.value)}
@@ -322,7 +315,7 @@ export default function ConsultProfile() {
                   setPendingQuestion(null);
                   setShowAuthModal(true);
                 }}
-                className="mt-6 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gold text-black text-center text-[0.65rem] font-bold uppercase tracking-[0.12em] leading-relaxed hover:bg-gold/90 transition-colors"
+                className="mt-6 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gold text-black text-center text-[0.6875rem] font-bold uppercase tracking-[0.12em] leading-relaxed hover:bg-gold/90 transition-colors"
               >
                 <Sparkles size={14} className="shrink-0" />
                 Sign in to begin — 15 free credits
@@ -330,7 +323,7 @@ export default function ConsultProfile() {
             ) : creditsLoading ? (
               <button
                 disabled
-                className="mt-6 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white/40 text-[0.65rem] font-bold uppercase tracking-[0.2em]"
+                className="mt-6 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white/55 text-[0.6875rem] font-bold uppercase tracking-[0.2em]"
               >
                 <Loader2 size={14} className="animate-spin" />
                 Reading your balance
@@ -338,7 +331,7 @@ export default function ConsultProfile() {
             ) : hasEnoughCredits ? (
               <button
                 onClick={() => startSession()}
-                className="mt-6 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gold text-black text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors"
+                className="mt-6 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gold text-black text-[0.6875rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors"
               >
                 <Sparkles size={14} />
                 Begin the sitting
@@ -347,7 +340,7 @@ export default function ConsultProfile() {
               <button
                 onClick={() => buyCredits(DEFAULT_CREDIT_PACK.minutes)}
                 disabled={isPaying}
-                className="mt-6 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gold text-black text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors disabled:opacity-60"
+                className="mt-6 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gold text-black text-[0.6875rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors disabled:opacity-60"
               >
                 {isPaying ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -358,8 +351,8 @@ export default function ConsultProfile() {
               </button>
             )}
             <p className="mt-3 text-xs text-white/55 leading-relaxed">
-              Chart-aware guidance, billed in credits — charged only when the
-              sitting closes.
+              Billed per minute from your first message; a partial minute
+              counts as a full one. Settled when the session closes.
             </p>
           </aside>
         </div>

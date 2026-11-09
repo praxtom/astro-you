@@ -7,12 +7,12 @@ import {
   stripPanchangLocation,
 } from "./chart-cache.js";
 import { canonicalNakshatraName, canonicalSignName } from "./vedic-names.js";
+import { getPanchang, getTransitReport } from "./astro-api.js";
 import {
-  getDashaPeriods,
-  getPanchang,
-  getTransitReport,
-  getYogaAnalysis,
-} from "./astro-api.js";
+  chartBirthData,
+  getCachedDashaPeriods,
+  getCachedYogaAnalysis,
+} from "./astro-cached.js";
 import type { UserContext } from "./gemini.js";
 import {
   getWeeklyAstrologyContext,
@@ -30,6 +30,15 @@ import type { AtmanData } from "../../../src/types/user.js";
 const MAX_NAME_CHARS = 80;
 const MAX_SUMMARY_TITLE_CHARS = 120;
 const MAX_SUMMARY_CHARS = 600;
+/** Caps for context a guest's client sends (signed-in users: server-loaded). */
+export const MAX_RECENT_SUMMARIES = 3;
+export const MAX_CLIENT_PLANETS = 15;
+const MAX_PLANET_FIELD_CHARS = 24;
+const MAX_CLIENT_YOGAS = 5;
+const MAX_YOGA_NAME_CHARS = 60;
+const MAX_CONTEXT_FIELD_CHARS = 80;
+const MAX_BIRTH_FIELD_CHARS = 40;
+const MAX_PLACE_CHARS = 120;
 
 /**
  * Chat titles and summaries are model output over user text — they are replayed
@@ -45,6 +54,118 @@ export function sanitizeRecentSummaries<
     title: sanitizePromptText(entry.title, MAX_SUMMARY_TITLE_CHARS),
     summary: sanitizePromptText(entry.summary, MAX_SUMMARY_CHARS),
   }));
+}
+
+/**
+ * A chart sent by the client (guest path only): keep just the fields the
+ * prompt uses, bounded in count and length, so a crafted payload can neither
+ * inflate the prompt nor smuggle instructions into it.
+ */
+export function sanitizeClientKundali(
+  value: unknown,
+):
+  | {
+      planetary_positions: Array<{
+        name: string;
+        sign: string;
+        house?: number;
+        is_retrograde?: true;
+      }>;
+      timeUnknown?: true;
+    }
+  | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = (value as { planetary_positions?: unknown }).planetary_positions;
+  if (!Array.isArray(raw)) return undefined;
+  const planetary_positions = raw
+    .slice(0, MAX_CLIENT_PLANETS)
+    .filter((planet) => planet && typeof planet === "object")
+    .map((planet: any) => {
+      const house = Number(planet.house);
+      return {
+        name: sanitizePromptText(planet.name, MAX_PLANET_FIELD_CHARS),
+        sign: sanitizePromptText(planet.sign, MAX_PLANET_FIELD_CHARS),
+        ...(Number.isInteger(house) && house >= 1 && house <= 12
+          ? { house }
+          : {}),
+        ...(planet.is_retrograde === true
+          ? { is_retrograde: true as const }
+          : {}),
+      };
+    })
+    .filter((planet) => planet.name && planet.sign);
+  if (planetary_positions.length === 0) return undefined;
+  return {
+    planetary_positions,
+    ...((value as { timeUnknown?: unknown }).timeUnknown === true
+      ? { timeUnknown: true as const }
+      : {}),
+  };
+}
+
+/** Client-sent yogas (guest path only), bounded and sanitized. */
+export function sanitizeClientYogas(
+  value: unknown,
+): UserContext["yogaData"] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const yogas = value
+    .slice(0, MAX_CLIENT_YOGAS)
+    .filter((yoga) => yoga && typeof yoga === "object")
+    .map((yoga: any) => {
+      const strength = sanitizePromptText(yoga.strength, 20);
+      const planets = Array.isArray(yoga.planets)
+        ? yoga.planets
+            .slice(0, 9)
+            .map((planet: unknown) =>
+              sanitizePromptText(planet, MAX_PLANET_FIELD_CHARS),
+            )
+            .filter(Boolean)
+        : [];
+      return {
+        name: sanitizePromptText(yoga.name, MAX_YOGA_NAME_CHARS),
+        ...(strength ? { strength } : {}),
+        ...(planets.length ? { planets } : {}),
+      };
+    })
+    .filter((yoga) => yoga.name);
+  return yogas.length ? yogas : undefined;
+}
+
+/** Client-sent panchang (guest path only), each field bounded. */
+export function sanitizeClientPanchang(
+  value: unknown,
+): UserContext["panchangData"] | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as Record<string, unknown>;
+  const field = (v: unknown) =>
+    sanitizePromptText(v, MAX_CONTEXT_FIELD_CHARS) || undefined;
+  const panchang = {
+    tithi: field(raw.tithi),
+    nakshatra: field(raw.nakshatra),
+    yoga: field(raw.yoga),
+    karana: field(raw.karana),
+    rahu_kaal: field(raw.rahu_kaal),
+  };
+  return Object.values(panchang).some(Boolean) ? panchang : undefined;
+}
+
+/** Client-sent diary entries (guest path only): at most 3, sanitized. */
+export function sanitizeClientRecentSummaries(
+  value: unknown,
+): UserContext["recentSummaries"] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const summaries = sanitizeRecentSummaries(
+    value
+      .filter((entry) => entry && typeof entry === "object")
+      .slice(0, MAX_RECENT_SUMMARIES),
+  )
+    .filter((entry: any) => entry.summary)
+    .map((entry: any) => ({
+      title: entry.title || "Untitled",
+      summary: entry.summary,
+      date: sanitizePromptText(entry.date, 20),
+    }));
+  return summaries.length ? summaries : undefined;
 }
 
 interface BuildUserContextOptions {
@@ -150,7 +271,22 @@ export async function buildUserContext(
   const userData = options.uid ? await deps.loadUserDoc(options.uid) : {};
   const profile = userData.profile || {};
   const birthData = options.birthData || toBirthData(profile);
-  const kundaliData = options.kundaliData || userData.kundaliData;
+  // Signed-in users: chart, diary, yogas and panchang come from the server
+  // only — client copies are ignored (they are unbounded, can be a D9 chart,
+  // and are an injection path). Guests: the client copy, sanitized and capped.
+  const signedIn = Boolean(options.uid);
+  const kundaliData = signedIn
+    ? userData.kundaliData
+    : sanitizeClientKundali(options.kundaliData);
+  const clientRecentSummaries = signedIn
+    ? undefined
+    : sanitizeClientRecentSummaries(options.recentSummaries);
+  const clientYogaData = signedIn
+    ? undefined
+    : sanitizeClientYogas(options.yogaData);
+  const clientPanchangData = signedIn
+    ? undefined
+    : sanitizeClientPanchang(options.panchangData);
   // "I don't know my birth time": the chart was cast for noon, so there is
   // no Lagna, houses are counted from the Moon, and dasha dates are rough.
   const birthTimeUnknown =
@@ -177,8 +313,8 @@ export async function buildUserContext(
   // panchang, recent diary entries) — loaded in parallel, each failure-safe.
   const [recentSummaries, weeklyAstrologyContext, dailyPanchang] =
     await Promise.all([
-      options.recentSummaries
-        ? Promise.resolve(options.recentSummaries)
+      clientRecentSummaries
+        ? Promise.resolve(clientRecentSummaries)
         : options.uid
           ? deps.loadRecentSummaries(options.uid).catch((error) => {
               console.warn(
@@ -200,7 +336,7 @@ export async function buildUserContext(
             })
         : Promise.resolve({} as WeeklyAstrologyContextData),
       // Same gate as the astrology context: no chart, no paid lookups.
-      options.panchangData || !(birthData?.dob && birthData?.tob)
+      clientPanchangData || !(birthData?.dob && birthData?.tob)
         ? Promise.resolve(undefined)
         : deps
             .loadDailyPanchang({
@@ -228,8 +364,13 @@ export async function buildUserContext(
         MAX_NAME_CHARS,
       ) || "Jataka",
     language: normalizePlatformLanguage(profile.language || userData.language),
+    // Interpolated into the prompt; on the guest path straight off the body.
     birthData: birthData
-      ? { dob: birthData.dob, tob: birthData.tob, pob: birthData.pob }
+      ? {
+          dob: sanitizePromptText(birthData.dob, MAX_BIRTH_FIELD_CHARS),
+          tob: sanitizePromptText(birthData.tob, MAX_BIRTH_FIELD_CHARS),
+          pob: sanitizePromptText(birthData.pob, MAX_PLACE_CHARS),
+        }
       : undefined,
     kundaliSummary,
     // Owner-writable profile fields interpolated into the system prompt:
@@ -252,9 +393,9 @@ export async function buildUserContext(
       atmanContext?.adviceHistory?.slice(-5) ||
       atmanContext?.savedAdvice?.slice(-5) ||
       undefined,
-    yogaData: options.yogaData || weeklyAstrologyContext.yogaData || undefined,
+    yogaData: clientYogaData || weeklyAstrologyContext.yogaData || undefined,
     panchangData:
-      options.panchangData ||
+      clientPanchangData ||
       dailyPanchang ||
       // Legacy weekly cache records still carry a (stale) panchang snapshot.
       weeklyAstrologyContext.panchangData ||
@@ -357,10 +498,13 @@ async function fetchFreshAstrologyContext(
 ): Promise<WeeklyAstrologyContextData> {
   // Panchang is daily data — it is fetched per day via loadDailyPanchang,
   // not frozen into this weekly record.
+  // Dashas and yogas are natal: read them through the same chart_cache
+  // entries /api/kundali fills, so a refresh after a dashboard visit is free.
+  const bd = chartBirthData(birthData);
   const [dashas, transitEvents, yogasResult] = await Promise.all([
-    readAstrologyPart("Dasha", getDashaPeriods(birthData), []),
+    readAstrologyPart("Dasha", getCachedDashaPeriods(bd), []),
     readAstrologyPart("Transit report", getTransitReport(birthData), []),
-    readAstrologyPart("Yoga analysis", getYogaAnalysis(birthData), null),
+    readAstrologyPart("Yoga analysis", getCachedYogaAnalysis(bd), null),
   ]);
 
   const context = {

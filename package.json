@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "test": "pnpm run test:types && pnpm run test:functions:types && pnpm run test:functions",
+    "test": "npm run test:types && npm run test:functions:types && npm run test:functions",
+    "test:seo": "node --test scripts/seo-pages.test.mjs scripts/seo-routing.test.mjs",
+    "test:all": "npm run lint && npm test && npm run test:seo",
     "test:types": "tsc -p tsconfig.app.json --noEmit",
     "test:functions": "rm -rf node_modules/.tmp/functions-tests && tsc -p tsconfig.functions-test.json && node scripts/run-function-tests.mjs",
     "test:functions:types": "tsc -p tsconfig.functions.json --noEmit",

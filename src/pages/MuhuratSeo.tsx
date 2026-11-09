@@ -147,7 +147,7 @@ function MuhuratTool({ route }: { route: NonNullable<ReturnType<typeof muhuratRo
         <section className="sm:rounded-2xl sm:border sm:border-white/10 sm:bg-white/[0.03] sm:p-6">
           <div className="grid gap-4 md:grid-cols-[1fr_1fr_1fr_auto]">
             <label className="block">
-              <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white/40">
+              <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white/55">
                 <Calendar size={14} /> Date
               </span>
               <input
@@ -158,7 +158,7 @@ function MuhuratTool({ route }: { route: NonNullable<ReturnType<typeof muhuratRo
               />
             </label>
             <label className="block">
-              <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white/40">
+              <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white/55">
                 <MapPin size={14} /> City
               </span>
               <input
@@ -169,7 +169,7 @@ function MuhuratTool({ route }: { route: NonNullable<ReturnType<typeof muhuratRo
               />
             </label>
             <label className="block">
-              <span className="mb-2 text-xs font-bold uppercase tracking-widest text-white/40">
+              <span className="mb-2 text-xs font-bold uppercase tracking-widest text-white/55">
                 Purpose
               </span>
               <select
@@ -205,13 +205,13 @@ function MuhuratTool({ route }: { route: NonNullable<ReturnType<typeof muhuratRo
             </h2>
             <div className="mt-5 grid gap-4 md:grid-cols-3">
               <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-white/35">
+                <p className="text-xs font-bold uppercase tracking-widest text-white/50">
                   Favor
                 </p>
                 <p className="mt-2 text-lg text-gold">{recommendation.best}</p>
               </div>
               <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-white/35">
+                <p className="text-xs font-bold uppercase tracking-widest text-white/50">
                   Avoid
                 </p>
                 <p className="mt-2 text-lg text-white/80">
@@ -219,7 +219,7 @@ function MuhuratTool({ route }: { route: NonNullable<ReturnType<typeof muhuratRo
                 </p>
               </div>
               <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-white/35">
+                <p className="text-xs font-bold uppercase tracking-widest text-white/50">
                   Guidance
                 </p>
                 <p className="mt-2 text-white/65">{recommendation.note}</p>

@@ -18,6 +18,12 @@ import {
   buildPatternIntelligence,
   buildPatternIntelligencePrompt,
 } from "./pattern-intelligence.js";
+import {
+  createHiddenTagFilter,
+  parseReplyChips,
+  parseRoutineTag,
+  stripHiddenTags,
+} from "./chat-tags.js";
 
 /**
  * Gemini model id. Overridable via the GEMINI_MODEL env var so it can be
@@ -37,7 +43,104 @@ export function sideCallConfig(maxOutputTokens: number, json = false) {
     ...(json ? { responseMimeType: "application/json" } : {}),
     maxOutputTokens,
     thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
-    httpOptions: { timeout: SIDE_CALL_TIMEOUT_MS },
+    httpOptions: {
+      timeout: SIDE_CALL_TIMEOUT_MS,
+      // One retry, only when Gemini is busy (429/503).
+      retryOptions: {
+        attempts: 2,
+        initialDelay: GEMINI_RETRY_DELAY_MS / 1000,
+        maxDelay: 2,
+        httpStatusCodes: [...GEMINI_RETRYABLE_STATUSES],
+      },
+    },
+  };
+}
+
+/** Per-attempt HTTP timeout for one-shot Interactions API calls. */
+export const GEMINI_CALL_TIMEOUT_MS = 15_000;
+/** Vision (chart image) calls get a little longer. */
+export const GEMINI_VISION_TIMEOUT_MS = 25_000;
+/** Status codes worth one retry: rate-limited or temporarily unavailable. */
+export const GEMINI_RETRYABLE_STATUSES = [429, 503] as const;
+/** Pause before the single retry. */
+export const GEMINI_RETRY_DELAY_MS = 750;
+
+/**
+ * Request options for an Interactions API call. The SDK's own retry policy is
+ * switched off (its default retries up to 4x on any 5xx, with no timeout) —
+ * withGeminiTimeout owns retries instead.
+ */
+export interface GeminiRequestOptions {
+  timeout?: number;
+  maxRetries: number;
+  fetchOptions?: { signal?: AbortSignal };
+}
+
+/** True for a Gemini error that is worth exactly one retry (429 / 503). */
+export function isRetryableGeminiError(error: unknown): boolean {
+  const e = error as { status?: unknown; statusCode?: unknown; code?: unknown };
+  const status = Number(e?.status ?? e?.statusCode ?? e?.code);
+  return (GEMINI_RETRYABLE_STATUSES as readonly number[]).includes(status);
+}
+
+/**
+ * Runs one Gemini call with a per-attempt HTTP timeout and a single retry on
+ * 429/503. `call` receives the request options to pass as the SDK's last
+ * argument. `timeoutMs: 0` means no HTTP timeout (streaming calls, which are
+ * bounded by the caller's own deadline). An abort `signal` cancels the
+ * request and is never retried.
+ */
+export async function withGeminiTimeout<T>(
+  call: (options: GeminiRequestOptions) => Promise<T>,
+  {
+    timeoutMs = GEMINI_CALL_TIMEOUT_MS,
+    retries = 1,
+    retryDelayMs = GEMINI_RETRY_DELAY_MS,
+    signal,
+    sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms)),
+  }: {
+    timeoutMs?: number;
+    retries?: number;
+    retryDelayMs?: number;
+    signal?: AbortSignal;
+    sleep?: (ms: number) => Promise<void>;
+  } = {},
+): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    const options: GeminiRequestOptions = { maxRetries: 0 };
+    if (signal) {
+      // fetchOptions.signal takes precedence over `timeout` in the SDK, so
+      // fold the timeout into the signal.
+      options.fetchOptions = {
+        signal:
+          timeoutMs > 0
+            ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
+            : signal,
+      };
+    } else if (timeoutMs > 0) {
+      options.timeout = timeoutMs;
+    }
+    try {
+      return await call(options);
+    } catch (error) {
+      if (
+        attempt >= retries ||
+        signal?.aborted ||
+        !isRetryableGeminiError(error)
+      ) {
+        throw error;
+      }
+      await sleep(retryDelayMs * (attempt + 1));
+    }
+  }
+}
+
+/** Shared generation config for one-shot prose calls. */
+function oneShotGenerationConfig(maxOutputTokens: number) {
+  return {
+    thinking_level: "minimal" as const,
+    thinking_summaries: "none" as const,
+    max_output_tokens: maxOutputTokens,
   };
 }
 
@@ -353,6 +456,21 @@ ${label}:
 /**
  * Build the Guru (Counsellor) system prompt
  */
+/**
+ * System-prompt addendum for a named consult persona. The name is a style,
+ * not a person: the identity lines keep any "are you human?" answer
+ * consistent with the name the user sees.
+ */
+export function buildPersonaOverride(
+  persona: { name: string; promptModifier: string },
+  preferredLanguage?: string,
+): string {
+  const language = preferredLanguage
+    ? `\nPreferred consultation language: ${preferredLanguage}. Use it by default, keeping Sanskrit terms readable and explained simply — but if the user writes in another language or script (for example Hinglish), mirror theirs.`
+    : "";
+  return `\n\nPERSONA OVERRIDE:\nYour name is ${persona.name}, an AI astrology guide on AstroYou with this persona. ${persona.promptModifier}\nHonest identity: "${persona.name}" is a persona name, not a human. Never claim to be a person or a human astrologer, and never invent a personal life (family, home town, years of practice, lived experience). If the user sincerely asks whether you are a person, a bot or AI, answer honestly as ${persona.name}, e.g. "I'm ${persona.name}, AstroYou's AI astrology guide — built on classical texts and your chart, not a human astrologer."${language}`;
+}
+
 export function buildGuruPrompt(context: UserContext): string {
   return `
 You are "Guru," a spiritual counsellor and guide on AstroYou.
@@ -598,8 +716,8 @@ You are AstroYou's **Jyotish guide**. Speak with the warmth and presence of a sa
 5. **Memory & Continuity:** You REMEMBER the user's patterns (listed in ATMAN section). If they are anxious, be grounding. If they are excited, be celebratory. If they have an active event (e.g., Interview), ASK about it naturally.
 
 ### COMMUNICATION RULES:
-1. **Brevity by Default:** Keep replies to 2-4 lines for simple questions. For detailed queries (chart analysis, life guidance, remedies), go up to 6-8 lines. Match the depth of your response to the depth of their question.
-2. **Conversational:** Speak in short, natural sentences. Write like you're texting a friend who came for guidance.
+1. **Short Chat Bubbles:** Reply in 2-4 short, plain sentences — even for chart, life or remedy questions. Lead with the single most useful insight; if they want more, they will ask or tap a follow-up. Only when the user explicitly asks for a detailed or full reading may you use up to 6 short sentences.
+2. **Conversational:** Speak in short, natural sentences, in the user's own language and script. Write like you're texting someone who came to you for guidance.
 3. **NO UNNECESSARY QUESTIONS:** Do not end every response with a question. Only ask when you genuinely need clarification. Let the insight stand on its own.
 4. **Actionable:** Lead with the key insight. If they want more, they'll ask.
 5. **No Doom & Gloom:** Frame challenges as growth opportunities.
@@ -616,9 +734,10 @@ If the user's latest message is only a short acknowledgement or small-talk reply
 - A simple warm acknowledgement is enough.
 
 ### FORMATTING:
-- Use **bold** sparingly for planet names or key terms.
-- Prefer flowing prose. Use short lists only when comparing options or giving step-by-step remedies.
-- Keep the chat feel — avoid essay-length responses unless the user asks for a detailed analysis.
+- Plain sentences only: no headings, no bullet or numbered lists, no tables.
+- At most one **bold** term per reply (a planet or key term); otherwise no markdown.
+- A remedy or practice is described in one or two sentences, not as steps.
+- Keep the chat feel — never an essay.
 `;
 }
 
@@ -724,16 +843,19 @@ You are "Jyotish," a wise Vedic astrologer on AstroYou. Your task is to provide 
 
   const prompt = buildTransitSummaryPrompt(context, transitPredictions);
 
-  const interaction = await client.interactions.create({
-    model: GEMINI_MODEL,
-    // One-shot call, never chained — don't retain it on Google's side.
-    store: false,
-    system_instruction: systemPrompt,
-    input: prompt,
-    generation_config: {
-      max_output_tokens: 500,
-    },
-  });
+  const interaction = await withGeminiTimeout((options) =>
+    client.interactions.create(
+      {
+        model: GEMINI_MODEL,
+        // One-shot call, never chained — don't retain it on Google's side.
+        store: false,
+        system_instruction: systemPrompt,
+        input: prompt,
+        generation_config: oneShotGenerationConfig(500),
+      },
+      options,
+    ),
+  );
 
   let content =
     "The stars are in a unique alignment for you today. Observe your path with clarity.";
@@ -755,7 +877,12 @@ export type SynthesisStreamEvent =
       interactionId: string;
       content: string;
       suggestedRoutine?: any;
+      /** 1–2 tappable follow-up suggestions (from the hidden <chips> tag). */
+      chips?: string[];
     };
+
+/** Output cap for a chat reply: 2–4 sentences plus the optional hidden tags. */
+export const CHAT_MAX_OUTPUT_TOKENS = 700;
 
 const ROUTINE_SUFFIX = `
 
@@ -784,6 +911,14 @@ When you do suggest, output it at the END of your response in XML. Include a cle
 </routine>
 
 NEVER suggest breathing exercises or meditation as a routine for casual concerns. Most conversations should NOT include a routine suggestion.
+`;
+
+export const REPLY_CHIPS_SUFFIX = `
+
+### FOLLOW-UP CHIPS:
+After your reply (and after any <routine> block), add 1-2 short follow-up questions the user could tap to ask you next. Write them in the user's voice and in the same language and script as your reply, each under 8 words, as a JSON array in this exact tag on its own line:
+<chips>["What about my career?","Is there a simple remedy?"]</chips>
+Never mention the chips in your reply. Skip the tag for casual acknowledgements ("ok", "thanks") and when the user is distressed. Never suggest anything that involves paying.
 `;
 
 export function buildInteractionInput(
@@ -820,7 +955,12 @@ ${lastMessage}`;
 }
 
 /**
- * Generate AI synthesis response via streaming Interactions API
+ * Generate AI synthesis response via streaming Interactions API.
+ *
+ * Deltas pass through a hidden-tag filter, so `<routine>` / `<chips>` blocks
+ * never reach the client — not even when the opening tag is split across
+ * deltas or the reply is truncated inside a tag. The `complete` event carries
+ * the visible content plus the parsed routine and chips.
  */
 export async function* synthesizeStream(
   messages: Array<{ role: "user" | "assistant"; content: string }>,
@@ -857,88 +997,112 @@ export async function* synthesizeStream(
 
   const baseInteractionParams = {
     model: GEMINI_MODEL,
-    system_instruction: systemPrompt + ROUTINE_SUFFIX,
+    system_instruction: systemPrompt + ROUTINE_SUFFIX + REPLY_CHIPS_SUFFIX,
     stream: true as const,
     generation_config: {
       thinking_level: "minimal" as const,
       thinking_summaries: "none" as const,
-      max_output_tokens: 500,
+      max_output_tokens: CHAT_MAX_OUTPUT_TOKENS,
     },
   };
+  // No HTTP timeout here: the caller bounds the whole stream with its own
+  // first-token / total deadlines. The abort signal cancels the upstream
+  // request when the client disconnects or the deadline passes.
+  const openStream = (input: string, chainId?: string) =>
+    withGeminiTimeout(
+      (options) =>
+        client.interactions.create(
+          {
+            ...baseInteractionParams,
+            input,
+            ...(chainId ? { previous_interaction_id: chainId } : {}),
+          },
+          options,
+        ),
+      { timeoutMs: 0, signal: abortSignal },
+    );
 
   let stream;
   try {
-    stream = await client.interactions.create({
-      ...baseInteractionParams,
-      input: buildInteractionInput(messages, previousInteractionId),
-      previous_interaction_id: previousInteractionId,
-    });
+    stream = await openStream(
+      buildInteractionInput(messages, previousInteractionId),
+      previousInteractionId,
+    );
   } catch (error) {
-    if (!previousInteractionId || messages.length <= 1) {
+    if (
+      !previousInteractionId ||
+      messages.length <= 1 ||
+      abortSignal?.aborted
+    ) {
       throw error;
     }
 
     console.warn(
       "[Synthesis] previous_interaction_id failed; retrying with visible transcript.",
     );
-    stream = await client.interactions.create({
-      ...baseInteractionParams,
-      input: buildInteractionInput(messages),
-    });
+    stream = await openStream(buildInteractionInput(messages));
   }
 
-  let fullContent = "";
+  const tagFilter = createHiddenTagFilter();
+  let rawContent = "";
+  let visibleContent = "";
   let interactionId = "";
   let finalOutputText = "";
 
-  for await (const event of stream as any) {
-    // Stop consuming if the client disconnected.
-    if (abortSignal?.aborted) break;
-    const eventType = event.event_type || event.type;
+  try {
+    for await (const event of stream as any) {
+      // Stop consuming if the client disconnected.
+      if (abortSignal?.aborted) break;
+      const eventType = event.event_type || event.type;
 
-    if (eventType === "step.delta" || eventType === "content.delta") {
-      const text = extractInteractionDeltaText(event.delta);
-      if (text) {
-        fullContent += text;
-        yield { type: "delta", text };
+      if (eventType === "step.delta" || eventType === "content.delta") {
+        const text = extractInteractionDeltaText(event.delta);
+        if (text) {
+          rawContent += text;
+          const visible = tagFilter.push(text);
+          if (visible) {
+            visibleContent += visible;
+            yield { type: "delta", text: visible };
+          }
+        }
+      } else if (
+        eventType === "interaction.created" ||
+        eventType === "interaction.completed" ||
+        eventType === "interaction.start" ||
+        eventType === "interaction.complete"
+      ) {
+        interactionId = event.interaction?.id || interactionId;
+        if (typeof event.interaction?.output_text === "string") {
+          finalOutputText = event.interaction.output_text;
+        }
+      } else if (eventType === "error") {
+        throw new Error(event.error?.message || "Gemini interaction failed");
       }
-    } else if (
-      eventType === "interaction.created" ||
-      eventType === "interaction.completed" ||
-      eventType === "interaction.start" ||
-      eventType === "interaction.complete"
-    ) {
-      interactionId = event.interaction?.id || interactionId;
-      if (typeof event.interaction?.output_text === "string") {
-        finalOutputText = event.interaction.output_text;
-      }
-    } else if (eventType === "error") {
-      throw new Error(event.error?.message || "Gemini interaction failed");
     }
+  } catch (error) {
+    // Aborting the request (client gone / deadline) surfaces as a read error;
+    // that is an intentional stop, not a generation failure.
+    if (!abortSignal?.aborted) throw error;
   }
 
-  if (!fullContent.trim() && finalOutputText.trim()) {
-    fullContent = finalOutputText;
-    yield { type: "delta", text: finalOutputText };
+  const tail = tagFilter.flush();
+  if (tail) {
+    visibleContent += tail;
+    yield { type: "delta", text: tail };
   }
 
-  // Parse and strip routine XML from final content
-  let suggestedRoutine;
-  const routineMatch = fullContent.match(/<routine>([\s\S]*?)<\/routine>/);
-  if (routineMatch) {
-    try {
-      suggestedRoutine = JSON.parse(routineMatch[1]);
-    } catch (error) {
-      console.error("[Gemini] Could not parse routine suggestion:", error);
-    }
-    fullContent = fullContent.replace(routineMatch[0], "").trim();
+  if (!rawContent.trim() && finalOutputText.trim()) {
+    rawContent = finalOutputText;
+    visibleContent = stripHiddenTags(finalOutputText);
+    if (visibleContent) yield { type: "delta", text: visibleContent };
   }
 
   yield {
     type: "complete",
     interactionId,
-    content: fullContent,
-    suggestedRoutine,
+    content: visibleContent.trim(),
+    suggestedRoutine: parseRoutineTag(rawContent),
+    chips: parseReplyChips(rawContent),
   };
 }
 
@@ -1022,11 +1186,16 @@ Do not suggest a routine if they already have too many active routines.
   // Use the interactions API with system_instruction and previous_interaction_id
   let interaction;
   try {
-    interaction = await client.interactions.create({
-      ...baseInteractionParams,
-      input: buildInteractionInput(messages, previousInteractionId),
-      previous_interaction_id: previousInteractionId,
-    });
+    interaction = await withGeminiTimeout((options) =>
+      client.interactions.create(
+        {
+          ...baseInteractionParams,
+          input: buildInteractionInput(messages, previousInteractionId),
+          previous_interaction_id: previousInteractionId,
+        },
+        options,
+      ),
+    );
   } catch (error) {
     if (!previousInteractionId || messages.length <= 1) {
       throw error;
@@ -1035,10 +1204,15 @@ Do not suggest a routine if they already have too many active routines.
     console.warn(
       "[Synthesis] previous_interaction_id failed; retrying with visible transcript.",
     );
-    interaction = await client.interactions.create({
-      ...baseInteractionParams,
-      input: buildInteractionInput(messages),
-    });
+    interaction = await withGeminiTimeout((options) =>
+      client.interactions.create(
+        {
+          ...baseInteractionParams,
+          input: buildInteractionInput(messages),
+        },
+        options,
+      ),
+    );
   }
 
   console.log("[Synthesis] New Interaction ID:", interaction.id);
@@ -1100,13 +1274,19 @@ ${request.transitSummary ? `Current Transits: ${request.transitSummary}` : ""}
 ${typeInstructions[request.type]}
 `;
 
-  const interaction = await client.interactions.create({
-    model: GEMINI_MODEL,
-    // One-shot call, never chained — don't retain it on Google's side.
-    store: false,
-    system_instruction: systemPrompt,
-    input: prompt,
-  });
+  const interaction = await withGeminiTimeout((options) =>
+    client.interactions.create(
+      {
+        model: GEMINI_MODEL,
+        // One-shot call, never chained — don't retain it on Google's side.
+        store: false,
+        system_instruction: systemPrompt,
+        input: prompt,
+        generation_config: oneShotGenerationConfig(700),
+      },
+      options,
+    ),
+  );
 
   const output = (interaction as any).outputs;
   if (output && Array.isArray(output) && output.length > 0) {
@@ -1149,17 +1329,34 @@ Format:
   const prompt =
     "Extract all visible planetary positions and chart details from this image.";
 
-  const interaction = await client.interactions.create({
-    model: GEMINI_MODEL,
-    // One-shot call, never chained — don't retain it on Google's side.
-    store: false,
-    system_instruction: systemPrompt,
-    input: [
-      { type: "text" as const, text: prompt },
-      { type: "image" as const, data: imageBase64, mime_type: mimeType as any },
-    ],
-    response_mime_type: "application/json",
-  });
+  const interaction = await withGeminiTimeout(
+    (options) =>
+      client.interactions.create(
+        {
+          model: GEMINI_MODEL,
+          // One-shot call, never chained — don't retain it on Google's side.
+          store: false,
+          system_instruction: systemPrompt,
+          input: [
+            { type: "text" as const, text: prompt },
+            {
+              type: "image" as const,
+              data: imageBase64,
+              mime_type: mimeType as any,
+            },
+          ],
+          response_mime_type: "application/json",
+          // Reading a chart image benefits from a little reasoning.
+          generation_config: {
+            thinking_level: "low" as const,
+            thinking_summaries: "none" as const,
+            max_output_tokens: 2000,
+          },
+        },
+        options,
+      ),
+    { timeoutMs: GEMINI_VISION_TIMEOUT_MS },
+  );
 
   const output = (interaction as any).outputs;
   let text = "";
@@ -1181,53 +1378,140 @@ Format:
     return { error: "Could not parse chart JSON.", rawText: text };
   }
 }
+export type ProactiveNudgeTrigger =
+  | "morning_routine"
+  | "anniversary_reflection"
+  | "transit_alert"
+  | "emotional_stabilization"
+  | "relational_management"
+  | "synastry_alert";
+
+/** A relationship from the user's own (server-loaded) Atman, sanitized. */
+export interface ProactiveNudgePartner {
+  name: string;
+  relation?: string;
+  dynamic?: string;
+  zodiacSign?: string;
+}
+
+export interface ProactiveNudgeOptions {
+  /** Required for synastry_alert. */
+  partner?: ProactiveNudgePartner | null;
+}
+
+/** Hard caps on nudge output (match validateNudgeInput in atman-schema). */
+export const NUDGE_TITLE_MAX = 80;
+export const NUDGE_MESSAGE_MAX = 240;
+const NUDGE_TRANSIT_CONTEXT_MAX = 700;
+
 /**
- * Generate a personalized proactive guru nugget/nudge
+ * True when an astrology trigger has no real data to stand on. Such a nudge
+ * would have to invent "the current cosmic shift", so none is generated.
+ */
+export function isNudgeUngrounded(
+  context: UserContext,
+  triggerType: string,
+  options: ProactiveNudgeOptions = {},
+): boolean {
+  if (triggerType === "transit_alert") {
+    return !context.transitContext?.trim() && !context.dashaInfo?.currentMahadasha;
+  }
+  if (triggerType === "synastry_alert") {
+    return !options.partner?.name;
+  }
+  return false;
+}
+
+/**
+ * Parse and bound a nudge reply. Returns null for anything unusable — the
+ * caller then shows nothing rather than a canned line dressed up as personal.
+ */
+export function parseProactiveNudge(
+  text: string | undefined | null,
+): { title: string; message: string } | null {
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text.replace(/```json\n?|\n?```/g, "").trim());
+    const title = typeof parsed?.title === "string" ? parsed.title.trim() : "";
+    const message =
+      typeof parsed?.message === "string" ? parsed.message.trim() : "";
+    if (!title || !message) return null;
+    return {
+      title: clipText(title, NUDGE_TITLE_MAX),
+      message: clipText(softenOutcomeCertainty(message), NUDGE_MESSAGE_MAX),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function clipText(value: string, max: number): string {
+  return value.length > max ? `${value.slice(0, max - 1).trimEnd()}…` : value;
+}
+
+/**
+ * Generate a personalized proactive guru nugget/nudge. Returns null when the
+ * trigger has no grounding data or generation fails.
  */
 export async function generateProactiveNudge(
   context: UserContext,
-  triggerType:
-    | "morning_routine"
-    | "anniversary_reflection"
-    | "transit_alert"
-    | "emotional_stabilization"
-    | "relational_management"
-    | "synastry_alert",
-): Promise<{ title: string; message: string }> {
+  triggerType: ProactiveNudgeTrigger,
+  options: ProactiveNudgeOptions = {},
+): Promise<{ title: string; message: string } | null> {
+  if (isNudgeUngrounded(context, triggerType, options)) return null;
   const ai = getClient();
 
-  const prompt = buildProactiveNudgePrompt(context, triggerType);
+  const prompt = buildProactiveNudgePrompt(context, triggerType, options);
 
   try {
     const result = await ai.models.generateContent({
       model: GEMINI_MODEL,
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      config: { responseMimeType: "application/json" },
+      // Hard timeout + bounded output.
+      config: sideCallConfig(200, true),
     });
-
-    const text = result.text;
-    if (!text)
-      return {
-        title: "Guru's Grace",
-        message: "Step forward with awareness today.",
-      };
-    const parsed = JSON.parse(text);
-    if (parsed && typeof parsed.message === "string") {
-      parsed.message = softenOutcomeCertainty(parsed.message);
-    }
-    return parsed;
-  } catch (error) {
-    console.error("Nudge generation failed:", error);
-    return {
-      title: "Guru's Grace",
-      message: "Listen to the silence within your heart.",
-    };
+    return parseProactiveNudge(result.text);
+  } catch (error: any) {
+    console.error("Nudge generation failed:", error?.name || "error");
+    return null;
   }
+}
+
+function formatNudgeAstrologyContext(
+  context: UserContext,
+  triggerType: string,
+  options: ProactiveNudgeOptions,
+): string {
+  const lines: string[] = [];
+  const dasha = context.dashaInfo;
+  if (dasha?.currentMahadasha) {
+    const approx = dasha.approximate
+      ? " (approximate — birth time unknown; do not cite exact dates)"
+      : "";
+    lines.push(
+      `- Current dasha: ${dasha.currentMahadasha} Mahadasha${dasha.mahadashaEnd ? ` (until ${dasha.mahadashaEnd})` : ""}${dasha.currentAntardasha ? `, ${dasha.currentAntardasha} Antardasha${dasha.antardashaEnd ? ` (until ${dasha.antardashaEnd})` : ""}` : ""}${approx}`,
+    );
+  }
+  const transits = context.transitContext?.trim();
+  if (transits) {
+    lines.push(
+      `- This week's transits to the natal chart: ${clipText(transits.replace(/\s+/g, " "), NUDGE_TRANSIT_CONTEXT_MAX)}`,
+    );
+  }
+  if (context.moonSign) lines.push(`- Natal Moon sign: ${context.moonSign}`);
+  if (triggerType === "synastry_alert" && options.partner?.name) {
+    const p = options.partner;
+    lines.push(
+      `- Person to focus on: ${p.name}${p.relation ? ` (${p.relation})` : ""}${p.dynamic ? `, current dynamic: ${p.dynamic}` : ""}${p.zodiacSign ? `, sign: ${p.zodiacSign}` : ", sign: not known"}`,
+    );
+  }
+  return lines.length > 0 ? lines.join("\n    ") : "- Not available";
 }
 
 export function buildProactiveNudgePrompt(
   context: UserContext,
   triggerType: string,
+  options: ProactiveNudgeOptions = {},
 ): string {
   return `
     You are "Guru," the spiritual guide on AstroYou.
@@ -1240,21 +1524,54 @@ export function buildProactiveNudgePrompt(
     - Emotion: ${context.atman?.emotionalState || "Stable"}
     - Recent Events: ${context.atman?.activeEvents?.map((e) => e.title).join(", ") || "None"}
 
+    ASTROLOGY CONTEXT (the ONLY astrological facts you may use):
+    ${formatNudgeAstrologyContext(context, triggerType, options)}
+
     OUTPUT JSON FORMAT ONLY:
     {
         "title": "Short poetic title (2-4 words)",
-        "message": "One soulful sentence of guidance or inquiry."
+        "message": "One soulful sentence of guidance or inquiry (under 200 characters)."
     }
 
     RULES:
     - Tone: Deeply calm, slightly poetic, Vedic essence.
+    - Grounding: mention a planet, transit, dasha, sign or timing ONLY if it appears in ASTROLOGY CONTEXT above. Never invent one. If it says "Not available", make no astrological claim at all.
     - If morning_routine: Focus on discipline (Dharma).
     - If anniversary_reflection: Focus on how they have evolved since the event.
-    - If transit_alert: Give a 1-sentence "vibe" of the current cosmic shift.
+    - If transit_alert: Name ONE transit (or the current dasha) from ASTROLOGY CONTEXT and give a 1-sentence grounded reading of what it supports this week, plus one small step.
     - If emotional_stabilization: Be very grounding and soft.
     - If relational_management: Focus on a specific person from the Sangha (especially if dynamic is conflict/distant) and suggest one small, concrete step (e.g. a kind first sentence to open a conversation, or one boundary to state calmly).
+    - If synastry_alert: Focus on the person named in ASTROLOGY CONTEXT and suggest one small, kind action today. Do not claim to know their chart or transits beyond what is listed.
     - Never promise outcomes (relationships, marriage timing, health, money) and never use words like "guaranteed", "destined" or "will definitely".
     `;
+}
+
+/** Validate and bound a Sadhana path reply (max 3 days, short strings). */
+export function parseSadhanaPath(
+  text: string | undefined | null,
+): Array<{ day: number; practice: string; intention: string }> {
+  if (!text) return [];
+  try {
+    const parsed = JSON.parse(text.replace(/```json\n?|\n?```/g, "").trim());
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (item) =>
+          item &&
+          typeof item.practice === "string" &&
+          item.practice.trim() &&
+          typeof item.intention === "string" &&
+          item.intention.trim(),
+      )
+      .slice(0, 3)
+      .map((item, index) => ({
+        day: index + 1,
+        practice: clipText(item.practice.trim(), 120),
+        intention: clipText(item.intention.trim(), 80),
+      }));
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -1268,7 +1585,8 @@ export async function generateSadhanaPath(
   const prompt = `
     You are "Guru," the guide on AstroYou.
     Create a personalized 3-day spiritual path (Sadhana) for ${context.name || "Ji"}.
-    
+    ${buildGuidancePolicyPrompt()}
+
     USER CONTEXT:
     - Patterns: ${context.atman?.knownPatterns?.map((p) => (typeof p === "string" ? p : p.pattern)).join(", ") || "None"}
     - Recent Trends: ${
@@ -1291,6 +1609,7 @@ export async function generateSadhanaPath(
     - If anxious: Grounding practices (Breathwork).
     - If energetic: Creative or moving practices (Yoga/Tapa).
     - If chaotic: Simple, very short calming focus.
+    - Practices are gentle and safe; never a medical treatment or a substitute for care.
     - Max 3 days.
     `;
 
@@ -1298,16 +1617,12 @@ export async function generateSadhanaPath(
     const result = await ai.models.generateContent({
       model: GEMINI_MODEL,
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      config: { responseMimeType: "application/json" },
+      // Hard timeout + bounded output.
+      config: sideCallConfig(400, true),
     });
-
-    const text = result.text;
-    if (!text) return [];
-    // Clean markdown code blocks if present
-    const jsonStr = text.replace(/```json\n?|\n?```/g, "").trim();
-    return JSON.parse(jsonStr);
-  } catch (error) {
-    console.error("Sadhana path generation failed:", error);
+    return parseSadhanaPath(result.text);
+  } catch (error: any) {
+    console.error("Sadhana path generation failed:", error?.name || "error");
     return [];
   }
 }
@@ -1372,16 +1687,19 @@ export async function generateCompatibilityNarrative(
   );
 
   try {
-    const interaction = await ai.interactions.create({
-      model: GEMINI_MODEL,
-      store: false,
-      system_instruction: `You are Jyotish, AstroYou's Vedic astrology guide. Write warm, flowing relationship guidance. No lists, no bullet points. Conversational prose only. Never promise that a relationship will last or end, never state marriage timing as certain, and never use words like "guaranteed", "destined" or "will definitely".
+    const interaction = await withGeminiTimeout((options) =>
+      ai.interactions.create(
+        {
+          model: GEMINI_MODEL,
+          store: false,
+          system_instruction: `You are Jyotish, AstroYou's Vedic astrology guide. Write warm, flowing relationship guidance. No lists, no bullet points. Conversational prose only. Never promise that a relationship will last or end, never state marriage timing as certain, and never use words like "guaranteed", "destined" or "will definitely".
 ${buildGuidancePolicyPrompt()}`,
-      input: prompt,
-      generation_config: {
-        max_output_tokens: 400,
-      },
-    });
+          input: prompt,
+          generation_config: oneShotGenerationConfig(400),
+        },
+        options,
+      ),
+    );
 
     let content = "";
     const output = (interaction as any).outputs;
@@ -1608,16 +1926,19 @@ RULES:
 `;
 
   try {
-    const interaction = await ai.interactions.create({
-      model: GEMINI_MODEL,
-      store: false,
-      system_instruction:
-        "You are Guru, a wise spiritual guide. Write reflective, warm growth narratives. Prose only.",
-      input: prompt,
-      generation_config: {
-        max_output_tokens: 500,
-      },
-    });
+    const interaction = await withGeminiTimeout((options) =>
+      ai.interactions.create(
+        {
+          model: GEMINI_MODEL,
+          store: false,
+          system_instruction:
+            "You are Guru, a wise spiritual guide. Write reflective, warm growth narratives. Prose only.",
+          input: prompt,
+          generation_config: oneShotGenerationConfig(500),
+        },
+        options,
+      ),
+    );
 
     let content = "";
     const output = (interaction as any).outputs;

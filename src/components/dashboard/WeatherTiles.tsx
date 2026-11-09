@@ -3,6 +3,7 @@ import { Moon, Share2, Sparkles, Sun, CalendarDays } from "lucide-react";
 import type { PanchangData } from "../../hooks/usePanchang";
 import type { TodayGuide } from "../../lib/todayGuide";
 import { TILE } from "./primitives";
+import { GlossaryTerm } from "../ui/GlossaryTerm";
 import type { LunarLike } from "../../lib/moon-phase";
 
 /**
@@ -55,7 +56,7 @@ export function TileHead({
 }) {
   return (
     <div className="mb-3 flex items-center justify-between gap-3">
-      <p className="flex items-center gap-2 text-[0.78rem] font-semibold uppercase tracking-[0.08em] text-white/45">
+      <p className="flex items-center gap-2 text-[0.78rem] font-semibold uppercase tracking-[0.08em] text-white/55">
         {icon}
         {children}
       </p>
@@ -182,9 +183,12 @@ export function TodayHero({
 /* ---------- Your day: day bar with Rahu Kaal, Abhijit and now ---------- */
 export function DayTile({
   panchang,
+  placeLabel,
   className = "sm:col-span-2",
 }: {
   panchang: PanchangData | null;
+  /** Where the timings are for, e.g. "Pune" or "New Delhi (default)". */
+  placeLabel?: string;
   className?: string;
 }) {
   const sr = toMinutes(asText(panchang?.sunrise));
@@ -209,10 +213,10 @@ export function DayTile({
   if (rahu) {
     if (now < rahu[0]) {
       headline = `Rahu Kaal at ${hhmm(rahu[0])}`;
-      sub = `Keep big decisions out of ${hhmm(rahu[0])}–${hhmm(rahu[1])}.`;
+      sub = `${hhmm(rahu[0])}–${hhmm(rahu[1])} suits routine work; save fresh starts for another hour.`;
     } else if (now <= rahu[1]) {
       headline = "Rahu Kaal now";
-      sub = `Ends at ${hhmm(rahu[1])}. Hold big decisions for ${rahu[1] - now} minutes.`;
+      sub = `Ends at ${hhmm(rahu[1])}. A good ${rahu[1] - now} minutes for routine work and reflection.`;
     } else {
       headline = "Rahu Kaal is over";
       sub = `It ran ${hhmm(rahu[0])}–${hhmm(rahu[1])}.`;
@@ -223,7 +227,18 @@ export function DayTile({
 
   return (
     <div className={`${TILE} ${className}`}>
-      <TileHead icon={<Sun size={15} />}>Your day</TileHead>
+      <TileHead
+        icon={<Sun size={15} />}
+        action={
+          placeLabel ? (
+            <span className="text-[0.8rem] text-white/50">
+              Times for {placeLabel}
+            </span>
+          ) : undefined
+        }
+      >
+        Your day
+      </TileHead>
       <p className="font-display text-[1.9rem] leading-tight text-white/95">
         {headline}
       </p>
@@ -264,8 +279,16 @@ export function DayTile({
           <div className="mt-2.5 flex justify-between text-[0.85rem] text-white/50">
             <span>Sunrise {hhmm(day[0])}</span>
             <span className="flex gap-3">
-              {rahu && <span className="text-rose-200/80">Rahu Kaal</span>}
-              {abhijit && <span className="text-emerald-200/80">Abhijit</span>}
+              {rahu && (
+                <span className="text-rose-200/80">
+                  <GlossaryTerm k="rahu-kaal">Rahu Kaal</GlossaryTerm>
+                </span>
+              )}
+              {abhijit && (
+                <span className="text-emerald-200/80">
+                  <GlossaryTerm k="abhijit">Abhijit</GlossaryTerm>
+                </span>
+              )}
             </span>
             <span>Sunset {hhmm(day[1])}</span>
           </div>
@@ -322,7 +345,7 @@ export function PanchangTile({
             <dd className="text-right text-white/90">
               {v ?? (loading ? "…" : "—")}
               {end && (
-                <span className="block text-[0.8rem] text-white/45">
+                <span className="block text-[0.8rem] text-white/55">
                   till {end}
                 </span>
               )}
@@ -348,7 +371,7 @@ export function TodayForYouTile({
   const cols: [string, string][] = [
     ["Energy", guide.energy],
     ["Do", guide.action],
-    ["Take care", guide.caution],
+    ["Go easy", guide.caution],
   ];
   return (
     <div className={`${TILE} sm:col-span-2 lg:col-span-4`}>
@@ -364,8 +387,13 @@ export function TodayForYouTile({
           </button>
         }
       >
-        Today for you
+        Today, for you
       </TileHead>
+      {guide.context && (
+        <p className="-mt-1 mb-4 text-[0.85rem] text-white/50">
+          {guide.context}
+        </p>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-5">
         {cols.map(([k, v]) => (
           <div key={k}>
@@ -378,17 +406,15 @@ export function TodayForYouTile({
           </div>
         ))}
       </div>
-      <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-6">
-        {showNudge && (
-          <p className="text-[0.92rem] italic text-white/55">{guide.nudge}</p>
-        )}
-        <details className="text-[0.92rem] text-white/50 sm:ml-auto">
-          <summary className="cursor-pointer hover:text-white/75 transition-colors select-none">
-            Why am I seeing this?
-          </summary>
-          <p className="mt-2 max-w-prose leading-relaxed">{guide.why}</p>
-        </details>
-      </div>
+      {showNudge && (
+        <p className="mt-5 text-[0.92rem] italic text-white/55">{guide.nudge}</p>
+      )}
+      {guide.why && (
+        <p className="mt-4 border-t border-white/[0.06] pt-4 text-[0.92rem] leading-relaxed text-white/55">
+          <span className="font-semibold text-white/70">Why this? </span>
+          {guide.why}
+        </p>
+      )}
     </div>
   );
 }

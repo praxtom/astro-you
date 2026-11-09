@@ -4,6 +4,7 @@
 // TypeScript's "bundler" moduleResolution accepts ".js" here and resolves it
 // to site-url.ts for type-checking; Vite resolves it to the same file too.
 import { getSiteOrigin, siteUrl } from "./site-url.js";
+import { MERGED_SEO_GUIDES, SEO_GUIDE_REDIRECTS } from "./seo-index.js";
 
 export interface SeoContentPage {
   slug: string;
@@ -72,11 +73,15 @@ export const SEO_AUTHOR = {
     "Written by the AstroYou editorial desk against classical Jyotish sources — Brihat Parashara Hora Shastra for house and dasha rules, Surya Siddhanta-derived sidereal calculation, and the Lahiri ayanamsa used by the Indian government's Rashtriya Panchang. Planetary positions on AstroYou are computed, not hand-written.",
 };
 
+/**
+ * No `sameAs`: it is for external profiles (social, Wikidata) that identify
+ * the organisation. Pointing it at our own pages says nothing. Add it back
+ * only when real external profiles exist.
+ */
 export const SEO_PUBLISHER = {
   name: "AstroYou",
   url: getSiteOrigin(),
   logo: siteUrl("/icon-512.png"),
-  sameAs: [siteUrl("/trust"), siteUrl("/help")],
 };
 
 /** Vimshottari mahadasha lengths in years. Total = 120. */
@@ -2831,7 +2836,7 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
       {
         question: "Is an astrology app as accurate as a human astrologer?",
         answer:
-          "For chart calculation, yes — identical, because the mathematics is deterministic. For interpretation, they differ in kind rather than quality: a software guide is more consistent and remembers everything; a skilled human brings emotional judgement and knows when to stop giving astrological answers.",
+          "For chart calculation, yes — identical, because the mathematics is deterministic. For interpretation, they differ in kind rather than quality: a software guide is more consistent and remembers your chart and the key things you share with it; a skilled human brings emotional judgement and knows when to stop giving astrological answers.",
       },
       {
         question: "Are the astrologers on astrology apps real people?",
@@ -2881,7 +2886,7 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
       },
       {
         title: "Alternative 1: a chart-based guide that keeps context",
-        body: "This is AstroYou's model. Jyotish, AstroYou's guide, holds your chart, your dasha timeline, and every prior conversation, at a fraction of per-minute human cost — and every profile states plainly that the guide is software, not a human astrologer. The trade-off is real: you are not talking to a person, and for grief or crisis that matters. Free tier is 15 credits with no card; consultation runs from 5 credits per minute.",
+        body: "This is AstroYou's model. Jyotish, AstroYou's guide, remembers your chart and the key things you share with it, alongside your dasha timeline, at a fraction of per-minute human cost — and every profile states plainly that the guide is software, not a human astrologer. The trade-off is real: you are not talking to a person, and for grief or crisis that matters. The free tier is 15 credits once at signup with no card; AI guide sessions run from 5 credits per minute.",
       },
       {
         title: "Alternative 2: free calculator sites",
@@ -3157,7 +3162,7 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
       },
       {
         title: "How AstroYou scores on its own checklist",
-        body: "AstroYou requires date, exact time, and place; uses the Lahiri ayanamsa; states on every consultation profile that its guides are software, not human astrologers; retains chart, dasha, and conversation history between sessions; and publishes full pricing at /pricing and in a machine-readable file at /pricing.md. Where it is weaker: fewer languages than the large marketplaces, and no human astrologers on the roster.",
+        body: "AstroYou requires date, exact time, and place; uses the Lahiri ayanamsa; states on every consultation profile that its guides are software, not human astrologers; remembers your chart, dashas, and the key things you share with it between sessions; and publishes full pricing at /pricing and in a machine-readable file at /pricing.md. Where it is weaker: fewer languages than the large marketplaces, and no human astrologers on the roster.",
       },
     ],
     comparison: {
@@ -3354,35 +3359,9 @@ const ALL_SEO_CONTENT_PAGES: SeoContentPage[] = [
   ...PLANET_HOUSE_SEO_CONTENT_PAGES,
 ];
 
-/**
- * Guides that targeted the same search as a live tool page. Two URLs for one
- * query split the ranking, so each guide's text now renders ON the tool page
- * and its old URL 301s there. They are not standalone routes any more.
- */
-export const MERGED_SEO_GUIDES: Record<string, string> = {
-  "panchang-today": "/panchang",
-  "business-muhurat": "/muhurat/business",
-  "marriage-muhurat": "/muhurat/marriage",
-  "property-muhurat": "/muhurat/property",
-};
-
-/** Comparison pages whose URL changed; the old path 301s to the new one. */
-const RENAMED_SEO_PATHS: { from: string; to: string }[] = [
-  {
-    from: "/ai-astrologer-vs-human-astrologer",
-    to: "/astrology-app-vs-human-astrologer",
-  },
-  { from: "/best-ai-astrology-app", to: "/best-astrology-app" },
-];
-
-/** Old guide URL → tool URL, for _redirects and client-side routes. */
-export const SEO_GUIDE_REDIRECTS = [
-  ...Object.entries(MERGED_SEO_GUIDES).map(([slug, to]) => ({
-    from: `/${slug}`,
-    to,
-  })),
-  ...RENAMED_SEO_PATHS,
-];
+// Merged-guide and redirect tables live in the tiny route index so the app
+// shell can route without downloading this module's article text.
+export { MERGED_SEO_GUIDES, SEO_GUIDE_REDIRECTS };
 
 /** The guide whose text lives on this tool page, if any. */
 export function getMergedSeoGuide(toolPath: string): SeoContentPage | undefined {

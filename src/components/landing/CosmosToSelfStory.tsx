@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { ChevronDown, Sparkles } from "lucide-react";
+import { TIERS } from "../../lib/subscriptions";
+
+const PLANS_FROM_INR = TIERS.premium.prices.INR.toLocaleString("en-IN");
 
 export interface LandingTrustSummary {
   totals?: {
@@ -106,7 +109,7 @@ const faqItems = [
 
 function StoryEyebrow({ children }: { children: string }) {
   return (
-    <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-[0.38em] text-gold/80 sm:text-xs">
+    <div className="flex items-center gap-4 text-[0.6875rem] font-black uppercase tracking-[0.38em] text-gold/80 sm:text-xs">
       <span className="h-px w-10 bg-gold/70 shadow-[0_0_16px_rgba(229,185,106,0.6)]" />
       {children}
     </div>
@@ -163,7 +166,7 @@ function TrustMetric({ label, value }: { label: string; value: number | string }
       <p className="font-display text-5xl leading-none text-gold sm:text-6xl lg:text-7xl">
         {value}
       </p>
-      <p className="mt-3 text-[10px] font-bold uppercase tracking-[0.28em] text-white/38 sm:text-xs">
+      <p className="mt-3 text-[0.6875rem] font-bold uppercase tracking-[0.28em] text-white/38 sm:text-xs">
         {label}
       </p>
     </div>
@@ -222,8 +225,10 @@ export default function CosmosToSelfStory({
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_76%_40%,rgba(229,185,106,0.09),transparent_32%),linear-gradient(180deg,#030308_0%,#070610_48%,#030308_100%)]" />
         <div className="pointer-events-none absolute -right-[26vw] top-[9%] h-[92vw] w-[92vw] max-h-[76rem] max-w-[76rem] opacity-35 sm:-right-[18vw] sm:opacity-55 lg:-right-[8vw] lg:top-[6%] lg:opacity-70" aria-hidden="true">
           <img
-            src="/assets/landing/coordinates.png"
+            src="/assets/landing/coordinates.jpg"
             alt=""
+            loading="lazy"
+            decoding="async"
             className="h-full w-full object-cover [mask-image:radial-gradient(circle,black_34%,rgba(0,0,0,0.76)_55%,transparent_73%)]"
           />
           <div className="absolute inset-[13%] rounded-full border border-gold/20 motion-safe:animate-[spin_80s_linear_infinite] motion-reduce:animate-none" />
@@ -255,7 +260,7 @@ export default function CosmosToSelfStory({
                 data-surface-treatment="open"
               >
                 <span className="absolute left-0 top-1 h-10 w-px bg-gradient-to-b from-gold to-transparent shadow-[0_0_12px_rgba(229,185,106,0.45)]" />
-                <p className="text-[10px] font-black uppercase tracking-[0.36em] text-gold/70">
+                <p className="text-[0.6875rem] font-black uppercase tracking-[0.36em] text-gold/70">
                   {moment.marker}
                 </p>
                 <h3 className="mt-3 font-display text-2xl leading-tight text-white sm:text-3xl">
@@ -279,15 +284,19 @@ export default function CosmosToSelfStory({
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(115deg,#030308_5%,#080612_48%,#030308_86%)]" />
         <div className="pointer-events-none absolute -left-[28rem] top-[-12rem] h-[60rem] w-[60rem] opacity-30 sm:-left-[20rem] sm:opacity-40 lg:left-[-10rem]" aria-hidden="true">
           <img
-            src="/assets/landing/synthesis.png"
+            src="/assets/landing/synthesis.jpg"
             alt=""
+            loading="lazy"
+            decoding="async"
             className="h-full w-full object-cover [mask-image:radial-gradient(circle,black_32%,rgba(0,0,0,0.5)_55%,transparent_72%)]"
           />
         </div>
         <div className="pointer-events-none absolute -bottom-56 -right-56 h-[44rem] w-[44rem] opacity-25 sm:opacity-35" aria-hidden="true">
           <img
-            src="/assets/landing/blueprint.png"
+            src="/assets/landing/blueprint.jpg"
             alt=""
+            loading="lazy"
+            decoding="async"
             className="h-full w-full object-cover [mask-image:radial-gradient(circle,black_30%,rgba(0,0,0,0.45)_52%,transparent_72%)]"
           />
         </div>
@@ -318,7 +327,7 @@ export default function CosmosToSelfStory({
                 <span className="absolute left-0 top-0 font-display text-4xl font-light italic text-gold/32 sm:text-5xl">
                   {index + 1}
                 </span>
-                <p className="text-[10px] font-black uppercase tracking-[0.36em] text-gold/72">
+                <p className="text-[0.6875rem] font-black uppercase tracking-[0.36em] text-gold/72">
                   {moment.verb}
                 </p>
                 <h3 className="mt-4 max-w-xl font-display text-3xl leading-tight text-white sm:text-4xl">
@@ -360,8 +369,10 @@ export default function CosmosToSelfStory({
           <div className="relative mx-auto mt-16 min-h-[52rem] max-w-6xl sm:mt-24 md:min-h-[46rem]">
             <div className="pointer-events-none absolute left-1/2 top-[42%] aspect-square w-[min(84vw,34rem)] -translate-x-1/2 -translate-y-1/2 md:top-1/2" aria-hidden="true">
               <img
-                src="/assets/landing/transits.png"
+                src="/assets/landing/transits.jpg"
                 alt=""
+                loading="lazy"
+                decoding="async"
                 className="absolute inset-[10%] h-[80%] w-[80%] object-cover opacity-40 [mask-image:radial-gradient(circle,black_25%,rgba(0,0,0,0.62)_48%,transparent_72%)]"
               />
               <div className="absolute inset-0 rounded-full border border-gold/16 shadow-[0_0_90px_rgba(229,185,106,0.08)] motion-safe:animate-[spin_90s_linear_infinite] motion-reduce:animate-none">
@@ -484,7 +495,7 @@ export default function CosmosToSelfStory({
           className="relative z-10 mx-auto max-w-4xl border-0 bg-transparent"
           data-surface-treatment="open"
         >
-          <p className="text-[10px] font-black uppercase tracking-[0.42em] text-gold/72 sm:text-xs">
+          <p className="text-[0.6875rem] font-black uppercase tracking-[0.42em] text-gold/72 sm:text-xs">
             The sky is already in motion
           </p>
           <h2
@@ -497,7 +508,7 @@ export default function CosmosToSelfStory({
             <span className="font-light italic text-gold">that began with you.</span>
           </h2>
           <p className="mx-auto mt-8 max-w-xl text-base font-light leading-relaxed text-white/58 sm:text-lg">
-            Begin with a free birth chart. Keep a guide that knows your chart, remembers what you share, and helps you through the hard days. You still choose the path.
+            Begin with a free birth chart. Keep an AI guide trained on Jyotish that knows your chart, remembers the key things you share, and helps you through the hard days. You still choose the path.
           </p>
           <button className="btn btn-primary group mt-10 px-10" onClick={onReveal}>
             See my free Kundali
@@ -506,8 +517,8 @@ export default function CosmosToSelfStory({
               size={18}
             />
           </button>
-          <p className="mt-6 text-[10px] uppercase tracking-[0.28em] text-white/30">
-            No credit card required
+          <p className="mt-6 text-[0.6875rem] uppercase tracking-[0.28em] text-white/50">
+            Free to start · no card required · plans from ₹{PLANS_FROM_INR}/month
           </p>
         </div>
       </section>
