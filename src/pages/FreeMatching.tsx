@@ -94,7 +94,7 @@ const PersonFormBlock = ({
   person: PersonForm;
   onChange: (p: PersonForm) => void;
 }) => (
-  <div className="space-y-4">
+  <div className="space-y-3 sm:space-y-4">
     <h2 className="text-sm font-bold uppercase tracking-widest text-white/50">
       {label}
     </h2>
@@ -291,7 +291,7 @@ export default function FreeMatching() {
             transition={{ duration: 0.6, delay: 0.15 }}
             className="max-w-3xl mx-auto"
           >
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 sm:p-8">
+            <div className="sm:rounded-2xl sm:border sm:border-white/10 sm:bg-white/[0.03] sm:backdrop-blur-sm sm:p-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                 <PersonFormBlock
                   label="Person 1"
@@ -314,7 +314,7 @@ export default function FreeMatching() {
               <button
                 onClick={handleCheck}
                 disabled={loading}
-                className="w-full mt-8 py-3.5 rounded-xl bg-gold text-black font-semibold text-lg hover:bg-gold/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full mt-6 sm:mt-8 min-h-12 py-3 rounded-xl bg-gold text-black font-semibold text-base hover:bg-gold/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>
@@ -444,7 +444,7 @@ export default function FreeMatching() {
             <Link
               to="/onboarding"
               onClick={() => rememberSource("/onboarding")}
-              className="block w-full py-4 rounded-xl bg-gold text-black font-semibold text-lg text-center hover:bg-gold/90 transition-all"
+              className="block w-full min-h-12 py-3 rounded-xl bg-gold text-black font-semibold text-base text-center hover:bg-gold/90 transition-all"
             >
               <span className="flex items-center justify-center gap-2">
                 See All 36 Points + Full Analysis — Create Free Account

@@ -132,7 +132,7 @@ function PanchangTool({ route }: { route: NonNullable<ReturnType<typeof panchang
           </p>
         </div>
 
-        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
+        <section className="sm:rounded-2xl sm:border sm:border-white/10 sm:bg-white/[0.03] sm:p-6">
           <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto]">
             <label className="block">
               <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white/40">

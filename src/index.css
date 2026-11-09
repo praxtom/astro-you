@@ -732,6 +732,15 @@ textarea:focus-visible,
   outline-offset: 2px;
 }
 
+/* Typed fields: the ring sits ON the border (one 2px gold edge) instead of
+   2px outside it. Fields always match :focus-visible, even on tap, so an
+   offset ring made every focused field look a size bigger. */
+input:not([type="checkbox"], [type="radio"], [type="range"]):focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline-offset: -1px;
+}
+
 /* Suppress focus-visible outline on mouse click for cleaner UX */
 button:focus:not(:focus-visible),
 a:focus:not(:focus-visible) {

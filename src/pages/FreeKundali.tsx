@@ -206,7 +206,7 @@ export default function FreeKundali() {
             transition={{ duration: 0.6, delay: 0.15 }}
             className="max-w-lg mx-auto"
           >
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 sm:p-8 space-y-5">
+            <div className="sm:rounded-2xl sm:border sm:border-white/10 sm:bg-white/[0.03] sm:backdrop-blur-sm sm:p-8 space-y-4 sm:space-y-5">
               {/* Name */}
               <div>
                 <label htmlFor="fk-name" className="block text-sm text-white/60 mb-1.5">
@@ -294,7 +294,7 @@ export default function FreeKundali() {
               <button
                 onClick={handleGenerate}
                 disabled={loading}
-                className="w-full py-3.5 rounded-xl bg-gold text-black font-semibold text-lg hover:bg-gold/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full min-h-12 py-3 rounded-xl bg-gold text-black font-semibold text-base hover:bg-gold/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>
@@ -487,7 +487,7 @@ export default function FreeKundali() {
             <Link
               to="/onboarding"
               onClick={() => rememberSource("/onboarding")}
-              className="block w-full py-4 rounded-xl bg-gold text-black font-semibold text-lg text-center hover:bg-gold/90 transition-all"
+              className="block w-full min-h-12 py-3 rounded-xl bg-gold text-black font-semibold text-base text-center hover:bg-gold/90 transition-all"
             >
               <span className="flex items-center justify-center gap-2">
                 Get Your Complete Kundali Reading
