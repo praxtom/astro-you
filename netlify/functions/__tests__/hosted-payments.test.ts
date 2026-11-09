@@ -127,6 +127,8 @@ test('link options use a durable reference, no notifications and a fixed safe ca
   const create = s.provider.create;
   s.provider.create = async options => {
     assert.ok(s.fake.get(`hostedCheckouts/${options.reference_id}`));
+    const payload = JSON.parse(JSON.stringify(options));
+    assert.equal(Object.hasOwn(payload, 'customer'), false, 'outbound payload must omit customer');
     assert.deepEqual(options.notify, { sms: false, email: false });
     assert.equal(options.reminder_enable, false);
     assert.equal(options.accept_partial, false);

@@ -40,7 +40,6 @@ export interface HostedProvider {
     currency: string;
     reference_id: string;
     description: string;
-    customer: Record<string, string>;
     accept_partial: false;
     expire_by: number;
     notify: { sms: false; email: false };
@@ -173,7 +172,6 @@ export async function createHostedCheckout(
       currency: options.currency,
       reference_id: reservation.id,
       description: `${product.minutes} AstroYou credits`,
-      customer: {},
       accept_partial: false,
       expire_by: Math.floor(record.expiresAtMs / 1000),
       notify: { sms: false, email: false },
