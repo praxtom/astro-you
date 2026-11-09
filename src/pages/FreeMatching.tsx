@@ -108,7 +108,7 @@ const PersonFormBlock = ({
         value={person.name}
         onChange={(e) => onChange({ ...person, name: e.target.value })}
         placeholder="Name"
-        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-transparent transition-all"
+        className="platform-field placeholder:text-white/40"
       />
     </div>
     <div>
@@ -120,7 +120,7 @@ const PersonFormBlock = ({
         type="date"
         value={person.dob}
         onChange={(e) => onChange({ ...person, dob: e.target.value })}
-        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-transparent transition-all [color-scheme:dark]"
+        className="platform-field [color-scheme:dark]"
       />
     </div>
     <div>
@@ -132,7 +132,7 @@ const PersonFormBlock = ({
         type="time"
         value={person.tob}
         onChange={(e) => onChange({ ...person, tob: e.target.value })}
-        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-transparent transition-all [color-scheme:dark]"
+        className="platform-field [color-scheme:dark]"
       />
     </div>
     <div>
@@ -146,7 +146,7 @@ const PersonFormBlock = ({
             gender: e.target.value as PersonForm["gender"],
           })
         }
-        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-transparent transition-all [color-scheme:dark]"
+        className="platform-field [color-scheme:dark]"
       >
         <option value="">Prefer not to say</option>
         <option value="female">Female</option>
@@ -163,7 +163,7 @@ const PersonFormBlock = ({
         value={person.pob}
         onChange={(value) => onChange({ ...person, pob: value })}
         placeholder="Search for birth city..."
-        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-transparent transition-all"
+        size="field"
       />
     </div>
   </div>
@@ -269,16 +269,16 @@ export default function FreeMatching() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          className="text-center mb-12"
+          className="text-center mb-8 sm:mb-12"
         >
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-white/60 text-sm mb-6">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-white/60 text-sm mb-4 sm:mb-6">
             <Heart className="w-3.5 h-3.5 text-gold" />
             100% Free — No Signup Required
           </div>
           <h1 className="type-page-title mb-3">
             Free Kundali Matching
           </h1>
-          <p className="text-white/50 text-lg max-w-xl mx-auto">
+          <p className="text-white/60 text-base sm:text-lg max-w-xl mx-auto">
             Check Ashtakoot Guna Milan compatibility score between two birth
             charts instantly.
           </p>
@@ -291,8 +291,8 @@ export default function FreeMatching() {
             transition={{ duration: 0.6, delay: 0.15 }}
             className="max-w-3xl mx-auto"
           >
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-6 sm:p-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 sm:p-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                 <PersonFormBlock
                   label="Person 1"
                   idPrefix="fm-p1"

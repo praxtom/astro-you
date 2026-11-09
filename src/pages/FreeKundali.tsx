@@ -183,7 +183,7 @@ export default function FreeKundali() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          className="text-center mb-12"
+          className="text-center mb-8 sm:mb-12"
         >
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-white/60 text-sm mb-6">
             <Sparkles className="w-3.5 h-3.5 text-gold" />
@@ -192,7 +192,7 @@ export default function FreeKundali() {
           <h1 className="type-page-title mb-3">
             Free Kundali Online
           </h1>
-          <p className="text-white/50 text-lg max-w-xl mx-auto">
+          <p className="text-white/60 text-base sm:text-lg max-w-xl mx-auto">
             Generate your Vedic birth chart instantly. Discover your Ascendant,
             Moon sign, Sun sign, and planetary positions.
           </p>
@@ -206,7 +206,7 @@ export default function FreeKundali() {
             transition={{ duration: 0.6, delay: 0.15 }}
             className="max-w-lg mx-auto"
           >
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-6 sm:p-8 space-y-5">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-4 sm:p-8 space-y-5">
               {/* Name */}
               <div>
                 <label htmlFor="fk-name" className="block text-sm text-white/60 mb-1.5">
@@ -220,7 +220,7 @@ export default function FreeKundali() {
                     setForm((f) => ({ ...f, name: e.target.value }))
                   }
                   placeholder="Your name"
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-transparent transition-all"
+                  className="platform-field placeholder:text-white/40"
                 />
               </div>
 
@@ -236,7 +236,7 @@ export default function FreeKundali() {
                   onChange={(e) =>
                     setForm((f) => ({ ...f, dob: e.target.value }))
                   }
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-transparent transition-all [color-scheme:dark]"
+                  className="platform-field [color-scheme:dark]"
                 />
               </div>
 
@@ -253,7 +253,7 @@ export default function FreeKundali() {
                   onChange={(e) =>
                     setForm((f) => ({ ...f, tob: e.target.value }))
                   }
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-transparent transition-all [color-scheme:dark] disabled:opacity-40"
+                  className="platform-field [color-scheme:dark] disabled:opacity-40"
                 />
                 <label className="mt-2 flex items-center gap-2 text-sm text-white/50 cursor-pointer select-none">
                   <input
@@ -282,7 +282,7 @@ export default function FreeKundali() {
                   value={form.pob}
                   onChange={(value) => setForm((f) => ({ ...f, pob: value }))}
                   placeholder="Search for your birth city..."
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-transparent transition-all"
+                  size="field"
                 />
               </div>
 

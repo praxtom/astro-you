@@ -502,7 +502,7 @@ export default function Compatibility() {
                     setPartnerData({ ...partnerData, name: e.target.value })
                   }
                   placeholder="Partner's Name"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 font-sans text-white focus:outline-none focus:border-gold/30 transition-all placeholder:text-white/40"
+                  className="platform-field text-white placeholder:text-white/40"
                 />
               </div>
 
@@ -521,7 +521,7 @@ export default function Compatibility() {
                     onChange={(e) =>
                       setPartnerData({ ...partnerData, dob: e.target.value })
                     }
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 font-sans text-white focus:outline-none focus:border-gold/30 transition-all [color-scheme:dark]"
+                    className="platform-field text-white [color-scheme:dark]"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -538,7 +538,7 @@ export default function Compatibility() {
                     onChange={(e) =>
                       setPartnerData({ ...partnerData, tob: e.target.value })
                     }
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 font-sans text-white focus:outline-none focus:border-gold/30 transition-all [color-scheme:dark]"
+                    className="platform-field text-white [color-scheme:dark]"
                   />
                 </div>
               </div>
@@ -559,7 +559,7 @@ export default function Compatibility() {
                       gender: e.target.value as typeof partnerData.gender,
                     })
                   }
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 font-sans text-white focus:outline-none focus:border-gold/30 transition-all [color-scheme:dark]"
+                  className="platform-field text-white [color-scheme:dark]"
                 >
                   <option value="">Prefer not to say</option>
                   <option value="female">Female</option>
@@ -577,6 +577,7 @@ export default function Compatibility() {
                 </label>
                 <LocationInput
                   inputId="partner-pob"
+                  size="field"
                   value={partnerData.pob}
                   onChange={(val) =>
                     setPartnerData({ ...partnerData, pob: val })

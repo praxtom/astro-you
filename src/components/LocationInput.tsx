@@ -24,6 +24,8 @@ interface LocationInputProps {
   autoComplete?: string;
   className?: string;
   icon?: React.ReactNode;
+  /** "hero" is the large onboarding field; "field" matches form inputs. */
+  size?: "hero" | "field";
 }
 
 export interface LocationSuggestion {
@@ -45,6 +47,7 @@ export default function LocationInput({
   autoComplete = "off",
   className = "",
   icon,
+  size = "hero",
 }: LocationInputProps) {
   const [query, setQuery] = useState(value);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -238,7 +241,11 @@ export default function LocationInput({
           }}
           placeholder={placeholder}
           aria-label={label ? undefined : placeholder}
-          className="w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 outline-none focus:border-gold/50 transition-colors text-xl font-sans font-light pr-14"
+          className={
+            size === "field"
+              ? "platform-field pr-12 text-white placeholder:text-white/40"
+              : "w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 outline-none focus:border-gold/50 transition-colors text-xl font-sans font-light pr-14"
+          }
         />
         <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
           {isLoading ? (

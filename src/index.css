@@ -211,41 +211,46 @@ body {
   line-height: 1.625;
 }
 
-/* --- Typography Scale --- */
-h1,
-h2,
-h3,
-h4,
-.font-display {
-  font-family: var(--font-display);
-  font-weight: 500;
-  letter-spacing: 0;
-  line-height: 1.1;
-}
+/* --- Typography Scale ---
+   Element defaults live in the base layer so a heading's own utilities
+   (text-sm, font-sans, ...) win. Unlayered, `h2 { font-size: 2rem }` beat
+   every Tailwind class and made small section labels render at 32-40px. */
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4,
+  .font-display {
+    font-family: var(--font-display);
+    font-weight: 500;
+    letter-spacing: 0;
+    line-height: 1.1;
+  }
 
-.font-base {
-  font-family: var(--font-display);
-}
+  .font-base {
+    font-family: var(--font-display);
+  }
 
-h1 {
-  font-size: 2.75rem;
-}
-h2 {
-  font-size: 2rem;
-}
-h3 {
-  font-size: 1.375rem;
-}
-
-@media (min-width: 768px) {
   h1 {
-    font-size: 4rem;
+    font-size: 2.75rem;
   }
   h2 {
-    font-size: 2.5rem;
+    font-size: 2rem;
   }
   h3 {
-    font-size: 1.5rem;
+    font-size: 1.375rem;
+  }
+
+  @media (min-width: 768px) {
+    h1 {
+      font-size: 4rem;
+    }
+    h2 {
+      font-size: 2.5rem;
+    }
+    h3 {
+      font-size: 1.5rem;
+    }
   }
 }
 

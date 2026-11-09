@@ -132,7 +132,7 @@ function PanchangTool({ route }: { route: NonNullable<ReturnType<typeof panchang
           </p>
         </div>
 
-        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
           <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto]">
             <label className="block">
               <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white/40">
@@ -142,7 +142,7 @@ function PanchangTool({ route }: { route: NonNullable<ReturnType<typeof panchang
                 type="date"
                 value={date}
                 onChange={(event) => setDate(event.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white [color-scheme:dark]"
+                className="platform-field text-white [color-scheme:dark]"
               />
             </label>
             <label className="block">
@@ -152,7 +152,7 @@ function PanchangTool({ route }: { route: NonNullable<ReturnType<typeof panchang
               <input
                 value={city}
                 onChange={(event) => setCity(event.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white"
+                className="platform-field text-white"
                 placeholder="New Delhi"
               />
             </label>

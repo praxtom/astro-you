@@ -451,7 +451,7 @@ export default function Settings() {
               value={normalizePlatformLanguage(profile?.language)}
               onChange={(event) => updateLanguage(event.target.value)}
               disabled={savingPrefs}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white disabled:opacity-50"
+              className="platform-field text-white disabled:opacity-50"
             >
               {PLATFORM_LANGUAGES.map((language) => (
                 <option key={language.code} value={language.code} className="bg-[#111118]">
@@ -481,7 +481,7 @@ export default function Settings() {
               value={normalizeZodiacMode(profile?.zodiacMode)}
               onChange={(event) => updateZodiacMode(event.target.value)}
               disabled={savingPrefs}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white disabled:opacity-50"
+              className="platform-field text-white disabled:opacity-50"
             >
               {ZODIAC_MODES.map((mode) => (
                 <option
@@ -524,7 +524,7 @@ export default function Settings() {
               value={normalizeFestivalRegion(profile?.festivalRegion)}
               onChange={(event) => updateFestivalRegion(event.target.value)}
               disabled={savingPrefs}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white disabled:opacity-50"
+              className="platform-field text-white disabled:opacity-50"
             >
               {FESTIVAL_REGIONS.map((region) => (
                 <option
