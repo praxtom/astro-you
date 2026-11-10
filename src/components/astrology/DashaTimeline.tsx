@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { GlossaryTerm } from "../ui/GlossaryTerm";
 
 interface DashaPeriod {
   planet: string;
@@ -118,7 +119,7 @@ function Track({
             style={{ left: `${nowPct}%` }}
             aria-hidden="true"
           >
-            <span className="absolute -top-0.5 left-1/2 -translate-x-1/2 text-[0.65rem] font-bold uppercase tracking-[0.2em] text-white/80">
+            <span className="absolute -top-0.5 left-1/2 -translate-x-1/2 text-[0.6875rem] font-bold uppercase tracking-[0.2em] text-white/80">
               Now
             </span>
           </div>
@@ -191,7 +192,9 @@ export function DashaTimeline({ periods }: DashaTimelineProps) {
     <div>
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-2 text-[0.9rem] text-white/55">
         <span>
-          Mahadashas, {monthYear(periods[0].startDate)} to{" "}
+          Life chapters (
+          <GlossaryTerm k="mahadasha">Mahadashas</GlossaryTerm>),{" "}
+          {monthYear(periods[0].startDate)} to{" "}
           {monthYear(periods[periods.length - 1].endDate)}
         </span>
         {current && (
@@ -206,7 +209,11 @@ export function DashaTimeline({ periods }: DashaTimelineProps) {
       {subs.length > 0 && current && (
         <div className="mt-10">
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-2 text-[0.9rem] text-white/55">
-            <span>Antardashas within {current.planet}</span>
+            <span>
+              Shorter phases (
+              <GlossaryTerm k="antardasha">Antardashas</GlossaryTerm>) within{" "}
+              {current.planet}
+            </span>
             {currentSub && (
               <span>
                 Now: <span className="text-gold">{currentSub.planet}</span>{" "}

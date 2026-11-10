@@ -118,15 +118,15 @@ export default function ConsultProfile() {
 
   return (
     <div>
-
       <div className="container mx-auto pt-28 px-6 pb-16 relative z-10 max-w-5xl">
         <SpaceTabs />
 
         <button
+          type="button"
           onClick={() => navigate("/consult")}
           className="mb-8 flex items-center gap-2 text-[0.6875rem] font-bold uppercase tracking-[0.25em] text-white/50 hover:text-gold transition-colors"
         >
-          <ArrowLeft size={13} /> The Circle
+          <ArrowLeft size={13} aria-hidden="true" /> All guides
         </button>
 
         {/* ── Identity ── */}
@@ -139,9 +139,10 @@ export default function ConsultProfile() {
             >
               {persona.title}
             </p>
-            <h1 className="type-page-title">
-              {persona.name}
-            </h1>
+            <h1 className="type-page-title">{persona.name}</h1>
+            <p className="mt-1.5 text-xs text-white/55">
+              A guide, not a person.
+            </p>
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-white/55">
               <span className="text-gold font-display text-base">
                 {persona.pricePerMin} credits / min
@@ -169,7 +170,7 @@ export default function ConsultProfile() {
           {/* ── The reading ── */}
           <div className="space-y-10">
             <section className="animate-reveal-progressive">
-              <p className="font-display italic text-xl md:text-2xl text-white/75 leading-relaxed">
+              <p className="max-w-[65ch] text-base md:text-lg text-white/80 leading-relaxed">
                 {persona.profileIntro}
               </p>
               <p className="mt-4 text-sm text-white/55 leading-relaxed">
@@ -178,8 +179,8 @@ export default function ConsultProfile() {
             </section>
 
             <section className="animate-reveal-progressive">
-              <p className="text-[0.6875rem] font-bold uppercase tracking-[0.35em] text-white/25 mb-4">
-                Reads with
+              <p className="text-[0.6875rem] font-bold uppercase tracking-[0.35em] text-white/55 mb-4">
+                What this guide looks at
               </p>
               <div className="flex flex-wrap gap-2">
                 {persona.methods.map((method) => (
@@ -194,7 +195,7 @@ export default function ConsultProfile() {
             </section>
 
             <section className="animate-reveal-progressive">
-              <p className="text-[0.6875rem] font-bold uppercase tracking-[0.35em] text-white/25 mb-4">
+              <p className="text-[0.6875rem] font-bold uppercase tracking-[0.35em] text-white/55 mb-4">
                 Best for
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 border-t border-l border-white/8">
@@ -203,7 +204,7 @@ export default function ConsultProfile() {
                     key={item}
                     className="px-4 py-3.5 border-b border-r border-white/8"
                   >
-                    <span className="font-display italic text-white/20 text-sm mr-2">
+                    <span className="font-display italic text-white/50 text-sm mr-2">
                       {String(i + 1).padStart(2, "0")}
                     </span>
                     <span className="text-sm text-white/65">{item}</span>
@@ -213,7 +214,7 @@ export default function ConsultProfile() {
             </section>
 
             <section className="animate-reveal-progressive">
-              <p className="text-[0.6875rem] font-bold uppercase tracking-[0.35em] text-white/25 mb-4">
+              <p className="text-[0.6875rem] font-bold uppercase tracking-[0.35em] text-white/55 mb-4">
                 Open with one of these
               </p>
               <div className="space-y-2">
@@ -228,21 +229,22 @@ export default function ConsultProfile() {
                     </span>
                     <Sparkles
                       size={14}
+                      aria-hidden="true"
                       className="shrink-0 text-gold/0 group-hover:text-gold transition-colors"
                     />
                   </button>
                 ))}
               </div>
-              <p className="mt-2 text-xs text-white/25">
-                Tap a question to open the sitting with it.
+              <p className="mt-2 text-xs text-white/55">
+                Tap a question to start the chat with it. You can also write your own.
               </p>
             </section>
           </div>
 
-          {/* ── Before you sit ── */}
+          {/* ── Before you start ── */}
           <aside className="lg:sticky lg:top-28 rounded-3xl border border-white/10 bg-white/3 backdrop-blur-xl p-6 animate-reveal-progressive">
-            <p className="text-[0.6875rem] font-bold uppercase tracking-[0.35em] text-white/25">
-              Before you sit
+            <p className="text-[0.6875rem] font-bold uppercase tracking-[0.35em] text-white/55">
+              Before you start
             </p>
 
             <div className="mt-5 space-y-3 text-sm">
@@ -259,7 +261,7 @@ export default function ConsultProfile() {
                 </span>
               </div>
               <div className="flex items-baseline justify-between border-t border-white/8 pt-3">
-                <span className="text-white/55">Time available</span>
+                <span className="text-white/55">Your credits buy</span>
                 <span className="font-display text-lg text-white">
                   {isGuest
                     ? "—"
@@ -334,7 +336,7 @@ export default function ConsultProfile() {
                 className="mt-6 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gold text-black text-[0.6875rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors"
               >
                 <Sparkles size={14} />
-                Begin the sitting
+                Start chat
               </button>
             ) : (
               <button
@@ -351,8 +353,8 @@ export default function ConsultProfile() {
               </button>
             )}
             <p className="mt-3 text-xs text-white/55 leading-relaxed">
-              Billed per minute from your first message; a partial minute
-              counts as a full one. Settled when the session closes.
+              Billed per minute from your first message; a partial minute counts
+              as a full one. Settled when the session closes.
             </p>
           </aside>
         </div>

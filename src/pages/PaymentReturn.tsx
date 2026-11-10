@@ -107,52 +107,70 @@ export default function PaymentReturn() {
   const confirming = loading || (status === 'confirming' && user && checkoutId);
   const canRetry = user && checkoutId && ['pending', 'error', 'partially_paid'].includes(status);
 
+  const message = !checkoutId
+    ? 'This link is missing its payment reference. Your wallet shows your current balance.'
+    : status === 'paid'
+      ? 'Your credit balance has been updated. You can continue where you left off.'
+      : status === 'pending'
+        ? 'We will add credits when Razorpay confirms the payment. You can return to this page at any time.'
+        : status === 'partially_paid'
+          ? 'Contact support with your payment reference so we can review it.'
+          : ['expired', 'cancelled'].includes(status)
+            ? 'You can start a new purchase from your wallet.'
+            : null;
+
   return (
-    <main className="mx-auto max-w-xl px-6 py-20 text-center">
-      <h1 className="text-3xl font-bold text-white">{title}</h1>
-      {confirming && <Loader2 className="mx-auto mt-6 animate-spin text-gold" />}
-      {error && <p className="mt-5 text-white/70">{error}</p>}
-      {status === 'paid' && (
-        <p className="mt-5 text-white/70">
-          Your credit balance has been updated. You can continue where you left off.
+    // AppFrame already provides <main>; pt-28 clears the fixed header.
+    <div className="mx-auto max-w-xl px-4 pt-28 pb-16 text-center sm:px-6">
+      <div role="status" aria-live="polite">
+        <h1 className="font-display text-3xl text-white sm:text-4xl">{title}</h1>
+        {confirming && (
+          <Loader2
+            className="mx-auto mt-6 animate-spin text-gold"
+            aria-label="Checking payment"
+          />
+        )}
+        {message && <p className="mt-5 text-base leading-relaxed text-white/70">{message}</p>}
+      </div>
+      {error && (
+        <p role="alert" className="mt-4 text-base leading-relaxed text-white/70">
+          {error}
         </p>
       )}
-      {status === 'pending' && (
-        <p className="mt-5 text-white/70">
-          We will add credits when Razorpay confirms the payment. You can return to this page at any time.
-        </p>
-      )}
-      {status === 'partially_paid' && (
-        <p className="mt-5 text-white/70">
-          Contact support with your payment reference so we can review it.
-        </p>
-      )}
-      <div className="mt-8 flex flex-wrap justify-center gap-4">
+      <div className="mt-8 flex flex-wrap justify-center gap-3">
         {!user && !loading && (
-          <button className="rounded-xl bg-gold px-5 py-3 text-black" onClick={() => setAuthOpen(true)}>
+          <button
+            type="button"
+            className="platform-button-primary min-w-32"
+            onClick={() => setAuthOpen(true)}
+          >
             Sign in
           </button>
         )}
-        {canRetry && (
-          <button className="rounded-xl border border-white/20 px-5 py-3" onClick={() => setRetry(value => value + 1)}>
-            Check payment again
-          </button>
-        )}
-        {user && status === 'pending' && shortUrl && (
-          <a className="rounded-xl border border-white/20 px-5 py-3" href={shortUrl}>
-            Continue payment
-          </a>
-        )}
         {status === 'paid' && (
-          <Link className="rounded-xl bg-gold px-5 py-3 text-black" to={returnPath}>
+          <Link className="platform-button-primary min-w-32" to={returnPath}>
             Continue
           </Link>
         )}
-        <Link className="rounded-xl border border-white/20 px-5 py-3" to="/wallet">
+        {user && status === 'pending' && shortUrl && (
+          <a className="platform-button-primary min-w-32" href={shortUrl}>
+            Continue payment
+          </a>
+        )}
+        {canRetry && (
+          <button
+            type="button"
+            className="platform-button-secondary"
+            onClick={() => setRetry(value => value + 1)}
+          >
+            Check payment again
+          </button>
+        )}
+        <Link className="platform-button-secondary" to="/wallet">
           Open wallet
         </Link>
       </div>
       <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
-    </main>
+    </div>
   );
 }

@@ -1559,7 +1559,9 @@ export async function getTransitReport(
     body: JSON.stringify({
       subject: buildSubject(birthData),
       transit_time: buildTransitTime(birthData, transitDate),
-      report_options: { tradition: "vedic", language: "en" },
+      // The spec's ReportOptions.tradition enum has no "vedic" value
+      // (universal | psychological | event_oriented | classical).
+      report_options: { tradition: "universal", language: "en" },
     }),
   });
   if (!res.ok) {
@@ -1754,10 +1756,14 @@ export async function getCompatibilityDetails(
     if (!rIns.ok) await throwIfRateLimited(rIns, "Compatibility insights");
     if (!rSyn.ok) await throwIfRateLimited(rSyn, "Synastry");
 
-    const ins: any = rIns.ok ? unwrap(await rIns.json()) : {};
-    const syn: any = rSyn.ok ? unwrap(await rSyn.json()) : {};
     if (!rIns.ok) console.error("[Compatibility] Insights error:", rIns.status);
     if (!rSyn.ok) console.error("[Compatibility] Synastry error:", rSyn.status);
+    // Both parts failed: there is nothing to show. Return null so the caller
+    // refunds the charge instead of rendering an empty "0%" match.
+    if (!rIns.ok && !rSyn.ok) return null;
+
+    const ins: any = rIns.ok ? unwrap(await rIns.json()) : {};
+    const syn: any = rSyn.ok ? unwrap(await rSyn.json()) : {};
 
     return {
       ...ins,

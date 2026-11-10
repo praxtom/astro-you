@@ -10,7 +10,7 @@ export default function ChartDataNotice({
   return (
     <p className={`text-xs leading-5 text-white/55 ${className}`}>
       To make your chart, your birth details are processed by our astrology
-      calculation provider and Google's Gemini AI.{" "}
+      calculation provider and Google Gemini.{" "}
       <a
         href="/privacy"
         target="_blank"

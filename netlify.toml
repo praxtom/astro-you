@@ -14,6 +14,9 @@
 
 [functions]
   node_bundler = "esbuild"
+  # Loaded with createRequire (see src/lib/jyotish/ephemeris-astronomy.ts), so
+  # the bundler cannot see it — ship it explicitly with every function.
+  external_node_modules = ["astronomy-engine"]
 
 [[redirects]]
   from = "/api/*"

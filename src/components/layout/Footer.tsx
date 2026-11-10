@@ -21,10 +21,10 @@ const guideLinks = [
 ];
 
 const platformLinks = [
-  { label: "Jyotish Chat", href: "/synthesis" },
-  { label: "AI Guides", href: "/consult" },
+  { label: "Ask Jyotish", href: "/synthesis" },
+  { label: "Choose a guide", href: "/consult" },
   { label: "Pricing", href: "/pricing" },
-  { label: "Trust", href: "/trust" },
+  { label: "Trust & transparency", href: "/trust" },
   { label: "Support", href: "/support" },
 ];
 
@@ -70,19 +70,20 @@ export default function Footer() {
               AstroYou
             </Link>
             <p className="max-w-xs text-sm leading-relaxed text-content-secondary">
-              Vedic astrology tools, chart-aware guidance, reports, and trust
-              systems built around the person asking.
+              Vedic astrology read from your exact birth chart: daily
+              forecasts, your Kundali, matching, and answers to your own
+              questions.
             </p>
             <Link
               to="/trust"
               className="mt-5 inline-flex rounded-full border border-gold/25 px-3 py-2 text-xs font-bold uppercase text-gold transition-colors hover:bg-gold/10"
             >
-              View transparency
+              How AstroYou works
             </Link>
           </div>
 
           <FooterColumn title="Tools" links={toolLinks} />
-          <FooterColumn title="Guides" links={guideLinks} />
+          <FooterColumn title="Learn" links={guideLinks} />
           <FooterColumn title="Platform" links={platformLinks} />
           <FooterColumn title="Company" links={legalLinks} />
         </div>

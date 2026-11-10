@@ -136,7 +136,20 @@ export function normalizeAtmanData(atman?: Partial<AtmanData>, now = new Date())
         now,
     );
     const keyRelationships = normalizeArray(atman.keyRelationships || atman.memory?.keyRelationships || []);
-    const routines = normalizeArray(atman.routines || atman.memory?.routines || []);
+    // Firestore returns Timestamps for the routine dates; without coercion
+    // "completed today" never matches and every tap adds a streak day.
+    const routines = normalizeArray<any>(atman.routines || atman.memory?.routines || []).map(
+        (routine) =>
+            routine && typeof routine === "object"
+                ? {
+                      ...routine,
+                      lastCompletedAt: routine.lastCompletedAt
+                          ? coerceDate(routine.lastCompletedAt, now)
+                          : undefined,
+                      createdAt: coerceDate(routine.createdAt, now),
+                  }
+                : routine,
+    );
     const savedAdvice = normalizeAdviceHistory(
         atman.savedAdvice || atman.adviceHistory || atman.memory?.savedAdvice || [],
     );

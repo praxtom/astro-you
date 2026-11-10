@@ -9,7 +9,7 @@ import { generateCompatibilityNarrative } from "./shared/gemini";
 import { buildUserContext } from "./shared/user-context";
 import {
   verifyToken,
-  enforceIpRateLimit,
+  enforceUserRateLimit,
   AuthError,
 } from "./shared/require-auth";
 import {
@@ -210,7 +210,7 @@ export default async (req: Request, _context: Context) => {
     let decoded;
     try {
       decoded = await verifyToken(idToken);
-      await enforceIpRateLimit(req, "compatibility", 30, 60 * 60 * 1000);
+      await enforceUserRateLimit(decoded.uid, "compatibility", 30, 60 * 60 * 1000);
     } catch (err) {
       const status = err instanceof AuthError ? err.status : 401;
       return new Response(
@@ -297,7 +297,8 @@ export default async (req: Request, _context: Context) => {
 
     const [matchData, vedicMatching] = await Promise.all(promises);
 
-    if (!matchData) {
+    // No score from either source is a failed match, not a "0%" match.
+    if (!matchData || (!matchData.overall_score && !vedicMatching)) {
       if (charge) await charge.refund();
       return new Response(
         JSON.stringify({ error: "Failed to fetch compatibility data" }),

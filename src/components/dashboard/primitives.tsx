@@ -59,74 +59,6 @@ export function DashSection({
   );
 }
 
-/**
- * Major dashboard section: a full-width hairline, a large heading with a
- * one-line description, then generous space before the content. The page is
- * a sequence of these, so the eye always knows which part it is in.
- */
-export function PageSection({
-  id,
-  title,
-  description,
-  aside,
-  children,
-}: {
-  id: string;
-  title: ReactNode;
-  description?: ReactNode;
-  aside?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section
-      aria-labelledby={id}
-    >
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-        <div className="min-w-0">
-          <h2
-            id={id}
-            className="font-display text-[1.75rem] md:text-[2rem] leading-tight text-white/92"
-          >
-            {title}
-          </h2>
-          {description && (
-            <p className="mt-1.5 max-w-xl text-[0.95rem] leading-relaxed text-white/55">
-              {description}
-            </p>
-          )}
-        </div>
-        {aside && <div className="shrink-0 pb-1">{aside}</div>}
-      </div>
-      <div className="mt-6">{children}</div>
-    </section>
-  );
-}
-
-/** Smaller heading for a group inside a PageSection. */
-export function SubSection({
-  title,
-  aside,
-  children,
-  className = "",
-}: {
-  title: ReactNode;
-  aside?: ReactNode;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={className}>
-      <div className="mb-3 flex items-baseline justify-between gap-4 px-1">
-        <h3 className="text-[0.95rem] font-semibold leading-tight text-white/60">
-          {title}
-        </h3>
-        {aside}
-      </div>
-      {children}
-    </div>
-  );
-}
-
 const MD_COLS = {
   1: "md:grid-cols-1",
   2: "md:grid-cols-2",
@@ -229,7 +161,7 @@ export function FactSkeleton() {
 }
 
 const ACTION_CLS =
-  "min-h-11 inline-flex items-center gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.18em] text-gold hover:text-white transition-colors";
+  "min-h-11 inline-flex items-center gap-1.5 text-[0.85rem] font-semibold text-gold/85 hover:text-gold transition-colors";
 
 /** Quiet text action: a link (to) or a button (onClick). */
 export function TextAction({
@@ -252,17 +184,5 @@ export function TextAction({
     <button type="button" onClick={onClick} className={ACTION_CLS}>
       {children}
     </button>
-  );
-}
-
-/** Margin notes: stacked side-column notes separated by hairlines, no boxes. */
-export function NoteStack({ children }: { children: ReactNode }) {
-  // Notes separated by space only; empty notes (components returning null) collapse.
-  return (
-    <div className="space-y-12 [&>*:empty]:hidden">
-      {Children.toArray(children).map((child, i) => (
-        <div key={i}>{child}</div>
-      ))}
-    </div>
   );
 }

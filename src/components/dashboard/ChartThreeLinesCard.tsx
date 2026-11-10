@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { buildChartThreeLines, type ChartLike } from "../../lib/chart-summary";
 import type { DashaPeriodSummary } from "../../hooks/useDashaPeriods";
 import { PersonalCardNotice } from "./PersonalCardNotice";
+import { GlossaryTerm } from "../ui/GlossaryTerm";
 import type { PersonalDataErrorKind } from "../../lib/personal-data-error";
 import {
   DashSection,
@@ -30,6 +31,18 @@ interface ChartThreeLinesCardProps {
   /** Extra ledger cells appended after the lines (e.g. yogas). */
   extraCells?: ReactNode[];
 }
+
+/**
+ * Plain-language labels for the three lines. The line ids ("Moon", "Lagna",
+ * "Mahadasha") stay as they are for `include`; only the visible label changes.
+ */
+const LINE_LABELS: Record<string, ReactNode> = {
+  Moon: "Moon sign",
+  Lagna: <GlossaryTerm k="lagna">Rising sign (Lagna)</GlossaryTerm>,
+  Mahadasha: (
+    <GlossaryTerm k="mahadasha">Current life chapter</GlossaryTerm>
+  ),
+};
 
 /**
  * First personal insight on the dashboard: Moon + nakshatra, Lagna and the
@@ -63,7 +76,7 @@ export function ChartThreeLinesCard({
           {lines.map((line) => (
             <Fact
               key={line.label}
-              label={line.label}
+              label={LINE_LABELS[line.label] ?? line.label}
               value={line.value}
               note={line.meaning}
             >

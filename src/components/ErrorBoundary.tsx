@@ -52,11 +52,10 @@ export class ErrorBoundary extends Component<Props, State> {
 
             {/* Message */}
             <h1 className="text-title text-3xl mb-4 font-display">
-              Cosmic Disruption
+              Something went wrong
             </h1>
             <p className="text-body text-sm opacity-70 mb-8 leading-relaxed">
-              The stars have encountered an unexpected alignment. This error has
-              been recorded and our engineers are investigating.
+              This page could not load. Try again, or return home and reopen it.
             </p>
 
             {/* Error Details (Dev only) */}

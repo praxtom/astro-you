@@ -33,6 +33,8 @@ const FAIL_CLOSED_SCOPES = new Set([
   "synthesis",
   "synthesis_guest",
   "synthesis_guest_day",
+  "synthesis_guest_global_day",
+  "parse_kundali_global_day",
   "proactive_nudge",
   "consult_message",
   "consult_start",

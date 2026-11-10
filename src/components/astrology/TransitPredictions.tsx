@@ -1,5 +1,5 @@
 import React from "react";
-import { Sparkles, Info, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Sparkles, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { StatusNotice } from "../ui/StatusNotice";
 
 interface TransitPredictionsProps {
@@ -10,6 +10,30 @@ interface TransitPredictionsProps {
   error?: string | null;
   onRetry?: () => void;
 }
+
+/** Plain-language name for each aspect, with the term kept in brackets. */
+const ASPECT_PLAIN: Record<string, string> = {
+  conjunction: "Joined together (conjunction)",
+  trine: "Easy flow (trine)",
+  sextile: "Small opening (sextile)",
+  square: "Push to act (square)",
+  opposition: "Balancing act (opposition)",
+};
+
+const aspectLabel = (type: string) =>
+  ASPECT_PLAIN[type] ?? type.replace("_", " ");
+
+/** Word for a 1–10 intensity, so the number says how much to notice it. */
+const intensityWord = (n: number) =>
+  n >= 8 ? "strong" : n >= 5 ? "noticeable" : "mild";
+
+/** "Sun_transit" → "Sun today", "Moon_natal" → "your birth Moon". */
+const pointLabel = (name: string) =>
+  name.endsWith("_transit")
+    ? `${name.replace("_transit", "")} today`
+    : name.endsWith("_natal")
+      ? `your birth ${name.replace("_natal", "")}`
+      : name;
 
 const TransitPredictions: React.FC<TransitPredictionsProps> = ({
   predictions,
@@ -64,7 +88,7 @@ const TransitPredictions: React.FC<TransitPredictionsProps> = ({
                 moon_venus:
                   "A beautiful alignment for emotional harmony and social grace. You feel more attractive and receptive to love.",
                 jupiter_sun:
-                  "Optimization of luck and expansion. Opportunities are presenting themselves to broaden your horizons.",
+                  "This transit may support learning or exploring an opportunity. Consider what fits your goals.",
                 saturn_sun: isHard
                   ? "A period of 'testing' where discipline and boundaries are required to reach your goals."
                   : "Stability and solid foundations. A great time to commit to long-term structures.",
@@ -77,9 +101,9 @@ const TransitPredictions: React.FC<TransitPredictionsProps> = ({
                 jupiter_jupiter:
                   "A cycle of growth is peaking. Abundance and philosophical breakthroughs are likely.",
                 uranus_uranus:
-                  "A 'Soul Return' moment. You are reconnecting with your original blueprint of rebellion, innovation, and freedom.",
+                  "A period for reviewing how much freedom and change you want in your life.",
                 neptune_neptune:
-                  "A subconscious reset. Your dreams and psychic sensitivity are aligning with your core spiritual essence.",
+                  "A period for reflecting on your hopes, imagination, and expectations.",
                 pluto_pluto:
                   "A deep evolutionary point. You are touching the seeds of your own transformation and personal power.",
                 saturn_saturn:
@@ -102,14 +126,14 @@ const TransitPredictions: React.FC<TransitPredictionsProps> = ({
               return (
                 meanings[pair] ||
                 aspectTypes[type] ||
-                "A celestial alignment influencing your energetic field."
+                "An aspect between these planets. Open the chart to explore the placements."
               );
             };
 
             return {
-              title: `${a.point1} ${a.aspect_type.replace("_", " ")} ${
-                a.point2
-              }`,
+              title: `${pointLabel(a.point1)} ${a.aspect_type.replace("_", " ")} ${pointLabel(
+                a.point2,
+              )}`,
               description: getMeaning(a.point1, a.point2, a.aspect_type),
               aspect_type: a.aspect_type,
               intensity,
@@ -124,12 +148,12 @@ const TransitPredictions: React.FC<TransitPredictionsProps> = ({
 
   if (itemsToShow.length === 0) {
     return (
-      <div className="p-4 rounded-3xl bg-white/5 border border-white/10 text-center">
-        <Info className="mx-auto mb-4 text-white/20" size={32} />
-        <p className="text-white/60 text-sm font-sans">
-          No significant transit influences detected for today.
-        </p>
-      </div>
+      <StatusNotice
+        tone="info"
+        size="section"
+        message="No strong planetary links to your chart today, so expect a steadier day. Your daily forecast has the wider picture."
+        action={{ label: "Open daily forecast", to: "/forecast" }}
+      />
     );
   }
 
@@ -191,7 +215,8 @@ const TransitPredictions: React.FC<TransitPredictionsProps> = ({
 
             <div className="flex items-start gap-4">
               <div
-                className={`p-3 rounded-xl transition-colors duration-300 ${
+                aria-hidden="true"
+                className={`shrink-0 p-3 rounded-xl transition-colors duration-300 ${
                   type === "positive"
                     ? "bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500/20"
                     : type === "negative"
@@ -208,32 +233,33 @@ const TransitPredictions: React.FC<TransitPredictionsProps> = ({
                 )}
               </div>
 
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-display text-white tracking-wide uppercase">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 mb-2">
+                  <h3 className="text-[0.95rem] font-semibold text-white/90">
                     {title}
                   </h3>
-                  <span className="text-[9px] font-black uppercase tracking-tighter opacity-30">
-                    Intensity: {Math.round(p.intensity || 0)}/10
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-white/50">
+                    Intensity {Math.round(p.intensity || 0)}/10 ·{" "}
+                    {intensityWord(p.intensity || 0)}
                   </span>
                 </div>
 
-                <div className="text-sm text-white/70 leading-relaxed font-sans font-light">
+                <div className="text-sm text-white/70 leading-relaxed">
                   {description}
                 </div>
 
-                <div className="mt-4 flex items-center gap-4">
+                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
                   {(p.duration || p.aspect_type) && (
-                    <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-white/20 font-bold">
-                      <span className="w-1 h-1 rounded-full bg-white/20"></span>
+                    <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-white/50 font-semibold">
+                      <span className="w-1 h-1 rounded-full bg-white/40" aria-hidden="true"></span>
                       {p.duration
                         ? `Ends in ${p.duration}`
-                        : `Phase: ${p.aspect_type.replace("_", " ")}`}
+                        : aspectLabel(p.aspect_type)}
                     </div>
                   )}
                   {typeof p.orb === "number" && (
-                    <div className="text-[10px] uppercase tracking-widest text-gold/30 font-bold">
-                      Orb: {Math.abs(p.orb).toFixed(1)}°
+                    <div className="text-[11px] uppercase tracking-wider text-gold/75 font-semibold">
+                      {Math.abs(p.orb).toFixed(1)}° from exact (orb)
                     </div>
                   )}
                 </div>

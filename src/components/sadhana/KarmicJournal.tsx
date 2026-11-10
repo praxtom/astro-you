@@ -21,6 +21,7 @@ import { AtmanService, AtmanMemoryControls } from '../../lib/atman';
 import { postJson } from '../../lib/apiFetch';
 import { InnerCircleManager } from './InnerCircleManager';
 import { GrowthRadar } from './GrowthRadar';
+import { useJournalEntries, JOURNAL_ENTRY_MAX_CHARS } from '../../hooks/useJournalEntries';
 
 interface KarmicJournalProps {
     userId: string;
@@ -120,10 +121,11 @@ const SadhanaPathGenerator: React.FC = () => {
         <div className="space-y-4">
             {!path && !loading && (
                 <div className="text-center py-4">
-                    <p className="text-xs text-white/60 mb-3 italic">"Align your energy with a 3-day spiritual map tailored to your soul's current vibration."</p>
+                    <p className="text-sm text-white/65 mb-3">A three-day plan with one simple practice and intention for each day.</p>
                     <button
+                        type="button"
                         onClick={generatePath}
-                        className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-xs font-medium transition-colors shadow-lg shadow-violet-900/20"
+                        className="min-h-11 px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-xs font-medium transition-colors shadow-lg shadow-violet-900/20"
                     >
                         Create my 3-day plan
                     </button>
@@ -133,7 +135,7 @@ const SadhanaPathGenerator: React.FC = () => {
             {loading && (
                 <div className="flex flex-col items-center py-8 gap-3">
                     <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-violet-500" />
-                    <p className="text-[0.6875rem] text-violet-400 uppercase tracking-widest animate-pulse">Consulting the Oracle...</p>
+                    <p className="text-[0.6875rem] text-violet-400 uppercase tracking-widest animate-pulse">Preparing your plan…</p>
                 </div>
             )}
 
@@ -147,18 +149,19 @@ const SadhanaPathGenerator: React.FC = () => {
                             key={idx} 
                             className="bg-violet-900/10 border border-violet-500/20 rounded-lg p-3"
                         >
-                            <div className="flex items-center justify-between mb-1">
-                                <span className="text-[0.6875rem] font-bold text-violet-400 uppercase tracking-widest">Day {step.day}</span>
-                                <span className="text-[0.6875rem] text-white/50 italic">{step.intention}</span>
-                            </div>
-                            <p className="text-sm text-white/90">{step.practice}</p>
+                            <span className="text-[0.6875rem] font-bold text-violet-300 uppercase tracking-widest">Day {step.day}</span>
+                            <p className="mt-1 text-sm text-white/90">{step.practice}</p>
+                            {step.intention && (
+                                <p className="mt-1 text-xs text-white/60">{step.intention}</p>
+                            )}
                         </motion.div>
                     ))}
                     <button
+                        type="button"
                         onClick={() => setPath(null)}
-                        className="w-full py-2 text-[0.6875rem] text-violet-400/40 uppercase tracking-widest hover:text-violet-400 transition-colors"
+                        className="w-full min-h-11 py-2 text-[0.6875rem] text-violet-300/80 uppercase tracking-widest hover:text-violet-300 transition-colors"
                     >
-                        Reset Path
+                        Start over
                     </button>
                 </div>
             )}
@@ -174,6 +177,9 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
     const [expandedSection, setExpandedSection] = useState<string | null>('patterns');
     const [journalText, setJournalText] = useState('');
     const [journalInsights, setJournalInsights] = useState<JournalInsight[]>([]);
+    const journal = useJournalEntries(userId);
+    const [savingEntry, setSavingEntry] = useState(false);
+    const [entrySaved, setEntrySaved] = useState(false);
     const [removingThread, setRemovingThread] = useState<string | null>(null);
 
     const handleRemoveThread = async (thread: string) => {
@@ -191,9 +197,9 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
     if (!atmanState) {
         return (
             <div className="text-center text-white/55 py-8">
-                <Brain size={32} className="mx-auto mb-3 opacity-50" />
-                <p className="text-sm">The Guru is still learning about you...</p>
-                <p className="text-xs mt-1">Chat more to build your Karmic profile.</p>
+                <Brain size={32} className="mx-auto mb-3 opacity-50" aria-hidden="true" />
+                <p className="text-sm">Your guide is still learning about you.</p>
+                <p className="text-xs mt-1">As you chat, the patterns, people and life events you mention show up here for you to confirm or remove.</p>
             </div>
         );
     }
@@ -219,6 +225,17 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
     const handleUpdateEventStatus = async (eventId: string, status: UserLifeEvent['status']) => {
         await AtmanService.updateLifeEventStatus(userId, eventId, status);
         onRefresh();
+    };
+
+    const handleSaveEntry = async () => {
+        setSavingEntry(true);
+        const ok = await journal.saveEntry(journalText);
+        setSavingEntry(false);
+        if (ok) {
+            setJournalText('');
+            setJournalInsights([]);
+            setEntrySaved(true);
+        }
     };
 
     const handleReviewJournal = () => {
@@ -258,42 +275,91 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
     return (
         <div className="space-y-4">
             {/* Header with Current State */}
-            <div className="flex items-center justify-between">
-                <h3 className="text-gold font-display text-sm uppercase tracking-wider flex items-center gap-2">
-                    <Brain size={16} />
-                    Karmic Journal
-                </h3>
-                <div className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-full bg-white/5 ${emotionalConfig.color}`}>
-                    {emotionalConfig.icon}
-                    {emotionalConfig.label}
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <h3 className="text-gold text-sm font-semibold uppercase tracking-wider flex items-center gap-2">
+                        <Brain size={16} aria-hidden="true" />
+                        Karmic Journal
+                    </h3>
+                    <p className="mt-1 text-xs leading-relaxed text-white/55">
+                        Your private notes, plus the patterns your guide has noticed in your chats. Confirm, edit or remove anything.
+                    </p>
                 </div>
+                {/* Only show a mood once the guide has actually read one from a
+                    conversation; a default "Stable" on a new account is made up. */}
+                {atmanState.emotionalHistory && atmanState.emotionalHistory.length > 0 && (
+                    <div className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-full bg-white/5 ${emotionalConfig.color}`}>
+                        {emotionalConfig.icon}
+                        {emotionalConfig.label}
+                    </div>
+                )}
             </div>
 
             {/* Consent-Based Journal Capture */}
             <div className="bg-white/5 rounded-2xl border border-white/10 p-4">
                 <div className="flex items-center gap-2 text-gold mb-3">
                     <PenTool size={16} />
-                    <h4 id="journal-entry-label" className="text-sm font-display uppercase tracking-widest">Journal Entry</h4>
+                    <h4 id="journal-entry-label" className="text-sm font-semibold uppercase tracking-widest">Journal entry</h4>
                 </div>
                 <textarea
                     aria-labelledby="journal-entry-label"
                     value={journalText}
-                    onChange={(event) => setJournalText(event.target.value)}
+                    maxLength={JOURNAL_ENTRY_MAX_CHARS}
+                    onChange={(event) => { setJournalText(event.target.value); setEntrySaved(false); }}
                     placeholder="Write what happened, how you felt, or what you are noticing..."
-                    className="w-full min-h-24 rounded-xl bg-black/20 border border-white/10 px-4 py-3 text-sm text-white/80 outline-none focus:border-gold/40 resize-none placeholder:text-white/25"
+                    className="w-full min-h-24 rounded-xl bg-black/20 border border-white/10 px-4 py-3 text-sm text-white/80 outline-none focus:border-gold/40 resize-none placeholder:text-white/50"
                 />
-                <div className="flex items-center justify-between mt-3 gap-3">
-                    <p className="text-xs text-white/55">
-                        Nothing is saved to memory until you accept it.
+                <div className="flex flex-col gap-3 mt-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs leading-relaxed text-white/60">
+                        Save keeps the entry in your private journal. The guide only remembers a pattern if you accept it.
                     </p>
-                    <button
-                        onClick={handleReviewJournal}
-                        disabled={journalText.trim().length < 12}
-                        className="px-3 py-2 rounded-xl bg-gold text-black text-xs font-bold uppercase tracking-widest disabled:opacity-40"
-                    >
-                        Notice Patterns
-                    </button>
+                    <div className="flex shrink-0 items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={handleReviewJournal}
+                            disabled={journalText.trim().length < 12}
+                            className="min-h-11 px-3 py-2 rounded-xl border border-white/15 text-white/70 text-xs font-bold uppercase tracking-widest disabled:opacity-40"
+                        >
+                            Notice Patterns
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleSaveEntry}
+                            disabled={savingEntry || journalText.trim().length === 0}
+                            className="min-h-11 px-3 py-2 rounded-xl bg-gold text-black text-xs font-bold uppercase tracking-widest disabled:opacity-40"
+                        >
+                            {savingEntry ? 'Saving…' : 'Save Entry'}
+                        </button>
+                    </div>
                 </div>
+                <div role="status" aria-live="polite">
+                    {entrySaved && <p className="mt-2 text-xs text-emerald-400">Entry saved.</p>}
+                    {journal.error && <p className="mt-2 text-xs text-amber-400">{journal.error}</p>}
+                </div>
+                {journal.entries.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                        <p className="text-xs uppercase tracking-widest text-white/55">Your recent entries</p>
+                        {journal.entries.slice(0, 5).map((entry) => (
+                            <div key={entry.id} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                                <div className="flex items-center justify-between gap-3">
+                                    <span className="text-xs text-white/55">
+                                        {entry.createdAt
+                                            ? entry.createdAt.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+                                            : 'Just now'}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => journal.deleteEntry(entry.id)}
+                                        className="min-h-8 px-2 text-xs text-white/55 hover:text-white"
+                                    >
+                                        Delete
+                                    </button>
+                                </div>
+                                <p className="mt-1 whitespace-pre-wrap text-sm text-white/80">{entry.text}</p>
+                            </div>
+                        ))}
+                    </div>
+                )}
                 {journalInsights.length > 0 && (
                     <div className="mt-4 space-y-2">
                         <p className="text-xs uppercase tracking-widest text-white/55">
@@ -312,14 +378,16 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                                 />
                                 <div className="flex justify-end gap-2 mt-3">
                                     <button
+                                        type="button"
                                         onClick={() => rejectInsight(insight.id)}
-                                        className="px-3 py-1.5 rounded-lg border border-white/10 text-white/60 text-xs"
+                                        className="min-h-10 px-3 py-1.5 rounded-lg border border-white/10 text-white/60 text-xs"
                                     >
                                         Reject
                                     </button>
                                     <button
+                                        type="button"
                                         onClick={() => acceptInsight(insight)}
-                                        className="px-3 py-1.5 rounded-lg bg-gold text-black text-xs font-bold"
+                                        className="min-h-10 px-3 py-1.5 rounded-lg bg-gold text-black text-xs font-bold"
                                     >
                                         Accept
                                     </button>
@@ -334,8 +402,8 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
             <div className="bg-white/5 rounded-2xl border border-white/10 p-6 backdrop-blur-xl">
                 <div className="flex justify-between items-center mb-6">
                     <div>
-                        <h4 className="text-white font-medium text-sm">Spiritual Evolution</h4>
-                        <p className="text-[0.6875rem] text-white/55 uppercase tracking-widest mt-0.5">Your Current Soul Map</p>
+                        <h4 className="text-white font-medium text-sm">Your balance at a glance</h4>
+                        <p className="text-xs text-white/55 mt-0.5">Four scores out of 100, built from your routines, the patterns you confirm, your people and today&rsquo;s intention.</p>
                     </div>
                 </div>
                 <GrowthRadar atmanData={atmanState} size={240} />
@@ -345,8 +413,8 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
             {atmanState.emotionalHistory && atmanState.emotionalHistory.length > 0 && (
                 <div className="bg-white/5 rounded-xl border border-white/10 p-4">
                     <div className="flex justify-between items-center mb-3">
-                        <span className="text-[0.6875rem] text-white/55 uppercase tracking-widest font-medium">Emotional Pulse</span>
-                        <span className="text-[0.6875rem] text-white/20 uppercase tracking-tighter">Last 7 Sessions</span>
+                        <span className="text-[0.6875rem] text-white/55 uppercase tracking-widest font-medium">Your mood lately</span>
+                        <span className="text-[0.6875rem] text-white/50 uppercase tracking-wide">Last 7 chats</span>
                     </div>
                     <div className="flex items-center gap-2">
                         {atmanState.emotionalHistory.slice(-7).map((entry, idx) => {
@@ -374,25 +442,28 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
             {/* Known Patterns Section */}
             <div className="bg-white/5 rounded-xl border border-white/10 overflow-hidden">
                 <button
+                    type="button"
+                    aria-expanded={expandedSection === 'patterns'}
+                    aria-controls="karmic-patterns"
                     onClick={() => toggleSection('patterns')}
                     className="w-full p-4 flex items-center justify-between text-left hover:bg-white/5 transition-colors"
                 >
                     <div className="flex items-center gap-2">
                         <Sparkles size={16} className="text-violet-400" />
-                        <span className="text-white font-medium">Known Patterns</span>
+                        <span className="text-white font-medium">Patterns noticed</span>
                         <span className="text-white/55 text-xs">
                             ({atmanState.knownPatterns?.length || 0})
                         </span>
                     </div>
                     {expandedSection === 'patterns' ? 
-                        <ChevronUp size={16} className="text-white/55" /> : 
-                        <ChevronDown size={16} className="text-white/55" />
+                        <ChevronUp size={16} className="text-white/55" aria-hidden="true" /> : 
+                        <ChevronDown size={16} className="text-white/55" aria-hidden="true" />
                     }
                 </button>
                 
                 <AnimatePresence>
                     {expandedSection === 'patterns' && (
-                        <motion.div
+                        <motion.div id="karmic-patterns"
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: 'auto', opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
@@ -418,8 +489,8 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                                                             : 'bg-violet-500/5 border-violet-500/10'
                                                 }`}
                                             >
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <div className="flex items-center gap-2">
+                                                <div className="flex items-start justify-between gap-2 mb-2">
+                                                    <div className="flex min-w-0 flex-wrap items-center gap-2">
                                                         <span className={`text-sm ${isArchived ? 'text-white/50' : isVerified ? 'text-emerald-300' : 'text-white/80'}`}>
                                                             {patternText}
                                                         </span>
@@ -435,20 +506,24 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                                                         )}
                                                     </div>
                                                     
-                                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <div className="flex shrink-0 gap-1 opacity-100 [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                                                         {isWeighted && !isVerified && (
                                                             <>
                                                                 <button
+                                                                    type="button"
                                                                     onClick={() => handleDismissPattern(patternObj.id)}
-                                                                    className="p-1 rounded hover:bg-red-500/20 text-red-400/50 hover:text-red-400"
+                                                                    className="p-2 rounded hover:bg-red-500/20 text-red-400/70 hover:text-red-400"
                                                                     title="This doesn't describe me"
+                                                                    aria-label="This doesn't describe me"
                                                                 >
                                                                     <X size={14} />
                                                                 </button>
                                                                 <button
+                                                                    type="button"
                                                                     onClick={() => handleVerifyPattern(patternObj.id)}
-                                                                    className="p-1 rounded hover:bg-green-500/20 text-green-400/50 hover:text-green-400"
+                                                                    className="p-2 rounded hover:bg-green-500/20 text-green-400/70 hover:text-green-400"
                                                                     title={isArchived ? "Bring this pattern back" : "Yes, this is accurate"}
+                                                                    aria-label={isArchived ? "Bring this pattern back" : "Yes, this is accurate"}
                                                                 >
                                                                     <Check size={14} />
                                                                 </button>
@@ -456,9 +531,11 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                                                         )}
                                                         {isWeighted && isVerified && (
                                                             <button
+                                                                type="button"
                                                                 onClick={() => handleDismissPattern(patternObj.id)}
-                                                                className="p-1 rounded hover:bg-white/5 text-white/20 hover:text-white/55"
+                                                                className="p-2 rounded hover:bg-white/5 text-white/50 hover:text-white/80"
                                                                 title="Remove pattern"
+                                                                aria-label="Remove pattern"
                                                             >
                                                                 <X size={12} />
                                                             </button>
@@ -476,9 +553,9 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                                                                 className={`h-full ${isVerified ? 'bg-emerald-500/40' : 'bg-violet-500/40'}`}
                                                             />
                                                         </div>
-                                                        <span className="text-[0.6875rem] text-white/20 uppercase tracking-tighter flex items-center gap-1">
-                                                            <TrendingUp size={8} />
-                                                            Strength
+                                                        <span className="text-[0.6875rem] text-white/50 uppercase tracking-wide flex items-center gap-1">
+                                                            <TrendingUp size={10} aria-hidden="true" />
+                                                            How strongly it shows up
                                                         </span>
                                                     </div>
                                                 )}
@@ -487,7 +564,7 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                                     })
                                 ) : (
                                     <p className="text-white/55 text-sm text-center py-4">
-                                        No patterns discovered yet. Keep chatting with the Guru.
+                                        No patterns noticed yet. They appear as you chat and journal.
                                     </p>
                                 )}
                             </div>
@@ -499,6 +576,9 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
             {/* Active Life Events Section */}
             <div className="bg-white/5 rounded-xl border border-white/10 overflow-hidden">
                 <button
+                    type="button"
+                    aria-expanded={expandedSection === 'events'}
+                    aria-controls="karmic-events"
                     onClick={() => toggleSection('events')}
                     className="w-full p-4 flex items-center justify-between text-left hover:bg-white/5 transition-colors"
                 >
@@ -510,14 +590,14 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                         </span>
                     </div>
                     {expandedSection === 'events' ? 
-                        <ChevronUp size={16} className="text-white/55" /> : 
-                        <ChevronDown size={16} className="text-white/55" />
+                        <ChevronUp size={16} className="text-white/55" aria-hidden="true" /> : 
+                        <ChevronDown size={16} className="text-white/55" aria-hidden="true" />
                     }
                 </button>
                 
                 <AnimatePresence>
                     {expandedSection === 'events' && (
-                        <motion.div
+                        <motion.div id="karmic-events"
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: 'auto', opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
@@ -540,36 +620,38 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                                             key={event.id}
                                             className={`p-3 rounded-lg border ${EVENT_COLORS[event.category] || 'bg-white/5 border-white/10'}`}
                                         >
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-2">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="flex min-w-0 flex-wrap items-center gap-2">
                                                     <span className="font-medium">{event.title}</span>
                                                     {showAnniversaryBadge && (
                                                         <span className="text-[0.6875rem] px-1.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30 font-bold uppercase tracking-wider">
-                                                            Reflect: {daysSince}d
+                                                            Reflect · {daysSince} days ago
                                                         </span>
                                                     )}
                                                 </div>
-                                                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                                <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full ${
                                                     event.status === 'pending' ? 'bg-amber-500/20 text-amber-300' :
                                                     event.status === 'completed' ? 'bg-green-500/20 text-green-300' :
                                                     'bg-red-500/20 text-red-300'
                                                 }`}>
-                                                    {event.status}
+                                                    {event.status === 'pending' ? 'Upcoming' : event.status === 'completed' ? 'Happened' : "Didn't happen"}
                                                 </span>
                                             </div>
                                             {event.status === 'pending' && (
                                                 <div className="mt-2 flex gap-2">
                                                     <button
+                                                        type="button"
                                                         onClick={() => handleUpdateEventStatus(event.id, 'completed')}
-                                                        className="text-xs px-2 py-1 rounded bg-green-500/20 text-green-300 hover:bg-green-500/30"
+                                                        className="min-h-9 text-xs px-3 py-1.5 rounded bg-green-500/20 text-green-300 hover:bg-green-500/30"
                                                     >
-                                                        ✓ Completed
+                                                        ✓ It happened
                                                     </button>
                                                     <button
+                                                        type="button"
                                                         onClick={() => handleUpdateEventStatus(event.id, 'cancelled')}
-                                                        className="text-xs px-2 py-1 rounded bg-red-500/20 text-red-300 hover:bg-red-500/30"
+                                                        className="min-h-9 text-xs px-3 py-1.5 rounded bg-red-500/20 text-red-300 hover:bg-red-500/30"
                                                     >
-                                                        ✗ Cancelled
+                                                        ✗ Didn&rsquo;t happen
                                                     </button>
                                                 </div>
                                             )}
@@ -577,7 +659,7 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
                                     )})
                                 ) : (
                                     <p className="text-white/55 text-sm text-center py-4">
-                                        No active life events tracked.
+                                        No life events yet. When you mention something coming up, like an interview or a move, it appears here so your guide can ask how it went.
                                     </p>
                                 )}
                             </div>
@@ -590,38 +672,41 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
             {atmanState.contradictedPatterns && atmanState.contradictedPatterns.length > 0 && (
                 <div className="bg-emerald-500/5 rounded-xl border border-emerald-500/20 overflow-hidden">
                     <button
+                        type="button"
+                        aria-expanded={expandedSection === 'evolution'}
+                        aria-controls="karmic-evolution"
                         onClick={() => toggleSection('evolution')}
                         className="w-full p-4 flex items-center justify-between text-left hover:bg-emerald-500/10 transition-colors"
                     >
                         <div className="flex items-center gap-2">
                             <History size={16} className="text-emerald-400" />
                             <span className="text-emerald-300 font-medium">Growth & Evolution</span>
-                            <span className="text-emerald-500/40 text-xs">
+                            <span className="text-emerald-400/70 text-xs">
                                 ({atmanState.contradictedPatterns.length})
                             </span>
                         </div>
                         {expandedSection === 'evolution' ? 
-                            <ChevronUp size={16} className="text-emerald-400/40" /> : 
-                            <ChevronDown size={16} className="text-emerald-400/40" />
+                            <ChevronUp size={16} className="text-emerald-400/70" aria-hidden="true" /> : 
+                            <ChevronDown size={16} className="text-emerald-400/70" aria-hidden="true" />
                         }
                     </button>
                     
                     <AnimatePresence>
                         {expandedSection === 'evolution' && (
-                            <motion.div
+                            <motion.div id="karmic-evolution"
                                 initial={{ height: 0, opacity: 0 }}
                                 animate={{ height: 'auto', opacity: 1 }}
                                 exit={{ height: 0, opacity: 0 }}
                                 className="border-t border-emerald-500/10"
                             >
                                 <div className="p-4 space-y-3">
-                                    <p className="text-[0.6875rem] text-emerald-400/60 uppercase tracking-widest mb-1">Evidences of your transformation</p>
+                                    <p className="text-[0.6875rem] text-emerald-300/80 uppercase tracking-widest mb-1">Where you have outgrown an old pattern</p>
                                     {atmanState.contradictedPatterns.map((contradiction, idx) => (
                                         <div 
                                             key={idx}
                                             className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-sm text-emerald-100 italic"
                                         >
-                                            " {contradiction} "
+                                            “{contradiction}”
                                         </div>
                                     ))}
                                 </div>
@@ -634,22 +719,25 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
             {/* Your Sadhana Path Section */}
             <div className="bg-violet-500/5 rounded-xl border border-violet-500/20 overflow-hidden">
                 <button
+                    type="button"
+                    aria-expanded={expandedSection === 'path'}
+                    aria-controls="karmic-path"
                     onClick={() => toggleSection('path')}
                     className="w-full p-4 flex items-center justify-between text-left hover:bg-violet-500/10 transition-colors"
                 >
                     <div className="flex items-center gap-2">
                         <TrendingUp size={16} className="text-violet-400" />
-                        <span className="text-violet-300 font-medium">Your Sadhana Path</span>
+                        <span className="text-violet-300 font-medium">3-day practice plan</span>
                     </div>
                     {expandedSection === 'path' ? 
-                        <ChevronUp size={16} className="text-violet-400/40" /> : 
-                        <ChevronDown size={16} className="text-violet-400/40" />
+                        <ChevronUp size={16} className="text-violet-400/70" aria-hidden="true" /> : 
+                        <ChevronDown size={16} className="text-violet-400/70" aria-hidden="true" />
                     }
                 </button>
                 
                 <AnimatePresence>
                     {expandedSection === 'path' && (
-                        <motion.div
+                        <motion.div id="karmic-path"
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: 'auto', opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
@@ -666,25 +754,28 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
 	            {/* Recent Nudges Section */}
 	            <div className="bg-white/5 rounded-xl border border-white/10 overflow-hidden">
 	                <button
+	                    type="button"
+	                    aria-expanded={expandedSection === 'nudges'}
+	                    aria-controls="karmic-nudges"
 	                    onClick={() => toggleSection('nudges')}
 	                    className="w-full p-4 flex items-center justify-between text-left hover:bg-white/5 transition-colors"
 	                >
 	                    <div className="flex items-center gap-2">
 	                        <History size={16} className="text-gold" />
-	                        <span className="text-white font-medium">Recent Nudges</span>
+	                        <span className="text-white font-medium">Check-ins from your guide</span>
 	                        <span className="text-white/55 text-xs">
 	                            ({atmanState.nudgeHistory?.length || 0})
 	                        </span>
 	                    </div>
 	                    {expandedSection === 'nudges' ?
-	                        <ChevronUp size={16} className="text-white/55" /> :
-	                        <ChevronDown size={16} className="text-white/55" />
+	                        <ChevronUp size={16} className="text-white/55" aria-hidden="true" /> :
+	                        <ChevronDown size={16} className="text-white/55" aria-hidden="true" />
 	                    }
 	                </button>
 
 	                <AnimatePresence>
 	                    {expandedSection === 'nudges' && (
-	                        <motion.div
+	                        <motion.div id="karmic-nudges"
 	                            initial={{ height: 0, opacity: 0 }}
 	                            animate={{ height: 'auto', opacity: 1 }}
 	                            exit={{ height: 0, opacity: 0 }}
@@ -708,7 +799,7 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
 	                                    ))
 	                                ) : (
 	                                    <p className="text-white/55 text-sm text-center py-4">
-	                                        No proactive nudges yet.
+	                                        No check-ins yet. Your guide sends one when something in your chart or your chats seems worth a word.
 	                                    </p>
 	                                )}
 	                            </div>
@@ -720,25 +811,28 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
 	            {/* Relationships Section (The Sangha) */}
 	            <div className="bg-white/5 rounded-xl border border-white/10 overflow-hidden">
                 <button
+                    type="button"
+                    aria-expanded={expandedSection === 'relationships'}
+                    aria-controls="karmic-relationships"
                     onClick={() => toggleSection('relationships')}
                     className="w-full p-4 flex items-center justify-between text-left hover:bg-white/5 transition-colors"
                 >
                     <div className="flex items-center gap-2">
                         <Users size={16} className="text-pink-400" />
-                        <span className="text-white font-medium">The Sangha (Inner Circle)</span>
+                        <span className="text-white font-medium">Inner Circle</span>
                         <span className="text-white/55 text-xs">
                             ({atmanState.keyRelationships?.length || 0})
                         </span>
                     </div>
                     {expandedSection === 'relationships' ? 
-                        <ChevronUp size={16} className="text-white/55" /> : 
-                        <ChevronDown size={16} className="text-white/55" />
+                        <ChevronUp size={16} className="text-white/55" aria-hidden="true" /> : 
+                        <ChevronDown size={16} className="text-white/55" aria-hidden="true" />
                     }
                 </button>
                 
                 <AnimatePresence>
                     {expandedSection === 'relationships' && (
-                        <motion.div
+                        <motion.div id="karmic-relationships"
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: 'auto', opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
@@ -760,45 +854,48 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
             {atmanState.karmicThreads && atmanState.karmicThreads.length > 0 && (
                 <div className="bg-violet-500/5 rounded-xl border border-violet-500/20 overflow-hidden">
                     <button
+                        type="button"
+                        aria-expanded={expandedSection === 'threads'}
+                        aria-controls="karmic-threads"
                         onClick={() => toggleSection('threads')}
                         className="w-full p-4 flex items-center justify-between text-left hover:bg-violet-500/10 transition-colors"
                     >
                         <div className="flex items-center gap-2">
                             <Zap size={16} className="text-violet-400" />
-                            <span className="text-violet-300 font-medium">Karmic Threads</span>
-                            <span className="text-violet-500/40 text-xs">
+                            <span className="text-violet-300 font-medium">Threads across your life</span>
+                            <span className="text-violet-300/70 text-xs">
                                 ({atmanState.karmicThreads.length})
                             </span>
                         </div>
                         {expandedSection === 'threads' ? 
-                            <ChevronUp size={16} className="text-violet-400/40" /> : 
-                            <ChevronDown size={16} className="text-violet-400/40" />
+                            <ChevronUp size={16} className="text-violet-400/70" aria-hidden="true" /> : 
+                            <ChevronDown size={16} className="text-violet-400/70" aria-hidden="true" />
                         }
                     </button>
                     
                     <AnimatePresence>
                         {expandedSection === 'threads' && (
-                            <motion.div
+                            <motion.div id="karmic-threads"
                                 initial={{ height: 0, opacity: 0 }}
                                 animate={{ height: 'auto', opacity: 1 }}
                                 exit={{ height: 0, opacity: 0 }}
                                 className="border-t border-violet-500/10"
                             >
                                 <div className="p-4 space-y-3">
-                                    <p className="text-[0.6875rem] text-violet-400/60 uppercase tracking-widest mb-1">Connections across life domains</p>
+                                    <p className="text-[0.6875rem] text-violet-300/80 uppercase tracking-widest mb-1">Links your guide sees between different parts of your life</p>
                                     {atmanState.karmicThreads.map((thread, idx) => (
                                         <div 
                                             key={`${idx}-${thread}`}
                                             className="flex items-start justify-between gap-2 p-3 bg-violet-500/10 border border-violet-500/20 rounded-lg text-sm text-violet-100 italic"
                                         >
-                                            <span className="min-w-0">" {thread} "</span>
+                                            <span className="min-w-0">“{thread}”</span>
                                             <button
                                                 type="button"
                                                 onClick={() => handleRemoveThread(thread)}
                                                 disabled={removingThread !== null}
                                                 aria-label="Remove this karmic thread"
                                                 title="Remove"
-                                                className="shrink-0 p-1 rounded-md not-italic text-violet-300/40 hover:text-red-300 disabled:opacity-30"
+                                                className="shrink-0 p-2 rounded-md not-italic text-violet-300/70 hover:text-red-300 disabled:opacity-40"
                                             >
                                                 <X size={12} />
                                             </button>
@@ -815,13 +912,13 @@ export const KarmicJournal: React.FC<KarmicJournalProps> = ({
             <div className="grid grid-cols-2 gap-3">
                 <div className="bg-white/5 rounded-xl border border-white/10 p-4 text-center">
                     <div className="text-2xl font-display text-gold">{atmanState.meditationStreak || 0}</div>
-                    <div className="text-xs text-white/55 uppercase tracking-wider">Day Streak</div>
+                    <div className="text-xs text-white/55 uppercase tracking-wider">Days in a row of practice</div>
                 </div>
                 <div className="bg-white/5 rounded-xl border border-white/10 p-4 text-center">
                     <div className="text-2xl font-display text-violet-400 capitalize">
-                        {atmanState.preferredPractice || 'Unknown'}
+                        {atmanState.preferredPractice || 'Not yet known'}
                     </div>
-                    <div className="text-xs text-white/55 uppercase tracking-wider">Preferred Practice</div>
+                    <div className="text-xs text-white/55 uppercase tracking-wider">Practice you return to most</div>
                 </div>
             </div>
         </div>

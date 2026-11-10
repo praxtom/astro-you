@@ -66,7 +66,6 @@ import {
   getBodygraphSVG,
   getShadbala,
   getVarshaphal,
-  shapeTimeUnknownChart,
   BirthData,
 } from "./shared/astro-api";
 import { getCachedOrFetch } from "./shared/cache";
@@ -93,10 +92,9 @@ import {
 } from "./shared/kundali-errors";
 import { normalizeZodiacMode } from "../../src/lib/zodiac-mode.js";
 import { normalizeFestivalRegion } from "../../src/lib/festival-regions.js";
-import { getCachedPanchang } from "./shared/astro-cached.js";
+import { getCachedNatalChart, getCachedPanchang } from "./shared/astro-cached.js";
 import {
   localDashaPeriods,
-  localNatalChart,
   tryLocalEngine,
 } from "./shared/astro-engine.js";
 import { parseBudget } from "./shared/astro-budget.js";
@@ -143,6 +141,10 @@ function guestUpstreamPerIpHour(): number {
 const USER_REQUESTS_PER_TYPE_PER_HOUR = 60;
 const IP_REQUESTS_PER_TYPE_PER_HOUR = 200;
 const IP_PANCHANG_REQUESTS_PER_HOUR = 300;
+// A three-card tarot reading is the one public chart type that cannot be
+// cached (it depends on the question), so every request is a paid upstream
+// call. Keep anonymous use to a handful per IP per hour.
+const IP_UNCACHED_PUBLIC_REQUESTS_PER_HOUR = 5;
 
 class GuestBudgetError extends Error {
   constructor() {
@@ -285,7 +287,9 @@ export default async (req: Request, _context: Context) => {
         ? USER_REQUESTS_PER_TYPE_PER_HOUR
         : chartType === "PANCHANG"
           ? IP_PANCHANG_REQUESTS_PER_HOUR
-          : IP_REQUESTS_PER_TYPE_PER_HOUR,
+          : chartType === "TAROT_THREE"
+            ? IP_UNCACHED_PUBLIC_REQUESTS_PER_HOUR
+            : IP_REQUESTS_PER_TYPE_PER_HOUR,
       windowMs: 60 * 60 * 1000,
     });
     if (!rateLimit.allowed) {
@@ -326,13 +330,30 @@ export default async (req: Request, _context: Context) => {
       // "off" means the user has hidden the card — never spend a paid API call
       // fetching content that will not be rendered.
       if (festivalRegion === "off") return json({ data: [] });
-      const data = await getFestivalCalendar(year, festivalRegion);
+      // Same calendar for everyone in a region and year: cache it so a
+      // dashboard load never spends a paid upstream call.
+      const festivalYear =
+        Number.isInteger(year) && year >= 1900 && year <= 2200
+          ? year
+          : new Date().getUTCFullYear();
+      const data = await getCachedOrFetch(
+        "festival_calendar",
+        `${festivalYear}_${festivalRegion}`,
+        () => getFestivalCalendar(festivalYear, festivalRegion),
+        24 * 7,
+      );
       return json({ data });
     }
 
     // Upcoming eclipses doesn't need birthData
     if (chartType === "ECLIPSES") {
-      const data = await getUpcomingEclipses();
+      // The upcoming-eclipse list is global and changes only as dates pass.
+      const data = await getCachedOrFetch(
+        "eclipses_upcoming",
+        new Date().toISOString().slice(0, 10),
+        () => getUpcomingEclipses(),
+        24,
+      );
       return json({ data });
     }
 
@@ -652,13 +673,10 @@ export default async (req: Request, _context: Context) => {
         return json({ data: await cached(() => getVarshaphal(bd, body.year)) });
       }
       case "D1": {
-        // ASTRO_ENGINE=local serves the Vedic (Lahiri, whole-sign) D1 only.
-        const data =
-          (zodiacMode === "western"
-            ? null
-            : tryLocalEngine("D1", () => localNatalChart(bd))) ??
-          (await cached(() => getNatalChart(bd, zodiacMode)));
-        return json(birthTimeUnknown ? shapeTimeUnknownChart(data) : data);
+        const chart = await getCachedNatalChart(bd, zodiacMode, () =>
+          guarded(() => getNatalChart(bd, zodiacMode)),
+        );
+        return json(chart);
       }
       default: {
         // Divisional charts (D9, D10, …). Reject unknown chartTypes instead of

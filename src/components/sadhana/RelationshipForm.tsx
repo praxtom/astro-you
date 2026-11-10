@@ -60,9 +60,9 @@ export const RelationshipForm: React.FC<RelationshipFormProps> = ({
             >
                 <div className="p-6 border-b border-white/5 flex items-center justify-between">
                     <h3 id="relationship-form-title" className="text-xl font-display text-gold">
-                        {relationship ? 'Edit Connection' : 'Add New Connection'}
+                        {relationship ? 'Edit person' : 'Add a person'}
                     </h3>
-                    <button onClick={onClose} className="p-2 -m-2 text-white/60 hover:text-white" aria-label="Close dialog">
+                    <button type="button" onClick={onClose} className="p-2 -m-2 text-white/60 hover:text-white" aria-label="Close dialog">
                         <X size={20} />
                     </button>
                 </div>
@@ -72,7 +72,7 @@ export const RelationshipForm: React.FC<RelationshipFormProps> = ({
                     <div>
                         <label htmlFor="rel-name" className="block text-xs uppercase tracking-widest text-white/60 mb-2">Name</label>
                         <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50" aria-hidden="true">
                                 <User size={16} />
                             </span>
                             <input
@@ -80,7 +80,7 @@ export const RelationshipForm: React.FC<RelationshipFormProps> = ({
                                 type="text"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                className="w-full bg-white/5 border border-white/10 rounded-lg py-2 pl-10 pr-4 text-white focus:outline-none focus:border-gold/30"
+                                className="platform-field pl-10 placeholder:text-white/50"
                                 placeholder="e.g. Anand ji"
                                 required
                             />
@@ -95,7 +95,7 @@ export const RelationshipForm: React.FC<RelationshipFormProps> = ({
                                 id="rel-relation"
                                 value={relation}
                                 onChange={(e) => setRelation(e.target.value as any)}
-                                className="w-full bg-white/5 border border-white/10 rounded-lg py-2 px-3 text-white focus:outline-none focus:border-gold/30"
+                                className="platform-field [color-scheme:dark]"
                             >
                                 {RELATIONS.map(r => (
                                     <option key={r} value={r} className="bg-[#151520]">{r.charAt(0).toUpperCase() + r.slice(1)}</option>
@@ -105,12 +105,12 @@ export const RelationshipForm: React.FC<RelationshipFormProps> = ({
 
                         {/* Dynamic */}
                         <div>
-                            <label htmlFor="rel-dynamic" className="block text-xs uppercase tracking-widest text-white/60 mb-2">Dynamic</label>
+                            <label htmlFor="rel-dynamic" className="block text-xs uppercase tracking-widest text-white/60 mb-2">How it feels</label>
                             <select
                                 id="rel-dynamic"
                                 value={dynamic}
                                 onChange={(e) => setDynamic(e.target.value as any)}
-                                className="w-full bg-white/5 border border-white/10 rounded-lg py-2 px-3 text-white focus:outline-none focus:border-gold/30"
+                                className="platform-field [color-scheme:dark]"
                             >
                                 {DYNAMICS.map(d => (
                                     <option key={d} value={d} className="bg-[#151520]">{d.charAt(0).toUpperCase() + d.slice(1)}</option>
@@ -126,7 +126,7 @@ export const RelationshipForm: React.FC<RelationshipFormProps> = ({
                             id="rel-zodiac"
                             value={zodiacSign}
                             onChange={(e) => setZodiacSign(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-lg py-2 px-3 text-white focus:outline-none focus:border-gold/30"
+                            className="platform-field [color-scheme:dark]"
                         >
                             <option value="" className="bg-[#151520]">Unknown</option>
                             {ZODIAC_SIGNS.map(s => (
@@ -137,12 +137,12 @@ export const RelationshipForm: React.FC<RelationshipFormProps> = ({
 
                     {/* Notes */}
                     <div>
-                        <label htmlFor="rel-notes" className="block text-xs uppercase tracking-widest text-white/60 mb-2">Notes & Karma</label>
+                        <label htmlFor="rel-notes" className="block text-xs uppercase tracking-widest text-white/60 mb-2">Notes (optional)</label>
                         <textarea
                             id="rel-notes"
                             value={notes}
                             onChange={(e) => setNotes(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-lg py-2 px-4 text-white focus:outline-none focus:border-gold/30 min-h-[80px] resize-none"
+                            className="platform-field min-h-[80px] py-2 resize-none placeholder:text-white/50"
                             placeholder="e.g. Tense relationship lately, needing more patience..."
                         />
                     </div>
@@ -150,17 +150,17 @@ export const RelationshipForm: React.FC<RelationshipFormProps> = ({
                     <div className="pt-4 flex items-center gap-3">
                         <button
                             type="submit"
-                            className="flex-1 bg-gold hover:bg-gold/90 text-black font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                            className="flex-1 min-h-11 bg-gold hover:bg-gold/90 text-black font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
                         >
                             <Save size={18} />
-                            Save Connection
+                            Save
                         </button>
                         {relationship && onDelete && (
                             <button
                                 type="button"
                                 onClick={onDelete}
                                 aria-label="Delete person"
-                                className="p-2 border border-red-500/30 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                                className="min-h-11 min-w-11 flex items-center justify-center border border-red-500/30 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                             >
                                 <Trash2 size={20} />
                             </button>

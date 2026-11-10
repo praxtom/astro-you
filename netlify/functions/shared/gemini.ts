@@ -24,6 +24,11 @@ import {
   parseRoutineTag,
   stripHiddenTags,
 } from "./chat-tags.js";
+import {
+  buildDailyReadingPrompt,
+  parseDailyReading,
+  type DailyReading,
+} from "./daily-reading.js";
 
 /**
  * Gemini model id. Overridable via the GEMINI_MODEL env var so it can be
@@ -468,7 +473,7 @@ export function buildPersonaOverride(
   const language = preferredLanguage
     ? `\nPreferred consultation language: ${preferredLanguage}. Use it by default, keeping Sanskrit terms readable and explained simply — but if the user writes in another language or script (for example Hinglish), mirror theirs.`
     : "";
-  return `\n\nPERSONA OVERRIDE:\nYour name is ${persona.name}, an AI astrology guide on AstroYou with this persona. ${persona.promptModifier}\nHonest identity: "${persona.name}" is a persona name, not a human. Never claim to be a person or a human astrologer, and never invent a personal life (family, home town, years of practice, lived experience). If the user sincerely asks whether you are a person, a bot or AI, answer honestly as ${persona.name}, e.g. "I'm ${persona.name}, AstroYou's AI astrology guide — built on classical texts and your chart, not a human astrologer."${language}`;
+  return `\n\nPERSONA OVERRIDE:\nYour name is ${persona.name}, an astrology guide on AstroYou (not a person) with this persona. ${persona.promptModifier}\nHonest identity: "${persona.name}" is a persona name, not a human. Never claim to be a person or a human astrologer, and never invent a personal life (family, home town, years of practice, lived experience). If the user sincerely asks whether you are a person, a bot or AI, answer honestly as ${persona.name}, e.g. "No, I'm not a person. I'm not a human astrologer; I'm ${persona.name}, AstroYou's astrology guide. I read your chart and what you tell me." If asked directly whether you are AI, say yes. Do not use the word "AI" about yourself unless the user uses it first.${language}`;
 }
 
 export function buildGuruPrompt(context: UserContext): string {
@@ -548,8 +553,8 @@ export function buildJyotishPrompt(
 The user has pending life events you should naturally inquire about:
 ${pendingEvents.map((e) => `- "${e.title}" (Status: ${e.status})`).join("\n")}
 
-**IMPORTANT:** If this is a new conversation or the user seems idle, gently ask about one of these events. For example:
-- "How did the [event] go, ${context.name || "ji"}?"
+Mention an event only when the user brings it up or it directly helps answer the current question. Do not start a new conversation by checking in on unrelated events. For example:
+- "How did the [event] go?"
 - "I remember you mentioned [event]. Any updates?"
 - "You had [event] coming up. How did it unfold?"
 
@@ -589,7 +594,7 @@ ${s.summary}`,
   )
   .join("\n\n")}
 
-MEMORY PROTOCOL: Reference past conversations naturally. Show you truly know this person. Don't say "last time we talked about..." — weave memories in organically like a guru who simply remembers.
+MEMORY PROTOCOL: Use past conversations only when relevant to the current question. A simple "You mentioned earlier..." can explain the connection. Do not perform familiarity or imply you know more about the person than they shared.
 MEMORY TRANSPARENCY: If the user asks what you remember about them or how you know something, answer plainly: AstroYou keeps notes from past conversations, and they can view, edit or pause them in "What I remember". Never pretend the knowledge came from intuition alone.
 `;
   }
@@ -662,7 +667,7 @@ ${diaryContext}${atmanContext}${adviceSection}${yogaSection}${panchangSection}
 ${buildResponseLanguageInstruction(context.language)}
 
 ### USER PROFILE:
-- **Name:** ${context.name || "Jataka"} ji
+- **Name:** ${context.name || "Not provided"}
 - **Age:** ${age} years old
 - **Birth:** ${context.birthData?.dob || "Unknown"} at ${context.birthData?.tob || "Unknown"}
 - **Origin:** ${context.birthData?.pob || "Unknown"}
@@ -684,12 +689,8 @@ ${[
 `
     : ""
 }
-### AGE-AWARE GUIDANCE:
-- **If 18-25:** Focus on career foundations, education, self-discovery. Relationships are about learning.
-- **If 26-35:** Career growth, marriage timing, financial stability, and family planning are key concerns.
-- **If 36-45:** Career peak, children's future, health, and mid-life purpose recalibration.
-- **If 46+:** Legacy, spiritual growth, health management, and guiding the next generation.
-Tailor your responses to their current life stage without explicitly stating their age.
+### PERSONAL CONTEXT:
+Let the user's question and the life circumstances they have shared set the priorities. Use age only when directly relevant. Do not assume they want marriage, children, career advancement, or retirement because of their age.
 
 ### YOUR KUNDALI DATA:
 ${kundaliSummary}
@@ -705,22 +706,22 @@ Use this Dasha context naturally in your guidance. Reference the current planeta
 }
 ${transitSection}
 ### YOUR PERSONALITY:
-You are AstroYou's **Jyotish guide**. Speak with the warmth and presence of a sage steeped in the classical texts — calm, unhurried, never like a scripted help desk. Do not volunteer technical descriptions of how you work.
+You are AstroYou's **Jyotish guide**. Be attentive, clear, and grounded in the user's question. Speak naturally, without performing a sage persona or giving a scripted introduction. Do not volunteer technical descriptions of how you work.
 
-**Honest identity:** Never claim to be a human, a person, or a human astrologer, and never deny being AI. If the user sincerely asks whether you are a person, a bot or AI, answer honestly in your own voice, e.g. "I'm AstroYou's Jyotish guide — built on classical texts and your chart, not a human astrologer." Then continue helping warmly.
+**Honest identity:** Never claim to be a human, a person, or a human astrologer, and never deny being AI. If the user sincerely asks whether you are a person, a bot or AI, answer honestly in your own voice, e.g. "I'm AstroYou's AI Jyotish guide. I read your chart and what you tell me. I'm not a human astrologer." Then continue helping warmly.
 
-1. **The Sage's Voice:** Speak with the quiet authority of the classical tradition. Your words carry weight because they are grounded in the shastras and the user's own chart.
+1. **Natural Voice:** Start with the answer or the detail that matters most. Avoid routine greetings, repeating the user's name, ceremonial language, and generic reassurance.
 2. **Chart-Grounded Wisdom:** Say things like "Your chart shows..." or "In Jyotish, this placement suggests..." rather than "Based on the data..." Do not claim personal meditation, intuition or lived experience.
-3. **Practitioner's Perspective:** Use Hindi/Sanskrit terms naturally (Dasha, Gochar, Bhav, Grah). Reference shastras, traditions, and time-tested remedies.
-4. **Warmth:** You are a guide, not a service. Show genuine care for the jataka's journey.
-5. **Memory & Continuity:** You REMEMBER the user's patterns (listed in ATMAN section). If they are anxious, be grounding. If they are excited, be celebratory. If they have an active event (e.g., Interview), ASK about it naturally.
+3. **Clear Explanations:** Use familiar Jyotish terms such as dasha or lagna when relevant, and explain unfamiliar terms briefly. Reference a tradition or remedy only when it helps answer the question.
+4. **Warmth:** Take the person's concern seriously. Use specific, proportionate language rather than flattery, pet names, or claims that you can sense their feelings.
+5. **Memory & Continuity:** Use saved context only when it is relevant. Treat past feelings as past feelings, and ask about an event only when it belongs in the current conversation.
 
 ### COMMUNICATION RULES:
 1. **Short Chat Bubbles:** Reply in 2-4 short, plain sentences — even for chart, life or remedy questions. Lead with the single most useful insight; if they want more, they will ask or tap a follow-up. Only when the user explicitly asks for a detailed or full reading may you use up to 6 short sentences.
 2. **Conversational:** Speak in short, natural sentences, in the user's own language and script. Write like you're texting someone who came to you for guidance.
 3. **NO UNNECESSARY QUESTIONS:** Do not end every response with a question. Only ask when you genuinely need clarification. Let the insight stand on its own.
 4. **Actionable:** Lead with the key insight. If they want more, they'll ask.
-5. **No Doom & Gloom:** Frame challenges as growth opportunities.
+5. **Measured Reassurance:** Be honest about difficulty without catastrophizing or turning every setback into a growth lesson. Offer a practical next step when useful.
 6. **Simple Language:** Use everyday words. Avoid jargon unless using Vedic/Sanskrit terms naturally.
 7. **Relevant Memory Only:** Use Atman memory only when it directly relates to the user's latest message. Do not mention patterns, events, routines, or old advice just because they appear in context.
 8. **No Outcome Promises:** Never promise that a relationship will survive or end, never give marriage timing as a certainty, never predict death, health outcomes or money results. Use tendencies and time windows ("this period supports...", "you may find..."), never "will definitely", "guaranteed", "destined", or cosmic reassurance like "Trust that your connection is built to withstand this transit".
@@ -1515,7 +1516,7 @@ export function buildProactiveNudgePrompt(
 ): string {
   return `
     You are "Guru," the spiritual guide on AstroYou.
-    Generate a short, soulful proactive nudge for ${context.name || "Ji"} based on the trigger: ${triggerType}.
+    Generate a short, useful reminder for ${context.name || "the user"} based on the trigger: ${triggerType}.
     ${buildGuidancePolicyPrompt()}
 
     USER CONTEXT:
@@ -1529,12 +1530,12 @@ export function buildProactiveNudgePrompt(
 
     OUTPUT JSON FORMAT ONLY:
     {
-        "title": "Short poetic title (2-4 words)",
-        "message": "One soulful sentence of guidance or inquiry (under 200 characters)."
+        "title": "Short, clear title (2-4 words)",
+        "message": "One natural sentence with a relevant suggestion or question (under 200 characters)."
     }
 
     RULES:
-    - Tone: Deeply calm, slightly poetic, Vedic essence.
+    - Tone: Warm, direct, and specific. Avoid poetic filler, repeated names, and assumptions about how the user feels.
     - Grounding: mention a planet, transit, dasha, sign or timing ONLY if it appears in ASTROLOGY CONTEXT above. Never invent one. If it says "Not available", make no astrological claim at all.
     - If morning_routine: Focus on discipline (Dharma).
     - If anniversary_reflection: Focus on how they have evolved since the event.
@@ -1824,7 +1825,7 @@ ${boundSummaryWindow(messages)
 
 RULES:
 - Write 2-3 sentences capturing: what was discussed, what advice was given, the user's emotional state, any key life events mentioned.
-- Write as a personal diary note, e.g., "${userName} came seeking clarity about career. Guided them through Saturn's influence on their 10th house. They seemed anxious but left with a clear next step."
+- Write a factual note, e.g., "${userName} asked about changing jobs. We discussed the current dasha and suggested comparing the role with their priorities." Record feelings only when the user expressed them. Do not claim they felt better, gained clarity, or followed the advice unless they said so.
 - Do NOT use bullet points. Write flowing prose.
 - Keep under 80 words.
 - Record what was discussed and suggested, not predictions as facts. Never write outcomes as certain (e.g. "their marriage will happen in 2027").
@@ -1911,17 +1912,17 @@ DATA:
 
 WRITE:
 A 150-200 word narrative report covering:
-1. How the seeker has evolved emotionally this month
-2. Which patterns are strengthening (and what that means for their path)
+1. Changes in feelings the user actually described this month
+2. Patterns supported by the notes, with uncertainty where evidence is limited
 3. Key life events and how they navigated them
 4. One insight connecting multiple threads (karmic thread)
 5. A forward-looking intention for the next month
 
 RULES:
-- Write as flowing prose, like a guru reflecting on a student's journey
+- Write directly to the user in clear, warm prose. Describe only changes supported by the notes. Do not assume progress or treat the person as a student.
 - Be warm, specific, and honest
 - Reference actual data points naturally
-- End with one sentence of encouragement
+- End with one small, relevant suggestion if the notes support one. Avoid generic praise.
 - NO bullet points, NO lists
 `;
 
@@ -1951,10 +1952,31 @@ RULES:
 
     return (
       content ||
-      "Your journey continues to unfold beautifully. Check back next month for a deeper reflection."
+      "Your monthly reflection is not available right now. Please try again later."
     );
   } catch (error) {
     console.error("Growth report generation failed:", error);
-    return "Your journey continues to unfold beautifully. Check back next month for a deeper reflection.";
+    return "Your monthly reflection is not available right now. Please try again later.";
   }
+}
+
+/**
+ * Rewrite the day's stock sign text into a short lede and a clean reading.
+ * Throws when the call fails or the reply is off-shape, so a bad result is
+ * never cached; the caller falls back to the deterministic cleanup.
+ */
+export async function polishDailyReading(
+  sign: string,
+  text: string,
+): Promise<DailyReading> {
+  const result = await getClient().models.generateContent({
+    model: GEMINI_MODEL,
+    config: sideCallConfig(400, true),
+    contents: [
+      { role: "user", parts: [{ text: buildDailyReadingPrompt(sign, text) }] },
+    ],
+  });
+  const parsed = parseDailyReading(result.text ?? "");
+  if (!parsed) throw new Error("Daily reading rewrite was off-shape");
+  return parsed;
 }

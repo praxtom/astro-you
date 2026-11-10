@@ -12,7 +12,7 @@ import {
   getStorageBucket,
 } from "./shared/firebase-admin";
 import { applyCreditChange, CreditError } from "./shared/credits";
-import { enforceIpRateLimit, AuthError } from "./shared/require-auth";
+import { enforceUserRateLimit, AuthError } from "./shared/require-auth";
 import {
   createReportFilename,
   formatYearlyForecastSections,
@@ -82,7 +82,7 @@ export default async (req: Request, _context: Context) => {
     const decoded = await auth.verifyIdToken(idToken);
     const uid = decoded.uid;
     try {
-      await enforceIpRateLimit(req, "pdf_report", 20, 60 * 60 * 1000);
+      await enforceUserRateLimit(uid, "pdf_report", 20, 60 * 60 * 1000);
     } catch (err) {
       const status = err instanceof AuthError ? err.status : 429;
       return jsonResponse(

@@ -12,6 +12,7 @@ export { useTransit } from "./useTransit";
 export { useConsciousness } from "./useConsciousness";
 export { useYogas } from "./useYogas";
 export { usePanchang } from "./usePanchang";
+export { useJournalEntries } from "./useJournalEntries";
 export { useRemedies } from "./useRemedies";
 export { useSadeSati } from "./useSadeSati";
 export { useNakshatra } from "./useNakshatra";

@@ -146,7 +146,7 @@ export function MemoryManager({ compact }: { compact?: boolean }) {
       {
         id: "routines",
         title: "Routines",
-        hint: "Practices saved to your Dharma list",
+        hint: "Practices you added to your daily list",
         items: (atman.routines || []).map((r) => ({
           key: r.id,
           text: r.title,
@@ -280,6 +280,11 @@ export function MemoryManager({ compact }: { compact?: boolean }) {
 
   const totalItems = groups.reduce((sum, g) => sum + g.items.length, 0);
   const pad = compact ? "p-3" : "p-4";
+  const filledGroups = groups.filter((group) => group.items.length > 0);
+  // With many groups open at once the list runs to dozens of rows and buries
+  // everything below it, so groups start collapsed unless there are only a
+  // couple of them.
+  const openByDefault = !compact && filledGroups.length <= 2;
 
   return (
     <div className={compact ? "space-y-3" : "space-y-4"}>
@@ -319,37 +324,38 @@ export function MemoryManager({ compact }: { compact?: boolean }) {
           type="button"
           onClick={forgetEverything}
           disabled={busy !== null || totalItems === 0}
-          className="mt-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-red-300/70 hover:text-red-300 disabled:opacity-30"
+          className="mt-2 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-red-300/80 hover:text-red-300 disabled:opacity-40"
         >
           {busy === "everything" ? (
-            <Loader2 size={12} className="animate-spin" />
+            <Loader2 size={14} className="animate-spin" aria-hidden="true" />
           ) : (
-            <Trash2 size={12} />
+            <Trash2 size={14} aria-hidden="true" />
           )}
           Forget everything
         </button>
       </div>
 
       {(error || actionError) && (
-        <p role="alert" className="text-xs text-red-300/80">
+        <p role="alert" className="text-sm text-red-300">
           {actionError || error}
         </p>
       )}
 
       {loading ? (
-        <div className="flex items-center gap-2 text-xs text-white/60">
-          <Loader2 size={12} className="animate-spin" /> Loading memory…
+        <div role="status" className="flex items-center gap-2 text-sm text-white/60">
+          <Loader2 size={14} className="animate-spin" aria-hidden="true" />{" "}
+          Loading memory…
         </div>
       ) : totalItems === 0 ? (
-        <div className="flex items-center gap-2 text-xs text-white/60">
-          <Brain size={14} className="text-gold/60" />
-          Nothing remembered yet.
+        <div className="flex items-start gap-2 text-sm text-white/60">
+          <Brain size={14} className="mt-1 shrink-0 text-gold/60" aria-hidden="true" />
+          Nothing remembered yet. As you chat, the feelings, people and
+          events you mention appear here, and you can remove any of them.
         </div>
       ) : (
-        groups
-          .filter((group) => group.items.length > 0)
-          .map((group) => {
-            const isOpen = expanded[group.id] ?? !compact;
+        filledGroups.map((group) => {
+            const isOpen = expanded[group.id] ?? openByDefault;
+            const panelId = `memory-group-${group.id}`;
             const visible = showAll[group.id]
               ? group.items
               : group.items.slice(0, PREVIEW_COUNT);
@@ -365,13 +371,15 @@ export function MemoryManager({ compact }: { compact?: boolean }) {
                       setExpanded((s) => ({ ...s, [group.id]: !isOpen }))
                     }
                     aria-expanded={isOpen}
-                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                    aria-controls={panelId}
+                    className="flex min-h-11 min-w-0 flex-1 items-center gap-2 text-left"
                   >
                     <ChevronDown
                       size={14}
+                      aria-hidden="true"
                       className={`shrink-0 text-white/55 transition-transform ${isOpen ? "" : "-rotate-90"}`}
                     />
-                    <span className="text-white/60 text-xs uppercase tracking-widest font-bold truncate">
+                    <span className="text-sm font-semibold text-white/80 truncate">
                       {group.title}
                     </span>
                     <span className="text-xs text-white/55">
@@ -382,27 +390,28 @@ export function MemoryManager({ compact }: { compact?: boolean }) {
                     type="button"
                     onClick={() => clearAll(group)}
                     disabled={busy !== null}
-                    className="shrink-0 min-h-11 text-[0.75rem] font-bold uppercase tracking-widest text-white/60 hover:text-red-300 disabled:opacity-30"
+                    aria-label={`Clear all: ${group.title}`}
+                    className="shrink-0 min-h-11 px-1 text-xs font-semibold text-white/60 hover:text-red-300 disabled:opacity-40"
                   >
                     {busy === `${group.id}:all` ? (
-                      <Loader2 size={12} className="animate-spin" />
+                      <Loader2 size={12} className="animate-spin" aria-hidden="true" />
                     ) : (
                       "Clear all"
                     )}
                   </button>
                 </div>
                 {isOpen && (
-                  <>
+                  <div id={panelId}>
                     {!compact && (
-                      <p className="mt-1 text-xs text-white/55">{group.hint}</p>
+                      <p className="text-xs text-white/55">{group.hint}</p>
                     )}
-                    <ul className="mt-2 space-y-1.5">
+                    <ul className="mt-1 divide-y divide-white/[0.06]">
                       {visible.map((item) => {
                         const itemBusy = busy === `${group.id}:${item.key}`;
                         return (
                           <li
                             key={item.key}
-                            className="flex items-start justify-between gap-2 rounded-xl bg-white/[0.03] px-3 py-2"
+                            className="flex items-start justify-between gap-2 py-2"
                           >
                             <div className="min-w-0">
                               <p className="text-sm text-white/80 break-words">
@@ -420,12 +429,12 @@ export function MemoryManager({ compact }: { compact?: boolean }) {
                               disabled={busy !== null}
                               aria-label={`Forget: ${item.text.slice(0, 60)}`}
                               title="Forget this"
-                              className="shrink-0 p-1.5 rounded-lg text-white/55 hover:text-red-300 disabled:opacity-30"
+                              className="-my-1.5 -mr-2 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white/55 hover:text-red-300 disabled:opacity-40"
                             >
                               {itemBusy ? (
-                                <Loader2 size={12} className="animate-spin" />
+                                <Loader2 size={14} className="animate-spin" aria-hidden="true" />
                               ) : (
-                                <X size={12} />
+                                <X size={14} aria-hidden="true" />
                               )}
                             </button>
                           </li>
@@ -441,14 +450,14 @@ export function MemoryManager({ compact }: { compact?: boolean }) {
                             [group.id]: !s[group.id],
                           }))
                         }
-                        className="mt-2 text-xs text-gold/70 hover:text-gold"
+                        className="mt-1 min-h-11 text-sm text-gold/80 hover:text-gold"
                       >
                         {showAll[group.id]
                           ? "Show less"
                           : `Show all ${group.items.length}`}
                       </button>
                     )}
-                  </>
+                  </div>
                 )}
               </section>
             );

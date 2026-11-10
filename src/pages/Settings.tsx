@@ -1,6 +1,6 @@
 import { isRazorpayHostedUrl } from "../lib/payment-navigation";
-import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { doc, updateDoc } from "firebase/firestore";
 import { useAuth } from "../lib/useAuth";
 import { useUserProfile } from "../hooks";
@@ -15,9 +15,11 @@ import {
   Bell,
   Brain,
   Calendar,
+  ChevronRight,
   Crown,
   Download,
   Languages,
+  LifeBuoy,
   Loader2,
   LogOut,
   PencilLine,
@@ -25,6 +27,7 @@ import {
   Sparkles,
   Trash2,
   User,
+  type LucideIcon,
 } from "lucide-react";
 import { MemoryManager } from "../components/memory/MemoryManager";
 import { AnalyticsConsentToggle } from "../components/AnalyticsConsentToggle";
@@ -51,6 +54,37 @@ import {
 import { useCurrency } from "../hooks/useCurrency";
 import { formatMoney } from "../lib/currency";
 import { TIERS } from "../lib/subscriptions";
+
+const ROW_CLASS =
+  "w-full min-h-11 flex items-center justify-between gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 text-left text-sm text-white/75 transition-colors";
+
+function SectionHeading({
+  icon: Icon,
+  children,
+}: {
+  icon: LucideIcon;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-3 mb-4">
+      <Icon size={18} className="text-gold" aria-hidden="true" />
+      <h2 className="text-base font-semibold text-white">{children}</h2>
+    </div>
+  );
+}
+
+/** Plain words for the subscription states the billing server writes. */
+const SUBSCRIPTION_STATUS_LABELS: Record<string, string> = {
+  active: "Active",
+  authenticated: "Starting",
+  created: "Starting",
+  pending: "Payment pending",
+  halted: "Paused: payment failed",
+  cancelling: "Ends at the close of this billing month",
+  cancelled: "Cancelled",
+  completed: "Ended",
+  expired: "Ended",
+};
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -152,7 +186,7 @@ export default function Settings() {
   };
 
   const handleExportData = async () => {
-    if (!user) return;
+    if (!user) return false;
     const token = await user.getIdToken();
     const res = await fetch("/api/export-data", {
       method: "POST",
@@ -167,6 +201,25 @@ export default function Settings() {
       a.download = "astroyou-my-data.json";
       a.click();
       URL.revokeObjectURL(url);
+    }
+    return res.ok;
+  };
+
+  const [exporting, setExporting] = useState(false);
+  /** UI wrapper: shows progress and reports a failed export instead of doing nothing. */
+  const exportData = async () => {
+    setExporting(true);
+    try {
+      const ok = await handleExportData();
+      if (!ok) throw new Error("Export failed");
+    } catch (err) {
+      console.error("Data export failed:", err);
+      showErrorToast(
+        "Export didn't start",
+        "Check your connection and try again.",
+      );
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -199,10 +252,10 @@ export default function Settings() {
       const enabled = profile?.notificationPrefs?.pushBrainNudges === true;
       if (enabled) {
         await disableBrainPushNotifications(user);
-        setPushMessage("Browser brain nudges are off.");
+        setPushMessage("Reminders on this device are off.");
       } else {
         await requestBrainPushToken(user);
-        setPushMessage("Browser brain nudges are on.");
+        setPushMessage("Reminders on this device are on.");
       }
     } catch (err: any) {
       console.error("Browser push update failed:", err);
@@ -381,24 +434,20 @@ export default function Settings() {
     <div>
       <div className="container mx-auto pt-28 px-6 pb-16 max-w-2xl">
         <button
+          type="button"
           onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-white/60 hover:text-white mb-6 text-sm"
+          className="flex min-h-11 items-center gap-2 text-white/60 hover:text-white mb-4 text-sm"
         >
-          <ArrowLeft size={16} /> Back
+          <ArrowLeft size={16} aria-hidden="true" /> Back
         </button>
         <h1 className="type-page-title mb-8">Settings</h1>
 
         {/* Current Plan */}
         <section className="glass rounded-[2rem] p-6 mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <Crown size={18} className="text-gold" />
-            <h2 className="text-gold text-sm font-bold uppercase tracking-widest">
-              Your Plan
-            </h2>
-          </div>
-          <div className="flex items-center justify-between mb-4">
+          <SectionHeading icon={Crown}>Your plan</SectionHeading>
+          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 mb-4">
             <div>
-              <span className="text-2xl mr-2">{currentTier.badge}</span>
+              <span className="text-2xl mr-2" aria-hidden="true">{currentTier.badge}</span>
               <span className="text-xl font-display">{currentTier.name}</span>
               {/* One INR plan per tier: subscriptions are always billed in rupees. */}
               {currentTier.price > 0 && (
@@ -407,8 +456,8 @@ export default function Settings() {
                 </span>
               )}
             </div>
-            <div className="text-right">
-              <p className="text-sm text-white/60">
+            <div className="sm:text-right">
+              <p className="text-sm text-white/80">
                 {credits} credits remaining
               </p>
               {tier !== "free" &&
@@ -426,8 +475,10 @@ export default function Settings() {
                   </p>
                 )}
               {profile?.subscription?.status && (
-                <p className="text-xs text-white/60 capitalize">
-                  Status: {profile.subscription.status}
+                <p className="text-xs text-white/60">
+                  Status:{" "}
+                  {SUBSCRIPTION_STATUS_LABELS[profile.subscription.status] ??
+                    profile.subscription.status}
                 </p>
               )}
             </div>
@@ -460,7 +511,7 @@ export default function Settings() {
           {profile?.subscription?.status === "pending" &&
             formatSubscriptionDate(profile.subscription.gracePeriodEnd) && (
               <div className="mb-4 rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100 flex gap-2">
-                <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                <AlertCircle size={16} className="shrink-0 mt-0.5" aria-hidden="true" />
                 <span>
                   Payment is pending. Grace period ends{" "}
                   {formatSubscriptionDate(profile.subscription.gracePeriodEnd)}.
@@ -468,47 +519,57 @@ export default function Settings() {
               </div>
             )}
 
+          {tier === "free" && (
+            <p className="mb-4 text-xs text-white/60">
+              On the free plan you pay with credits as you go. A plan adds
+              credits every month and makes Jyotish chat unlimited.
+            </p>
+          )}
+
           {tier === "free" ? (
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row">
               <button
+                type="button"
                 onClick={() => handleSubscribe("premium")}
                 disabled={checkoutLoading !== null}
-                className="flex-1 py-3 rounded-xl bg-gold text-black font-bold text-sm text-center"
+                className="flex-1 min-h-11 px-4 py-3 rounded-xl bg-gold text-black font-bold text-sm text-center disabled:opacity-60"
               >
                 {checkoutLoading === "premium" ? "Starting..." : `Upgrade to Premium — ${formatMoney(TIERS.premium.prices.INR, "INR")}/mo`}
               </button>
               <button
+                type="button"
                 onClick={() => handleSubscribe("pro")}
                 disabled={checkoutLoading !== null}
-                className="flex-1 py-3 rounded-xl border border-gold/30 text-gold font-bold text-sm text-center"
+                className="flex-1 min-h-11 px-4 py-3 rounded-xl border border-gold/30 text-gold font-bold text-sm text-center disabled:opacity-60"
               >
                 {checkoutLoading === "pro" ? "Starting..." : `Go Pro — ${formatMoney(TIERS.pro.prices.INR, "INR")}/mo`}
               </button>
             </div>
           ) : (
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               {tier === "premium" && (
                 <button
+                  type="button"
                   onClick={() => handleSubscribe("pro")}
                   disabled={checkoutLoading !== null}
-                  className="flex-1 py-3 rounded-xl bg-gold text-black font-bold text-sm text-center"
+                  className="flex-1 min-h-11 px-4 py-3 rounded-xl bg-gold text-black font-bold text-sm text-center disabled:opacity-60"
                 >
                   {checkoutLoading === "pro" ? "Starting..." : `Upgrade to Pro — ${formatMoney(TIERS.pro.prices.INR, "INR")}/mo`}
                 </button>
               )}
               <button
+                type="button"
                 onClick={handleCancel}
                 disabled={cancelling || profile?.subscription?.status === "cancelling"}
-                className="px-4 py-3 rounded-xl border border-red-500/30 text-red-400 text-sm hover:bg-red-500/10"
+                className="inline-flex min-h-11 items-center justify-center gap-2 px-4 py-3 rounded-xl border border-red-500/30 text-red-400 text-sm hover:bg-red-500/10 disabled:opacity-50"
               >
-                {cancelling ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  "Cancel Subscription"
+                {cancelling && (
+                  <Loader2 size={14} className="animate-spin" aria-hidden="true" />
                 )}
+                {cancelling ? "Cancelling…" : "Cancel subscription"}
               </button>
               {cancelSuccess && (
-                <p className="text-xs text-emerald-400 self-center">
+                <p role="status" className="text-sm text-emerald-400">
                   Cancellation requested
                 </p>
               )}
@@ -534,44 +595,67 @@ export default function Settings() {
             </p>
           )}
           {billingError && (
-            <p className="mt-4 text-xs text-red-400">{billingError}</p>
+            <p role="alert" className="mt-4 text-sm text-red-300">
+              {billingError}
+            </p>
           )}
 
-          <button
-            onClick={() => navigate("/pricing")}
-            className="mt-4 min-h-11 text-xs text-white/60 hover:text-gold transition-colors"
+          <Link
+            to="/pricing"
+            className="mt-2 inline-flex min-h-11 items-center text-sm text-white/60 hover:text-gold transition-colors"
           >
             Compare all plans →
-          </button>
+          </Link>
         </section>
 
         {/* Account */}
         <section className="glass rounded-[2rem] p-6 mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <User size={18} className="text-gold" />
-            <h2 className="text-gold text-sm font-bold uppercase tracking-widest">
-              Account
-            </h2>
-          </div>
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between">
-              <span className="text-white/60">Email</span>
-              <span className="text-white/80">{user.email || "Not set"}</span>
+          <SectionHeading icon={User}>Account</SectionHeading>
+          <dl className="space-y-3 text-sm">
+            <div className="flex justify-between gap-4">
+              <dt className="shrink-0 text-white/60">Email</dt>
+              <dd className="min-w-0 truncate text-right text-white/80">
+                {user.email || "Not set"}
+              </dd>
             </div>
-            <div className="flex justify-between">
-              <span className="text-white/60">Name</span>
-              <span className="text-white/80">
+            <div className="flex justify-between gap-4">
+              <dt className="shrink-0 text-white/60">Name</dt>
+              <dd className="min-w-0 truncate text-right text-white/80">
                 {profile?.name || "Not set"}
-              </span>
+              </dd>
             </div>
-          </div>
+            {/* Birth details are what every reading is built on, so show
+                them here where people come to check them. */}
+            <div className="flex justify-between gap-4">
+              <dt className="shrink-0 text-white/60">Born</dt>
+              <dd className="min-w-0 text-right text-white/80">
+                {profile?.dob
+                  ? `${profile.dob} · ${
+                      profile.birthTimeUnknown
+                        ? "time unknown (using 12:00 noon)"
+                        : profile.tob || "time not set"
+                    }`
+                  : "Not set"}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="shrink-0 text-white/60">Birth place</dt>
+              <dd className="min-w-0 truncate text-right text-white/80">
+                {profile?.pob || "Not set"}
+              </dd>
+            </div>
+          </dl>
+          <p className="mt-3 text-xs text-white/55">
+            Your chart, forecasts and answers are all calculated from these.
+            If anything is wrong, edit it and they update.
+          </p>
           <div className="mt-5 flex flex-col gap-3 sm:flex-row">
             <button
               type="button"
               onClick={() => setShowEditBirth(true)}
               className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-gold/30 px-4 text-sm font-bold text-gold hover:bg-gold/10"
             >
-              <PencilLine size={15} />
+              <PencilLine size={15} aria-hidden="true" />
               Edit birth details
             </button>
             <button
@@ -579,23 +663,18 @@ export default function Settings() {
               onClick={() => void handleLogout()}
               className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-white/15 px-4 text-sm font-semibold text-white/75 hover:bg-white/5 hover:text-white"
             >
-              <LogOut size={15} />
-              Log out
+              <LogOut size={15} aria-hidden="true" />
+              Sign out
             </button>
           </div>
         </section>
 
         {/* Language */}
         <section className="glass rounded-[2rem] p-6 mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <Languages size={18} className="text-gold" />
-            <h2 className="text-gold text-sm font-bold uppercase tracking-widest">
-              Language
-            </h2>
-          </div>
+          <SectionHeading icon={Languages}>Language</SectionHeading>
           <label className="block">
             <span className="mb-2 block text-xs text-white/60">
-              Preferred guidance language
+              Language for chat and readings
             </span>
             <select
               value={normalizePlatformLanguage(profile?.language)}
@@ -611,18 +690,14 @@ export default function Settings() {
             </select>
           </label>
           <p className="mt-3 text-xs text-white/55">
-            Jyotish, daily guidance, and new consultations will use this language where available.
+            Jyotish chat, your daily forecast and new guide sessions use this
+            language where available.
           </p>
         </section>
 
         {/* Zodiac system */}
         <section className="glass rounded-[2rem] p-6 mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <Sparkles size={18} className="text-gold" />
-            <h2 className="text-gold text-sm font-bold uppercase tracking-widest">
-              Zodiac system
-            </h2>
-          </div>
+          <SectionHeading icon={Sparkles}>Zodiac system</SectionHeading>
           <label className="block">
             <span className="mb-2 block text-xs text-white/60">
               How your chart is calculated
@@ -652,23 +727,19 @@ export default function Settings() {
             }
           </p>
           <p className="mt-2 text-xs text-white/55">
-            Switching systems changes your Sun sign by about one sign. Both are
-            internally consistent — they measure from different starting points,
-            not different skies.
+            Not sure? Keep Vedic: it is the system Indian astrologers use and
+            the one your Kundali is drawn in. Switching can move your Sun sign
+            by one sign, because the two measure from different starting
+            points.
           </p>
         </section>
 
         {/* Festival calendar */}
         <section className="glass rounded-[2rem] p-6 mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <Calendar size={18} className="text-gold" />
-            <h2 className="text-gold text-sm font-bold uppercase tracking-widest">
-              Festival calendar
-            </h2>
-          </div>
+          <SectionHeading icon={Calendar}>Festival calendar</SectionHeading>
           <label className="block">
             <span className="mb-2 block text-xs text-white/60">
-              Which regional calendar to show
+              Which region's festivals to show on your home page
             </span>
             <select
               value={normalizeFestivalRegion(profile?.festivalRegion)}
@@ -694,29 +765,31 @@ export default function Settings() {
 
         {/* Notifications */}
         <section className="glass rounded-[2rem] p-6 mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <Bell size={18} className="text-gold" />
-            <h2 className="text-gold text-sm font-bold uppercase tracking-widest">
-              Notifications
-            </h2>
-          </div>
+          <SectionHeading icon={Bell}>Notifications</SectionHeading>
           <button
+            type="button"
+            role="switch"
+            aria-checked={profile?.notificationPrefs?.emailDigest === true}
             onClick={toggleEmailDigest}
             disabled={savingPrefs}
-            className="w-full flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 text-sm text-white/70 transition-colors disabled:opacity-50"
+            className="w-full min-h-11 flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 text-sm text-white/75 transition-colors disabled:opacity-50"
           >
-            <span>Daily email digest</span>
-            <span className="text-xs text-gold">
+            <span>Daily guide by email</span>
+            <span className="text-xs font-semibold text-gold" aria-hidden="true">
               {profile?.notificationPrefs?.emailDigest === true ? "On" : "Off"}
             </span>
           </button>
           <button
+            type="button"
+            role="switch"
+            aria-checked={profile?.notificationPrefs?.pushBrainNudges === true}
+            aria-busy={pushSaving}
             onClick={toggleBrainPush}
             disabled={pushSaving}
-            className="mt-3 w-full flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 text-sm text-white/70 transition-colors disabled:opacity-50"
+            className="mt-3 w-full min-h-11 flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 text-sm text-white/75 transition-colors disabled:opacity-50"
           >
-            <span>Browser brain nudges</span>
-            <span className="text-xs text-gold">
+            <span>Daily reminders on this device</span>
+            <span className="text-xs font-semibold text-gold" aria-hidden="true">
               {pushSaving
                 ? "Saving..."
                 : profile?.notificationPrefs?.pushBrainNudges === true
@@ -725,22 +798,20 @@ export default function Settings() {
             </span>
           </button>
           {pushMessage && (
-            <p className="text-xs text-white/60 mt-3">{pushMessage}</p>
+            <p role="status" className="text-xs text-white/65 mt-3">
+              {pushMessage}
+            </p>
           )}
           <p className="text-xs text-white/55 mt-3">
-            High-priority brain nudges can use email or browser push. WhatsApp stays off until phone capture, explicit opt-in, and provider setup.
+            Important reminders can arrive by email or as a notification in
+            this browser.
           </p>
         </section>
 
         {/* Memory */}
         <section id="memory" className="glass rounded-[2rem] p-6 mb-6 scroll-mt-24">
-          <div className="flex items-center gap-3 mb-4">
-            <Brain size={18} className="text-gold" />
-            <h2 className="text-gold text-sm font-bold uppercase tracking-widest">
-              What I remember
-            </h2>
-          </div>
-          <p className="text-xs text-white/60 mb-4">
+          <SectionHeading icon={Brain}>What AstroYou remembers</SectionHeading>
+          <p className="text-sm leading-relaxed text-white/60 mb-4">
             AstroYou automatically turns your conversations into short notes
             (feelings, patterns, people, events) to personalise guidance.
             Review, delete or pause them here. Deleting a conversation also
@@ -749,63 +820,56 @@ export default function Settings() {
           <MemoryManager />
         </section>
 
-        {/* Data & Privacy */}
-        <section className="glass rounded-[2rem] p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <Download size={18} className="text-gold" />
-            <h2 className="text-gold text-sm font-bold uppercase tracking-widest">
-              Data & Privacy
-            </h2>
-          </div>
+        {/* Help & app */}
+        <section className="glass rounded-[2rem] p-6 mb-6">
+          <SectionHeading icon={LifeBuoy}>Help & app</SectionHeading>
           <div className="space-y-3">
-            <div className="rounded-xl bg-white/5 p-3 text-sm text-white/60">
-              <div className="flex items-center gap-2 text-gold mb-2">
-                <ShieldCheck size={14} />
-                <span className="text-xs font-bold uppercase tracking-widest">
-                  Guidance Safety
-                </span>
-              </div>
-              <p className="text-xs text-white/60">
-                Guidance avoids fatalism, fear-based predictions, medical diagnosis,
-                and guaranteed financial claims.
-              </p>
-            </div>
-            <AnalyticsConsentToggle />
-            <button
-              onClick={handleExportData}
-              className="w-full flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 text-sm text-white/70 transition-colors"
-            >
-              <span>Export all my data (JSON)</span>
-              <Download size={14} />
-            </button>
-            <a
-              href="/wallet"
-              className="block w-full p-3 rounded-xl bg-white/5 hover:bg-white/10 text-sm text-white/70 transition-colors"
-            >
-              Wallet, receipts, and credit activity
-            </a>
-            <a
-              href="/help"
-              className="block w-full p-3 rounded-xl bg-white/5 hover:bg-white/10 text-sm text-white/70 transition-colors"
-            >
-              Help & FAQ
-            </a>
-            <a
-              href="/support"
-              className="block w-full p-3 rounded-xl bg-white/5 hover:bg-white/10 text-sm text-white/70 transition-colors"
-            >
-              Open support ticket
-            </a>
-            <button
-              onClick={handleInstallApp}
-              className="w-full flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 text-sm text-white/70 transition-colors"
-            >
+            <Link to="/wallet" className={ROW_CLASS}>
+              <span>Wallet, receipts, and credit activity</span>
+              <ChevronRight size={14} aria-hidden="true" />
+            </Link>
+            <Link to="/help" className={ROW_CLASS}>
+              <span>Help & FAQ</span>
+              <ChevronRight size={14} aria-hidden="true" />
+            </Link>
+            <Link to="/support" className={ROW_CLASS}>
+              <span>Open support ticket</span>
+              <ChevronRight size={14} aria-hidden="true" />
+            </Link>
+            <button type="button" onClick={handleInstallApp} className={ROW_CLASS}>
               <span>{installAvailable ? "Install AstroYou app" : "Add AstroYou to home screen"}</span>
-              <Download size={14} />
+              <Download size={14} aria-hidden="true" />
             </button>
             {installMessage && (
-              <p className="px-1 text-xs text-white/60">{installMessage}</p>
+              <p role="status" className="px-1 text-xs text-white/65">
+                {installMessage}
+              </p>
             )}
+          </div>
+        </section>
+
+        {/* Data & Privacy */}
+        <section className="glass rounded-[2rem] p-6">
+          <SectionHeading icon={ShieldCheck}>Data & privacy</SectionHeading>
+          <p className="mb-4 text-sm leading-relaxed text-white/60">
+            Download a copy of everything AstroYou stores about you, choose
+            what usage data we collect, or delete your account.
+          </p>
+          <div className="space-y-3">
+            <AnalyticsConsentToggle />
+            <button
+              type="button"
+              onClick={() => void exportData()}
+              disabled={exporting}
+              className={`${ROW_CLASS} disabled:opacity-50`}
+            >
+              <span>{exporting ? "Preparing your data…" : "Export all my data (JSON)"}</span>
+              {exporting ? (
+                <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+              ) : (
+                <Download size={14} aria-hidden="true" />
+              )}
+            </button>
             {!deleteOpen ? (
               <button
                 ref={deleteOpenerRef}

@@ -47,7 +47,7 @@ export const RoutineProposal: React.FC<RoutineProposalProps> = ({
                     initial={{ scale: 0.9, y: 20 }}
                     animate={{ scale: 1, y: 0 }}
                     exit={{ scale: 0.9, y: 20 }}
-                    className="bg-[#0A0A0F] border border-gold/30 rounded-2xl p-8 max-w-md w-full shadow-2xl relative overflow-hidden"
+                    className="bg-[#0A0A0F] border border-gold/30 rounded-2xl p-6 sm:p-8 max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl relative overflow-hidden"
                 >
                     {/* Background Glow */}
                     <div className="absolute top-0 right-0 w-32 h-32 bg-gold/10 blur-[50px] rounded-full pointer-events-none" />
@@ -61,13 +61,13 @@ export const RoutineProposal: React.FC<RoutineProposalProps> = ({
 
                         <h2 id="routine-proposal-title" className="text-2xl font-display text-gold mb-2">New Practice Suggested</h2>
                         <p className="text-white/60 text-sm mb-6">
-                            Based on our conversation, the Guru suggests adding this to your daily Dharma.
+                            Based on your recent conversation, your guide suggests adding this to your daily practices.
                         </p>
 
                         <div className="bg-white/5 rounded-xl p-4 mb-6 text-left border border-white/5">
                             <h3 className="text-lg font-medium text-white mb-2">{routine.title}</h3>
                             {routine.description && (
-                                <p className="text-white/50 text-sm mb-3 leading-relaxed">{routine.description}</p>
+                                <p className="text-white/65 text-sm mb-3 leading-relaxed">{routine.description}</p>
                             )}
                             {routine.steps && routine.steps.length > 0 && (
                                 <div className="space-y-2 mb-3">
@@ -91,6 +91,7 @@ export const RoutineProposal: React.FC<RoutineProposalProps> = ({
 
                         <div className="flex gap-3">
                             <button
+                                type="button"
                                 onClick={onClose}
                                 className="flex-1 py-3 rounded-xl border border-white/10 text-white/60 hover:bg-white/5 hover:text-white transition-all flex items-center justify-center gap-2"
                             >
@@ -98,11 +99,12 @@ export const RoutineProposal: React.FC<RoutineProposalProps> = ({
                                 Dismiss
                             </button>
                             <button
+                                type="button"
                                 onClick={handleAccept}
                                 className="flex-1 py-3 rounded-xl bg-gold text-black font-medium hover:bg-gold/90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-gold/20"
                             >
                                 <Check size={18} />
-                                Accept Dharma
+                                Add practice
                             </button>
                         </div>
                     </div>

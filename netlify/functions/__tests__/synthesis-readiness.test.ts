@@ -163,9 +163,9 @@ test("blueprint panel clearly labels credits and places the collapse control aft
   assert.match(html, />82</);
   assert.doesNotMatch(html, /\bmin(ute)?s?\b/i);
   assert.match(html, />Add</);
-  assert.match(html, /aria-label="Collapse right sidebar"/);
+  assert.match(html, /aria-label="Hide chart panel"/);
   assert.match(html, /lucide-panel-right-close/);
-  assert.ok(html.indexOf(">82<") < html.indexOf("Collapse right sidebar"));
+  assert.ok(html.indexOf(">82<") < html.indexOf("Hide chart panel"));
   assert.doesNotMatch(html, /The Circle/);
 });
 
@@ -184,7 +184,7 @@ test("closed blueprint panel keeps an icon-only reopen control", () => {
     }),
   );
 
-  assert.match(html, /aria-label="Open right sidebar"/);
+  assert.match(html, /aria-label="Show chart panel"/);
   assert.match(html, /lucide-panel-right-open/);
   assert.doesNotMatch(html, />Blueprint</);
 });
@@ -232,7 +232,7 @@ test("chart selector explains D9 and announces recalculation while loading", () 
 
   assert.match(html, />D9</);
   assert.match(html, />Navamsa</);
-  assert.match(html, /Marriage, dharma, and planetary maturity/);
+  assert.match(html, /Marriage, partnership, and how your planets mature/);
   assert.match(html, /role="status"/);
   assert.match(html, />Calculating D9 chart/);
 });
@@ -348,8 +348,8 @@ test("closed side panels expose floating icon-only launchers", () => {
     }),
   );
 
-  assert.match(html, /aria-label="Open conversations"/);
-  assert.match(html, /aria-label="Open blueprint"/);
+  assert.match(html, /aria-label="Past conversations"/);
+  assert.match(html, /aria-label="Show birth chart"/);
   assert.doesNotMatch(html, />History|>Blueprint/);
 });
 

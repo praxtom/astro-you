@@ -627,7 +627,7 @@ export default function Admin() {
             <Loader2 size={32} className="animate-spin text-white/50" />
           </div>
         ) : adminError ? (
-          <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
+          <div role="alert" className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
             {adminError}
           </div>
         ) : (
@@ -952,7 +952,7 @@ export default function Admin() {
                     </label>
 
                     {creditStatus && (
-                      <p className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 type-body-sm text-white/55">
+                      <p role="status" className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 type-body-sm text-white/55">
                         {creditStatus}
                       </p>
                     )}
@@ -986,7 +986,7 @@ export default function Admin() {
                   </div>
 
                   {auditStatus && (
-                    <p className="mb-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 type-body-sm text-white/55">
+                    <p role="status" className="mb-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 type-body-sm text-white/55">
                       {auditStatus}
                     </p>
                   )}

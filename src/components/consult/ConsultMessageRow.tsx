@@ -8,7 +8,7 @@ const REMARK_PLUGINS = [remarkGfm];
 
 const MARKDOWN_COMPONENTS = {
   p: ({ children }: any) => (
-    <p className="mb-3 last:mb-0 text-sm leading-relaxed font-light">
+    <p className="mb-3 last:mb-0 text-[0.9375rem] leading-relaxed">
       {children}
     </p>
   ),
@@ -46,7 +46,7 @@ export const ConsultMessageRow = memo(function ConsultMessageRow({
   if (role === "user") {
     return (
       <div className="max-w-2xl ml-auto">
-        <div className="px-5 py-3 rounded-2xl rounded-tr-md bg-gold/8 border border-gold/15 text-white/85 text-sm whitespace-pre-wrap">
+        <div className="px-5 py-3 rounded-2xl rounded-tr-md bg-gold/8 border border-gold/15 text-white/85 text-[0.9375rem] leading-relaxed whitespace-pre-wrap">
           {content}
         </div>
       </div>

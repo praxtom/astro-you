@@ -91,10 +91,14 @@ const TransitPositionsTable: React.FC<TransitPositionsTableProps> = ({
   const display = (filtered.length > 0 ? filtered : positions).slice(0, 12);
 
   return (
-    <div className="mb-8 glass rounded-[2rem] border border-white/10 p-6 overflow-hidden">
-      <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gold/60 mb-4">
-        Current Transit Positions
+    <div className="mb-4 glass rounded-[2rem] border border-white/10 p-5 md:p-6 overflow-hidden">
+      <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gold/80 mb-1">
+        Where the planets are today
       </h3>
+      <p className="mb-4 text-xs leading-relaxed text-white/55">
+        Each planet's sign and degree right now. (R) means retrograde: it
+        appears to move backward, so its themes tend to come back for review.
+      </p>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
         {display.map((p: any) => {
           const cleanName = (p.name || "")
@@ -117,6 +121,7 @@ const TransitPositionsTable: React.FC<TransitPositionsTableProps> = ({
             >
               <span
                 className="text-lg"
+                aria-hidden="true"
                 style={{ color: planetInfo?.color || "#FFD700" }}
               >
                 {planetInfo?.symbol || cleanName.substring(0, 2)}
@@ -125,9 +130,9 @@ const TransitPositionsTable: React.FC<TransitPositionsTableProps> = ({
                 {cleanName}
                 {retro ? " (R)" : ""}
               </span>
-              <span className="text-[11px] text-white/50">{signFull}</span>
+              <span className="text-[11px] text-white/60">{signFull}</span>
               {degree && (
-                <span className="text-[10px] text-gold/70 font-mono">
+                <span className="text-[11px] text-gold/80 font-mono">
                   {degree}
                 </span>
               )}

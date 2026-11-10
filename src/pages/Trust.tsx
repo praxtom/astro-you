@@ -66,13 +66,13 @@ export default function Trust() {
       .then((data) => {
         if (!alive) return;
         if (data?.error) {
-          setSummaryStatus("Live trust summary is syncing.");
+          setSummaryStatus("Live numbers are unavailable right now.");
           return;
         }
         setSummary(data);
       })
       .catch(() => {
-        if (alive) setSummaryStatus("Live trust summary is syncing.");
+        if (alive) setSummaryStatus("Live numbers are unavailable right now.");
       });
     return () => {
       alive = false;
@@ -126,7 +126,7 @@ export default function Trust() {
   };
   const transparencyChecks = [
     {
-      label: "AI astrologers labelled",
+      label: "Guides labelled as not human",
       passed: transparency.aiAstrologersLabelled,
     },
     {
@@ -154,7 +154,7 @@ export default function Trust() {
       name: "AstroYou Trust and Transparency",
       url: siteUrl("/trust"),
       description:
-        "How AstroYou handles AI astrologers, real reviews, testimonials, prediction feedback, and transparency.",
+        "How AstroYou labels its guides as not people, and handles real reviews, testimonials, prediction feedback, and transparency.",
     },
     {
       "@context": "https://schema.org",
@@ -170,10 +170,10 @@ export default function Trust() {
         },
         {
           "@type": "Question",
-          name: "Are AstroYou astrologers AI?",
+          name: "Are AstroYou's guides real people?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "Current AI astrologers are labelled as AI. Human expert claims require verification before they are shown.",
+            text: "No. AstroYou's guides are not people, and every profile says so. If human practitioners are ever listed, they will be labelled distinctly from guides, and human expert claims require verification before they are shown.",
           },
         },
         {
@@ -192,7 +192,7 @@ export default function Trust() {
     <div>
       <SEO
         title="Trust and Transparency"
-        description="How AstroYou handles AI astrologers, real reviews, testimonials, prediction feedback, and transparency."
+        description="How AstroYou labels its guides as not people, and handles real reviews, testimonials, prediction feedback, and transparency."
         url={siteUrl("/trust")}
         canonical={siteUrl("/trust")}
         structuredData={structuredData}
@@ -201,7 +201,7 @@ export default function Trust() {
         <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
           <div>
             <div className="platform-chip mb-3 border-gold/25 bg-gold/10 text-gold">
-              <HeroIcon size={14} />
+              <HeroIcon size={14} aria-hidden="true" />
               {TRUST_PAGE_HERO.eyebrow}
             </div>
             <h1 className="type-page-title max-w-2xl">
@@ -220,7 +220,11 @@ export default function Trust() {
                   key={item}
                   className="flex items-start gap-2.5 type-body-sm text-white/65"
                 >
-                  <CheckCircle2 className="mt-0.5 text-gold" size={15} />
+                  <CheckCircle2
+                    className="mt-0.5 shrink-0 text-gold"
+                    size={15}
+                    aria-hidden="true"
+                  />
                   <span>{item}</span>
                 </div>
               ))}
@@ -233,7 +237,7 @@ export default function Trust() {
             const Icon = item.icon;
             return (
               <article key={item.title} className="platform-panel p-4">
-                <Icon className="text-gold" size={19} />
+                <Icon className="text-gold" size={19} aria-hidden="true" />
                 <h2 className="mt-3 type-card-title text-white">
                   {item.title}
                 </h2>
@@ -285,19 +289,19 @@ export default function Trust() {
               <TrustMetric
                 label="Approved stories"
                 value={
-                  summary ? String(summary.totals.approvedTestimonials) : "-"
+                  summary ? String(summary.totals.approvedTestimonials) : "—"
                 }
               />
               <TrustMetric
                 label="Approved reviews"
-                value={summary ? String(summary.totals.approvedReviews) : "-"}
+                value={summary ? String(summary.totals.approvedReviews) : "—"}
               />
               <TrustMetric
                 label="Pending review"
                 value={
                   summary
                     ? String(summary.totals.pendingPublicSubmissions)
-                    : "-"
+                    : "—"
                 }
               />
               <TrustMetric
@@ -311,15 +315,15 @@ export default function Trust() {
               />
             </div>
             <div className="mt-4 grid gap-2 type-body-sm text-white/55">
-              <p>Public testimonial display: approved submissions only.</p>
               <p>Review source: completed consultation rating prompt.</p>
               <p>
                 Prediction feedback: {summary?.predictionFeedback.total ?? 0}{" "}
                 aggregate signals captured.
               </p>
-              <p>Human expert claims: not shown until verification exists.</p>
               {summaryStatus && (
-                <p className="text-amber-300/80">{summaryStatus}</p>
+                <p role="status" className="text-amber-300/80">
+                  {summaryStatus}
+                </p>
               )}
             </div>
             <div className="mt-4 grid gap-2">
@@ -341,10 +345,10 @@ export default function Trust() {
             </div>
             <Link
               to="/help"
-              className="mt-4 inline-flex items-center gap-2 type-meta uppercase text-gold"
+              className="mt-4 inline-flex min-h-11 items-center gap-2 type-meta uppercase text-gold"
             >
-              Read help policy
-              <FileText size={14} />
+              Help &amp; FAQ
+              <FileText size={14} aria-hidden="true" />
             </Link>
           </div>
 
@@ -379,13 +383,18 @@ export default function Trust() {
                 <span>Allow public use after moderation.</span>
               </label>
               <button
+                type="button"
                 onClick={submitTestimonial}
                 disabled={submitting || !story.trim()}
                 className="platform-button-primary disabled:opacity-50"
               >
                 {submitting ? "Submitting" : "Submit story"}
               </button>
-              {status && <p className="type-body-sm text-white/60">{status}</p>}
+              {status && (
+                <p role="status" className="type-body-sm text-white/60">
+                  {status}
+                </p>
+              )}
             </div>
           </div>
         </section>

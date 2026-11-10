@@ -12,6 +12,7 @@ import { AnimatePresence } from "framer-motion";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import Header from "./Header";
 import Footer from "./Footer";
+import MobileBottomNav from "./MobileBottomNav";
 import { NightSky } from "./NightSky";
 import PageTransition from "./PageTransition";
 import AuthModal from "../AuthModal";
@@ -192,14 +193,16 @@ export function AppFrame() {
         <AnimatePresence mode="wait">
           <PageTransition key={pageKey(location.pathname)}>
             <RouteErrorBoundary key={location.pathname}>
-              <Suspense fallback={null}>{outlet}</Suspense>
+              <Suspense fallback={<RouteLoading />}>{outlet}</Suspense>
             </RouteErrorBoundary>
           </PageTransition>
         </AnimatePresence>
       </main>
-      <div className="relative z-10">
+      {/* Bottom padding on phones keeps the footer clear of the fixed nav. */}
+      <div className="relative z-10 pb-16 md:pb-0">
         <Footer />
       </div>
+      <MobileBottomNav />
       <AuthModal
         isOpen={authPrompt.request !== null}
         onClose={authPrompt.onClose}
@@ -211,13 +214,27 @@ export function AppFrame() {
   );
 }
 
+/** Shown while a route's code loads, so slow connections never see a blank page. */
+function RouteLoading() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4"
+    >
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/15 border-t-gold motion-reduce:animate-none" />
+      <p className="text-sm text-white/55">Loading…</p>
+    </div>
+  );
+}
+
 /** Full-screen pages that bring their own chrome (landing, onboarding, chat). */
 export function Standalone({ children }: { children: ReactNode }) {
   const location = useLocation();
   return (
     <main id="main-content">
       <PageTransition key={pageKey(location.pathname)}>
-        <Suspense fallback={null}>{children}</Suspense>
+        <Suspense fallback={<RouteLoading />}>{children}</Suspense>
       </PageTransition>
     </main>
   );

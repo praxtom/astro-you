@@ -5,7 +5,7 @@ export default function Terms() {
   return (
     <LegalPage
       title="Terms of Service"
-      description="The rules for using AstroYou, including AI guidance, credits, subscriptions, payments, and account responsibilities."
+      description="The rules for using AstroYou, including automated guidance, credits, subscriptions, payments, and account responsibilities."
       effectiveDate={LEGAL_EFFECTIVE_DATE}
       sections={TERMS_SECTIONS}
     />

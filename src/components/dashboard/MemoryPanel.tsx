@@ -1,147 +1,142 @@
 import React, { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { NotebookPen } from "lucide-react";
 import type { UserProfile } from "../../types/user";
+import { TILE_ACTION_CLASS, TileHead } from "./WeatherTiles";
 
 interface MemoryPanelProps {
   atmanState: UserProfile["atman"] | undefined;
-  hasBirthData: boolean;
+  /** One line about a recent change (SoulInsightCard), shown first. */
+  insight?: React.ReactNode;
+}
+
+const MOOD_WORDS: Record<string, string> = {
+  stable: "Steady",
+  spiritual: "Reflective",
+  anxious: "Worried",
+  chaotic: "Unsettled",
+  reactive: "On edge",
+};
+
+/** Patterns arrive as strings (older records) or weighted objects. */
+function patternText(p: unknown): string {
+  if (typeof p === "string") return p;
+  if (p && typeof p === "object" && "pattern" in p) {
+    const v = (p as { pattern?: unknown }).pattern;
+    return typeof v === "string" ? v : "";
+  }
+  return "";
+}
+
+/** "Riya and Mom" / "Riya, Mom and 2 others". */
+function listNames(names: string[]): string {
+  if (names.length <= 2) return names.join(" and ");
+  return `${names.slice(0, 2).join(", ")} and ${names.length - 2} other${
+    names.length - 2 === 1 ? "" : "s"
+  }`;
 }
 
 /**
- * "The Inner Record" — what Atman remembers about the user, with earned
- * marks (badges) and a completion meter for the spiritual profile.
+ * What the guide keeps about the user, shown as real examples rather than
+ * counts: each row says what is remembered and how it is used, with a
+ * plain empty state that says how it fills up.
  */
 export const MemoryPanel: React.FC<MemoryPanelProps> = ({
   atmanState,
-  hasBirthData,
+  insight,
 }) => {
   const navigate = useNavigate();
 
-  const stats = useMemo(
-    () => [
-      {
-        label: "State",
-        value: atmanState?.emotionalState
-          ? atmanState.emotionalState.replace(/_/g, " ")
-          : "Learning",
-        detail: "Sets the tone of guidance",
-      },
-      {
-        label: "Patterns",
-        value: String(atmanState?.knownPatterns?.length ?? 0),
-        detail: "Repeated themes noticed",
-      },
-      {
-        label: "People",
-        value: String(atmanState?.keyRelationships?.length ?? 0),
-        detail: "Relationships remembered",
-      },
-      {
-        label: "Practices",
-        value: String(atmanState?.routines?.length ?? 0),
-        detail: "Daily anchors saved",
-      },
-    ],
-    [atmanState],
-  );
+  const rows = useMemo(() => {
+    const state = atmanState?.emotionalState;
+    const patterns = (atmanState?.knownPatterns ?? [])
+      .filter(
+        (p) => !(p && typeof p === "object" && "archived" in p && p.archived),
+      )
+      .map(patternText)
+      .filter(Boolean);
+    const people = (atmanState?.keyRelationships ?? [])
+      .map((r) => r?.name?.trim())
+      .filter((n): n is string => Boolean(n));
+    const practices = (atmanState?.routines ?? [])
+      .filter((r) => r?.status !== "paused")
+      .map((r) => r?.title?.trim())
+      .filter((t): t is string => Boolean(t));
 
-  const badges = useMemo(() => {
-    const earned: { id: string; emoji: string; label: string }[] = [];
-    if (hasBirthData)
-      earned.push({ id: "chart", emoji: "🌟", label: "Chart Generated" });
-    if (atmanState?.emotionalState)
-      earned.push({ id: "aware", emoji: "🧘", label: "Self-Aware" });
-    if (atmanState?.keyRelationships?.length)
-      earned.push({ id: "connected", emoji: "💫", label: "Connected" });
-    if (atmanState?.routines?.length)
-      earned.push({ id: "disciplined", emoji: "🔥", label: "Disciplined" });
-    if ((atmanState?.meditationStreak ?? 0) >= 7)
-      earned.push({ id: "streak7", emoji: "⚡", label: "7-Day Streak" });
-    if ((atmanState?.meditationStreak ?? 0) >= 30)
-      earned.push({ id: "streak30", emoji: "👑", label: "30-Day Streak" });
-    return earned;
-  }, [atmanState, hasBirthData]);
-
-  // How much AstroYou knows about you — independent of mood, so a calm
-  // ("stable") user isn't told they're less "attuned".
-  const completion = useMemo(() => {
-    const signals = [
-      hasBirthData,
-      Boolean(atmanState?.knownPatterns?.length),
-      Boolean(atmanState?.keyRelationships?.length),
-      Boolean(atmanState?.routines?.length),
-      Boolean(
-        atmanState?.activeEvents?.length || atmanState?.lifeEvents?.length,
-      ),
+    return [
+      {
+        label: "How you've been",
+        value: state ? (MOOD_WORDS[state] ?? state.replace(/_/g, " ")) : null,
+        use: "Sets the tone of answers: calmer and simpler when things feel heavy.",
+        empty: "Not sure yet. It updates as you talk with your guide.",
+      },
+      {
+        label: "Patterns noticed",
+        value: patterns.length
+          ? `“${patterns[0]}”${patterns.length > 1 ? ` and ${patterns.length - 1} more` : ""}`
+          : null,
+        use: "Your guide connects new questions to these.",
+        empty: "None yet. Repeated themes from your chats appear here.",
+      },
+      {
+        label: "People in your life",
+        value: people.length ? listNames(people) : null,
+        use: "Used when you ask about relationships.",
+        empty: "None yet. Mention someone in chat and they'll be remembered.",
+      },
+      {
+        label: "Your practices",
+        value: practices.length ? listNames(practices) : null,
+        use: "Your guide checks in on these.",
+        empty: "None yet. Accept a practice your guide suggests to add one.",
+      },
     ];
-    const done = signals.filter(Boolean).length;
-    return Math.round((done / signals.length) * 100);
-  }, [atmanState, hasBirthData]);
+  }, [atmanState]);
 
   return (
     <section>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-gold/80 text-[0.6875rem] font-bold uppercase tracking-[0.35em] mb-1.5">
-            The Inner Record
-          </p>
-          <h3 className="font-display text-xl italic text-white/90">
-            What AstroYou remembers
-          </h3>
-        </div>
-        <button
-          onClick={() => navigate("/settings#memory")}
-          aria-label="Manage what AstroYou remembers"
-          className="shrink-0 text-[0.6875rem] font-bold uppercase tracking-[0.15em] text-white/55 hover:text-gold transition-colors"
-        >
-          Manage
-        </button>
-      </div>
+      <TileHead
+        icon={<NotebookPen />}
+        action={
+          <button
+            type="button"
+            onClick={() => navigate("/settings#memory")}
+            className={TILE_ACTION_CLASS}
+          >
+            Review and edit
+          </button>
+        }
+      >
+        What your guide remembers
+      </TileHead>
+      <p className="-mt-1 text-[0.9rem] leading-relaxed text-white/60">
+        Notes from your conversations, so answers fit your life. You can edit or
+        delete any of them.
+      </p>
 
-      <div className="mt-5 grid grid-cols-2 gap-px bg-white/8 border border-white/8 rounded-xl overflow-hidden">
-        {stats.map((item) => (
-          <div key={item.label} className="bg-[#08080f] p-4">
-            <p className="text-[0.6875rem] font-bold uppercase tracking-[0.25em] text-white/50">
-              {item.label}
-            </p>
-            <p className="mt-1 font-display text-2xl capitalize text-white/90 leading-none">
-              {item.value}
-            </p>
-            <p className="mt-1.5 text-[0.6875rem] text-white/50">{item.detail}</p>
+      {insight && <div className="mt-4">{insight}</div>}
+
+      <dl className="mt-4 grid grid-cols-1 gap-x-8 md:grid-cols-2">
+        {rows.map((row) => (
+          <div key={row.label} className="border-t border-white/8 py-3.5">
+            <dt className="text-[0.8rem] font-semibold text-white/55">
+              {row.label}
+            </dt>
+            {row.value ? (
+              <>
+                <dd className="mt-1 text-[0.98rem] text-white/85">
+                  {row.value}
+                </dd>
+                <dd className="mt-0.5 text-[0.82rem] text-white/50">
+                  {row.use}
+                </dd>
+              </>
+            ) : (
+              <dd className="mt-1 text-[0.9rem] text-white/55">{row.empty}</dd>
+            )}
           </div>
         ))}
-      </div>
-
-      {/* Completion meter */}
-      <div className="mt-5 flex items-center gap-3">
-        <div className="flex-1 h-px bg-white/10 relative">
-          <div
-            className="absolute inset-y-0 left-0 -my-px h-[3px] bg-linear-to-r from-gold/40 to-gold rounded-full transition-all duration-700"
-            style={{ width: `${completion}%` }}
-          />
-        </div>
-        <span
-          className="text-[0.6875rem] text-white/50 uppercase tracking-[0.25em]"
-          title="How much of your profile AstroYou has to work with: chart, patterns, people, routines and life events"
-        >
-          {completion}% known
-        </span>
-      </div>
-
-      {badges.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-1.5">
-          {badges.map((b) => (
-            <span
-              key={b.id}
-              title={b.label}
-              className="px-2.5 py-1 rounded-full border border-white/10 bg-white/3 text-[0.6875rem] inline-flex items-center gap-1.5"
-            >
-              <span>{b.emoji}</span>
-              <span className="text-white/55">{b.label}</span>
-            </span>
-          ))}
-        </div>
-      )}
+      </dl>
     </section>
   );
 };

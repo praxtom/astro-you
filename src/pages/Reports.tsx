@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
-import { AlertCircle, Download, FileText, Loader2, Wallet } from "lucide-react";
+import { Download, FileText, Loader2, Wallet } from "lucide-react";
 import { PageShell } from "../components/layout/PageShell";
 import AuthModal from "../components/AuthModal";
 import { StatusNotice } from "../components/ui/StatusNotice";
@@ -364,26 +364,34 @@ export default function Reports() {
           )}
         </section>
 
-        <section className="grid grid-cols-1 lg:grid-cols-[1fr_19rem] gap-4 items-start mb-4">
+        {/* Same column widths as the section below so the credits card lines
+            up with the library column. The page already has its h1 above, so
+            this is a section heading, not a second page title. */}
+        <section className="grid grid-cols-1 xl:grid-cols-[1fr_22rem] gap-4 items-start mb-4">
           <div>
-            <p className="platform-eyebrow mb-2">Report Studio</p>
-            <h2 className="type-page-title max-w-3xl">
-              Reports that are generated, stored, and reusable.
+            <p className="platform-eyebrow mb-2">Reports</p>
+            <h2 className="type-section-title max-w-3xl">
+              Downloadable readings
             </h2>
-            <p className="platform-copy mt-3 max-w-2xl">
-              Generate PDF reports from your saved birth profile. Completed
-              files are stored in your private library and can be downloaded
-              again without another charge.
+            <p className="mt-2 max-w-2xl text-[0.95rem] leading-relaxed text-white/60">
+              A PDF written from your birth details: what your chart says about
+              you and which dates matter ahead. Keep it, print it or share it.
+              Once made, it stays in your library and downloads again free.
             </p>
           </div>
 
           <aside className="platform-panel p-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="type-meta uppercase text-white/50">Credits</p>
+                <p className="type-meta uppercase text-white/55">
+                  Your credits
+                </p>
                 <p className="type-kpi text-white mt-1">{credits}</p>
+                <p className="type-meta text-white/55 mt-1">
+                  Spend them on reports and consults.
+                </p>
               </div>
-              <Wallet className="text-gold" size={24} />
+              <Wallet className="text-gold" size={24} aria-hidden="true" />
             </div>
             <div className="mt-2 grid grid-cols-[1fr_auto] items-center gap-2">
               <div className="flex items-center justify-between gap-2">
@@ -393,6 +401,7 @@ export default function Reports() {
                 </span>
               </div>
               <button
+                type="button"
                 onClick={startCreditTopup}
                 disabled={isPaying}
                 className="platform-button-primary min-w-28"
@@ -405,26 +414,28 @@ export default function Reports() {
         </section>
 
         {(error || paymentError) && (
-          <div className="platform-panel mb-3 border-red-400/20 bg-red-500/10 p-3 text-sm text-red-200 flex gap-2">
-            <AlertCircle size={16} className="mt-0.5 shrink-0" />
-            <span>{error || paymentError}</span>
-          </div>
+          <StatusNotice
+            size="section"
+            className="mb-3"
+            message={error || paymentError}
+          />
         )}
         {success && (
-          <div className="platform-panel mb-3 border-emerald-400/20 bg-emerald-500/10 p-3 text-sm text-emerald-200">
+          <p
+            role="status"
+            className="platform-panel mb-3 border-emerald-400/20 bg-emerald-500/10 p-3 text-sm text-emerald-200"
+          >
             {success}
-          </div>
+          </p>
         )}
 
         <section className="grid grid-cols-1 xl:grid-cols-[1fr_22rem] gap-4">
           <div className="space-y-3">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <h2 className="type-section-title">Create a Report</h2>
-                <p className="type-body-sm text-white/55">
-                  Credit cost is shown before generation.
-                </p>
-              </div>
+            <div>
+              <h2 className="type-section-title">Create a report</h2>
+              <p className="type-body-sm text-white/55">
+                Each one shows its price in credits. You pay once per report.
+              </p>
             </div>
 
             <div className="platform-panel divide-y divide-white/10">
@@ -444,37 +455,29 @@ export default function Reports() {
           </div>
 
           <div>
-            <div className="platform-panel p-4 mb-3">
-              <p className="platform-eyebrow mb-2">Inside each PDF</p>
-              <div className="space-y-2 type-body-sm text-white/50">
-                <p>Chart context and timing windows are included.</p>
-                <p>Generated files are saved for private redownload.</p>
-                <p>Credit cost is fixed before the report starts.</p>
-              </div>
-            </div>
-
-            <div className="flex items-end justify-between gap-4 mb-3">
-              <div>
-                <h2 className="type-section-title">Library</h2>
-                <p className="type-body-sm text-white/55">
-                  {user && (loading || libraryLoading)
-                    ? "Loading…"
-                    : libraryError
-                      ? "Unavailable"
-                      : `${reports.length} saved`}
-                </p>
-              </div>
+            <div className="mb-3">
+              <h2 className="type-section-title">Your saved reports</h2>
+              <p className="type-body-sm text-white/55">
+                {user && (loading || libraryLoading)
+                  ? "Loading…"
+                  : libraryError
+                    ? "Unavailable"
+                    : user
+                      ? `${reports.length} saved`
+                      : "Your saved PDFs"}
+              </p>
             </div>
 
             <div className="platform-panel overflow-hidden">
               {!user ? (
                 <div className="p-4 text-center">
-                  <FileText className="mx-auto text-white/20 mb-3" size={34} />
+                  <FileText className="mx-auto text-white/20 mb-3" size={34} aria-hidden="true" />
                   <p className="type-body text-white/70">Private library</p>
                   <p className="type-body-sm text-white/55 mt-1">
                     Sign in to generate reports and download saved PDFs.
                   </p>
                   <button
+                    type="button"
                     onClick={() => setShowAuthModal(true)}
                     className="platform-button-secondary mt-4"
                   >
@@ -503,12 +506,13 @@ export default function Reports() {
                 </div>
               ) : reports.length === 0 ? (
                 <div className="p-4 text-center">
-                  <FileText className="mx-auto text-white/20 mb-3" size={34} />
+                  <FileText className="mx-auto text-white/20 mb-3" size={34} aria-hidden="true" />
                   <p className="type-body text-white/70">
                     No saved reports yet.
                   </p>
                   <p className="type-body-sm text-white/55 mt-1">
-                    Generated PDFs appear here.
+                    Reports you create land here, ready to
+                    download again any time at no extra cost.
                   </p>
                 </div>
               ) : (
@@ -569,7 +573,7 @@ function ReportProductRow({
     <div className="flex flex-col md:flex-row md:items-center gap-3 p-3">
       <div className="flex items-start gap-3 flex-1">
         <div className="h-11 w-11 rounded-xl bg-gold/10 text-gold flex items-center justify-center shrink-0">
-          <Icon size={19} />
+          <Icon size={19} aria-hidden="true" />
         </div>
         <div>
           <h3 className="type-card-title text-white">{product.title}</h3>
@@ -581,6 +585,7 @@ function ReportProductRow({
           {product.creditCost} credits
         </span>
         <button
+          type="button"
           onClick={needsCredits ? onAddCredits : onGenerate}
           disabled={disabled}
           className="platform-button-primary min-w-36 disabled:opacity-45"
@@ -629,26 +634,32 @@ function SavedReportRow({
           <p className="type-card-title text-white">
             {report.title || "AstroYou Report"}
           </p>
-          <p className="type-meta text-white/50 mt-1">
-            {report.reportType || "report"} · {report.status || "unknown"} ·{" "}
-            {report.chargedCredits ?? report.creditCost ?? 0} credits
+          <p className="type-meta text-white/55 mt-1">
+            {[
+              report.status && report.status !== "completed"
+                ? report.status.replace(/_/g, " ")
+                : null,
+              `${report.chargedCredits ?? report.creditCost ?? 0} credits`,
+              createdAtDate && !Number.isNaN(createdAtDate.getTime())
+                ? createdAtDate.toLocaleDateString()
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
-          {createdAtDate && !Number.isNaN(createdAtDate.getTime()) && (
-            <p className="type-meta text-white/25 mt-1">
-              {createdAtDate.toLocaleDateString()}
-            </p>
-          )}
         </div>
         <button
+          type="button"
           onClick={onDownload}
           disabled={isDownloading || report.status !== "completed"}
           className="platform-icon-button shrink-0 disabled:opacity-35"
           title="Download report"
+          aria-label={`Download ${report.title || "report"}`}
         >
           {isDownloading ? (
-            <Loader2 size={15} className="animate-spin" />
+            <Loader2 size={15} className="animate-spin" aria-hidden="true" />
           ) : (
-            <Download size={15} />
+            <Download size={15} aria-hidden="true" />
           )}
         </button>
       </div>

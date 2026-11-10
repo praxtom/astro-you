@@ -144,7 +144,7 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
       <div className="container mx-auto max-w-4xl px-6 pt-28 pb-20">
         <div className="mb-10">
           <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-gold/20 bg-gold/10 px-4 py-2 text-xs font-bold uppercase tracking-widest text-gold">
-            <BookOpen size={14} />
+            <BookOpen size={14} aria-hidden="true" />
             Vedic Astrology Guide
           </div>
           <h1 className="type-page-title">{page.heading}</h1>
@@ -154,18 +154,36 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
           <p className="mt-4 text-xs text-white/50">
             Reviewed {reviewed} by {SEO_AUTHOR.name} — {SEO_AUTHOR.role}
           </p>
+          {/* The tool is the answer most searchers want: offer it before the
+              long read, not only after the FAQ. */}
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              to={page.primaryCta.to}
+              onClick={() => rememberSource(page.primaryCta.to)}
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-gold px-5 py-2.5 text-sm font-bold text-black"
+            >
+              {page.primaryCta.label}
+              <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+            <Link
+              to={page.secondaryCta.to}
+              onClick={() => rememberSource(page.secondaryCta.to)}
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/15 px-5 py-2.5 text-sm font-semibold text-white/75 hover:border-gold/30 hover:text-gold"
+            >
+              {page.secondaryCta.label}
+            </Link>
+          </div>
         </div>
 
-        <div className="grid gap-4">
+        {/* Plain article sections at a readable measure: a bordered card per
+            paragraph made the guide read as a stack of widgets. */}
+        <div className="space-y-10">
           {page.sections.map((section) => (
-            <section
-              key={section.title}
-              className="rounded-2xl border border-white/10 bg-white/[0.03] p-6"
-            >
+            <section key={section.title}>
               <h2 className="font-display text-2xl text-white/90">
                 {section.title}
               </h2>
-              <p className="mt-3 leading-relaxed text-white/60">
+              <p className="mt-3 max-w-[68ch] leading-relaxed text-white/70">
                 {section.body}
               </p>
             </section>
@@ -174,7 +192,7 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
 
         {page.facts && page.facts.length > 0 && (
           <section className="mt-10 border-t border-white/10 pt-8">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-white/50">
+            <h2 className="font-display text-2xl text-white/90">
               Key facts
             </h2>
             <dl className="mt-4 divide-y divide-white/[0.07]">
@@ -202,7 +220,7 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
 
         {page.comparison && (
           <section className="mt-10 border-t border-white/10 pt-8">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-white/50">
+            <h2 className="font-display text-2xl text-white/90">
               {page.comparison.caption}
             </h2>
             <div className="mt-4 overflow-x-auto">
@@ -246,7 +264,7 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
         )}
 
         <section className="mt-10 border-t border-white/10 pt-8">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-white/50">
+          <h2 className="font-display text-2xl text-white/90">
             Common questions
           </h2>
           <div className="mt-4 grid gap-3">
@@ -255,10 +273,10 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
                 key={faq.question}
                 className="rounded-xl border border-white/10 bg-white/[0.03] p-4"
               >
-                <h3 className="text-base font-semibold text-white/85">
+                <h3 className="font-body text-base font-semibold text-white/85">
                   {faq.question}
                 </h3>
-                <p className="mt-2 text-sm leading-relaxed text-white/50">
+                <p className="mt-2 text-sm leading-relaxed text-white/65">
                   {faq.answer}
                 </p>
               </article>
@@ -268,7 +286,7 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
 
         {clusterPages.length > 0 && (
           <section className="mt-10 border-t border-white/10 pt-8">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-white/50">
+            <h2 className="font-display text-2xl text-white/90">
               {clusterTitle}
             </h2>
             <div className="mt-4 flex flex-wrap gap-2">
@@ -300,20 +318,20 @@ export default function SeoContentPage({ slug }: SeoContentPageProps) {
             className="flex items-center justify-center gap-2 rounded-xl bg-gold px-5 py-4 text-sm font-bold uppercase tracking-widest text-black"
           >
             {page.primaryCta.label}
-            <ArrowRight size={16} />
+            <ArrowRight size={16} aria-hidden="true" />
           </Link>
           <Link
             to={page.secondaryCta.to}
             onClick={() => rememberSource(page.secondaryCta.to)}
             className="flex items-center justify-center gap-2 rounded-xl border border-white/15 px-5 py-4 text-sm font-bold uppercase tracking-widest text-white/70 hover:border-gold/30 hover:text-gold"
           >
-            <MessageCircle size={16} />
+            <MessageCircle size={16} aria-hidden="true" />
             {page.secondaryCta.label}
           </Link>
         </div>
 
         <section className="mt-12 border-t border-white/10 pt-8">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-white/50">
+          <h2 className="font-display text-2xl text-white/90">
             Related guides
           </h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">

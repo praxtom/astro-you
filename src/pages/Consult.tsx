@@ -29,6 +29,8 @@ import {
   takeConsultIntent,
 } from "../components/consult/consult-resume";
 import { TrustProofStrip } from "../components/trust/TrustProofStrip";
+import { StatusNotice } from "../components/ui/StatusNotice";
+import { GlossaryTerm } from "../components/ui/GlossaryTerm";
 import { useSubscription, useTrustSummary, useUserProfile } from "../hooks";
 import { useConsciousness } from "../hooks/useConsciousness";
 import { getPlatformLanguage } from "../lib/languages";
@@ -258,7 +260,6 @@ export default function Consult() {
 
   return (
     <div>
-
       <div className="container mx-auto pt-28 px-6 pb-16 relative z-10 max-w-6xl">
         {/* ── Masthead ── */}
         <SpaceTabs />
@@ -266,28 +267,24 @@ export default function Consult() {
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-x-12 gap-y-6 items-end animate-reveal-progressive">
           <div>
             <h1 className="type-page-title">
-              <span className="block text-2xl md:text-3xl text-white/55 italic">
-                Eight guides.
-              </span>
-              <span className="block text-5xl md:text-6xl text-gold italic mt-1 h-light">
-                One chart — yours.
-              </span>
+              Choose a <GlossaryTerm k="jyotish">Jyotish</GlossaryTerm> guide
             </h1>
           </div>
           <div className="lg:pb-2">
             <p className="text-sm text-white/55 leading-relaxed max-w-md">
-              Every guide in the Circle is an AI that reads your birth chart,
-              your dasha timing, and the key things you have shared. There is
-              no queue. Sessions are billed per minute on the clock from your
-              first message, with partial minutes rounded up. Choose the voice
-              that fits the question.
+              Ask about love, work, money, family or timing. Each guide reads
+              your birth chart and current life phase, and remembers what you
+              have shared before. These guides are not people. No queue. Billed
+              per minute from your first message; a partial minute counts as a
+              full one, settled when the chat closes.
             </p>
             {user && (
               <button
                 onClick={() => navigate("/pricing")}
                 className="mt-4 text-[0.6875rem] uppercase tracking-[0.25em] text-white/50 hover:text-gold transition-colors"
               >
-                {credits} credits · {tier} — top up
+                {credits} credits left
+                {tier !== "free" ? ` · ${tier} plan` : ""} — top up
               </button>
             )}
           </div>
@@ -302,8 +299,8 @@ export default function Consult() {
           {/* ── Attuned to you now ── */}
           {attuned.length > 0 && (
             <section className="order-1 lg:order-2 mt-8 lg:mt-10 animate-reveal-progressive">
-              <p className="text-[0.6875rem] font-bold uppercase tracking-[0.35em] text-white/25 mb-4">
-                Attuned to you now
+              <p className="text-[0.6875rem] font-bold uppercase tracking-[0.35em] text-white/55 mb-4">
+                Suggested for how you have been feeling
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {attuned.map(({ persona, reason }) => (
@@ -321,6 +318,7 @@ export default function Consult() {
                     </div>
                     <ArrowUpRight
                       size={15}
+                      aria-hidden="true"
                       className="shrink-0 text-gold/0 group-hover:text-gold transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
                     />
                   </button>
@@ -333,12 +331,18 @@ export default function Consult() {
           <section className="order-2 lg:order-3 mt-10 border-y border-white/8 animate-reveal-progressive">
             <div className="flex flex-col lg:flex-row lg:items-center divide-y lg:divide-y-0 lg:divide-x divide-white/8">
               <label className="relative flex items-center gap-3 px-1 py-3 lg:flex-1">
-                <Search size={15} className="text-white/50 shrink-0 ml-1" />
+                <Search
+                  size={15}
+                  aria-hidden="true"
+                  className="text-white/50 shrink-0 ml-1"
+                />
                 <input
+                  type="search"
+                  aria-label="Search guides"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Career, love, remedies, timing…"
-                  className="w-full bg-transparent outline-none text-sm text-white/80 placeholder:text-white/25"
+                  className="w-full bg-transparent outline-none text-sm text-white/80 placeholder:text-white/50"
                 />
               </label>
               <label className="relative flex items-center gap-2 px-1 lg:px-4 py-3">
@@ -367,6 +371,8 @@ export default function Consult() {
                 {SPECIALTIES.map((specialty) => (
                   <button
                     key={specialty}
+                    type="button"
+                    aria-pressed={filter === specialty}
                     onClick={() => setFilter(specialty)}
                     className={`inline-flex items-center min-h-11 rounded-full px-4 text-[0.6875rem] font-bold uppercase tracking-[0.15em] whitespace-nowrap transition-all ${
                       filter === specialty
@@ -394,30 +400,29 @@ export default function Consult() {
             ))}
 
             {visiblePersonas.length === 0 && (
-              <div className="md:col-span-2 xl:col-span-3 py-16 text-center">
-                <p className="font-display italic text-2xl text-white/50">
-                  No guide matches that search.
-                </p>
-                <button
-                  onClick={() => {
+              <StatusNotice
+                tone="info"
+                className="md:col-span-2 xl:col-span-3 mx-auto w-full"
+                title="No guide matches that search"
+                message="Try a broader word, another language, or clear the filters."
+                action={{
+                  label: "Clear filters",
+                  onClick: () => {
                     setSearch("");
                     setFilter("All");
                     setLanguageFilter("All languages");
-                  }}
-                  className="mt-5 px-5 py-2.5 rounded-xl border border-gold/30 text-gold text-[0.6875rem] font-bold uppercase tracking-[0.2em] hover:bg-gold hover:text-black transition-colors"
-                >
-                  Clear filters
-                </button>
-              </div>
+                  },
+                }}
+              />
             )}
           </section>
         </div>
 
-        {/* ── Past sittings ── */}
+        {/* ── Past chats ── */}
         {history.length > 0 && (
           <section className="mt-14 animate-reveal-progressive">
-            <p className="text-[0.6875rem] font-bold uppercase tracking-[0.35em] text-white/25 mb-4">
-              Past sittings
+            <p className="text-[0.6875rem] font-bold uppercase tracking-[0.35em] text-white/55 mb-4">
+              Your past chats
             </p>
             <div className="border-t border-white/8">
               {history.map((item) => {
@@ -430,7 +435,7 @@ export default function Consult() {
                     <button
                       onClick={() => setOpenSitting(item)}
                       className="group flex items-center gap-4 min-w-0 flex-1 text-left"
-                      title="Read this sitting again"
+                      title="Read this chat again"
                     >
                       {persona ? (
                         <PersonaPortrait persona={persona} size="sm" />
@@ -443,7 +448,7 @@ export default function Consult() {
                         </p>
                         <p className="text-xs text-white/55 mt-0.5">
                           {Math.ceil((item.duration || 0) / 60)} min ·{" "}
-                          {item.cost || 0} credits · read again
+                          {item.cost || 0} credits · tap to reread
                         </p>
                       </div>
                     </button>
@@ -452,10 +457,10 @@ export default function Consult() {
                         onClick={() => beginSession(persona)}
                         className="text-[0.6875rem] font-bold uppercase tracking-[0.2em] text-white/50 hover:text-gold transition-colors"
                       >
-                        Sit again
+                        Chat again
                       </button>
                     )}
-                    <span className="text-xs text-white/25 w-20 text-right">
+                    <span className="text-xs text-white/55 w-20 text-right">
                       {item.createdAt?.toDate?.()?.toLocaleDateString() || ""}
                     </span>
                   </div>
@@ -491,15 +496,8 @@ export default function Consult() {
           if (persona) void resumeAfterSignIn(persona);
         }}
         title="Sign in to begin"
-        message="Every guide in the Circle reads your chart, so we need to know whose it is. New accounts start with 15 free credits."
+        message="Sign in to use your birth chart in a guide session. New accounts start with 15 free credits."
       />
-
-      {/* Billing terms: real information, so readable, not a decorative footer. */}
-      <p className="container mx-auto max-w-6xl px-6 pb-10 text-sm text-white/55">
-        Guidance is billed by the minute from your first message, with a
-        partial minute charged as a full one, and settled when the session
-        closes.
-      </p>
     </div>
   );
 }
@@ -543,9 +541,10 @@ function GuideCard({
           >
             {persona.title}
           </p>
-          <p className="mt-2 text-[0.6875rem] uppercase tracking-[0.15em] text-white/50">
+          <p className="mt-2 text-xs text-white/55">
             {persona.languages.join(" · ")}
           </p>
+          <p className="mt-1 text-xs text-white/55">A guide, not a person.</p>
         </div>
         <div className="text-right shrink-0">
           <p className="font-display text-2xl text-gold leading-none">
@@ -571,7 +570,7 @@ function GuideCard({
             <span className="text-white/50">{trustDisplay.reviewLabel}</span>
           </>
         ) : (
-          <span className="text-white/25 italic">New to the Circle</span>
+          <span className="text-white/50 italic">No reviews yet</span>
         )}
       </div>
 
@@ -581,13 +580,13 @@ function GuideCard({
           className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gold text-black text-[0.6875rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors"
         >
           <Sparkles size={13} />
-          Begin the sitting
+          Start chat
         </button>
         <button
           onClick={onDossier}
           className="px-4 py-2.5 rounded-xl border border-white/10 text-white/55 text-[0.6875rem] font-bold uppercase tracking-[0.2em] hover:text-white hover:border-white/25 transition-colors"
         >
-          Dossier
+          Profile
         </button>
       </div>
     </article>
@@ -617,6 +616,7 @@ function TranscriptDrawer({
   const [transcript, setTranscript] = useState<TranscriptMessage[] | null>(
     null,
   );
+  const [loadFailed, setLoadFailed] = useState(false);
   const panelRef = useRef<HTMLElement>(null);
   const closeRef = useRef(onClose);
   const titleId = useId();
@@ -688,7 +688,9 @@ function TranscriptDrawer({
           ),
         );
       } catch {
-        if (!cancelled) setTranscript([]);
+        if (cancelled) return;
+        setLoadFailed(true);
+        setTranscript([]);
       }
     };
     load();
@@ -744,16 +746,24 @@ function TranscriptDrawer({
 
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           {transcript === null ? (
-            <div className="flex items-center justify-center gap-3 py-16 text-white/50">
-              <Loader2 size={15} className="animate-spin" />
-              <span className="text-xs uppercase tracking-[0.25em]">
-                Opening the sitting…
-              </span>
+            <div
+              role="status"
+              className="flex items-center justify-center gap-3 py-16 text-sm text-white/55"
+            >
+              <Loader2 size={15} className="animate-spin" aria-hidden="true" />
+              Opening the chat…
             </div>
+          ) : loadFailed ? (
+            <StatusNotice
+              size="section"
+              message="This transcript could not be loaded. Close the panel and try again."
+            />
           ) : transcript.length === 0 ? (
-            <p className="py-16 text-center font-display italic text-white/50">
-              No transcript was kept for this sitting.
-            </p>
+            <StatusNotice
+              tone="info"
+              size="section"
+              message="No transcript was kept for this chat."
+            />
           ) : (
             transcript.map((msg) => (
               <div
@@ -786,7 +796,7 @@ function TranscriptDrawer({
               className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gold text-black text-[0.6875rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors"
             >
               <Sparkles size={13} />
-              Sit with {persona.name.split(" ")[0]} again
+              Chat with {persona.name.split(" ")[0]} again
             </button>
           </footer>
         )}

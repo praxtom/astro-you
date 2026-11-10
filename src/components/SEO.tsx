@@ -16,7 +16,7 @@ interface SEOProps {
 }
 
 const defaultMeta = {
-  title: "AstroYou — AI Vedic astrology guide",
+  title: "AstroYou — Vedic astrology guide",
   description:
     "Discover your birth chart with Vedic astrology for the modern world. Get personalized Kundali readings, daily guidance, and clarity from the celestial movements.",
   // PNG, not the SVG source: most social and preview scrapers do not render

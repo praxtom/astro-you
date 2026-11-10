@@ -46,6 +46,7 @@ function getTropicalSunSign(day: number, month: number): string {
  */
 export function useDailyPrediction(userData: PredictionSubjectData | null) {
   const [prediction, setPrediction] = useState<string | null>(null);
+  const [lede, setLede] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -54,6 +55,7 @@ export function useDailyPrediction(userData: PredictionSubjectData | null) {
 
   useEffect(() => {
     setPrediction(null);
+    setLede(null);
     setError(null);
     if (!dob) return;
 
@@ -108,6 +110,9 @@ export function useDailyPrediction(userData: PredictionSubjectData | null) {
         if (cancelled) return;
         if (result.success && result.data?.text) {
           setPrediction(result.data.text);
+          setLede(
+            typeof result.data.lede === "string" ? result.data.lede : null,
+          );
         } else {
           setError("Daily prediction is unavailable");
         }
@@ -134,5 +139,5 @@ export function useDailyPrediction(userData: PredictionSubjectData | null) {
     };
   }, [dob, sunSign, moonSign, mode]);
 
-  return { prediction, error, loading };
+  return { prediction, lede, error, loading };
 }

@@ -7,7 +7,6 @@ import type { GlossaryKey } from "../../lib/glossary";
 
 interface HeroAlmanacProps {
   name: string;
-  emotionalState?: string;
   meditationStreak?: number;
   panchang: PanchangData | null;
   panchangLoading: boolean;
@@ -15,8 +14,10 @@ interface HeroAlmanacProps {
     | (Pick<LunarPhaseData, "phase" | "illumination"> & { emoji?: string })
     | null;
   onShareSign: () => void;
-  /** The day's reading, shown once, under the greeting. */
+  /** The day's full reading, shown under the almanac band. */
   reading?: string;
+  /** One sentence for the hero; derived from `reading` when absent. */
+  lede?: string;
   readingLoading?: boolean;
   /** Where the panchang is computed, e.g. "Pune" or "New Delhi (default)". */
   placeLabel?: string;
@@ -39,6 +40,18 @@ function parseTimeToMinutes(raw?: string): number | null {
   if (meridiem === "am" && h === 12) h = 0;
   if (h > 23 || min > 59) return null;
   return h * 60 + min;
+}
+
+const SPECIFIC_LINE =
+  /\b(sun|moon|mercury|venus|mars|jupiter|saturn|rahu|ketu|\d{1,2}(st|nd|rd|th) house)\b/i;
+
+/**
+ * One sentence for the hero when the server sent no lede: the line that
+ * names a planet or house, else the first sentence.
+ */
+export function ledeFrom(text: string): string {
+  const sentences = text.trim().split(/(?<=[.!?])\s+/).filter(Boolean);
+  return sentences.find((s) => SPECIFIC_LINE.test(s)) ?? sentences[0] ?? "";
 }
 
 /** Point at parameter t along the hero's quadratic day-arc. */
@@ -157,12 +170,6 @@ function DayArc({ panchang }: { panchang: PanchangData | null }) {
   );
 }
 
-const EMOTION_STYLES: Record<string, string> = {
-  stable: "text-emerald-300/90 border-emerald-400/25 bg-emerald-400/5",
-  anxious: "text-amber-300/90 border-amber-400/25 bg-amber-400/5",
-  chaotic: "text-red-300/90 border-red-400/25 bg-red-400/5",
-};
-
 function greetingForHour(hour: number): string {
   if (hour < 5) return "The stars kept watch,";
   if (hour < 12) return "Good morning,";
@@ -177,16 +184,25 @@ function greetingForHour(hour: number): string {
  */
 export const HeroAlmanac: React.FC<HeroAlmanacProps> = ({
   name,
-  emotionalState,
   meditationStreak,
   panchang,
   panchangLoading,
   lunar,
   onShareSign,
   reading,
+  lede,
   readingLoading,
   placeLabel,
 }) => {
+  const heroLine = useMemo(
+    () => lede || (reading ? ledeFrom(reading) : ""),
+    [lede, reading],
+  );
+  // The full reading earns its own section only when it says more than the lede.
+  const fullReading =
+    !readingLoading && reading && reading.trim() !== heroLine.trim()
+      ? reading
+      : null;
   const today = useMemo(() => {
     const now = new Date();
     return {
@@ -220,7 +236,7 @@ export const HeroAlmanac: React.FC<HeroAlmanacProps> = ({
         value: asText(panchang?.nakshatra),
         sub: asText(panchang?.nakshatraEnd) && `till ${panchang?.nakshatraEnd}`,
       },
-      { label: "Yoga", glossary: "yoga", value: asText(panchang?.yoga) },
+      { label: "Yoga", glossary: "panchang-yoga", value: asText(panchang?.yoga) },
       { label: "Karana", glossary: "karana", value: asText(panchang?.karana) },
       {
         label: "Moon",
@@ -242,7 +258,7 @@ export const HeroAlmanac: React.FC<HeroAlmanacProps> = ({
         </p>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-x-12 gap-y-8 items-end">
+      <div className="mt-6 grid grid-cols-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-x-12 gap-y-8 lg:items-center">
         {/* Greeting */}
         <div className="animate-reveal-progressive">
           <h1 className="font-display leading-[1.02]">
@@ -254,36 +270,26 @@ export const HeroAlmanac: React.FC<HeroAlmanacProps> = ({
             </span>
           </h1>
 
-          {(reading || readingLoading) && (
-            <p className="mt-5 max-w-[34ch] font-display text-[1.45rem] md:text-[1.6rem] leading-snug text-white/80">
-              {readingLoading ? "Reading today's sky…" : reading}
+          {(heroLine || readingLoading) && (
+            <p className="mt-4 max-w-[40ch] line-clamp-3 font-display text-[1.25rem] md:text-[1.4rem] leading-snug text-white/80">
+              {readingLoading ? "Reading today's sky…" : heroLine}
             </p>
           )}
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
-            {emotionalState && (
-              <span
-                className={`text-[0.6875rem] font-bold uppercase tracking-[0.2em] px-3 py-1.5 rounded-full border ${
-                  EMOTION_STYLES[emotionalState] ??
-                  "text-white/60 border-white/10 bg-white/5"
-                }`}
-              >
-                {emotionalState.replace(/_/g, " ")}
-              </span>
-            )}
             {(meditationStreak ?? 0) > 0 && (
-              <span className="inline-flex items-center gap-1.5 text-[0.6875rem] font-bold uppercase tracking-[0.2em] text-amber-300/90 px-3 py-1.5 rounded-full border border-amber-400/25 bg-amber-400/5">
-                <Flame size={11} />
-                {meditationStreak} day sādhanā
+              <span className="inline-flex min-h-11 items-center gap-1.5 text-[0.85rem] text-white/70">
+                <Flame size={15} className="text-gold/70" aria-hidden="true" />
+                {meditationStreak}-day practice streak
               </span>
             )}
             <button
+              type="button"
               onClick={onShareSign}
-              className="inline-flex items-center gap-1.5 text-[0.6875rem] font-bold uppercase tracking-[0.2em] text-white/55 px-3 py-1.5 rounded-full border border-white/10 hover:text-gold hover:border-gold/30 transition-colors"
-              title="Share your sign"
+              className="inline-flex min-h-11 items-center gap-1.5 text-[0.85rem] font-semibold text-gold/85 transition-colors hover:text-gold"
             >
-              <Share2 size={11} />
-              Share sign
+              <Share2 size={15} aria-hidden="true" />
+              Share your sign
             </button>
           </div>
         </div>
@@ -310,7 +316,7 @@ export const HeroAlmanac: React.FC<HeroAlmanacProps> = ({
               className="snap-start shrink-0 min-w-36 flex-1 px-5 py-4 first:pl-0"
             >
               <p
-                className={`text-[0.7rem] font-bold uppercase tracking-[0.25em] ${
+                className={`text-[0.78rem] font-semibold uppercase tracking-[0.08em] ${
                   cell.caution ? "text-red-300/50" : "text-white/50"
                 }`}
               >
@@ -338,6 +344,17 @@ export const HeroAlmanac: React.FC<HeroAlmanacProps> = ({
           ))}
         </div>
       </div>
+
+      {fullReading && (
+        <div className="mt-8 max-w-[65ch]">
+          <h2 className="font-body text-sm font-semibold text-white/70">
+            Today's reading
+          </h2>
+          <p className="mt-2 text-[0.9375rem] leading-relaxed text-white/70">
+            {fullReading}
+          </p>
+        </div>
+      )}
     </section>
   );
 };

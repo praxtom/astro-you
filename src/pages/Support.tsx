@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
-  HelpCircle,
   Loader2,
   Mail,
   MessageSquare,
@@ -12,6 +11,7 @@ import {
   Send,
 } from "lucide-react";
 import AuthModal from "../components/AuthModal";
+import { StatusNotice } from "../components/ui/StatusNotice";
 import { useAuth } from "../lib/useAuth";
 import { trackAcquisitionEvent } from "../lib/acquisition";
 import { SUPPORT_EMAIL } from "../lib/legal-policies";
@@ -64,13 +64,6 @@ export default function Support() {
   const [loadingTickets, setLoadingTickets] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
-
-  const selectedCategoryLabel = useMemo(
-    () =>
-      SUPPORT_CATEGORIES.find((item) => item.value === category)?.label ||
-      "Support",
-    [category],
-  );
 
   const loadTickets = useCallback(async () => {
     if (!user) return;
@@ -172,51 +165,33 @@ export default function Support() {
     <div>
       <div className="platform-main">
         <button
+          type="button"
           onClick={() => navigate(-1)}
           className="mb-4 inline-flex items-center gap-2 text-sm text-white/60 hover:text-white"
         >
           <ArrowLeft size={16} /> Back
         </button>
 
-        <section className="grid grid-cols-1 lg:grid-cols-[1fr_21rem] gap-4 items-start mb-4">
-          <div>
-            <p className="platform-eyebrow mb-2">Support Desk</p>
-            <h1 className="type-page-title max-w-3xl">
-              Open a ticket for payments, refunds, reports, or account issues.
-            </h1>
-            <p className="platform-copy mt-3 max-w-2xl">
-              Tell us what happened, attach a payment or report reference if
-              you have one, and we will keep the request tied to your account.
-            </p>
-          </div>
-
-          <aside className="platform-panel p-3">
-            <div className="flex items-center gap-3 text-gold">
-              <HelpCircle size={20} />
-              <p className="platform-eyebrow">What we review</p>
-            </div>
-            <div className="mt-2 space-y-1.5 type-body-sm text-white/50">
-              <p>Failed or duplicate payments</p>
-              <p>Refund review for unused credits</p>
-              <p>Report generation and consultation billing issues</p>
-            </div>
-          </aside>
+        <section className="mb-4">
+          <p className="platform-eyebrow mb-2">Support</p>
+          <h1 className="type-page-title">Open a support ticket</h1>
+          <p className="platform-copy mt-3 max-w-2xl">
+            For payments, refunds, reports, or account issues. Add a payment or
+            report reference if you have one, and we will keep the request tied
+            to your account.
+          </p>
         </section>
 
         <section className="grid grid-cols-1 xl:grid-cols-[1fr_24rem] gap-4 items-start">
           <form onSubmit={submitTicket} className="platform-panel p-4">
             <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="type-section-title">Create ticket</h2>
-                <p className="type-body-sm text-white/60 mt-1">
-                  Current category: {selectedCategoryLabel}
-                </p>
-              </div>
-              <ReceiptText className="text-gold" size={22} />
+              <h2 className="type-section-title">Create ticket</h2>
+              <ReceiptText className="text-gold" size={22} aria-hidden="true" />
             </div>
 
             {(formError || success) && (
               <div
+                role={formError ? "alert" : "status"}
                 className={`mb-4 flex gap-2 rounded-xl border p-3 text-sm ${
                   formError
                     ? "border-amber-400/20 bg-amber-500/10 text-amber-100"
@@ -272,7 +247,7 @@ export default function Support() {
             </label>
 
             <label className="mt-3 block">
-              <span className="type-meta text-white/60">Reference ID optional</span>
+              <span className="type-meta text-white/60">Reference ID (optional)</span>
               <input
                 value={referenceId}
                 onChange={(event) => setReferenceId(event.target.value)}
@@ -328,11 +303,13 @@ export default function Support() {
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <p className="platform-eyebrow">Ticket history</p>
-                <p className="type-body-sm text-white/50 mt-1">
-                  {tickets.length} recent
-                </p>
+                {user && !loadingTickets && !historyError && (
+                  <p className="type-body-sm text-white/55 mt-1">
+                    {tickets.length} recent
+                  </p>
+                )}
               </div>
-              <MessageSquare className="text-gold" size={20} />
+              <MessageSquare className="text-gold" size={20} aria-hidden="true" />
             </div>
 
             {!user ? (
@@ -341,6 +318,7 @@ export default function Support() {
                   Sign in to create tickets and see past support requests.
                 </p>
                 <button
+                  type="button"
                   onClick={() => setShowAuthModal(true)}
                   className="platform-button-secondary mt-4 w-full"
                 >
@@ -360,17 +338,27 @@ export default function Support() {
                 </a>
               </div>
             ) : loadingTickets ? (
-              <div className="py-8 text-center text-white/60">
-                <Loader2 className="mx-auto animate-spin mb-3" size={22} />
+              <div role="status" className="py-8 text-center text-white/60">
+                <Loader2
+                  className="mx-auto animate-spin mb-3"
+                  size={22}
+                  aria-hidden="true"
+                />
                 Loading tickets
               </div>
             ) : historyError ? (
-              <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 p-3 text-sm text-amber-100">
-                {historyError}
-              </div>
+              <StatusNotice
+                size="section"
+                message={historyError}
+                onRetry={() => void loadTickets()}
+              />
             ) : tickets.length === 0 ? (
               <div className="py-8 text-center">
-                <MessageSquare className="mx-auto mb-3 text-white/20" size={30} />
+                <MessageSquare
+                  className="mx-auto mb-3 text-white/20"
+                  size={30}
+                  aria-hidden="true"
+                />
                 <p className="type-body-sm text-white/55">
                   No support tickets yet.
                 </p>
@@ -391,7 +379,11 @@ export default function Support() {
                       </span>
                     </div>
                     <p className="type-meta text-white/50 mt-2">
-                      {ticket.category || "support"}{" "}
+                      {SUPPORT_CATEGORIES.find(
+                        (item) => item.value === ticket.category,
+                      )?.label ||
+                        ticket.category ||
+                        "Support"}{" "}
                       {formatTicketDate(ticket.createdAt) &&
                         `· ${formatTicketDate(ticket.createdAt)}`}
                     </p>

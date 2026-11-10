@@ -120,7 +120,12 @@ const TransitOverlay: React.FC<TransitOverlayProps> = ({
 
   return (
     <div className={`kundali-container transit-overlay ${className}`}>
-      <svg viewBox="0 0 800 800" className="kundali-svg">
+      <svg
+        viewBox="0 0 800 800"
+        className="kundali-svg"
+        role="img"
+        aria-label="Your birth chart with today's planets laid over it. Faint symbols are your birth planets; bright symbols are where planets are today."
+      >
         <defs>
           <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#FFD700" stopOpacity="0.8" />
@@ -201,6 +206,7 @@ const TransitOverlay: React.FC<TransitOverlayProps> = ({
                       style={{ fill: "#fff", fontSize: "18px" }}
                       textAnchor="end"
                     >
+                      <title>{`${planetName} at your birth, house ${houseNum}`}</title>
                       {planetInfo?.symbol || planetName.substring(0, 2)}
                     </text>
                   );
@@ -237,6 +243,7 @@ const TransitOverlay: React.FC<TransitOverlayProps> = ({
                       }}
                       textAnchor="start"
                     >
+                      <title>{`${planetName} today, house ${houseNum}`}</title>
                       {planetInfo?.symbol || planetName.substring(0, 2)}
                     </text>
                   );
@@ -247,16 +254,21 @@ const TransitOverlay: React.FC<TransitOverlayProps> = ({
         })}
       </svg>
 
-      <div className="flex justify-between mt-4 px-2 text-[10px] uppercase tracking-widest opacity-40">
+      <div className="flex flex-wrap justify-between gap-x-4 gap-y-1 mt-4 px-2 text-[11px] uppercase tracking-widest text-white/60">
         <span className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-white/40"></span>
-          Natal Placements
+          <span className="w-2 h-2 rounded-full bg-white/40" aria-hidden="true"></span>
+          Faint: your birth planets
         </span>
         <span className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-gold shadow-[0_0_5px_#FFD700]"></span>
-          Current Transits
+          <span className="w-2 h-2 rounded-full bg-gold shadow-[0_0_5px_#FFD700]" aria-hidden="true"></span>
+          Bright: planets today
         </span>
       </div>
+      <p className="mt-2 px-2 text-xs leading-relaxed text-white/55">
+        The top diamond is house 1 (you); houses run anticlockwise. Small
+        numbers are signs (1 = Aries … 12 = Pisces). Hover a symbol for its
+        name.
+      </p>
     </div>
   );
 };

@@ -29,7 +29,7 @@ export const CREDIT_PACKS: CreditPack[] = [
     amountInRupees: 49,
     amounts: { INR: 49, USD: 2.99 },
     label: "50 credits",
-    description: "For a quick first consult or one small report.",
+    description: "50 chat messages, or up to 10 minutes with a guide.",
     badge: "Starter",
   },
   {
@@ -37,7 +37,7 @@ export const CREDIT_PACKS: CreditPack[] = [
     amountInRupees: 99,
     amounts: { INR: 99, USD: 5.99 },
     label: "120 credits",
-    description: "Enough for a focused AI guide session.",
+    description: "A focused guide session: up to 24 minutes at 5 credits/min.",
     badge: "Recommended",
     recommended: true,
   },
@@ -46,7 +46,7 @@ export const CREDIT_PACKS: CreditPack[] = [
     amountInRupees: 249,
     amounts: { INR: 249, USD: 14.99 },
     label: "300 credits",
-    description: "For deeper guidance, reports, and follow-up questions.",
+    description: "A Birth Chart Report plus follow-up questions, or several guide sessions.",
     badge: "Deep reading",
   },
   {
@@ -54,7 +54,7 @@ export const CREDIT_PACKS: CreditPack[] = [
     amountInRupees: 499,
     amounts: { INR: 499, USD: 29.99 },
     label: "700 credits",
-    description: "Best value for regular weekly guidance.",
+    description: "Lowest price per credit of any pack, for a guide session most weeks.",
     badge: "Best value",
   },
 ];

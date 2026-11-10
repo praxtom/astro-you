@@ -4,6 +4,8 @@ import { Link, useParams } from "react-router-dom";
 import { ArrowRight, Calendar, Loader2, MapPin, Sparkles } from "lucide-react";
 import SEO from "../components/SEO";
 import { MergedGuide } from "../components/seo/MergedGuide";
+import { StatusNotice } from "../components/ui/StatusNotice";
+import { GlossaryTerm } from "../components/ui/GlossaryTerm";
 import {
   captureAcquisitionSource,
   trackAcquisitionEvent,
@@ -132,15 +134,16 @@ function MuhuratTool({ route }: { route: NonNullable<ReturnType<typeof muhuratRo
       <div className="container mx-auto max-w-5xl px-6 pt-28 pb-20">
         <div className="mb-10 text-center">
           <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-gold/20 bg-gold/10 px-4 py-2 text-xs font-bold uppercase tracking-widest text-gold">
-            <Sparkles size={14} />
+            <Sparkles size={14} aria-hidden="true" />
             Free Muhurat
           </div>
           <h1 className="type-page-title">
             {route.title}
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-white/55">
-            Pick a date, place, and purpose. AstroYou checks Panchang timing and
-            gives a clear first-pass Muhurat guide.
+            A muhurat is a good time to begin something that matters. Pick a
+            date, your city and the purpose to see that day's best window to
+            start, and the one to skip.
           </p>
         </div>
 
@@ -148,7 +151,7 @@ function MuhuratTool({ route }: { route: NonNullable<ReturnType<typeof muhuratRo
           <div className="grid gap-4 md:grid-cols-[1fr_1fr_1fr_auto]">
             <label className="block">
               <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white/55">
-                <Calendar size={14} /> Date
+                <Calendar size={14} aria-hidden="true" /> Date
               </span>
               <input
                 type="date"
@@ -159,7 +162,7 @@ function MuhuratTool({ route }: { route: NonNullable<ReturnType<typeof muhuratRo
             </label>
             <label className="block">
               <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white/55">
-                <MapPin size={14} /> City
+                <MapPin size={14} aria-hidden="true" /> City
               </span>
               <input
                 value={city}
@@ -169,7 +172,7 @@ function MuhuratTool({ route }: { route: NonNullable<ReturnType<typeof muhuratRo
               />
             </label>
             <label className="block">
-              <span className="mb-2 text-xs font-bold uppercase tracking-widest text-white/55">
+              <span className="mb-2 block text-xs font-bold uppercase tracking-widest text-white/55">
                 Purpose
               </span>
               <select
@@ -184,53 +187,102 @@ function MuhuratTool({ route }: { route: NonNullable<ReturnType<typeof muhuratRo
               </select>
             </label>
             <button
+              type="button"
               onClick={loadMuhurat}
               disabled={loading}
-              className="self-end rounded-xl bg-gold px-6 py-3 font-bold uppercase tracking-widest text-black disabled:opacity-50"
+              aria-label={loading ? "Finding Muhurat" : undefined}
+              className="inline-flex min-h-11 items-center justify-center self-end rounded-xl bg-gold px-6 py-3 font-bold uppercase tracking-widest text-black disabled:opacity-50"
             >
               {loading ? (
-                <Loader2 className="animate-spin" size={20} />
+                <Loader2 className="animate-spin" size={20} aria-hidden="true" />
               ) : (
                 "Find"
               )}
             </button>
           </div>
-          {error && <p className="mt-4 text-sm text-red-400">{error}</p>}
+          {error && (
+            <StatusNotice
+              size="section"
+              className="mt-4"
+              message={error}
+              onRetry={() => void loadMuhurat()}
+            />
+          )}
         </section>
+
+        {/* Hold the result's space while the first answer loads, so the
+            guide below does not jump. */}
+        {!panchang && loading && (
+          <section
+            className="mt-6 rounded-2xl border border-gold/20 bg-gold/5 p-6"
+            aria-busy="true"
+            aria-label="Finding Muhurat"
+          >
+            <div className="h-7 w-48 animate-pulse rounded bg-white/10" />
+            <div className="mt-5 grid gap-4 md:grid-cols-3">
+              {[0, 1, 2].map((item) => (
+                <div key={item} className="space-y-2">
+                  <div className="h-3 w-16 animate-pulse rounded bg-white/10" />
+                  <div className="h-6 w-3/4 animate-pulse rounded bg-white/10" />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {recommendation && panchang && (
           <section className="mt-6 rounded-2xl border border-gold/20 bg-gold/5 p-6">
             <h2 className="font-display text-2xl text-white/90">
-              Recommended Window
+              Your window for this day
             </h2>
+            <p className="mt-1 text-sm text-white/55">
+              A general window for the city above. A personal muhurat also
+              checks your own birth chart.
+            </p>
             <div className="mt-5 grid gap-4 md:grid-cols-3">
               <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-white/50">
-                  Favor
+                <p className="text-xs font-bold uppercase tracking-widest text-white/55">
+                  Best time to begin
                 </p>
                 <p className="mt-2 text-lg text-gold">{recommendation.best}</p>
+                {panchang.abhijitMuhurat !== "-" && (
+                  <p className="mt-1 text-xs text-white/55">
+                    <GlossaryTerm k="abhijit">Abhijit</GlossaryTerm>, the
+                    midday window
+                  </p>
+                )}
               </div>
               <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-white/50">
-                  Avoid
+                <p className="text-xs font-bold uppercase tracking-widest text-white/55">
+                  Skip for the first step
                 </p>
                 <p className="mt-2 text-lg text-white/80">
                   {recommendation.avoid}
                 </p>
+                {panchang.rahuKaal !== "-" && (
+                  <p className="mt-1 text-xs text-white/55">
+                    <GlossaryTerm k="rahu-kaal">Rahu Kaal</GlossaryTerm>,
+                    traditionally avoided for new starts
+                  </p>
+                )}
               </div>
               <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-white/50">
-                  Guidance
+                <p className="text-xs font-bold uppercase tracking-widest text-white/55">
+                  Tip for this purpose
                 </p>
                 <p className="mt-2 text-white/65">{recommendation.note}</p>
               </div>
             </div>
-            <div className="mt-6 grid gap-3 md:grid-cols-4">
+            <p className="mt-6 text-xs font-bold uppercase tracking-widest text-white/55">
+              The day's almanac, for reference
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
               <p className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-white/60">
-                Tithi: <span className="text-white">{panchang.tithi}</span>
+                <GlossaryTerm k="tithi">Tithi</GlossaryTerm>:{" "}
+                <span className="text-white">{panchang.tithi}</span>
               </p>
               <p className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-white/60">
-                Nakshatra:{" "}
+                <GlossaryTerm k="nakshatra">Nakshatra</GlossaryTerm>:{" "}
                 <span className="text-white">{panchang.nakshatra}</span>
               </p>
               <p className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-white/60">
@@ -249,8 +301,8 @@ function MuhuratTool({ route }: { route: NonNullable<ReturnType<typeof muhuratRo
             onClick={() => rememberSource("/consult/pandit-raghunath/profile")}
             className="flex items-center justify-center gap-2 rounded-xl bg-gold px-5 py-4 text-sm font-bold uppercase tracking-widest text-black"
           >
-            Get Exact Personal Muhurat
-            <ArrowRight size={16} />
+            Get A Muhurat For My Chart
+            <ArrowRight size={16} aria-hidden="true" />
           </Link>
           <Link
             to="/panchang"

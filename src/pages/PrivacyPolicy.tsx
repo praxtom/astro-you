@@ -5,7 +5,7 @@ export default function PrivacyPolicy() {
   return (
     <LegalPage
       title="Privacy Policy"
-      description="How AstroYou collects, uses, stores, shares, exports, and deletes account, astrology, AI, payment, and support data."
+      description="How AstroYou collects, uses, stores, shares, exports, and deletes account, astrology, guide conversation, payment, and support data."
       effectiveDate={LEGAL_EFFECTIVE_DATE}
       sections={PRIVACY_SECTIONS}
     />

@@ -1,7 +1,9 @@
 import React from "react";
+import { Orbit } from "lucide-react";
+import { TileHead } from "./WeatherTiles";
 import { useSadeSati } from "../../hooks/useSadeSati";
 import { PersonalCardNotice } from "./PersonalCardNotice";
-import { FactLabel, FactSkeleton } from "./primitives";
+import { FactSkeleton } from "./primitives";
 import { GlossaryTerm } from "../ui/GlossaryTerm";
 
 interface SadeSatiCardProps {
@@ -13,9 +15,9 @@ export const SadeSatiCard: React.FC<SadeSatiCardProps> = ({ birthData }) => {
   const { sadeSati, loading, error, errorKind, retry } = useSadeSati(birthData);
 
   const label = (
-    <FactLabel>
+    <TileHead icon={<Orbit />}>
       <GlossaryTerm k="sade-sati">Sade Sati</GlossaryTerm>
-    </FactLabel>
+    </TileHead>
   );
 
   if (loading) return <FactSkeleton />;

@@ -4,11 +4,11 @@ import {
   useState,
   useEffect,
   useLayoutEffect,
-  useRef,
   useMemo,
+  useRef,
   useCallback,
 } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   Send,
   Clock,
@@ -85,13 +85,18 @@ import MessageBubble from "../components/synthesis/MessageBubble";
 import { NightSky } from "../components/layout/NightSky";
 import type { UserRoutine } from "../types/user";
 import { STORAGE_KEYS, FREE_LIMIT_SECONDS } from "../lib/constants";
-import { parseCompletedBirthProfile } from "../lib/profile-readiness";
+import {
+  parseCompletedBirthProfile,
+  parseChartReadingBirthData,
+  isUsableCachedKundali,
+} from "../lib/profile-readiness";
 import {
   getDefaultSynthesisRails,
   SYNTHESIS_MESSAGE_SPACING_CLASS,
   SYNTHESIS_PANEL_SURFACE_CLASS,
 } from "../lib/synthesis-layout";
 import { useErrorToast, useSuccessToast } from "../components/ui/toast-context";
+import { StatusNotice } from "../components/ui/StatusNotice";
 import {
   hasVisibleStreamingContent,
   mergeSynthesisMessages,
@@ -99,6 +104,12 @@ import {
 } from "../lib/synthesis-messages";
 
 type Message = SynthesisMessage;
+
+interface SavedChartReading {
+  chatId: string;
+  uid: string;
+  birthData: ReturnType<typeof parseChartReadingBirthData>;
+}
 
 interface SpeechRecognitionResultEventLike extends Event {
   results: ArrayLike<{
@@ -144,7 +155,7 @@ const CelestialChart = lazy(
 );
 
 const OPENING_QUESTIONS = [
-  "What does my current dasha ask of me?",
+  "What is this phase of my life asking of me?",
   "Why does this week feel heavy?",
   "Something's weighing on my heart about a relationship",
   "When is a good time to start something new?",
@@ -208,7 +219,7 @@ const CHECK_IN_DELAY_MS = 3 * 24 * 60 * 60 * 1000;
 
 /** The calm copy shown in place of any raw gateway / server error body. */
 const QUIET_SKY_MESSAGE =
-  "The sky went quiet for a moment — your question is safe. Try again";
+  "The reply did not come through. No credit was used. Please send it again.";
 
 interface SendFailure {
   /** The exact question that failed, resent verbatim by Retry. */
@@ -329,12 +340,30 @@ const isKundaliRateLimited = (error: string | null) =>
 
 export default function Synthesis() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
   const { user, loading: authLoading } = useAuth();
   const showError = useErrorToast();
   const showSuccess = useSuccessToast();
 
-  const [birthData, setBirthData] = useState<any>(null);
+  const [profileBirthData, setBirthData] = useState<any>(null);
+  const chartHandoff = location.state?.chartHandoff;
+  const routeBirthData = useMemo(
+    () => parseChartReadingBirthData(chartHandoff?.birthData),
+    [chartHandoff],
+  );
+  const [savedChartReading, setSavedChartReading] =
+    useState<SavedChartReading | null>(null);
+  const hasLoadedChat = savedChartReading?.chatId === id &&
+    savedChartReading?.uid === user?.uid;
+  const readingBirthData =
+    routeBirthData ?? (hasLoadedChat ? savedChartReading?.birthData : null);
+  const waitingForChat = Boolean(user && id && !routeBirthData && !hasLoadedChat);
+  const birthData = readingBirthData ?? profileBirthData;
+  const handoffChart =
+    routeBirthData && isUsableCachedKundali(chartHandoff?.kundaliData, "D1", "vedic")
+      ? chartHandoff.kundaliData
+      : null;
   // Active paid subscribers get unmetered chat server-side, so the client must
   // not paywall them at 0 credits (it would contradict the "unlimited" promise).
   const { isSubscribed, loading: subscriptionLoading } = useSubscription();
@@ -352,38 +381,50 @@ export default function Synthesis() {
     null,
   );
 
-  // Trigger Prana if Anxious/Chaotic/Reactive is detected (with 30-min cooldown)
+  // Offer Prana if Anxious/Chaotic/Reactive is detected (with 30-min cooldown)
   useEffect(() => {
     if (isAnxious || isChaotic || isReactive) {
       const COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
       const lastShown = sessionStorage.getItem("astroyou_prana_last");
       const now = Date.now();
       if (!lastShown || now - parseInt(lastShown) > COOLDOWN_MS) {
-        setShowPrana(true);
+        // Offer the breathing exercise; never take over the screen unasked.
+        // A stored mood can be days old, and the user came here to ask
+        // something.
+        setShowBreathOffer(true);
         sessionStorage.setItem("astroyou_prana_last", now.toString());
       }
     }
   }, [isAnxious, isChaotic, isReactive]);
 
   // Use centralized hooks for data access
-  const [currentChartType, setCurrentChartType] = useState<"D1" | "D9">("D1");
+  const [selectedChartType, setCurrentChartType] = useState<"D1" | "D9">("D1");
+  const currentChartType = readingBirthData ? "D1" : selectedChartType;
   const {
     profile,
     birthData: hookBirthData,
     loading: isLoadingProfile,
   } = useUserProfile();
-  // One chart fetch for everyone: `birthData` is the unified source (Firestore
-  // profile for signed-in users, session storage for guests), so guests no
-  // longer trigger a second ad-hoc /api/kundali request on top of this one.
+  // Reuse the handed-off D1 on arrival. Reopened readings fetch the selected
+  // chart without using the account's profile chart cache.
   const {
     kundaliData: hookKundaliData,
     loading: isLoadingHookKundali,
     error: kundaliError,
-  } = useKundali(birthData, currentChartType, profile?.zodiacMode);
+    refetch: refetchKundali,
+  } = useKundali(
+    handoffChart || waitingForChat ? null : birthData,
+    currentChartType,
+    readingBirthData ? "vedic" : profile?.zodiacMode,
+    !readingBirthData,
+  );
   // The hook keeps its last successful chart when birth data disappears
   // (e.g. sign-out into an empty guest session) — never show it in that case.
-  const kundaliData = birthData ? hookKundaliData : null;
-  const isLoadingKundali = Boolean(birthData) && isLoadingHookKundali;
+  const kundaliData = waitingForChat
+    ? null
+    : handoffChart ?? (birthData ? hookKundaliData : null);
+  const isLoadingKundali =
+    waitingForChat || (!handoffChart && Boolean(birthData) && isLoadingHookKundali);
   const kundaliRateLimited = isKundaliRateLimited(kundaliError);
 
   // Local state - needed for guest mode and chat functionality
@@ -394,7 +435,7 @@ export default function Synthesis() {
   const [input, setInput] = useState(() => {
     const draft = sessionStorage.getItem(STORAGE_KEYS.SYNTHESIS_DRAFT) || "";
     if (draft) sessionStorage.removeItem(STORAGE_KEYS.SYNTHESIS_DRAFT);
-    return draft;
+    return draft || (!id && routeBirthData ? "What does the Moon sign in this Kundali mean?" : "");
   });
   const [secondsUsed, setSecondsUsed] = useState(0);
   const [credits, setCredits] = useState(0);
@@ -666,19 +707,6 @@ export default function Synthesis() {
     }
   }, [user, currentChatId]);
 
-  const welcomeName = user
-    ? profile?.name || user.displayName || user.email?.split("@")[0] || ""
-    : "";
-  const welcomeMessage = useMemo<Message>(
-    () => ({
-      id: "welcome",
-      role: "assistant",
-      content: `${welcomeName ? `Hello ${welcomeName}.` : "Welcome."} I am your personal Jyotish, your guide to Vedic insights.`,
-      timestamp: new Date(),
-    }),
-    [welcomeName],
-  );
-
   // 1. Sync logged-in user data to local state
   useEffect(() => {
     if (hookBirthData) {
@@ -700,6 +728,10 @@ export default function Synthesis() {
 
   // 2. Handle guest data and onboarding trigger
   useEffect(() => {
+    if (readingBirthData || waitingForChat) {
+      setShowOnboardingModal(false);
+      return;
+    }
     if (isLoadingProfile) return;
 
     if (!user) {
@@ -719,7 +751,7 @@ export default function Synthesis() {
       // Logged in but no profile data found in Firestore
       setShowOnboardingModal(true);
     }
-  }, [user, isLoadingProfile, hookBirthData]);
+  }, [user, isLoadingProfile, hookBirthData, readingBirthData, waitingForChat]);
 
   const handleOnboardingComplete = () => {
     // For guest users, we need to manually pick up the data from sessionStorage
@@ -752,7 +784,7 @@ export default function Synthesis() {
     const { isGuest, chartType } = kundaliErrorContextRef.current;
     if (isKundaliRateLimited(kundaliError)) {
       showError(
-        "Chart is rate-limited",
+        "Too many chart requests",
         "Try again in a few minutes — your birth details are fine.",
       );
       return;
@@ -795,7 +827,7 @@ export default function Synthesis() {
     if (!user) {
       guestMigrationRef.current = false;
       pendingMessagesRef.current = [];
-      setMessages([welcomeMessage]);
+      setMessages([]);
       return;
     }
 
@@ -805,8 +837,8 @@ export default function Synthesis() {
         return;
       }
       // The user just signed in mid-conversation: preserve their guest turns
-      // by writing them into a fresh chat doc instead of resetting to the
-      // welcome message. Only on a real guest → user transition; a signed-in
+      // by writing them into a fresh chat doc instead of clearing the thread.
+      // Only on a real guest → user transition; a signed-in
       // user starting a "New conversation" must simply get a fresh thread.
       const guestTurns = wasGuest
         ? messagesRef.current.filter((m) => m.id !== "welcome")
@@ -823,6 +855,7 @@ export default function Synthesis() {
                 title: makeChatTitle(
                   firstUserTurn?.content || "Guest conversation",
                 ),
+                ...(routeBirthData ? { chartReadingBirthData: routeBirthData } : {}),
                 createdAt: serverTimestamp(),
                 lastUpdatedAt: serverTimestamp(),
               },
@@ -851,7 +884,10 @@ export default function Synthesis() {
             });
             await batch.commit();
             setCurrentChatId(chatRef.id);
-            navigate(`/synthesis/${chatRef.id}`, { replace: true });
+            navigate(`/synthesis/${chatRef.id}`, {
+              replace: true,
+              state: routeBirthData ? { chartHandoff } : undefined,
+            });
             guestMigrationRef.current = false;
           } catch (err) {
             console.error(
@@ -859,26 +895,42 @@ export default function Synthesis() {
               err,
             );
             guestMigrationRef.current = false;
-            setMessages([welcomeMessage]);
+            setMessages([]);
           }
         };
         void migrateGuestTurns();
         // Keep the guest turns on screen while they migrate.
         return;
       }
-      setMessages([welcomeMessage]);
+      setMessages([]);
       return;
     }
 
     const chatRef = doc(db, "users", user.uid, "chats", currentChatId);
-    const unsubscribeChat = onSnapshot(chatRef, (snapshot) => {
-      const lastInteractionId = snapshot.data()?.lastInteractionId;
-      setInteractionId(
-        typeof lastInteractionId === "string" && lastInteractionId.trim()
-          ? lastInteractionId
-          : null,
-      );
-    });
+    const unsubscribeChat = onSnapshot(
+      chatRef,
+      (snapshot) => {
+        const chat = snapshot.data();
+        if (!chat) {
+          if (!snapshot.metadata.fromCache) {
+            showError("Conversation unavailable", "Choose another conversation or start a new one.");
+          }
+          return;
+        }
+        setSavedChartReading({
+          chatId: currentChatId,
+          uid: user.uid,
+          birthData: parseChartReadingBirthData(chat.chartReadingBirthData),
+        });
+        const lastInteractionId = chat.lastInteractionId;
+        setInteractionId(
+          typeof lastInteractionId === "string" && lastInteractionId.trim()
+            ? lastInteractionId
+            : null,
+        );
+      },
+      () => showError("Couldn't open this conversation", "Check your connection and open it again."),
+    );
 
     // Load messages for specific chat (windowed: very long chats keep the
     // newest turns instead of subscribing to the full history).
@@ -896,7 +948,7 @@ export default function Synthesis() {
       })) as Message[];
 
       const mergedMessages = mergeSynthesisMessages(
-        welcomeMessage,
+        null,
         msgs,
         pendingMessagesRef.current,
       );
@@ -904,7 +956,7 @@ export default function Synthesis() {
         (message) => message.pending,
       );
 
-      // Always prepend welcome message so it appears at the start of conversation
+      // Show the conversation's real turns without a synthetic introduction.
       setMessages(mergedMessages);
 
       // If a new assistant message arrived from Firestore, clear streaming overlay
@@ -920,7 +972,7 @@ export default function Synthesis() {
       unsubscribeMessages();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, currentChatId, welcomeMessage]);
+  }, [user, currentChatId, routeBirthData]);
 
   // Keep chat state in lockstep with the URL, including browser back/forward:
   // navigating back to /synthesis must reset to a fresh conversation.
@@ -1135,6 +1187,7 @@ export default function Synthesis() {
       isSynthesizing ||
       sendingRef.current ||
       streamingContent !== null ||
+      waitingForChat ||
       authLoading
     )
       return;
@@ -1231,6 +1284,7 @@ export default function Synthesis() {
           {
             userId: user.uid,
             title: makeChatTitle(userMsgContent),
+            ...(readingBirthData ? { chartReadingBirthData: readingBirthData } : {}),
             createdAt: serverTimestamp(),
             lastUpdatedAt: serverTimestamp(),
           },
@@ -1242,7 +1296,10 @@ export default function Synthesis() {
         sendChatIdRef.current = chatId;
         currentChatIdRef.current = chatId; // sync before React commits
         setCurrentChatId(chatId);
-        navigate(`/synthesis/${chatId}`, { replace: true });
+        navigate(`/synthesis/${chatId}`, {
+          replace: true,
+          state: routeBirthData ? { chartHandoff } : undefined,
+        });
         trackAcquisitionEvent("first_chat");
       }
 
@@ -1265,7 +1322,9 @@ export default function Synthesis() {
       }
 
       // P0: Load guru's diary (recent chat summaries) for new conversations
-      const recentSummaries = !interactionId ? await loadRecentSummaries() : [];
+      const recentSummaries = !readingBirthData && !interactionId
+        ? await loadRecentSummaries()
+        : [];
 
       // Build enriched chat history for summary generation and fallback memory.
       // A retried turn is already in `messages` — exclude it so it isn't sent twice.
@@ -1289,7 +1348,7 @@ export default function Synthesis() {
       const aiMsgClientId = `assistant_${crypto.randomUUID()}`;
 
       // One-shot context handed over from the Compatibility page.
-      const compatibilityContext = readCompatibilityContext();
+      const compatibilityContext = readingBirthData ? null : readCompatibilityContext();
 
       const idToken = user ? await user.getIdToken() : undefined;
       const response = await fetch("/api/synthesis", {
@@ -1302,8 +1361,9 @@ export default function Synthesis() {
           messages: requestMessages,
           birthData,
           kundaliData,
+          chartReadingBirthData: readingBirthData ?? undefined,
           previousInteractionId: interactionId, // Pass previous interaction for context
-          atmanData: atmanState, // Pass current consciousness state to AI
+          atmanData: readingBirthData ? undefined : atmanState,
           recentSummaries:
             recentSummaries.length > 0 ? recentSummaries : undefined,
           chatMessages:
@@ -1551,10 +1611,10 @@ export default function Synthesis() {
         err.code === "fair_use_daily"
           ? err.message
           : status === 429
-          ? "The sky needs a breath — please try again in a moment."
-          : err instanceof StreamError || err instanceof SendError
-            ? err.message
-            : QUIET_SKY_MESSAGE;
+            ? "The sky needs a breath — please try again in a moment."
+            : err instanceof StreamError || err instanceof SendError
+              ? err.message
+              : QUIET_SKY_MESSAGE;
 
       // Inline calm state + Retry (not for 401/402, which have their own flows).
       if (status !== 401 && status !== 402) {
@@ -1652,6 +1712,20 @@ export default function Synthesis() {
     el.scrollTop = el.scrollHeight;
   }, [messages, isSynthesizing, streamingContent, showCreditsNotice]);
 
+  // The thread also changes size without a new message: the composer grows,
+  // a notice slides in above it, the phone keyboard opens, reply chips or a
+  // check-in offer appear. Stay pinned to the latest line through all of it.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      if (isNearBottomRef.current) el.scrollTop = el.scrollHeight;
+    });
+    observer.observe(el);
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
+    return () => observer.disconnect();
+  }, [showPrana]);
+
   const remainingSeconds = Math.max(0, FREE_LIMIT_SECONDS - secondsUsed);
   const hasStreamingContent = hasVisibleStreamingContent(streamingContent);
   const isIntroConversation =
@@ -1741,16 +1815,28 @@ export default function Synthesis() {
                           <h1 className="font-display text-3xl italic leading-tight text-white/90 md:text-4xl">
                             What would you ask the sky?
                           </h1>
-                          <p className="mx-auto mt-4 max-w-lg text-sm leading-7 text-white/48">
-                            {messages[0]?.content || welcomeMessage.content}
+                          <p className="mt-3 text-sm leading-relaxed text-white/60">
+                            {birthData
+                              ? "Jyotish reads your birth chart and current life phase, and remembers what you share. Ask about love, work, timing or how you feel."
+                              : "Ask about love, work, timing or how you feel. Add your birth details and Jyotish can read your own chart."}
+                          </p>
+                          <p className="mt-1.5 text-xs text-white/55">
+                            {!user
+                              ? `Guests get ${Math.round(FREE_LIMIT_SECONDS / 60)} free minutes.`
+                              : isSubscribed
+                                ? "Questions are unlimited on your plan."
+                                : isLoadingProfile || subscriptionLoading
+                                  ? "Each question uses 1 credit."
+                                  : `Each question uses 1 credit. You have ${credits}.`}
                           </p>
                         </div>
                         <div className="flex flex-wrap items-center justify-center gap-2 max-w-lg">
                           {OPENING_QUESTIONS.map((q) => (
                             <button
                               key={q}
+                              type="button"
                               onClick={() => setInput(q)}
-                              className="rounded-full border border-white/10 bg-white/[0.02] px-4 py-2 text-xs text-white/50 transition-colors hover:border-gold/30 hover:text-gold"
+                              className="min-h-11 rounded-full border border-white/10 bg-white/[0.02] px-4 py-2 text-xs text-white/60 transition-colors hover:border-gold/30 hover:text-gold"
                             >
                               {q}
                             </button>
@@ -1761,7 +1847,7 @@ export default function Synthesis() {
 
                     {messages
                       .filter((m, i, arr) => {
-                        if (isIntroConversation && m.id === "welcome") {
+                        if (m.id === "welcome") {
                           return false;
                         }
                         // Hide the last assistant message while streaming to prevent duplicate bubbles
@@ -1828,7 +1914,7 @@ export default function Synthesis() {
                               className="animate-spin text-gold"
                             />
                             <span className="text-[0.6875rem] uppercase tracking-[0.3em] text-gold/60 animate-pulse">
-                              Reading the sky…
+                              Reading your question…
                             </span>
                           </div>
                         </div>
@@ -1999,7 +2085,7 @@ export default function Synthesis() {
                       </button>
                     </motion.div>
                   )}
-                  {showMemoryNotice && user && (
+                  {showMemoryNotice && user && !readingBirthData && (
                     <motion.div
                       key="memory-notice"
                       initial={{ opacity: 0, y: 6 }}
@@ -2036,7 +2122,14 @@ export default function Synthesis() {
                   )}
                 </AnimatePresence>
                 <div className="mx-auto max-w-2xl">
-                  <div className="flex items-end gap-2 rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2.5 transition-colors focus-within:border-gold/30 focus-within:bg-white/[0.05]">
+                  {readingBirthData && (
+                    <p className="mb-2 text-xs text-white/65">
+                      {readingBirthData.name
+                        ? `Using the Kundali for ${readingBirthData.name}`
+                        : "Using the Kundali you opened"}
+                    </p>
+                  )}
+                  <div className="flex items-end gap-0.5 rounded-[1.25rem] border border-white/10 bg-white/[0.035] px-1.5 py-0.5 transition-colors focus-within:border-gold/30 focus-within:bg-white/[0.05]">
                     <SynthesisComposerTextarea
                       composerRef={composerRef}
                       value={input}
@@ -2052,15 +2145,6 @@ export default function Synthesis() {
                         }
                       }}
                     />
-                    <button
-                      type="button"
-                      onClick={openBreathing}
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white/60 transition-colors hover:bg-white/5 hover:text-gold"
-                      title="Breathe"
-                      aria-label="Take a slow breath"
-                    >
-                      <Wind size={16} />
-                    </button>
                     <ComposerVoiceButton
                       isListening={isListening}
                       isSupported={isDictationSupported}
@@ -2078,6 +2162,7 @@ export default function Synthesis() {
                         isSynthesizing ||
                         hasStreamingContent ||
                         authLoading ||
+                        waitingForChat ||
                         !input.trim()
                       }
                       aria-label="Send message"
@@ -2089,8 +2174,8 @@ export default function Synthesis() {
                 {!user && (
                   <div className="mx-auto mt-3 flex max-w-3xl flex-col items-center justify-center gap-2 rounded-xl border border-gold/15 bg-gold/5 px-4 py-3 text-center text-xs text-white/55 sm:flex-row">
                     <span>
-                      Guest mode has a small server limit. Sign in to use your
-                      account credits and save replies.
+                      Guests can ask a few questions. Sign in for 15 free
+                      credits and to save your chats.
                     </span>
                     <button
                       type="button"
@@ -2299,12 +2384,16 @@ export default function Synthesis() {
                       <ChevronLeft size={14} />
                       Home
                     </button>
-                    <div className="flex items-center gap-1.5 rounded-full border border-gold/30 bg-gold/5 px-2.5 py-1 font-mono text-[0.6875rem] text-gold">
+                    <div
+                      className="flex items-center gap-1.5 rounded-full border border-gold/30 bg-gold/5 px-2.5 py-1 font-mono text-[0.6875rem] text-gold"
+                      title="Free guest time left. It only counts down while you type or wait for a reply."
+                    >
                       <Clock size={10} />
                       <span>
                         {Math.floor(remainingSeconds / 60)}:
                         {(remainingSeconds % 60).toString().padStart(2, "0")}
                       </span>
+                      <span className="font-sans text-white/55">free</span>
                     </div>
                     <BlueprintToggleButton
                       isOpen={showBlueprint}
@@ -2316,36 +2405,46 @@ export default function Synthesis() {
                 <div className="flex items-center justify-between gap-3 mb-2">
                   <p
                     id="synthesis-blueprint-title"
-                    className="text-gold/80 text-[0.58rem] font-bold uppercase tracking-[0.32em] leading-4"
+                    className="text-gold/80 text-[0.6875rem] font-bold uppercase tracking-[0.32em] leading-4"
                   >
-                    Celestial Blueprint
+                    Birth chart
                   </p>
                   <div className="flex items-center gap-2">
                     {user && (
                       <button
+                        type="button"
                         onClick={() => navigate("/reports")}
                         className="flex items-center gap-1 text-[0.6875rem] px-2.5 py-1 rounded-full border border-white/10 text-white/55 hover:text-gold hover:border-gold/30 transition-colors"
                         title="My reports"
                       >
-                        <Download size={10} />
+                        <Download size={10} aria-hidden="true" />
                         Reports
                       </button>
                     )}
                   </div>
                 </div>
-                <ChartTypeSelector
-                  value={currentChartType}
-                  loading={isLoadingKundali}
-                  onChange={setCurrentChartType}
-                />
+                {readingBirthData ? (
+                  <p className="text-sm text-white/65">
+                    {readingBirthData.name ? `Kundali for ${readingBirthData.name}` : "Kundali from your free reading"}
+                  </p>
+                ) : (
+                  <ChartTypeSelector
+                    value={currentChartType}
+                    loading={isLoadingKundali}
+                    onChange={setCurrentChartType}
+                  />
+                )}
               </header>
 
               {isLoadingKundali ? (
-                <div className="flex-1 flex flex-col items-center justify-center gap-4 opacity-40">
-                  <Loader2 className="animate-spin" size={32} />
-                  <span className="text-xs uppercase tracking-widest text-center">
-                    Calculating Planetary Alignments…
-                  </span>
+                <div className="flex flex-1 flex-col items-center justify-center gap-3 py-12 text-white/55">
+                  {/* Not a status region: the chart-type selector above already announces this. */}
+                  <Loader2
+                    className="animate-spin text-gold/70"
+                    size={24}
+                    aria-hidden="true"
+                  />
+                  <span className="text-sm">Calculating your chart…</span>
                 </div>
               ) : kundaliData ? (
                 <div
@@ -2364,8 +2463,8 @@ export default function Synthesis() {
                       <div className="absolute inset-0 rounded-full bg-gold/5 opacity-0 blur-2xl transition-opacity group-hover:opacity-100" />
                       <Kundali data={kundaliData} className="compact" />
                       <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 opacity-0 backdrop-blur-md transition-opacity group-hover:opacity-100">
-                        <span className="text-[0.56rem] uppercase tracking-[0.22em] text-white/75">
-                          Expand Chart
+                        <span className="text-[0.6875rem] uppercase tracking-[0.22em] text-white/75">
+                          Expand chart
                         </span>
                       </div>
                     </button>
@@ -2397,21 +2496,22 @@ export default function Synthesis() {
                     >
                       <Share2 size={16} />
                     </button>
-                    {/* Update Birth Data Button */}
-                    <button
-                      onClick={() => setShowOnboardingModal(true)}
-                      className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gold/10 p-2 transition-all hover:bg-gold/20 group"
-                      title="Update Birth Data"
-                      aria-label="Update birth details"
-                    >
-                      <Save
-                        size={14}
-                        className="text-gold group-hover:scale-110 transition-transform"
-                      />
-                      <span className="text-xs tracking font-bold text-gold">
-                        Update Details
-                      </span>
-                    </button>
+                    {!readingBirthData && (
+                      <button
+                        onClick={() => setShowOnboardingModal(true)}
+                        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gold/10 p-2 transition-all hover:bg-gold/20 group"
+                        title="Update Birth Data"
+                        aria-label="Update birth details"
+                      >
+                        <Save
+                          size={14}
+                          className="text-gold group-hover:scale-110 transition-transform"
+                        />
+                        <span className="text-xs font-bold text-gold">
+                          Update Details
+                        </span>
+                      </button>
+                    )}
                   </div>
 
                   {/* Daily Altar Button */}
@@ -2441,14 +2541,29 @@ export default function Synthesis() {
                   </div>
                 </div>
               ) : (
-                <div className="flex-1 flex flex-col items-center justify-center opacity-30 text-center p-12">
-                  <p className="text-xs uppercase tracking-[0.3em] font-light">
-                    {kundaliRateLimited
-                      ? "Chart is rate-limited — try again in a few minutes"
-                      : birthData?.dob && birthData?.tob
-                        ? "Chart unavailable — try again shortly"
-                        : "Birth data required"}
-                  </p>
+                <div className="py-6">
+                  {kundaliRateLimited ? (
+                    <StatusNotice
+                      size="section"
+                      message="Too many chart requests. Try again in a few minutes."
+                    />
+                  ) : birthData?.dob && birthData?.tob ? (
+                    <StatusNotice
+                      size="section"
+                      message="Your chart could not be calculated just now."
+                      onRetry={() => void refetchKundali()}
+                    />
+                  ) : (
+                    <StatusNotice
+                      tone="info"
+                      size="section"
+                      message="Add your birth date, time and place to see your chart here."
+                      action={{
+                        label: "Add birth details",
+                        onClick: () => setShowOnboardingModal(true),
+                      }}
+                    />
+                  )}
                 </div>
               )}
             </aside>
@@ -2466,8 +2581,8 @@ export default function Synthesis() {
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
-        title="Continue Your Journey"
-        message="Sign in to save this synthesis and access it from any device."
+        title="Keep talking with Jyotish"
+        message="Sign in to save this conversation, pick it up on any device, and get 15 free credits."
       />
 
       {showExpandedChart && kundaliData && (

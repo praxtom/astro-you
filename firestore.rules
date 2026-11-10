@@ -142,6 +142,18 @@ service cloud.firestore {
         allow read, write: if isOwner(userId);
       }
 
+      // Private journal entries: plain text the user wrote, owner-only.
+      match /journal/{entryId} {
+        allow read, delete: if isOwner(userId);
+        allow create: if isOwner(userId)
+                      && request.resource.data.keys().hasOnly(['text', 'createdAt'])
+                      && request.resource.data.text is string
+                      && request.resource.data.text.size() > 0
+                      && request.resource.data.text.size() <= 4000
+                      && request.resource.data.createdAt == request.time;
+        allow update: if false;
+      }
+
       // Referrals — reward grants are server-owned (Admin SDK) to prevent
       // self-referral / reward farming. Each doc holds a referee's (masked)
       // contact, so it is served ONLY via the referral-info API, never read

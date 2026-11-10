@@ -31,14 +31,15 @@ export const GrowthRadar: React.FC<GrowthRadarProps> = ({ atmanData, size = 300 
     const intention = hasIntention + hasGratitude;
 
     const scores = [
-        { label: 'Groundedness', value: groundedness },
-        { label: 'Awareness', value: awareness },
-        { label: 'Harmony', value: harmony },
-        { label: 'Intention', value: intention }
+        { label: 'Groundedness', value: groundedness, hint: 'Routines you keep up' },
+        { label: 'Awareness', value: awareness, hint: 'Patterns you have confirmed' },
+        { label: 'Harmony', value: harmony, hint: 'Supportive people in your circle' },
+        { label: 'Intention', value: intention, hint: "Today's intention and gratitude" }
     ];
 
     const center = size / 2;
-    const radius = size * 0.4;
+    // Leaves room for the side labels inside the box at phone widths.
+    const radius = size * 0.32;
     
     // Convert scores to points
     const points = scores.map((s, i) => {
@@ -54,7 +55,7 @@ export const GrowthRadar: React.FC<GrowthRadarProps> = ({ atmanData, size = 300 
 
     return (
         <div className="relative flex flex-col items-center">
-            <svg width={size} height={size} className="overflow-visible">
+            <svg width={size} height={size} role="img" aria-label={scores.map(s => `${s.label} ${Math.round(s.value)}%`).join(', ')}>
                 {/* Background Circles */}
                 {[0.2, 0.4, 0.6, 0.8, 1].map((p, i) => (
                     <circle
@@ -97,17 +98,23 @@ export const GrowthRadar: React.FC<GrowthRadarProps> = ({ atmanData, size = 300 
 
                 {/* Labels */}
                 {scores.map((s, i) => {
-                    const angle = (Math.PI * 2 * i) / scores.length - Math.PI / 2;
-                    const labelRadius = radius + 30;
+                    // Top/bottom labels centre on their axis; side labels sit
+                    // above the axis end, pinned to the box edge.
+                    const pos = ([
+                        { x: center, y: center - radius - 10, anchor: 'middle' },
+                        { x: size, y: center - 8, anchor: 'end' },
+                        { x: center, y: center + radius + 20, anchor: 'middle' },
+                        { x: 0, y: center - 8, anchor: 'start' },
+                    ] as const)[i];
                     return (
                         <text
                             key={i}
-                            x={center + labelRadius * Math.cos(angle)}
-                            y={center + labelRadius * Math.sin(angle)}
+                            x={pos.x}
+                            y={pos.y}
                             fill="rgba(255, 255, 255, 0.7)"
-                            fontSize="10"
-                            textAnchor="middle"
-                            className="uppercase tracking-widest font-light"
+                            fontSize="11"
+                            textAnchor={pos.anchor}
+                            aria-hidden="true"
                         >
                             {s.label}
                         </text>
@@ -118,8 +125,9 @@ export const GrowthRadar: React.FC<GrowthRadarProps> = ({ atmanData, size = 300 
             <div className="mt-4 grid grid-cols-2 gap-4 w-full px-6">
                 {scores.map((s, i) => (
                     <div key={i} className="flex flex-col items-center">
-                        <span className="text-[0.6875rem] text-zinc-500 uppercase">{s.label}</span>
-                        <span className="text-xl font-display text-white">{s.value}%</span>
+                        <span className="text-[0.6875rem] text-white/55 uppercase">{s.label}</span>
+                        <span className="text-xl font-display text-white">{Math.round(s.value)}%</span>
+                        <span className="text-[0.6875rem] text-white/50 text-center leading-snug">{s.hint}</span>
                     </div>
                 ))}
             </div>

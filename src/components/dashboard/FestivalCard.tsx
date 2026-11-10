@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { CalendarDays } from 'lucide-react';
+import { TileHead } from './WeatherTiles';
 import { postJson } from "../../lib/apiFetch";
-import { FactLabel, FactSkeleton } from './primitives';
+import { FactSkeleton } from './primitives';
 import { viewerDateKey } from "../../lib/viewer-timezone";
 import { normalizeFestivalRegion, type FestivalRegion } from "../../lib/festival-regions";
 
@@ -68,9 +70,11 @@ export const FestivalCard: React.FC<FestivalCardProps> = ({ region }) => {
     if (error || festivals.length === 0) {
         return (
             <div>
-                <FactLabel>Upcoming festivals</FactLabel>
-                <p className="mt-2 text-[0.98rem] leading-relaxed text-white/50">
-                    The festival calendar couldn't load right now. It will appear here once it does.
+                <TileHead icon={<CalendarDays />}>Upcoming festivals</TileHead>
+                <p className="mt-2 text-[0.98rem] leading-relaxed text-white/55">
+                    {error
+                        ? "The festival calendar couldn't load right now. It will appear here once it does."
+                        : 'No festivals are listed for the coming weeks.'}
                 </p>
             </div>
         );
@@ -87,7 +91,7 @@ export const FestivalCard: React.FC<FestivalCardProps> = ({ region }) => {
 
     return (
         <div>
-            <FactLabel>Upcoming festivals</FactLabel>
+            <TileHead icon={<CalendarDays />}>Upcoming festivals</TileHead>
             <div className="mt-3 space-y-3">
                 {festivals.map((f, i) => (
                     <div key={i} className="flex items-baseline gap-4">

@@ -6,6 +6,7 @@ import { useUserProfile } from "../hooks";
 import { useRequestBirthData } from "../hooks/useRequestBirthData";
 import BirthProfileRequired from "../components/BirthProfileRequired";
 import { PageShell } from "../components/layout/PageShell";
+import { AskJyotishBridge } from "../components/layout/AskJyotishBridge";
 
 interface Eclipse {
   date: string;
@@ -35,6 +36,45 @@ function toLabelList(value: unknown): string[] {
       return "";
     })
     .filter(Boolean);
+}
+
+const HOUSE_THEMES = [
+  "self & body",
+  "money & family",
+  "courage & siblings",
+  "home & mother",
+  "creativity & children",
+  "work & health",
+  "partnership & marriage",
+  "change & shared money",
+  "luck & beliefs",
+  "career & status",
+  "gains & friends",
+  "rest & letting go",
+];
+
+const HOUSE_WORDS = [
+  "first",
+  "second",
+  "third",
+  "fourth",
+  "fifth",
+  "sixth",
+  "seventh",
+  "eighth",
+  "ninth",
+  "tenth",
+  "eleventh",
+  "twelfth",
+];
+
+/** "10" / "Tenth_House" → "House 10 · career & status"; anything else as-is. */
+function houseLabel(raw: string): string {
+  const digits = raw.match(/\d+/)?.[0];
+  const word = HOUSE_WORDS.findIndex((w) => raw.toLowerCase().startsWith(w));
+  const num = digits ? Number(digits) : word >= 0 ? word + 1 : 0;
+  if (num < 1 || num > 12) return raw;
+  return `House ${num} · ${HOUSE_THEMES[num - 1]}`;
 }
 
 function toStr(value: unknown): string {
@@ -196,13 +236,19 @@ export default function Eclipses() {
 
   const header = (
     <div className="flex items-center gap-4 mb-10">
-      <div className="p-3 rounded-2xl bg-gold/10 text-gold">
+      <div className="p-3 rounded-2xl bg-gold/10 text-gold" aria-hidden="true">
         <Moon size={28} />
       </div>
       <div>
         <h1 className="type-page-title">Eclipses</h1>
-        <p className="text-white/55 text-sm mt-1">
-          Cosmic portals of transformation
+        <p className="text-white/60 text-sm mt-1">
+          The next solar and lunar eclipses, and which parts of your life they
+          stir up.
+        </p>
+        <p className="text-white/55 text-xs mt-1 max-w-xl">
+          Eclipses are read as turning points: something begins or wraps up in
+          the area they touch over the following weeks. Tradition keeps the
+          eclipse day itself quiet for big new starts.
         </p>
       </div>
     </div>
@@ -242,8 +288,8 @@ export default function Eclipses() {
 
         {/* Upcoming Eclipses */}
         <section className="mb-12">
-          <h2 className="text-lg uppercase tracking-widest text-white/55 font-bold mb-5">
-            Upcoming Eclipses
+          <h2 className="font-display text-2xl text-white/90 mb-4">
+            Upcoming eclipses
           </h2>
 
           {eclipseError ? (
@@ -252,23 +298,23 @@ export default function Eclipses() {
               onRetry={() => setEclipseAttempt((n) => n + 1)}
             />
           ) : eclipses.length === 0 ? (
-            <div className="glass rounded-2xl p-8 text-center">
-              <p className="text-white/60">
-                No upcoming eclipses were returned for the coming months.
-              </p>
-            </div>
+            <StatusNotice
+              tone="info"
+              size="section"
+              message="No eclipses are listed for the coming months. They arrive in pairs roughly every six months, so check back later."
+            />
           ) : (
             <div className="space-y-4">
               {eclipses.map((eclipse, idx) => (
                 <div
                   key={idx}
-                  className={`rounded-2xl border p-6 backdrop-blur-sm ${getEclipseBorderColor(eclipse.type)} transition-transform hover:scale-[1.01]`}
+                  className={`rounded-2xl border p-5 md:p-6 ${getEclipseBorderColor(eclipse.type)}`}
                 >
                   <div className="flex items-start gap-4">
-                    <div className="p-3 rounded-xl bg-white/5 flex-shrink-0">
+                    <div className="p-3 rounded-xl bg-white/5 flex-shrink-0" aria-hidden="true">
                       {getEclipseIcon(eclipse.type)}
                     </div>
-                    <div className="flex-1">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-3 flex-wrap mb-1">
                         <h3 className="text-lg font-display tracking-wider text-white">
                           {eclipse.type.includes("solar")
@@ -277,15 +323,20 @@ export default function Eclipses() {
                         </h3>
                         {eclipse.sign && (
                           <span className="text-xs font-medium px-2.5 py-1 rounded-full border border-white/10 bg-white/5 text-white/60">
-                            {eclipse.sign}
+                            In {eclipse.sign}
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-white/50 mb-2">
+                      <p className="text-sm text-white/60">
                         {formatDate(eclipse.date)}
                       </p>
+                      <p className="text-xs text-white/55 mb-2">
+                        {eclipse.type.includes("solar")
+                          ? "New-moon eclipse: a fresh start. Good for setting intentions in the weeks after."
+                          : "Full-moon eclipse: a release. Something tends to come to a head or wrap up."}
+                      </p>
                       {eclipse.description && (
-                        <p className="text-sm text-white/60 leading-relaxed">
+                        <p className="max-w-[65ch] text-[0.95rem] text-white/70 leading-relaxed">
                           {eclipse.description}
                         </p>
                       )}
@@ -304,12 +355,16 @@ export default function Eclipses() {
 
         {/* Personal Impact */}
         <section>
-          <h2 className="text-lg uppercase tracking-widest text-white/55 font-bold mb-5">
-            Personal Impact
+          <h2 className="font-display text-2xl text-white/90 mb-1">
+            How they touch your chart
           </h2>
+          <p className="text-sm text-white/55 mb-4">
+            The life areas and birth planets an eclipse lands on are where you
+            are most likely to notice change.
+          </p>
 
           {profileLoading ? (
-            <div className="glass rounded-2xl p-8 space-y-4" aria-busy="true">
+            <div className="glass rounded-2xl p-5 md:p-8 space-y-4" aria-busy="true">
               <div className="h-5 bg-white/5 rounded animate-pulse w-48" />
               <div className="h-4 bg-white/5 rounded animate-pulse w-3/4" />
             </div>
@@ -319,7 +374,7 @@ export default function Eclipses() {
               description="Eclipse impact is read against your birth chart. Create your birth profile to see which houses and planets each eclipse touches."
             />
           ) : impactLoading ? (
-            <div className="glass rounded-2xl p-8 space-y-4">
+            <div className="glass rounded-2xl p-5 md:p-8 space-y-4" aria-busy="true">
               <div className="h-5 bg-white/5 rounded animate-pulse w-48" />
               <div className="flex gap-2">
                 {[1, 2, 3].map((i) => (
@@ -338,12 +393,12 @@ export default function Eclipses() {
               onRetry={() => setImpactAttempt((n) => n + 1)}
             />
           ) : impact ? (
-            <div className="glass rounded-2xl p-8">
+            <div className="glass rounded-2xl p-5 md:p-8">
               {/* Affected houses */}
               {impact.houses && impact.houses.length > 0 && (
                 <div className="mb-6">
-                  <h3 className="text-sm uppercase tracking-widest text-white/55 mb-3">
-                    Affected Houses
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-white/55 mb-3">
+                    Life areas in focus (houses)
                   </h3>
                   <div className="flex flex-wrap gap-2">
                     {impact.houses.map((house, idx) => (
@@ -351,7 +406,7 @@ export default function Eclipses() {
                         key={idx}
                         className="px-3 py-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-300 text-sm"
                       >
-                        {house}
+                        {houseLabel(house)}
                       </span>
                     ))}
                   </div>
@@ -361,8 +416,8 @@ export default function Eclipses() {
               {/* Affected planets */}
               {impact.planets && impact.planets.length > 0 && (
                 <div className="mb-6">
-                  <h3 className="text-sm uppercase tracking-widest text-white/55 mb-3">
-                    Affected Planets
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-white/55 mb-3">
+                    Your birth planets it touches
                   </h3>
                   <div className="flex flex-wrap gap-2">
                     {impact.planets.map((planet, idx) => (
@@ -381,12 +436,12 @@ export default function Eclipses() {
               {(impact.interpretation || impact.summary) && (
                 <div>
                   <div className="flex items-center gap-2 mb-3">
-                    <Sparkles size={16} className="text-blue-400" />
-                    <h3 className="text-sm uppercase tracking-widest text-white/55">
-                      Interpretation
+                    <Sparkles size={16} className="text-blue-400" aria-hidden="true" />
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-white/55">
+                      What it means for you
                     </h3>
                   </div>
-                  <p className="text-white/70 leading-relaxed whitespace-pre-wrap">
+                  <p className="max-w-[70ch] text-white/75 leading-relaxed whitespace-pre-wrap">
                     {impact.interpretation || impact.summary}
                   </p>
                 </div>
@@ -395,15 +450,22 @@ export default function Eclipses() {
               {/* Fallback if no structured data */}
               {!impact.houses?.length &&
                 !impact.planets?.length &&
-                !impact.interpretation && (
+                !impact.interpretation &&
+                !impact.summary && (
                   <p className="text-white/60">
-                    The eclipse calculation returned no specific findings for
-                    your chart.
+                    No specific links between the coming eclipses and your
+                    chart were found, so they are likely to pass quietly for
+                    you.
                   </p>
                 )}
             </div>
           ) : null}
         </section>
+
+        <AskJyotishBridge
+          eyebrow="Take this further"
+          question="How should I use the next eclipse, given where it falls in my chart?"
+        />
       </div>
     </PageShell>
   );

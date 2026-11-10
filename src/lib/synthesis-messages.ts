@@ -13,7 +13,7 @@ export interface SynthesisMessage {
 }
 
 export function mergeSynthesisMessages(
-  welcomeMessage: SynthesisMessage,
+  welcomeMessage: SynthesisMessage | null,
   persistedMessages: SynthesisMessage[],
   pendingMessages: SynthesisMessage[],
 ): SynthesisMessage[] {
@@ -28,7 +28,8 @@ export function mergeSynthesisMessages(
       !message.clientId || !confirmedClientIds.has(message.clientId),
   );
 
-  return [welcomeMessage, ...persistedMessages, ...unconfirmedPendingMessages];
+  const initialMessages = welcomeMessage ? [welcomeMessage] : [];
+  return [...initialMessages, ...persistedMessages, ...unconfirmedPendingMessages];
 }
 
 export function hasVisibleStreamingContent(

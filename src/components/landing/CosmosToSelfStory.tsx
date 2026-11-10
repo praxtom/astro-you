@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { ChevronDown, Sparkles } from "lucide-react";
 import { TIERS } from "../../lib/subscriptions";
 
@@ -24,18 +24,18 @@ interface CosmosToSelfStoryProps {
 const genesisMoments = [
   {
     marker: "Time",
-    title: "The first breath becomes a coordinate.",
-    body: "Your date, exact time, and birthplace anchor one unrepeatable point in the moving sky.",
+    title: "Start with your birth details.",
+    body: "Your date, time, and place of birth are used to calculate your chart.",
   },
   {
     marker: "Sky",
-    title: "The heavens leave an imprint.",
-    body: "Planetary degrees, houses, and lunar mansions preserve the celestial atmosphere you arrived within.",
+    title: "Explore your birth chart.",
+    body: "See your planetary placements, houses, and nakshatras with explanations you can return to.",
   },
   {
     marker: "Life",
-    title: "The map begins to move with you.",
-    body: "Dashas and transits turn that frozen instant into a living rhythm of potential, pressure, and choice.",
+    title: "Understand your current timing.",
+    body: "Explore dashas and transits, the planetary periods and movements used in Jyotish to discuss timing.",
   },
 ] as const;
 
@@ -47,13 +47,13 @@ const translationMoments = [
   },
   {
     verb: "Synthesize",
-    title: "Patterns become a coherent story",
-    body: "Placements, aspects, yogas, and time cycles are read together so one signal never speaks alone.",
+    title: "Bring the chart into your questions",
+    body: "Ask about work, relationships, or a decision, with your chart as context.",
   },
   {
     verb: "Accompany",
     title: "Guidance changes as the sky does",
-    body: "Your natal promise stays constant while transits and dashas reveal what this particular season is asking of you.",
+    body: "Return to your chart as your questions change, and explore the current dashas and transits.",
   },
 ] as const;
 
@@ -72,8 +72,8 @@ const guidanceSignals = [
   },
   {
     label: "Cycles",
-    title: "Dasha intelligence",
-    body: "Understand the chapter beneath the current moment.",
+    title: "Planetary periods",
+    body: "See your current dasha and what it may suggest.",
     position: "md:bottom-[8%] md:left-0",
   },
   {
@@ -96,7 +96,7 @@ const faqItems = [
       "Yes. We treat birth data as sacred. Your information is encrypted, never sold, and used only to create your chart and personalize your AstroYou experience.",
   },
   {
-    question: "Can Jyotish truly understand a birth chart?",
+    question: "How reliable are the readings?",
     answer:
       "AstroYou begins with rigorous astronomical calculation, then interprets the chart through established Jyotish frameworks. It offers perspective—not absolute certainty—and keeps the final act of discernment with you.",
   },
@@ -118,13 +118,16 @@ function StoryEyebrow({ children }: { children: string }) {
 
 function FAQItem({ question, answer }: (typeof faqItems)[number]) {
   const [isOpen, setIsOpen] = useState(false);
+  const panelId = useId();
 
   return (
     <div className="border-b border-white/10" data-faq-item>
       <button
+        type="button"
         className="group flex w-full items-start justify-between gap-8 py-7 text-left sm:py-9"
         onClick={() => setIsOpen((current) => !current)}
         aria-expanded={isOpen}
+        aria-controls={panelId}
       >
         <span className="max-w-2xl font-display text-xl leading-snug text-white/84 transition-colors group-hover:text-gold sm:text-2xl">
           {question}
@@ -134,9 +137,12 @@ function FAQItem({ question, answer }: (typeof faqItems)[number]) {
             isOpen ? "rotate-180" : ""
           }`}
           size={20}
+          aria-hidden="true"
         />
       </button>
       <div
+        id={panelId}
+        inert={!isOpen}
         className={`grid transition-[grid-template-rows] duration-500 ease-out ${
           isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
         }`}
@@ -166,7 +172,7 @@ function TrustMetric({ label, value }: { label: string; value: number | string }
       <p className="font-display text-5xl leading-none text-gold sm:text-6xl lg:text-7xl">
         {value}
       </p>
-      <p className="mt-3 text-[0.6875rem] font-bold uppercase tracking-[0.28em] text-white/38 sm:text-xs">
+      <p className="mt-3 text-[0.6875rem] font-bold uppercase tracking-[0.28em] text-white/55 sm:text-xs">
         {label}
       </p>
     </div>
@@ -218,7 +224,7 @@ export default function CosmosToSelfStory({
       </div>
 
       <section
-        className="relative min-h-[118svh] overflow-hidden px-8 py-28 sm:px-14 sm:py-36 lg:px-20 lg:py-44"
+        className="relative overflow-hidden px-8 py-20 sm:px-14 md:min-h-[118svh] md:py-36 lg:px-20 lg:py-44"
         data-lower-story-section="kundali"
         aria-labelledby="kundali-story-title"
       >
@@ -276,7 +282,7 @@ export default function CosmosToSelfStory({
       </section>
 
       <section
-        className="relative min-h-[110svh] overflow-hidden px-8 py-28 sm:px-14 sm:py-36 lg:px-20 lg:py-44"
+        className="relative overflow-hidden px-8 py-20 sm:px-14 md:min-h-[110svh] md:py-36 lg:px-20 lg:py-44"
         data-lower-story-section="translation"
         id="journey"
         aria-labelledby="translation-story-title"
@@ -324,7 +330,10 @@ export default function CosmosToSelfStory({
                 className="relative border-0 bg-transparent pl-10 sm:pl-14"
                 data-surface-treatment="open"
               >
-                <span className="absolute left-0 top-0 font-display text-4xl font-light italic text-gold/32 sm:text-5xl">
+                <span
+                  className="absolute left-0 top-0 font-display text-4xl font-light italic text-gold/50 sm:text-5xl"
+                  aria-hidden="true"
+                >
                   {index + 1}
                 </span>
                 <p className="text-[0.6875rem] font-black uppercase tracking-[0.36em] text-gold/72">
@@ -344,7 +353,7 @@ export default function CosmosToSelfStory({
       </section>
 
       <section
-        className="relative min-h-[115svh] overflow-hidden px-8 py-28 sm:px-14 sm:py-36 lg:px-20 lg:py-44"
+        className="relative overflow-hidden px-8 py-20 sm:px-14 md:min-h-[115svh] md:py-36 lg:px-20 lg:py-44"
         data-lower-story-section="guidance"
         id="features"
         aria-labelledby="guidance-story-title"
@@ -366,8 +375,8 @@ export default function CosmosToSelfStory({
             </h2>
           </div>
 
-          <div className="relative mx-auto mt-16 min-h-[52rem] max-w-6xl sm:mt-24 md:min-h-[46rem]">
-            <div className="pointer-events-none absolute left-1/2 top-[42%] aspect-square w-[min(84vw,34rem)] -translate-x-1/2 -translate-y-1/2 md:top-1/2" aria-hidden="true">
+          <div className="relative mx-auto mt-12 max-w-6xl md:mt-24 md:min-h-[46rem]">
+            <div className="pointer-events-none absolute left-1/2 top-0 aspect-square w-[min(84vw,34rem)] -translate-x-1/2 md:top-1/2 md:-translate-y-1/2" aria-hidden="true">
               <img
                 src="/assets/landing/transits.jpg"
                 alt=""
@@ -382,12 +391,12 @@ export default function CosmosToSelfStory({
                 <span className="absolute left-[15%] top-[8%] h-1.5 w-1.5 rounded-full bg-violet-200 shadow-[0_0_18px_rgba(196,181,253,0.9)]" />
               </div>
               <div className="absolute inset-[28%] flex flex-col items-center justify-center rounded-full border border-white/10 text-center">
-                <span className="text-xs font-black uppercase tracking-[0.34em] text-white/34">Your sky</span>
+                <span className="text-xs font-black uppercase tracking-[0.34em] text-white/55">Your sky</span>
                 <span className="mt-2 font-display text-3xl text-white sm:text-4xl">Today</span>
               </div>
             </div>
 
-            <div className="relative grid gap-10 pt-[31rem] md:absolute md:inset-0 md:block md:pt-0">
+            <div className="relative grid gap-10 pt-[calc(min(84vw,34rem)_+_2.5rem)] md:absolute md:inset-0 md:block md:pt-0">
               {guidanceSignals.map((signal) => (
                 <article
                   key={signal.title}
@@ -409,7 +418,7 @@ export default function CosmosToSelfStory({
       </section>
 
       <section
-        className="relative min-h-[100svh] overflow-hidden px-8 py-28 sm:px-14 sm:py-36 lg:px-20 lg:py-44"
+        className="relative overflow-hidden px-8 py-20 sm:px-14 md:py-36 lg:px-20 lg:py-44"
         data-lower-story-section="philosophy-proof"
         id="philosophy"
         aria-labelledby="philosophy-story-title"
@@ -439,7 +448,7 @@ export default function CosmosToSelfStory({
             </div>
           </div>
 
-          <div className="mt-28 h-px w-full bg-gradient-to-r from-gold/45 via-white/10 to-transparent sm:mt-36" />
+          <div className="mt-16 h-px w-full bg-gradient-to-r from-gold/45 via-white/10 to-transparent sm:mt-24" />
           {trustMetrics.length > 0 && (
             <div className="mt-8 grid gap-4 sm:grid-cols-3 sm:gap-8">
               {trustMetrics.map((metric) => (
@@ -447,14 +456,14 @@ export default function CosmosToSelfStory({
               ))}
             </div>
           )}
-          <p className="mt-8 max-w-2xl text-xs leading-relaxed text-white/32 sm:text-sm">
+          <p className="mt-8 max-w-2xl text-xs leading-relaxed text-white/55 sm:text-sm">
             Public stories appear only after genuine submission and moderation. Feedback is reported as an aggregate signal, never inflated social proof.
           </p>
         </div>
       </section>
 
       <section
-        className="relative min-h-[88svh] px-8 py-28 sm:px-14 sm:py-36 lg:px-20 lg:py-44"
+        className="relative px-8 py-20 sm:px-14 md:py-36 lg:px-20 lg:py-44"
         data-lower-story-section="questions"
         aria-labelledby="questions-story-title"
       >
@@ -508,9 +517,13 @@ export default function CosmosToSelfStory({
             <span className="font-light italic text-gold">that began with you.</span>
           </h2>
           <p className="mx-auto mt-8 max-w-xl text-base font-light leading-relaxed text-white/58 sm:text-lg">
-            Begin with a free birth chart. Keep an AI guide trained on Jyotish that knows your chart, remembers the key things you share, and helps you through the hard days. You still choose the path.
+            Begin with a free birth chart. Then talk it through with a Jyotish guide that knows your chart and remembers what you share. It is not a human astrologer.
           </p>
-          <button className="btn btn-primary group mt-10 px-10" onClick={onReveal}>
+          <button
+            type="button"
+            className="btn btn-primary group mt-10 px-10"
+            onClick={onReveal}
+          >
             See my free Kundali
             <Sparkles
               className="ml-3 transition-transform duration-300 group-hover:rotate-12"

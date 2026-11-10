@@ -1,6 +1,8 @@
 import { Config, Context } from "@netlify/functions";
 import { getDailyHoroscopeText, BirthData } from "./shared/astro-api.js";
 import { getCachedOrFetch } from "./shared/cache.js";
+import { fallbackDailyReading } from "./shared/daily-reading.js";
+import { polishDailyReading } from "./shared/gemini.js";
 import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit.js";
 import { SIGN_ANCHOR_DOB, normalizeSign } from "./sign-horoscope.js";
 import {
@@ -112,7 +114,32 @@ export default async (req: Request, _context: Context) => {
       },
     );
 
-    return json({ success: true, data });
+    // The stock sign text reads as filler. Serve a short lede and a cleaned
+    // reading: one Gemini rewrite per sign per day (shared, cached), with a
+    // deterministic cleanup whenever that call fails.
+    const sourceText = typeof data?.text === "string" ? data.text : "";
+    let polished = sourceText ? fallbackDailyReading(sourceText) : null;
+    if (sourceText) {
+      try {
+        polished = await getCachedOrFetch(
+          "horoscope_signs",
+          `${sign}_reading_v3_${date}`,
+          () => polishDailyReading(sign, sourceText),
+        );
+      } catch (err) {
+        console.warn(
+          "[DailyPrediction] Reading rewrite failed; using cleanup:",
+          err instanceof Error ? err.message : "error",
+        );
+      }
+    }
+
+    return json({
+      success: true,
+      data: polished
+        ? { ...data, text: polished.reading, lede: polished.lede }
+        : data,
+    });
   } catch (error: any) {
     // Spent astrology allowance (upstream or our global budget): 503.
     if (isUpstreamQuotaError(error)) return upstreamQuotaResponse();

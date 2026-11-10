@@ -1,6 +1,15 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowUpRight, ChevronDown } from "lucide-react";
+import {
+  ArrowUpRight,
+  ChevronDown,
+  Compass,
+  Flame,
+  LayoutGrid,
+  Moon,
+  Star,
+  Sunrise,
+} from "lucide-react";
 
 import { useAuth } from "../lib/useAuth";
 import {
@@ -32,7 +41,12 @@ import { useErrorToast } from "../components/ui/toast-context";
 
 import OnboardingModal from "../components/OnboardingModal";
 import ChartShareModal from "../components/ChartShareModal";
-import { DailyAltar } from "../components/sadhana/DailyAltar";
+// Lazy: pulls in html2canvas (~55 KB gzip), needed only when the altar opens.
+const DailyAltar = lazy(() =>
+  import("../components/sadhana/DailyAltar").then((m) => ({
+    default: m.DailyAltar,
+  })),
+);
 import { DharmaList } from "../components/dharma/DharmaList";
 
 import { HeroAlmanac } from "../components/dashboard/HeroAlmanac";
@@ -46,7 +60,12 @@ import { approximateLunar } from "../lib/moon-phase";
 import { AskJyotishBar } from "../components/dashboard/AskJyotishBar";
 import { ExploreIndex } from "../components/dashboard/ExploreIndex";
 import { buildTodayGuide } from "../lib/todayGuide";
-import { resolveDashboardPanchangPlace } from "../lib/panchang-place";
+import {
+  placeToGeocode,
+  resolveDashboardPanchangPlace,
+  withGeocodedPlace,
+} from "../lib/panchang-place";
+import { usePlaceCoordinates } from "../hooks/usePlaceCoordinates";
 import { buildChartThreeLines, deriveProfileSigns } from "../lib/chart-summary";
 import { normalizeZodiacMode } from "../lib/zodiac-mode";
 import { MemoryPanel } from "../components/dashboard/MemoryPanel";
@@ -57,8 +76,12 @@ import { RemediesCard } from "../components/dashboard/RemediesCard";
 import { DashaCard } from "../components/dashboard/DashaCard";
 import { SadeSatiCard } from "../components/dashboard/SadeSatiCard";
 import { FestivalCard } from "../components/dashboard/FestivalCard";
-import { SoulInsightCard } from "../components/dashboard/SoulInsightCard";
+import {
+  SoulInsightCard,
+  hasSoulInsight,
+} from "../components/dashboard/SoulInsightCard";
 import { DashaTimeline } from "../components/astrology/DashaTimeline";
+import Kundali from "../components/astrology/Kundali";
 import { TextAction, Tile } from "../components/dashboard/primitives";
 import { GlossaryTerm } from "../components/ui/GlossaryTerm";
 
@@ -74,16 +97,13 @@ function DashboardSkeleton() {
             <div key={i} className="h-20 flex-1 bg-white/3 animate-pulse" />
           ))}
         </div>
-        <div className="mt-8 h-14 bg-white/5 rounded-2xl animate-pulse" />
-        <div className="mt-8 grid grid-cols-1 lg:grid-cols-[1fr_22rem] gap-10">
-          <div className="space-y-5">
-            <div className="h-44 bg-white/3 rounded-2xl animate-pulse" />
-            <div className="h-64 bg-white/3 rounded-2xl animate-pulse" />
-          </div>
-          <div className="space-y-5">
-            <div className="h-40 bg-white/3 rounded-2xl animate-pulse" />
-            <div className="h-56 bg-white/3 rounded-2xl animate-pulse" />
-          </div>
+        <div className="mt-10 h-14 bg-white/5 rounded-full animate-pulse" />
+        {/* Mirrors the tile grid below: day bar, today-for-you, then halves. */}
+        <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div className="sm:col-span-2 h-40 bg-white/3 rounded-[1.25rem] animate-pulse" />
+          <div className="sm:col-span-2 h-56 bg-white/3 rounded-[1.25rem] animate-pulse" />
+          <div className="h-64 bg-white/3 rounded-[1.25rem] animate-pulse" />
+          <div className="h-64 bg-white/3 rounded-[1.25rem] animate-pulse" />
         </div>
       </div>
     </div>
@@ -149,9 +169,19 @@ export default function Dashboard() {
   // Panchang timings are local to where the user is now (onboarding's
   // current location), falling back to the birth place, then the server's
   // New Delhi default — and the tiles say which.
-  const panchangPlace = useMemo(
+  const savedPanchangPlace = useMemo(
     () => resolveDashboardPanchangPlace(userData),
     [userData],
+  );
+  // No saved coordinates (a place typed without picking a suggestion, or an
+  // older profile): look the typed place up once instead of showing Delhi.
+  const geocodePlace =
+    savedPanchangPlace.source === "default" ? placeToGeocode(userData) : "";
+  const { coords: geocodedCoords, pending: geocodePending } =
+    usePlaceCoordinates(geocodePlace);
+  const panchangPlace = useMemo(
+    () => withGeocodedPlace(savedPanchangPlace, userData, geocodedCoords),
+    [savedPanchangPlace, userData, geocodedCoords],
   );
   const {
     panchang,
@@ -162,6 +192,7 @@ export default function Dashboard() {
     panchangPlace.lat,
     panchangPlace.lng,
     userData?.timezone,
+    !geocodePending,
   );
   const { lunar: lunarFromService } = useLunarPhase(userData);
   // Never draw a blank or wrong moon: fall back to the date-based phase.
@@ -189,6 +220,7 @@ export default function Dashboard() {
   });
   const {
     prediction,
+    lede: predictionLede,
     loading: isPredictionLoading,
     error: predictionError,
   } = useDailyPrediction(userData);
@@ -235,6 +267,7 @@ export default function Dashboard() {
       }),
     [natal.kundaliData, nakshatraState.nakshatra?.name, dashaPeriods],
   );
+  const showSoulInsight = Boolean(user && hasSoulInsight(atmanState));
   const moonLine = chartLines.find((l) => l.label === "Moon");
   const lagnaLine = chartLines.find((l) => l.label === "Lagna");
 
@@ -333,17 +366,16 @@ export default function Dashboard() {
 
   return (
     <div>
-
       <div className="container mx-auto pt-28 px-6 pb-16 relative z-10 max-w-6xl">
         <HeroAlmanac
           name={displayName}
-          emotionalState={atmanState?.emotionalState}
           meditationStreak={atmanState?.meditationStreak}
           panchang={panchang}
           panchangLoading={panchangLoading}
           lunar={lunar}
           onShareSign={handleShareSign}
           reading={prediction || readingFallback}
+          lede={predictionLede ?? undefined}
           readingLoading={
             isPredictionLoading && !prediction && !predictionError
           }
@@ -359,14 +391,20 @@ export default function Dashboard() {
             error boundary so one failing card never blanks the rest. */}
         <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           {/* Today */}
-          <SectionErrorBoundary label="day timings tile">
+          <SectionErrorBoundary
+            label="day timings tile"
+            className="sm:col-span-2 lg:col-span-4"
+          >
             <DayTile
               panchang={panchang}
               placeLabel={panchangPlace.label}
               className="sm:col-span-2 lg:col-span-4"
             />
           </SectionErrorBoundary>
-          <SectionErrorBoundary label="today for you tile">
+          <SectionErrorBoundary
+            label="today for you tile"
+            className="sm:col-span-2 lg:col-span-4"
+          >
             <TodayForYouTile
               guide={todayGuide}
               showNudge={Boolean(prediction)}
@@ -375,24 +413,42 @@ export default function Dashboard() {
               }
             />
           </SectionErrorBoundary>
-
-          {/* Your journey (signed in) */}
-          {user && atmanState && (
-            <Tile className="sm:col-span-2">
-              <SectionErrorBoundary label="soul insight tile">
-                <SoulInsightCard
-                  atmanState={atmanState}
-                  onOpenSadhanaPath={() => setShowDailyAltar(true)}
-                />
+          {/* The day's reading for the user's birth nakshatra belongs with
+              "Today for you", as its own full-width row (that tile is full
+              width too, so no half rows). */}
+          {nakshatraState.nakshatra?.prediction && (
+            <Tile className="sm:col-span-2 lg:col-span-4">
+              <SectionErrorBoundary label="birth star today tile">
+                <TileHead icon={<Star />}>
+                  Birth star today
+                  {nakshatraState.nakshatra.name
+                    ? ` · ${nakshatraState.nakshatra.name}`
+                    : ""}
+                </TileHead>
+                <p className="text-[0.98rem] leading-relaxed text-white/70">
+                  {nakshatraState.nakshatra.prediction}
+                </p>
               </SectionErrorBoundary>
             </Tile>
           )}
+
+          {/* Your journey (signed in). The insight tile renders only when there
+              is an insight to show; otherwise the memory tile takes the row. */}
+          {/* What the guide remembers, with this week's insight (if any)
+              as its first line — one full-width tile, no half-empty box. */}
           {user && (
-            <Tile className="sm:col-span-2">
+            <Tile className="sm:col-span-2 lg:col-span-4">
               <SectionErrorBoundary label="memory tile">
                 <MemoryPanel
                   atmanState={atmanState}
-                  hasBirthData={hasBirthData}
+                  insight={
+                    showSoulInsight && atmanState ? (
+                      <SoulInsightCard
+                        atmanState={atmanState}
+                        onOpenSadhanaPath={() => setShowDailyAltar(true)}
+                      />
+                    ) : undefined
+                  }
                 />
               </SectionErrorBoundary>
             </Tile>
@@ -400,7 +456,7 @@ export default function Dashboard() {
           {user && atmanState?.routines && atmanState.routines.length > 0 && (
             <Tile className="sm:col-span-2 lg:col-span-4">
               <SectionErrorBoundary label="daily practice tile">
-                <TileHead>Your daily practice</TileHead>
+                <TileHead icon={<Flame />}>Your daily practice</TileHead>
                 <DharmaList
                   routines={atmanState.routines}
                   userId={user.uid}
@@ -410,46 +466,76 @@ export default function Dashboard() {
             </Tile>
           )}
 
-          {/* You */}
-          {hasBirthData && moonLine && (
-            <SectionErrorBoundary label="Moon sign tile">
-              <FactTile
-                label="Moon sign"
-                value={moonLine.value.split(" · ")[0]}
-                note={
-                  <>
-                    {moonLine.value.split(" · ")[1] && (
-                      <span className="block text-white/80">
-                        {moonLine.value.split(" · ")[1]}
-                      </span>
-                    )}
-                    {moonLine.meaning}
-                  </>
-                }
-              >
-                {nakshatraState.nakshatra &&
-                  (nakshatraState.nakshatra.deity ||
-                    nakshatraState.nakshatra.ruler) && (
-                    <p className="mt-2 text-[0.9rem] text-white/50">
-                      Birth star (
-                      <GlossaryTerm k="nakshatra">nakshatra</GlossaryTerm>)
-                      {nakshatraState.nakshatra.deity &&
-                        `: deity ${nakshatraState.nakshatra.deity}`}
-                      {nakshatraState.nakshatra.ruler &&
-                        `, ruled by ${nakshatraState.nakshatra.ruler}`}
-                    </p>
-                  )}
-              </FactTile>
-            </SectionErrorBoundary>
+          {/* You: the chart with its Moon and Rising facts beside it, so the
+              chart (which loads later) never pushes today's tiles down and
+              the one-column facts never leave a dead half-row. */}
+          {natal.kundaliData && (
+            <Tile className="sm:col-span-2">
+              <SectionErrorBoundary label="kundali tile">
+                <TileHead icon={<LayoutGrid />}>Your birth chart</TileHead>
+                <div className="mx-auto w-full max-w-sm">
+                  <Kundali
+                    data={natal.kundaliData as any}
+                    className="compact"
+                  />
+                </div>
+                <div className="mt-3 text-right">
+                  <TextAction to="/reports">Open full chart</TextAction>
+                </div>
+              </SectionErrorBoundary>
+            </Tile>
           )}
-          {hasBirthData && lagnaLine && (
-            <SectionErrorBoundary label="rising sign tile">
-              <FactTile
-                label="Rising"
-                value={lagnaLine.value}
-                note={lagnaLine.meaning}
-              />
-            </SectionErrorBoundary>
+          {hasBirthData && (moonLine || lagnaLine) && (
+            <div
+              className={`grid gap-3.5 sm:col-span-2 sm:grid-flow-col sm:auto-cols-fr ${
+                natal.kundaliData
+                  ? "lg:grid-flow-row lg:auto-rows-fr"
+                  : "lg:col-span-4"
+              }`}
+            >
+              {moonLine && (
+                <SectionErrorBoundary label="Moon sign tile">
+                  <FactTile
+                    label="Moon sign"
+                    icon={<Moon />}
+                    value={moonLine.value.split(" · ")[0]}
+                    note={
+                      <>
+                        {moonLine.value.split(" · ")[1] && (
+                          <span className="block text-white/80">
+                            {moonLine.value.split(" · ")[1]}
+                          </span>
+                        )}
+                        {moonLine.meaning}
+                      </>
+                    }
+                  >
+                    {nakshatraState.nakshatra &&
+                      (nakshatraState.nakshatra.deity ||
+                        nakshatraState.nakshatra.ruler) && (
+                        <p className="mt-2 text-[0.9rem] text-white/50">
+                          Birth star (
+                          <GlossaryTerm k="nakshatra">nakshatra</GlossaryTerm>)
+                          {nakshatraState.nakshatra.deity &&
+                            `: deity ${nakshatraState.nakshatra.deity}`}
+                          {nakshatraState.nakshatra.ruler &&
+                            `, ruled by ${nakshatraState.nakshatra.ruler}`}
+                        </p>
+                      )}
+                  </FactTile>
+                </SectionErrorBoundary>
+              )}
+              {lagnaLine && (
+                <SectionErrorBoundary label="rising sign tile">
+                  <FactTile
+                    label="Rising"
+                    icon={<Sunrise />}
+                    value={lagnaLine.value}
+                    note={lagnaLine.meaning}
+                  />
+                </SectionErrorBoundary>
+              )}
+            </div>
           )}
           {hasBirthData && (
             <Tile className="sm:col-span-2 lg:col-span-4">
@@ -473,7 +559,7 @@ export default function Dashboard() {
           {/* The five spaces */}
           <Tile className="sm:col-span-2 lg:col-span-4">
             <SectionErrorBoundary label="explore tile">
-              <TileHead>Explore</TileHead>
+              <TileHead icon={<Compass />}>Explore</TileHead>
               <ExploreIndex />
             </SectionErrorBoundary>
           </Tile>
@@ -503,10 +589,7 @@ export default function Dashboard() {
             </button>
           </div>
           {showMore && (
-            <div
-              id="dashboard-more"
-              className="contents"
-            >
+            <div id="dashboard-more" className="contents">
               {hasBirthData && (
                 <Tile className="sm:col-span-2">
                   <SectionErrorBoundary label="Sade Sati tile">
@@ -518,14 +601,6 @@ export default function Dashboard() {
                 <Tile className="sm:col-span-2">
                   <SectionErrorBoundary label="yogas tile">
                     <YogaCard birthData={userData} />
-                    {nakshatraState.nakshatra?.prediction && (
-                      <div className="mt-6">
-                        <TileHead>Birth star today</TileHead>
-                        <p className="text-[0.98rem] leading-relaxed text-white/70">
-                          {nakshatraState.nakshatra.prediction}
-                        </p>
-                      </div>
-                    )}
                   </SectionErrorBoundary>
                 </Tile>
               )}
@@ -534,7 +609,7 @@ export default function Dashboard() {
                   <RemediesCard birthData={userData} />
                 </SectionErrorBoundary>
               </Tile>
-              <Tile className="sm:col-span-2 self-start">
+              <Tile className="sm:col-span-2">
                 <SectionErrorBoundary label="festivals tile">
                   <FestivalCard region={profile?.festivalRegion} />
                   <div className="mt-4">
@@ -596,14 +671,16 @@ export default function Dashboard() {
         message={`Sign in to save your chart and get ${SIGNUP_BONUS_CREDITS} free credits.`}
       />
 
-      {user && (
-        <DailyAltar
-          isOpen={showDailyAltar}
-          onClose={() => setShowDailyAltar(false)}
-          userId={user.uid}
-          atmanState={atmanState}
-          onRefresh={refreshAtman}
-        />
+      {user && showDailyAltar && (
+        <Suspense fallback={null}>
+          <DailyAltar
+            isOpen={showDailyAltar}
+            onClose={() => setShowDailyAltar(false)}
+            userId={user.uid}
+            atmanState={atmanState}
+            onRefresh={refreshAtman}
+          />
+        </Suspense>
       )}
 
       <ChartShareModal

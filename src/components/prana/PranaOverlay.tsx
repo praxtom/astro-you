@@ -172,6 +172,7 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
             >
                 {/* Close Button */}
                 <button
+                    type="button"
                     onClick={() => { stop(); onClose(); }}
                     aria-label="End breathing session"
                     className="absolute top-6 right-6 p-2 text-white/50 hover:text-white transition-colors"
@@ -182,6 +183,7 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
                 {/* Sound Controls - Top Left */}
                 <div className="absolute top-6 left-6 flex items-center gap-2">
                     <button
+                        type="button"
                         onClick={toggle}
                         aria-label={isPlaying ? 'Mute sound' : 'Play sound'}
                         className="p-2 text-white/50 hover:text-white transition-colors"
@@ -205,6 +207,7 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
                     {/* Sound Selector */}
                     <div className="relative">
                         <button
+                            type="button"
                             onClick={() => setShowSoundMenu(!showSoundMenu)}
                             aria-label="Choose sound"
                             aria-expanded={showSoundMenu}
@@ -225,6 +228,7 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
                                 >
                                     {SOUND_OPTIONS.map((option) => (
                                         <button
+                                            type="button"
                                             key={option.id}
                                             onClick={() => {
                                                 setSound(option.id);
@@ -263,8 +267,8 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
                                 className="flex flex-col items-center justify-center space-y-8"
                             >
                                 <motion.h2 
-                                    className="text-2xl md:text-3xl font-display text-white/55 tracking-[0.3em] uppercase text-center"
-                                    animate={{ opacity: [0.3, 0.6, 0.3] }}
+                                    className="text-2xl md:text-3xl font-display text-white/75 tracking-[0.3em] uppercase text-center"
+                                    animate={{ opacity: [0.7, 1, 0.7] }}
                                     transition={{ duration: 2, repeat: Infinity }}
                                 >
                                     Prepare to breathe...
@@ -290,14 +294,16 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
                                 <div className="flex items-center gap-3 bg-white/5 p-1 rounded-full border border-white/10">
                                     {(['calm', 'energize', 'balance'] as const).map((m) => (
                                         <button
+                                            type="button"
                                             key={m}
                                             onClick={() => setMode(m)}
-                                            className={`px-4 py-1.5 rounded-full text-[0.6875rem] font-bold uppercase tracking-[0.2em] transition-all ${
+                                            aria-pressed={mode === m}
+                                            className={`min-h-9 px-4 py-1.5 rounded-full text-[0.6875rem] font-bold uppercase tracking-[0.2em] transition-all ${
                                                 mode === m 
                                                     ? m === 'calm' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' :
                                                       m === 'energize' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
                                                       'bg-violet-500/20 text-violet-300 border border-violet-500/30'
-                                                    : 'text-white/50 hover:text-white/60'
+                                                    : 'text-white/60 hover:text-white'
                                             }`}
                                         >
                                             {m}
@@ -358,8 +364,10 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
                                         {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
                                     </span>
                                     
-                                    <button 
+                                    <button
+                                        type="button"
                                         onClick={() => setTimeLeft(prev => prev + 60)}
+                                        aria-label="Add 1 minute"
                                         className="p-2 rounded-full border border-white/10 hover:bg-gold/10 hover:text-gold hover:border-gold/30 transition-all flex items-center justify-center gap-1 group"
                                         title="Add 1 minute"
                                     >
@@ -371,7 +379,7 @@ export const PranaOverlay: React.FC<PranaOverlayProps> = ({
                                 {/* Instructions */}
                                 <p className="text-white/55 text-sm text-center max-w-xs">
                                     {mode === 'calm' && "Focus on extending your exhale to calm the nervous system."}
-                                    {mode === 'energize' && "Quick, rhythmic breaths to build inner fire (Agni)."}
+                                    {mode === 'energize' && "Quick, rhythmic breaths to wake up body and mind."}
                                     {mode === 'balance' && "Equal breath to center the mind."}
                                 </p>
                             </motion.div>

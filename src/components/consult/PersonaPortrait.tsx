@@ -91,7 +91,7 @@ export function PersonaPortrait({
       >
         <img
           src={`/assets/guides/${persona.id}.png`}
-          alt={`${persona.name}, AI guide (illustration)`}
+          alt={`${persona.name}, guide (illustration)`}
           className="w-full h-full object-cover"
           onError={() => setImageFailed(true)}
         />

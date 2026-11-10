@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { FactLabel, FactSkeleton } from './primitives';
+import React, { useId, useState } from 'react';
+import { Sparkle } from 'lucide-react';
+import { TileHead } from './WeatherTiles';
+import { FactSkeleton } from './primitives';
 import { useYogas } from '../../hooks/useYogas';
 import { PersonalCardNotice } from './PersonalCardNotice';
 import type { BirthData, Yoga } from '../../types';
@@ -26,12 +28,14 @@ function StrengthBadge({ strength }: { strength?: Yoga['strength'] }) {
 export const YogaCard: React.FC<YogaCardProps> = ({ birthData }) => {
     const { yogas, loading, error, errorKind, retry } = useYogas(birthData);
     const [expanded, setExpanded] = useState(false);
+    const listId = useId();
 
     const displayedYogas = expanded ? yogas : yogas.slice(0, 3);
 
     return (
         <div>
-            {loading ? <FactSkeleton /> : <FactLabel>Planetary yogas</FactLabel>}
+            <TileHead icon={<Sparkle />}>Yogas in your chart</TileHead>
+            {loading && <FactSkeleton />}
 
             {/* Error / empty state */}
             {!loading && error && errorKind && (
@@ -48,17 +52,17 @@ export const YogaCard: React.FC<YogaCardProps> = ({ birthData }) => {
             {/* Yoga list */}
             {!loading && yogas?.length > 0 && (
                 <>
-                    <ul className="mt-3 space-y-4">
+                    <ul id={listId} className="mt-3 space-y-4">
                         {displayedYogas.map((yoga, i) => (
                             <li key={yoga.name || i} className="">
                                 <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 mb-1">
-                                    <span className="font-display text-[1.6rem] leading-snug text-white/92">{yoga.name}</span>
+                                    <span className="font-display text-[1.3rem] leading-snug text-white/90">{yoga.name}</span>
                                     <StrengthBadge strength={yoga.strength} />
                                     {(yoga.category || yoga.type) && (
                                         <span className="text-[0.85rem] text-white/50">{yoga.category || yoga.type}</span>
                                     )}
                                     {yoga.isAuspicious && (
-                                        <span className="text-emerald-400 text-xs">&#x2726;</span>
+                                        <span className="text-emerald-400 text-xs" aria-label="Auspicious" role="img">&#x2726;</span>
                                     )}
                                 </div>
                                 <p className="text-white/55 text-[0.98rem] leading-relaxed">
@@ -74,8 +78,11 @@ export const YogaCard: React.FC<YogaCardProps> = ({ birthData }) => {
                     </ul>
                     {yogas.length > 3 && (
                         <button
+                            type="button"
+                            aria-expanded={expanded}
+                            aria-controls={listId}
                             onClick={() => setExpanded(!expanded)}
-                            className="mt-3 text-[0.75rem] font-bold uppercase tracking-[0.18em] text-gold hover:text-white transition-colors"
+                            className="mt-3 min-h-11 text-[0.85rem] font-semibold text-gold/85 hover:text-gold transition-colors"
                         >
                             {expanded ? 'Show less' : `View all ${yogas.length} yogas`}
                         </button>

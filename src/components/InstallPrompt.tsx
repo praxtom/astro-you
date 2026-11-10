@@ -35,7 +35,7 @@ export function InstallPrompt() {
   if (!show || hasBottomComposer(pathname)) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-80 z-50 bg-[#0a0a0f] border border-gold/20 rounded-2xl p-4 shadow-2xl flex items-center gap-3">
+    <div className="fixed bottom-20 md:bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-80 z-50 bg-[#0a0a0f] border border-gold/20 rounded-2xl p-4 shadow-2xl flex items-center gap-3">
       <div className="p-2 rounded-xl bg-gold/10">
         <Download size={20} className="text-gold" />
       </div>

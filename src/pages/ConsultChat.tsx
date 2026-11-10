@@ -49,8 +49,8 @@ interface SessionInfo {
 // exactly the error they created and nothing else.
 const INSUFFICIENT_CREDITS_MSG =
   "Insufficient credits to start this consultation.";
-const TIME_UP_MSG = "Your funded time is up.";
-const SESSION_CLOSED_MSG = "This sitting was closed. Start a new one.";
+const TIME_UP_MSG = "Your credits ran out, so this chat has ended. Add credits to start a new one.";
+const SESSION_CLOSED_MSG = "This chat was closed. Start a new one.";
 /** Transcript turns sent per message (server cap is 60). */
 const CONSULT_HISTORY_MESSAGES = 20;
 
@@ -235,10 +235,30 @@ export default function ConsultChat() {
     };
   }, [sessionActive, sessionInfo]);
 
-  // Auto-scroll to bottom on new messages
+  // Follow the conversation only while the reader is already near the bottom
+  // (or has just sent something) — never yank them down mid-reread while a
+  // reply streams in. The page scrolls on the window, not an inner box.
+  const followLatestRef = useRef(true);
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    const onScroll = () => {
+      const doc = document.documentElement;
+      followLatestRef.current =
+        doc.scrollHeight - window.scrollY - window.innerHeight < 160;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    const justSent = messages[messages.length - 1]?.role === "user";
+    if (!justSent && !followLatestRef.current) return;
+    followLatestRef.current = true;
+    // Instant while tokens stream in: a smooth scroll per chunk stutters.
+    messagesEndRef.current?.scrollIntoView({
+      block: "end",
+      behavior: isStreaming && !justSent ? "auto" : "smooth",
+    });
+  }, [messages, isStreaming]);
 
   // Guest gate: offer sign-in in place, never bounce to /onboarding (which has
   // no sign-in step — that redirect was a dead loop).
@@ -376,7 +396,7 @@ export default function ConsultChat() {
           setBillingError(
             rawMsg.startsWith("Insufficient credits")
               ? INSUFFICIENT_CREDITS_MSG
-              : "We couldn't open this sitting just now. Please try again in a moment.",
+              : "We couldn't start this chat just now. Please try again in a moment.",
           );
           setSessionActive(false);
           return null;
@@ -490,7 +510,7 @@ export default function ConsultChat() {
           setBillingError((prev) =>
             prev === TIME_UP_MSG
               ? prev
-              : "We couldn't close the bill for this sitting just now. Check Wallet in a minute, or contact support if the charge looks wrong.",
+              : "We couldn't close the bill for this chat just now. Check Wallet in a minute, or contact support if the charge looks wrong.",
           );
         }
       }
@@ -1017,7 +1037,7 @@ export default function ConsultChat() {
                 }
               }}
               className="min-h-11 min-w-11 p-2.5 flex items-center justify-center rounded-lg text-white/50 hover:text-gold transition-colors"
-              aria-label="Leave the sitting"
+              aria-label="Leave the chat"
             >
               <ArrowLeft size={16} />
             </button>
@@ -1028,26 +1048,26 @@ export default function ConsultChat() {
                   {persona.name}
                 </p>
               </div>
-              <p
-                className="text-[0.6875rem] font-bold uppercase tracking-[0.25em]"
-                style={{ color: accent }}
-              >
-                AI guide · {preferredLanguage}
+              <p className="text-[0.6875rem] text-white/55 truncate">
+                A guide, not a person · {preferredLanguage}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 text-[0.7rem] font-mono px-2.5 py-1 rounded-full border border-gold/25 text-gold bg-gold/5">
-              <Clock size={10} className="shrink-0" />
+              <Clock size={10} className="shrink-0" aria-hidden="true" />
               {sessionInfo ? (
                 <>
                   {formatTime(elapsedSeconds)}
                   <span className="text-gold/50">·</span>
-                  {cost} cr
+                  {cost} credits
                 </>
               ) : (
-                <span className="font-sans text-[0.6875rem] uppercase tracking-wider">
-                  Meter starts with your first message
+                <span className="font-sans text-[0.6875rem]">
+                  <span className="sm:hidden">Not billing yet</span>
+                  <span className="hidden sm:inline">
+                    Billing starts with your first message
+                  </span>
                 </span>
               )}
             </div>
@@ -1080,25 +1100,37 @@ export default function ConsultChat() {
       {/* ── Messages ── */}
       <div className="flex-1 overflow-y-auto px-4 py-6">
         <div className="max-w-3xl mx-auto space-y-5">
-          {/* Welcome */}
-          <div className="max-w-2xl">
-            <p
-              className="text-[0.6875rem] font-bold uppercase tracking-[0.3em] mb-1.5"
-              style={{ color: `${accent}99` }}
-            >
-              {persona.name}
-            </p>
-            <div
-              className="pl-5 border-l"
-              style={{ borderColor: `${accent}55` }}
-            >
-              <p className="font-display italic text-base text-white/70 leading-relaxed">
-                Namaste. I am {persona.name}. I have read your chart, and I will
-                keep what we discuss for our next sitting. We will speak in{" "}
-                {preferredLanguage}. What shall we look at today?
+          {/* Opening prompt, before the first message */}
+          {messages.length === 0 && (
+            <div className="max-w-2xl">
+              <p
+                className="text-[0.6875rem] font-bold uppercase tracking-[0.3em] mb-1.5"
+                style={{ color: `${accent}99` }}
+              >
+                {persona.name}
               </p>
+              <div
+                className="pl-5 border-l"
+                style={{ borderColor: `${accent}55` }}
+              >
+                <p className="text-[0.9375rem] text-white/80 leading-relaxed">
+                  What would you like to talk through? You can write in{" "}
+                  {preferredLanguage}.
+                </p>
+                <p className="mt-2 text-xs text-white/55 leading-relaxed">
+                  {persona.name.split(" ")[0]} already has your birth chart and
+                  current life phase, and remembers what you share across
+                  chats. {pricePerMin} credits a minute, from your first
+                  message
+                  {user && !creditsLoading
+                    ? ` — you have ${liveCredits} credits, about ${Math.floor(
+                        liveCredits / pricePerMin,
+                      )} min.`
+                    : "."}
+                </p>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Opening questions, until the conversation begins */}
           {messages.length === 0 && sessionActive && (
@@ -1106,9 +1138,10 @@ export default function ConsultChat() {
               {persona.sampleQuestions.map((q) => (
                 <button
                   key={q}
+                  type="button"
                   onClick={() => sendMessage(q)}
                   disabled={isStreaming || !canCompose}
-                  className="px-4 py-2 rounded-full border border-white/10 text-xs text-white/55 hover:text-gold hover:border-gold/30 transition-colors disabled:opacity-40"
+                  className="min-h-11 px-4 py-2 rounded-full border border-white/10 text-left text-xs text-white/55 hover:text-gold hover:border-gold/30 transition-colors disabled:opacity-40"
                 >
                   {q}
                 </button>
@@ -1169,14 +1202,16 @@ export default function ConsultChat() {
           {activeConflict && (
             <div className="max-w-sm mx-auto my-6 rounded-3xl border border-white/10 bg-white/3 backdrop-blur-xl p-6 text-center">
               <p className="text-sm text-white/80">
-                You have a sitting in progress with{" "}
+                You have a chat in progress with{" "}
                 {conflictPersona?.name ?? "another guide"}.
               </p>
               <p className="mt-2 text-xs text-white/55">
-                Only one meter can run at a time.
+                You can only be in one paid chat at a time.
               </p>
               {conflictError && (
-                <p className="mt-3 text-xs text-red-400">{conflictError}</p>
+                <p role="alert" className="mt-3 text-xs text-red-400">
+                  {conflictError}
+                </p>
               )}
               <div className="mt-5 space-y-2">
                 <button
@@ -1212,7 +1247,7 @@ export default function ConsultChat() {
                 onClick={startNewSitting}
                 className="mt-5 w-full min-h-11 px-4 py-2.5 rounded-xl bg-gold text-black text-[0.6875rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors"
               >
-                Start a new sitting
+                Start a new chat
               </button>
             </div>
           )}
@@ -1226,9 +1261,11 @@ export default function ConsultChat() {
                   <PersonaPortrait persona={persona} />
                 </div>
                 <p className="text-sm text-white/80 mt-3">
-                  The sitting could not begin.
+                  The chat could not start.
                 </p>
-                <p className="mt-2 text-xs text-white/55">{billingError}</p>
+                <p role="alert" className="mt-2 text-xs text-white/55">
+                  {billingError}
+                </p>
                 {paymentError && (
                   <p className="mt-2 text-xs text-red-400">{paymentError}</p>
                 )}
@@ -1245,7 +1282,7 @@ export default function ConsultChat() {
                   onClick={() => navigate(`/consult/${persona.id}/profile`)}
                   className="mt-3 w-full min-h-11 px-4 py-2.5 rounded-xl border border-gold/30 text-gold text-[0.6875rem] font-bold uppercase tracking-[0.2em] hover:bg-gold hover:text-black transition-colors"
                 >
-                  Back to dossier
+                  Back to guide profile
                 </button>
               </div>
             )}
@@ -1256,7 +1293,7 @@ export default function ConsultChat() {
                 <PersonaPortrait persona={persona} />
               </div>
               <p className="text-sm text-white/60 mt-3">
-                Sitting with {persona.name}
+                Chat with {persona.name}
               </p>
               <div className="mt-4 space-y-2 text-sm">
                 <div className="flex justify-between">
@@ -1264,7 +1301,7 @@ export default function ConsultChat() {
                   <span>{displayedMinutes} min</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-white/55">Rate</span>
+                  <span className="text-white/55">Price</span>
                   <span>{pricePerMin} credits / min</span>
                 </div>
                 <div className="flex justify-between border-t border-white/10 pt-2">
@@ -1275,7 +1312,9 @@ export default function ConsultChat() {
                 </div>
               </div>
               {billingError && (
-                <p className="mt-4 text-xs text-red-400">{billingError}</p>
+                <p role="alert" className="mt-4 text-xs text-red-400">
+                  {billingError}
+                </p>
               )}
               {paymentError && (
                 <p className="mt-2 text-xs text-red-400">{paymentError}</p>
@@ -1300,7 +1339,10 @@ export default function ConsultChat() {
       {sessionActive && (
         <div className="sticky bottom-0 bg-bg-app/85 backdrop-blur-xl border-t border-white/5 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
           {paymentError && (
-            <div className="max-w-3xl mx-auto mb-3 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+            <div
+              role="alert"
+              className="max-w-3xl mx-auto mb-3 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+            >
               {paymentError}
             </div>
           )}
@@ -1384,8 +1426,8 @@ export default function ConsultChat() {
           }
         }}
         onSuccess={() => setShowAuthModal(false)}
-        title="Sign in to begin your sitting"
-        message="New here? You start with 15 free credits — enough for a first conversation with any guide."
+        title="Sign in to start the chat"
+        message="New here? You start with 15 free credits. Guides cost 5 to 10 credits a minute, so that is 1 to 3 minutes."
       />
 
       {/* ── Rating ── */}
@@ -1405,7 +1447,7 @@ export default function ConsultChat() {
               id="consult-rating-title"
               className="font-display italic text-2xl mb-1"
             >
-              How was the sitting?
+              How was the chat?
             </p>
             <p className="text-white/55 text-sm mb-1">with {persona.name}</p>
             <p className="text-white/50 text-xs mb-6">
@@ -1432,7 +1474,7 @@ export default function ConsultChat() {
               onChange={(event) => setReviewText(event.target.value)}
               aria-label="Your review (optional)"
               placeholder="What felt useful? Optional."
-              className="w-full min-h-24 mb-4 rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm outline-none focus:border-gold/40 resize-none placeholder:text-white/25"
+              className="w-full min-h-24 mb-4 rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm outline-none focus:border-gold/40 resize-none placeholder:text-white/50"
             />
             <label className="mb-4 flex items-start gap-3 rounded-xl border border-white/10 bg-white/3 p-3 text-left text-xs text-white/55">
               <input

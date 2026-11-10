@@ -53,7 +53,10 @@ export default function Tarot() {
         if (!name) throw new Error("Daily tarot response had no card name");
         setDailyCard({
           name,
-          meaning: str(raw.meaning) || str(raw.upright_meaning) || str(raw.description),
+          meaning:
+            str(raw.meaning) ||
+            str(raw.upright_meaning) ||
+            str(raw.description),
           reversed_meaning: str(raw.reversed_meaning) || str(raw.reversed),
           image: str(raw.image) || str(raw.image_url),
           emoji: str(raw.emoji) || str(raw.symbol),
@@ -62,7 +65,9 @@ export default function Tarot() {
         if (err?.name === "AbortError") return;
         console.error("Daily tarot error:", err);
         setDailyCard(null);
-        setDailyError("We couldn't draw today's card. Check your connection and try again.");
+        setDailyError(
+          "We couldn't draw today's card. Check your connection and try again.",
+        );
       } finally {
         if (!controller.signal.aborted) setDailyLoading(false);
       }
@@ -95,7 +100,8 @@ export default function Tarot() {
         raw.cards.forEach((c: any, i: number) => {
           cards.push({
             name: str(c?.name) || str(c?.card_name) || str(c?.card),
-            meaning: str(c?.meaning) || str(c?.upright_meaning) || str(c?.description),
+            meaning:
+              str(c?.meaning) || str(c?.upright_meaning) || str(c?.description),
             reversed_meaning: str(c?.reversed_meaning) || str(c?.reversed),
             position: str(c?.position) || positions[i],
             interpretation: str(c?.interpretation) || str(c?.reading),
@@ -139,7 +145,9 @@ export default function Tarot() {
     } catch (err) {
       console.error("Three card reading error:", err);
       setThreeCards([]);
-      setReadingError("We couldn't draw your cards. Check your connection and try again.");
+      setReadingError(
+        "We couldn't draw your cards. Check your connection and try again.",
+      );
     } finally {
       setReadingLoading(false);
     }
@@ -187,25 +195,29 @@ export default function Tarot() {
         {/* Header */}
         <div className="flex items-center gap-4 mb-10">
           <div className="p-3 rounded-2xl bg-gold/10 text-gold">
-            <Sparkles size={28} />
+            <Sparkles size={28} aria-hidden="true" />
           </div>
           <div>
-            <h1 className="type-page-title">
-              Tarot
-            </h1>
-            <p className="text-white/55 text-sm mt-1">
-              Messages from the cosmic deck
+            <h1 className="type-page-title">Tarot</h1>
+            <p className="text-white/60 text-sm mt-1">
+              A card for today, or three cards for a question
             </p>
           </div>
         </div>
 
         {/* Daily Card Section */}
         <section className="mb-12">
-          <h2 className="text-lg uppercase tracking-widest text-white/55 font-bold mb-5">
-            Daily Card
+          <h2 className="text-lg uppercase tracking-widest text-white/55 font-bold mb-1">
+            Today's Card
           </h2>
+          <p className="text-sm text-white/60 mb-5">
+            A theme to carry through your day and reflect on tonight.
+          </p>
           {dailyLoading ? (
-            <div className="glass rounded-2xl p-10 text-center">
+            <div
+              className="glass rounded-2xl p-6 md:p-8 text-center max-w-lg mx-auto"
+              aria-busy="true"
+            >
               <div className="h-24 w-20 bg-white/5 rounded-xl animate-pulse mx-auto mb-4" />
               <div className="h-5 bg-white/5 rounded animate-pulse w-32 mx-auto mb-2" />
               <div className="h-4 bg-white/5 rounded animate-pulse w-64 mx-auto" />
@@ -216,11 +228,20 @@ export default function Tarot() {
               onRetry={() => setDailyAttempt((n) => n + 1)}
             />
           ) : dailyCard ? (
-            <div className="glass rounded-2xl p-10 text-center max-w-lg mx-auto">
-              <div className="text-7xl mb-5">{getCardEmoji(dailyCard)}</div>
+            <div className="glass rounded-2xl p-6 md:p-8 text-center max-w-lg mx-auto">
+              <div className="text-6xl mb-4" aria-hidden="true">
+                {getCardEmoji(dailyCard)}
+              </div>
               <h3 className="text-2xl font-display tracking-wider mb-4 text-white">
                 {dailyCard.name}
               </h3>
+              {dailyCard.meaning && dailyCard.reversed_meaning && (
+                <p className="mb-4 text-xs leading-relaxed text-white/55">
+                  Every card has two readings. Upright is its energy flowing
+                  freely; reversed is the same energy held back or turned
+                  inward. Notice which one fits your day.
+                </p>
+              )}
               {dailyCard.meaning && (
                 <div className="mb-4">
                   <p className="text-xs uppercase tracking-widest text-white/55 mb-1">
@@ -236,7 +257,7 @@ export default function Tarot() {
                   <p className="text-xs uppercase tracking-widest text-white/55 mb-1">
                     Reversed
                   </p>
-                  <p className="text-white/50 leading-relaxed italic">
+                  <p className="text-white/65 leading-relaxed">
                     {dailyCard.reversed_meaning}
                   </p>
                 </div>
@@ -247,13 +268,21 @@ export default function Tarot() {
 
         {/* Three Card Reading Section */}
         <section>
-          <h2 className="text-lg uppercase tracking-widest text-white/55 font-bold mb-5">
-            Get a Reading
+          <h2 className="text-lg uppercase tracking-widest text-white/55 font-bold mb-1">
+            Three Cards for a Question
           </h2>
+          <p className="text-sm text-white/60 mb-5">
+            Think of what is on your mind and draw. The cards read as past
+            (what led here), present (where you stand) and future (where it is
+            heading).
+          </p>
 
           {/* Question input */}
           <div className="glass rounded-2xl p-6 mb-6">
-            <label htmlFor="tarot-question" className="text-sm text-white/60 block mb-2">
+            <label
+              htmlFor="tarot-question"
+              className="text-sm text-white/60 block mb-2"
+            >
               Ask a question (optional)
             </label>
             <div className="flex gap-3">
@@ -310,7 +339,7 @@ export default function Tarot() {
                 return (
                   <div
                     key={idx}
-                    className={`relative rounded-2xl border p-8 text-center bg-gradient-to-b ${posColor} backdrop-blur-sm transition-all duration-500 ${
+                    className={`relative rounded-2xl border p-6 text-center bg-gradient-to-b ${posColor} backdrop-blur-sm transition-all duration-500 ${
                       isFlipped
                         ? "opacity-100 translate-y-0"
                         : "opacity-0 translate-y-4"
@@ -319,7 +348,9 @@ export default function Tarot() {
                     <p className="text-xs uppercase tracking-widest text-white/55 mb-3">
                       {card.position}
                     </p>
-                    <div className="text-5xl mb-4">{getCardEmoji(card)}</div>
+                    <div className="text-5xl mb-4" aria-hidden="true">
+                      {getCardEmoji(card)}
+                    </div>
                     <h3 className="text-lg font-display tracking-wider mb-3 text-white">
                       {card.name}
                     </h3>
@@ -329,7 +360,7 @@ export default function Tarot() {
                       </p>
                     )}
                     {card.interpretation && (
-                      <p className="text-sm text-white/50 italic mt-2">
+                      <p className="text-sm text-white/70 mt-2 leading-relaxed">
                         {card.interpretation}
                       </p>
                     )}
@@ -341,14 +372,14 @@ export default function Tarot() {
 
           {/* Overall interpretation */}
           {readingInterpretation && (
-            <div className="glass rounded-2xl p-8">
+            <div className="glass rounded-2xl p-6 md:p-8">
               <div className="flex items-center gap-3 mb-4">
-                <Sparkles size={18} className="text-gold" />
+                <Sparkles size={18} className="text-gold" aria-hidden="true" />
                 <h3 className="text-lg font-display tracking-wider">
                   Reading Interpretation
                 </h3>
               </div>
-              <p className="text-white/70 leading-relaxed whitespace-pre-wrap">
+              <p className="max-w-[65ch] text-white/75 leading-relaxed whitespace-pre-wrap">
                 {readingInterpretation}
               </p>
             </div>

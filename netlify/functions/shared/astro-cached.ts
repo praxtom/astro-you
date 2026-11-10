@@ -15,6 +15,7 @@ import {
   CHART_CACHE_COLLECTION,
   NATAL_TTL_HOURS,
   birthChartCacheKey,
+  chartCacheKey,
   panchangCacheDocId,
   refreshDashaCurrentFlags,
   resolvePanchangPlace,
@@ -23,6 +24,8 @@ import {
 } from "./chart-cache.js";
 import {
   getDashaPeriods,
+  getNatalChart,
+  shapeTimeUnknownChart,
   getPanchang,
   getYogaAnalysis,
   type BirthData,
@@ -30,9 +33,11 @@ import {
 } from "./astro-api.js";
 import {
   localDashaPeriods,
+  localNatalChart,
   localPanchang,
   tryLocalEngine,
 } from "./astro-engine.js";
+import type { ZodiacMode } from "../../../src/lib/zodiac-mode.js";
 
 /** Panchang for a day and place through the shared cache (location-stripped). */
 export async function getCachedPanchang(
@@ -80,6 +85,27 @@ export function chartBirthData(birthData: Record<string, any>): BirthData {
     lng: lift ? coords.lng : birthData.lng,
     ...(birthData.birthTimeUnknown === true ? { birthTimeUnknown: true } : {}),
   };
+}
+
+/** Use the same D1 result in the free chart and its conversation. */
+export async function getCachedNatalChart(
+  bd: BirthData,
+  zodiacMode: ZodiacMode = "vedic",
+  fetchChart = () => getNatalChart(bd, zodiacMode),
+) {
+  const local = zodiacMode === "vedic"
+    ? tryLocalEngine("D1", () => localNatalChart(bd))
+    : null;
+  const chart = local ?? stripEchoedBirthInputs(
+    await getCachedOrFetch(
+      CHART_CACHE_COLLECTION,
+      chartCacheKey({ ...bd, chartType: "D1", zodiacMode }),
+      async () => stripEchoedBirthInputs(await fetchChart()),
+      NATAL_TTL_HOURS,
+      { serialize: true },
+    ),
+  );
+  return bd.birthTimeUnknown ? shapeTimeUnknownChart(chart) : chart;
 }
 
 /** Dasha periods through chart_cache (the kundali DASHAS entry), flags refreshed. */

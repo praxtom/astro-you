@@ -29,6 +29,13 @@ function isDateInRange(date: string): boolean {
   return Math.abs(t - Date.now()) <= MAX_DATE_SKEW_MS;
 }
 
+// A viewer's "today" is at most one calendar day off the server's UTC day.
+function isWithinADay(date: string): boolean {
+  const t = Date.parse(`${date}T00:00:00Z`);
+  if (Number.isNaN(t)) return false;
+  return Math.abs(t - Date.now()) <= 36 * 60 * 60 * 1000;
+}
+
 // Canonical sign names mapped to a dob safely inside each sign's date range —
 // the shared getDailyHoroscopeText() derives the sign from dob, so these
 // anchors make the daily text match the requested sign.
@@ -134,9 +141,17 @@ export default async (req: Request, _context: Context) => {
     if (typeof body.date === "string" && !isDateInRange(body.date)) {
       return json({ error: "Date out of supported range" }, 400);
     }
-    const date = body.date as string | undefined;
+    // The viewer's local day when no explicit date is sent: the upstream API
+    // otherwise uses the server's UTC day, so before 05:30 IST a Monday or a
+    // 1st read last week's or last month's period.
+    const localDay = requestedDateKey(body.localDate);
+    const date =
+      (body.date as string | undefined) ||
+      (isWithinADay(localDay)
+        ? localDay
+        : new Date().toISOString().split("T")[0]);
 
-    const cacheKey = `${sign}_${period}_${date || requestedDateKey(body.localDate)}`;
+    const cacheKey = `${sign}_${period}_${date}`;
 
     const data = await getCachedOrFetch(
       `horoscope_signs`,

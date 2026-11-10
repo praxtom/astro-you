@@ -19,7 +19,8 @@ export interface DashboardPanchangPlace {
   source: "current" | "birth" | "birth-fallback" | "default";
 }
 
-export const DEFAULT_PANCHANG_LABEL = "New Delhi (default)";
+export const DEFAULT_PANCHANG_LABEL =
+  "New Delhi. Add your city in Settings for local times";
 
 function readCoords(value: unknown): { lat: number; lng: number } | undefined {
   if (!value || typeof value !== "object") return undefined;
@@ -82,4 +83,37 @@ export function resolveDashboardPanchangPlace(
 
   // Nothing with real coordinates: the server's shared default.
   return { label: DEFAULT_PANCHANG_LABEL, source: "default" };
+}
+
+/**
+ * The place to geocode when the profile has no saved coordinates: the
+ * current location, else the birth place. Empty when nothing is typed.
+ */
+export function placeToGeocode(
+  profile: Record<string, any> | null | undefined,
+): string {
+  return text(profile?.currentLocation) || text(profile?.pob);
+}
+
+/**
+ * Upgrade the default place with coordinates looked up for the typed place
+ * name, so a profile saved without coordinates still gets local timings.
+ */
+export function withGeocodedPlace(
+  base: DashboardPanchangPlace,
+  profile: Record<string, any> | null | undefined,
+  coords: { lat: number; lng: number } | null,
+): DashboardPanchangPlace {
+  if (base.source !== "default" || !coords) return base;
+  const current = text(profile?.currentLocation);
+  const pob = text(profile?.pob);
+  const place = current || pob;
+  if (!place) return base;
+  const usingBirthPlace = !current;
+  return {
+    city: place,
+    ...coords,
+    label: shortPlaceName(place),
+    source: usingBirthPlace ? "birth" : "current",
+  };
 }

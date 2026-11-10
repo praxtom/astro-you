@@ -47,7 +47,7 @@ function describeGoogleError(err: { code?: string; message?: string }): string {
     case "auth/account-exists-with-different-credential":
       return "That email is already registered with a different sign-in method. Use the email code below instead.";
     case "auth/unauthorized-domain":
-      return "Google sign-in isn't allowed on this domain yet. Use the email code below, or add this hostname to Firebase Auth's authorized domains.";
+      return "Google sign-in isn't working here right now. Use the email code below instead.";
     default:
       return "Google sign-in didn't complete. Try again, or use the email code below.";
   }

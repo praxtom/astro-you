@@ -31,10 +31,34 @@ const REQUIRED_TERMS = [
   "ayanamsa",
   "muhurat",
   "graha",
+  "ashtakoot",
+  "gochar",
+  "bhava",
+  "shadbala",
+  "varshaphal",
+  "muntha",
+];
+
+// Plain-English chart words a first-time reader still needs explained. Not in
+// the jargon list: short definitions may use them freely.
+const REQUIRED_ENGLISH_TERMS = [
+  "chart-yoga",
+  "panchang-yoga",
+  "aspect",
+  "orb",
+  "life-path",
+  "astrocartography",
+  "biorhythm",
+  "abhijit",
+  "moon-sign",
+  "ascendant",
+  "house",
+  "retrograde",
+  "transit",
 ];
 
 test("every term the UI surfaces has an entry", () => {
-  for (const key of REQUIRED_TERMS) {
+  for (const key of [...REQUIRED_TERMS, ...REQUIRED_ENGLISH_TERMS]) {
     assert.ok(GLOSSARY[key as keyof typeof GLOSSARY], `missing: ${key}`);
   }
 });

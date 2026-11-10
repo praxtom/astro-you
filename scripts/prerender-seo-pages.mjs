@@ -264,7 +264,7 @@ const homePage = {
   schemaType: "WebSite",
   updated: SEO_CONTENT_REVIEWED,
   intro:
-    "AstroYou is a Vedic astrology platform that computes your sidereal birth chart from date, exact time, and place, and then interprets it through an AI guide trained on Jyotish that remembers your chart and the key things you share with it. Kundali generation, Kundali matching, and daily Panchang are free.",
+    "AstroYou is a Vedic astrology platform that computes your sidereal birth chart from date, exact time, and place, and then interprets it through a Jyotish guide that remembers your chart and the key things you share with it. Kundali generation, Kundali matching, and daily Panchang are free.",
   sections: [
     {
       title: "What AstroYou does",
@@ -276,11 +276,11 @@ const homePage = {
     },
     {
       title: "What is free",
-      body: `Janam Kundali generation, Kundali matching with the full 36-point Ashtakoot breakdown, Manglik checking, daily Panchang, and ${entitlements.ENTITLEMENTS.free.limits.monthlyCredits} credits once at signup — no card required. Paid plans start at ₹${entitlements.ENTITLEMENTS.premium.monthlyPriceInr} per month and AI guide sessions run from 5 credits per minute. Full rates are published at /pricing before you sign up.`,
+      body: `Janam Kundali generation, Kundali matching with the full 36-point Ashtakoot breakdown, Manglik checking, daily Panchang, and ${entitlements.ENTITLEMENTS.free.limits.monthlyCredits} credits once at signup — no card required. Paid plans start at ₹${entitlements.ENTITLEMENTS.premium.monthlyPriceInr} per month and guide sessions run from 5 credits per minute. Full rates are published at /pricing before you sign up.`,
     },
     {
-      title: "On AI disclosure",
-      body: "Every guide on AstroYou is an AI, and each one is labelled as an AI guide on its profile. Parts of this market present automated responses as human practitioners without saying so; AstroYou's policy is written down on the trust page rather than left implied.",
+      title: "Who you are talking to",
+      body: "AstroYou's guides are not people, and every profile says so. Parts of this market present automated responses as human practitioners without saying so; AstroYou's policy is written down on the trust page rather than left implied.",
     },
     {
       title: "What AstroYou will not do",
@@ -295,24 +295,24 @@ const homePage = {
     },
     { label: "Free tier", value: `${entitlements.ENTITLEMENTS.free.limits.monthlyCredits} credits once at signup, no card required` },
     { label: "Paid plans", value: `From ₹${entitlements.ENTITLEMENTS.premium.monthlyPriceInr}/month` },
-    { label: "AI guide session rate", value: "From 5 credits per minute" },
+    { label: "Guide session rate", value: "From 5 credits per minute" },
     { label: "Required birth inputs", value: "Date, exact time, and place" },
   ],
   faq: [
     {
       question: "What is AstroYou?",
       answer:
-        "A Vedic astrology platform that generates a free sidereal birth chart from your date, exact time, and place of birth using the Lahiri ayanamsa, and interprets it with an AI guide trained on Jyotish that remembers your chart, your dashas, and the key things you share with it.",
+        "A Vedic astrology platform that generates a free sidereal birth chart from your date, exact time, and place of birth using the Lahiri ayanamsa, and interprets it with a Jyotish guide that remembers your chart, your dashas, and the key things you share with it.",
     },
     {
       question: "Is AstroYou free?",
       answer:
-        `Kundali generation, Kundali matching, Manglik checking, and daily Panchang are free, along with ${entitlements.ENTITLEMENTS.free.limits.monthlyCredits} credits once at signup and no card requirement. Paid plans start at ₹${entitlements.ENTITLEMENTS.premium.monthlyPriceInr} per month; AI guide sessions run from 5 credits per minute.`,
+        `Kundali generation, Kundali matching, Manglik checking, and daily Panchang are free, along with ${entitlements.ENTITLEMENTS.free.limits.monthlyCredits} credits once at signup and no card requirement. Paid plans start at ₹${entitlements.ENTITLEMENTS.premium.monthlyPriceInr} per month; guide sessions run from 5 credits per minute.`,
     },
     {
       question: "Are the astrologers on AstroYou real people?",
       answer:
-        "No — they are AI, and every one of them is labelled as AI on its consultation profile. AstroYou publishes that policy in writing on its trust page rather than leaving it ambiguous.",
+        "No. AstroYou's guides are not people, and every consultation profile says so. AstroYou publishes that policy in writing on its trust page rather than leaving it ambiguous.",
     },
     {
       question: "Do I need my exact birth time?",
@@ -332,7 +332,7 @@ const homePage = {
     { label: "Daily Horoscope", href: "/daily-horoscope" },
     { label: "Vedic Astrology Guide", href: "/vedic-astrology" },
     { label: "Pricing", href: "/pricing" },
-    { label: "Trust and AI Policy", href: "/trust" },
+    { label: "Trust and Transparency", href: "/trust" },
     { label: "Help Centre", href: "/help" },
     { label: "Contact Support", href: "/support" },
     { label: "Privacy Policy", href: "/privacy" },
@@ -362,7 +362,7 @@ const pricingPage = {
   schemaType: "WebPage",
   updated: today,
   intro:
-    "Every rate is listed here in full, before signup. Credits are a single currency shared across Jyotish chat, AI guide sessions, and PDF reports. A machine-readable copy of this page is published at /pricing.md.",
+    "Every rate is listed here in full, before signup. Credits are a single currency shared across Jyotish chat, guide sessions, and PDF reports. A machine-readable copy of this page is published at /pricing.md.",
   sections: [
     {
       title: "Subscription plans",
@@ -371,7 +371,7 @@ const pricingPage = {
         return t.monthlyPriceInr === 0
           ? `${t.displayName}: free, with ${t.limits.monthlyCredits} credits granted once at signup and Jyotish chat at 1 credit per message.`
           : `${t.displayName}: ₹${t.monthlyPriceInr} per month, adding ${t.limits.monthlyCredits} credits each billing month (about ${perCredit(id)} per credit) and unlimited Jyotish chat with a fair-use limit of ${PAID_CHAT_FAIR_USE_PER_DAY} messages a day.`;
-      }).join(" ") + " Every reading, forecast, report, and AI guide session is open on every plan, paid for in credits.",
+      }).join(" ") + " Every reading, forecast, report, and guide session is open on every plan, paid for in credits.",
     },
     {
       title: "Credit packs",
@@ -379,7 +379,7 @@ const pricingPage = {
     },
     {
       title: "What credits are spent on",
-      body: `AI guide sessions cost 5, 8, or 10 credits per minute depending on the guide; the clock runs from your first message until the session closes, and a partial minute is charged as a full minute. Jyotish chat costs 1 credit per message without a subscription. PDF reports cost ${REPORT_CREDIT_COSTS}. Weekly, monthly, and yearly forecasts, transit readings, and compatibility readings cost a few credits per view. One balance covers all of it.`,
+      body: `guide sessions cost 5, 8, or 10 credits per minute depending on the guide; the clock runs from your first message until the session closes, and a partial minute is charged as a full minute. Jyotish chat costs 1 credit per message without a subscription. PDF reports cost ${REPORT_CREDIT_COSTS}. Weekly, monthly, and yearly forecasts, transit readings, and compatibility readings cost a few credits per view. One balance covers all of it.`,
     },
     {
       title: "What is free without paying anything",
@@ -398,7 +398,7 @@ const pricingPage = {
           ? `${ENTITLEMENTS[id].limits.monthlyCredits} credits once at signup`
           : `${ENTITLEMENTS[id].limits.monthlyCredits} credits each billing month`,
     })),
-    { label: "AI guide session rate", value: "5, 8, or 10 credits per minute" },
+    { label: "Guide session rate", value: "5, 8, or 10 credits per minute" },
     { label: "Jyotish chat", value: "1 credit per message; unlimited on paid plans" },
     { label: "Machine-readable pricing", value: "/pricing.md" },
   ],
@@ -437,7 +437,7 @@ const pricingPage = {
         ),
       },
       {
-        criterion: "Reports, forecasts, AI guide sessions",
+        criterion: "Reports, forecasts, guide sessions",
         values: TIER_ORDER.map(() => "Open to all, paid in credits"),
       },
     ],
@@ -449,7 +449,7 @@ const pricingPage = {
     },
     {
       question: "What is a credit worth?",
-      answer: `A credit is the unit every paid feature is priced in. An AI guide session costs 5, 8, or 10 credits per minute depending on the guide, Jyotish chat costs 1 credit per message without a subscription, and PDF reports cost ${REPORT_CREDIT_COSTS}. Packs range from ${CREDIT_PACKS[0].label} at ₹${CREDIT_PACKS[0].amountInRupees} (${formatCreditRate(CREDIT_PACKS[0])}) to ${CREDIT_PACKS[CREDIT_PACKS.length - 1].label} at ₹${CREDIT_PACKS[CREDIT_PACKS.length - 1].amountInRupees} (${formatCreditRate(CREDIT_PACKS[CREDIT_PACKS.length - 1])}).`,
+      answer: `A credit is the unit every paid feature is priced in. A guide session costs 5, 8, or 10 credits per minute depending on the guide, Jyotish chat costs 1 credit per message without a subscription, and PDF reports cost ${REPORT_CREDIT_COSTS}. Packs range from ${CREDIT_PACKS[0].label} at ₹${CREDIT_PACKS[0].amountInRupees} (${formatCreditRate(CREDIT_PACKS[0])}) to ${CREDIT_PACKS[CREDIT_PACKS.length - 1].label} at ₹${CREDIT_PACKS[CREDIT_PACKS.length - 1].amountInRupees} (${formatCreditRate(CREDIT_PACKS[CREDIT_PACKS.length - 1])}).`,
     },
     {
       question: "Is there a free plan?",
@@ -474,7 +474,7 @@ const supportPages = [
     path: "/help",
     title: "AstroYou Help Centre",
     description:
-      "Answers to common AstroYou questions — birth data accuracy, credits and billing, chart calculation, AI disclosure, and account management.",
+      "Answers to common AstroYou questions — birth data accuracy, credits and billing, chart calculation, who you are talking to, and account management.",
     heading: "Help Centre",
     intro:
       "Common questions about birth data, credits, chart calculation, and accounts. If something here does not answer your question, support is reachable from the support page.",
@@ -485,7 +485,7 @@ const supportPages = [
       },
       {
         title: "Credits and billing",
-        body: "Credits are shared across Jyotish chat, AI guide sessions, and PDF reports. AI guide sessions start at 5 credits per minute. Purchased credits stay in your wallet; subscription credits are added at each monthly payment.",
+        body: "Credits are shared across Jyotish chat, guide sessions, and PDF reports. guide sessions start at 5 credits per minute. Purchased credits stay in your wallet; subscription credits are added at each monthly payment.",
       },
       {
         title: "Chart calculation",
@@ -507,7 +507,7 @@ const supportPages = [
       {
         question: "What are credits used for?",
         answer:
-          "Credits are one currency across Jyotish chat, AI guide sessions, and PDF reports. AI guide sessions start at 5 credits per minute. Purchased credits stay in your wallet; subscription credits are added at each monthly payment.",
+          "Credits are one currency across Jyotish chat, guide sessions, and PDF reports. guide sessions start at 5 credits per minute. Purchased credits stay in your wallet; subscription credits are added at each monthly payment.",
       },
       {
         question: "Why does my chart differ from another astrology site?",
@@ -522,7 +522,7 @@ const supportPages = [
     ],
     links: [
       { label: "Support", href: "/support" },
-      { label: "Trust and AI Policy", href: "/trust" },
+      { label: "Trust and Transparency", href: "/trust" },
       { label: "Pricing", href: "/pricing" },
       { label: "Privacy Policy", href: "/privacy" },
     ],
@@ -674,7 +674,7 @@ const supportPages = [
       "Apply to join AstroYou as a practising astrologer. What we look for, how verification works, and how listings are labelled.",
     heading: "Apply as an Expert",
     intro:
-      "Every guide on AstroYou today is an AI. This page records interest from practising astrologers; applying does not create a listing. If human practitioners are ever listed, they will be labelled distinctly from AI guides.",
+      "AstroYou's guides today are not people. This page records interest from practising astrologers; applying does not create a listing. If human practitioners are ever listed, they will be labelled distinctly from the guides.",
     sections: [
       {
         title: "What we look for",
@@ -682,7 +682,7 @@ const supportPages = [
       },
       {
         title: "How listings are labelled",
-        body: "Human astrologers are labelled as human and AI astrologers as AI, on every profile. That labelling is not optional and is documented on the trust page.",
+        body: "Human astrologers are labelled as human, and guides that are not people are labelled as not people, on every profile. That labelling is not optional and is documented on the trust page.",
       },
     ],
     schemaType: "WebPage",
@@ -694,9 +694,9 @@ const supportPages = [
           "Practitioners with demonstrable Jyotish training and a practice history they can describe, willing to work within the platform's guidance limits.",
       },
       {
-        question: "Are human astrologers labelled differently from AI?",
+        question: "Are human astrologers labelled differently from the guides?",
         answer:
-          "Yes. Human practitioners are labelled as human and AI astrologers as AI, on every profile. The labelling is not optional and is documented on the trust page.",
+          "Yes. Human practitioners are labelled as human, and guides that are not people say so, on every profile. The labelling is not optional and is documented on the trust page.",
       },
       {
         question: "What guidance limits apply?",
@@ -705,7 +705,7 @@ const supportPages = [
       },
     ],
     links: [
-      { label: "Trust and AI Policy", href: "/trust" },
+      { label: "Trust and Transparency", href: "/trust" },
       { label: "Help Centre", href: "/help" },
     ],
     cta: "/trust",
@@ -1571,7 +1571,7 @@ for (const page of [...toolPages, ...muhuratCategoryPages]) {
 
 const legalPages = [
   ["/refund-policy", "Refund Policy", legal.REFUND_SECTIONS],
-  ["/disclaimer", "Astrology and AI Disclaimer", legal.DISCLAIMER_SECTIONS],
+  ["/disclaimer", "Astrology and Guidance Disclaimer", legal.DISCLAIMER_SECTIONS],
 ].map(([path, title, sections]) => ({
   path, title, heading: title, description: sections[0].content[0],
   intro: sections[0].content[0], schemaType: "WebPage",
@@ -1917,7 +1917,7 @@ ${t.monthlyPriceInr === 0
 - Jyotish chat: 1 credit per message`
   : `- Credits: ${t.limits.monthlyCredits} added each billing month (about ${perCredit(id)} per credit)
 - Jyotish chat: unlimited, fair use up to ${PAID_CHAT_FAIR_USE_PER_DAY} messages a day`}
-- Reports, forecasts and AI guide sessions: available, paid in credits`;
+- Reports, forecasts and guide sessions: available, paid in credits`;
 }).join("\n\n")}
 
 ## Credit packs (one-time purchase)
@@ -1926,7 +1926,7 @@ ${CREDIT_PACKS.map((p) => `- ${p.label}: ₹${p.amountInRupees} (${formatCreditR
 
 ## What credits are spent on
 
-- AI guide session: 5, 8, or 10 credits per minute depending on the guide; billed from the first message, partial minutes rounded up
+- Guide session: 5, 8, or 10 credits per minute depending on the guide; billed from the first message, partial minutes rounded up
 - Jyotish chat: 1 credit per message without a subscription; unlimited (fair use) on Premium and Pro
 - PDF reports: ${REPORT_CREDIT_COSTS}
 - Weekly, monthly, and yearly forecasts, transit and compatibility readings: a few credits per view
@@ -1952,8 +1952,8 @@ const buildLlmsTxt = (routes) => {
 
 > Vedic astrology platform. Computes a sidereal Janam Kundali from date, exact
 > time, and place of birth using the Lahiri (Chitrapaksha) ayanamsa, then
-> interprets it with an AI guide trained on Jyotish that remembers your chart,
-> dasha timeline, and the key things you share with it.
+> interprets it with a Jyotish guide that remembers your chart, dasha timeline,
+> and the key things you share with it.
 
 Last updated: ${today}
 
@@ -1964,9 +1964,9 @@ the Moon's Nakshatra and pada, the D-9 Navamsa, and the full 120-year Vimshottar
 dasha sequence. Kundali generation, Kundali matching with the 36-point Ashtakoot
 breakdown, Manglik checking, and daily Panchang are free.
 
-## AI disclosure
+## Who you are talking to
 
-Every guide on AstroYou is an AI and is labelled as an AI guide on its profile.
+AstroYou's guides are not people, and every profile says so.
 The policy is documented at ${baseUrl}/trust.
 
 ## Limits stated by the product
@@ -1980,7 +1980,7 @@ follows the classical order: behaviour and service before anything costly.
 - Free tier: ${ENTITLEMENTS.free.limits.monthlyCredits} credits once at signup, no card required
 - Premium: ₹${ENTITLEMENTS.premium.monthlyPriceInr}/month, ${ENTITLEMENTS.premium.limits.monthlyCredits} credits each month
 - Pro: ₹${ENTITLEMENTS.pro.monthlyPriceInr}/month, ${ENTITLEMENTS.pro.limits.monthlyCredits} credits each month
-- AI guide sessions: from 5 credits per minute
+- guide sessions: from 5 credits per minute
 - Machine-readable: ${baseUrl}/pricing.md
 
 ## Key pages
@@ -1989,7 +1989,7 @@ follows the classical order: behaviour and service before anything costly.
 - [Free Kundali](${baseUrl}/free-kundali): birth chart generation
 - [Kundali Matching](${baseUrl}/free-kundali-matching): Ashtakoot Guna Milan
 - [Panchang](${baseUrl}/panchang): daily almanac
-- [Trust](${baseUrl}/trust): AI disclosure and review policy
+- [Trust](${baseUrl}/trust): guide disclosure and review policy
 
 ## Reference guides
 

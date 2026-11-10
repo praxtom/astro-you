@@ -2,7 +2,7 @@ import { useState } from "react";
 import { postJson } from "../lib/apiFetch";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Sparkles, Heart, ArrowRight, Loader2, Lock } from "lucide-react";
+import { Sparkles, Heart, ArrowRight, Loader2 } from "lucide-react";
 import LocationInput from "../components/LocationInput";
 import SEO from "../components/SEO";
 import {
@@ -10,12 +10,22 @@ import {
   trackAcquisitionEvent,
 } from "../lib/acquisition";
 import { siteUrl } from "../lib/site-url";
+import {
+  gunaVerdict,
+  kootaMeaning,
+  GUNA_TONE_TEXT_CLASS,
+} from "../lib/guna-verdict";
+import { StatusNotice } from "../components/ui/StatusNotice";
+import { GlossaryTerm } from "../components/ui/GlossaryTerm";
 
 interface PersonForm {
   name: string;
   dob: string;
   tob: string;
   pob: string;
+  /** Coordinates of the picked place suggestion, when one was picked. */
+  lat?: number;
+  lng?: number;
   /** Picks the Ashtakoot groom/bride slot server-side ("" = not given). */
   gender: "" | "male" | "female" | "other";
 }
@@ -60,8 +70,8 @@ const normalizeMatchResponse = (data: any): MatchResult | null => {
   const vm = data?.vedicMatching;
   if (!vm || typeof vm !== "object") return null;
   const rawItems = vm.kutas ?? vm.gunas ?? vm.aspects ?? vm.ashtakoot ?? [];
-  const gunas: GunaResult[] = (Array.isArray(rawItems) ? rawItems : [])
-    .map((g: any, i: number) => ({
+  const gunas: GunaResult[] = (Array.isArray(rawItems) ? rawItems : []).map(
+    (g: any, i: number) => ({
       name:
         (typeof g?.name === "string" && g.name) ||
         (typeof g?.kuta === "string" && g.kuta) ||
@@ -70,7 +80,8 @@ const normalizeMatchResponse = (data: any): MatchResult | null => {
       maxScore: num(g?.max, g?.max_score, g?.maximum, g?.max_points) ?? 0,
       description:
         typeof g?.description === "string" ? g.description : undefined,
-    }));
+    }),
+  );
   const total =
     num(vm.total_score, vm.score, vm.total_points) ??
     (gunas.length ? gunas.reduce((sum, g) => sum + g.score, 0) : undefined);
@@ -82,6 +93,7 @@ const normalizeMatchResponse = (data: any): MatchResult | null => {
     orientationAssumed: data?.orientationAssumed === true,
   };
 };
+
 
 const PersonFormBlock = ({
   label,
@@ -99,7 +111,10 @@ const PersonFormBlock = ({
       {label}
     </h2>
     <div>
-      <label htmlFor={`${idPrefix}-name`} className="block text-sm text-white/60 mb-1.5">
+      <label
+        htmlFor={`${idPrefix}-name`}
+        className="block text-sm text-white/60 mb-1.5"
+      >
         Name (optional)
       </label>
       <input
@@ -112,7 +127,10 @@ const PersonFormBlock = ({
       />
     </div>
     <div>
-      <label htmlFor={`${idPrefix}-dob`} className="block text-sm text-white/60 mb-1.5">
+      <label
+        htmlFor={`${idPrefix}-dob`}
+        className="block text-sm text-white/60 mb-1.5"
+      >
         Date of Birth <span className="text-gold">*</span>
       </label>
       <input
@@ -124,7 +142,10 @@ const PersonFormBlock = ({
       />
     </div>
     <div>
-      <label htmlFor={`${idPrefix}-tob`} className="block text-sm text-white/60 mb-1.5">
+      <label
+        htmlFor={`${idPrefix}-tob`}
+        className="block text-sm text-white/60 mb-1.5"
+      >
         Time of Birth
       </label>
       <input
@@ -136,7 +157,12 @@ const PersonFormBlock = ({
       />
     </div>
     <div>
-      <label htmlFor={`${idPrefix}-gender`} className="block text-sm text-white/60 mb-1.5">Gender</label>
+      <label
+        htmlFor={`${idPrefix}-gender`}
+        className="block text-sm text-white/60 mb-1.5"
+      >
+        Gender
+      </label>
       <select
         id={`${idPrefix}-gender`}
         value={person.gender}
@@ -155,13 +181,25 @@ const PersonFormBlock = ({
       </select>
     </div>
     <div>
-      <label htmlFor={`${idPrefix}-pob`} className="block text-sm text-white/60 mb-1.5">
+      <label
+        htmlFor={`${idPrefix}-pob`}
+        className="block text-sm text-white/60 mb-1.5"
+      >
         Place of Birth <span className="text-gold">*</span>
       </label>
       <LocationInput
         inputId={`${idPrefix}-pob`}
         value={person.pob}
-        onChange={(value) => onChange({ ...person, pob: value })}
+        onChange={(value) =>
+          onChange({ ...person, pob: value, lat: undefined, lng: undefined })
+        }
+        onSelect={(suggestion) => {
+          const lat = Number(suggestion.lat);
+          const lng = Number(suggestion.lon);
+          if (Number.isFinite(lat) && Number.isFinite(lng)) {
+            onChange({ ...person, pob: suggestion.display_name, lat, lng });
+          }
+        }}
         placeholder="Search for birth city..."
         size="field"
       />
@@ -183,6 +221,9 @@ export default function FreeMatching() {
     dob: p.dob,
     tob: p.tob,
     pob: p.pob,
+    ...(typeof p.lat === "number" && typeof p.lng === "number"
+      ? { lat: p.lat, lng: p.lng }
+      : {}),
     ...(p.gender ? { gender: p.gender } : {}),
   });
 
@@ -273,14 +314,13 @@ export default function FreeMatching() {
         >
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-white/60 text-sm mb-4 sm:mb-6">
             <Heart className="w-3.5 h-3.5 text-gold" />
-            100% Free — No Signup Required
+            Free Guna Milan score · no signup needed
           </div>
-          <h1 className="type-page-title mb-3">
-            Free Kundali Matching
-          </h1>
+          <h1 className="type-page-title mb-3">Free Kundali Matching</h1>
           <p className="text-white/60 text-base sm:text-lg max-w-xl mx-auto">
-            Check Ashtakoot Guna Milan compatibility score between two birth
-            charts instantly.
+            Enter two people&rsquo;s birth details to get their traditional{" "}
+            <GlossaryTerm k="guna-milan">Guna Milan</GlossaryTerm> marriage-match
+            score, out of 36.
           </p>
         </motion.div>
 
@@ -308,10 +348,11 @@ export default function FreeMatching() {
               </div>
 
               {error && (
-                <p className="text-red-400 text-sm text-center mt-5">{error}</p>
+                <StatusNotice size="section" message={error} className="mt-5" />
               )}
 
               <button
+                type="button"
                 onClick={handleCheck}
                 disabled={loading}
                 className="w-full mt-6 sm:mt-8 min-h-12 py-3 rounded-xl bg-gold text-black font-semibold text-base hover:bg-gold/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -359,47 +400,58 @@ export default function FreeMatching() {
             {/* Overall Score */}
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center mb-8">
               <p className="text-white/55 text-xs uppercase tracking-wider mb-2">
-                Overall Compatibility
+                Guna Milan score
               </p>
               <div className="text-6xl font-display font-bold text-gold">
                 {result.overallScore}/{result.maxScore}
               </div>
-              <p className="text-white/50 text-sm mt-2">
-                {result.overallScore >= 25
-                  ? "Excellent match!"
-                  : result.overallScore >= 18
-                    ? "Good compatibility"
-                    : result.overallScore >= 12
-                      ? "Average compatibility"
-                      : "Needs careful consideration"}
+              {(() => {
+                const verdict = gunaVerdict(result.overallScore);
+                return (
+                  <p
+                    className={`text-sm font-medium mt-2 ${GUNA_TONE_TEXT_CLASS[verdict.tone]}`}
+                  >
+                    {verdict.label}
+                  </p>
+                );
+              })()}
+              <p className="mt-3 text-xs text-white/55">
+                Out of 36. Tradition treats 18 or more as an average match and
+                25 or more as a good one. One lens, not a verdict.
               </p>
             </div>
 
             {result.orientationAssumed && (
               <p className="text-xs text-white/55 text-center -mt-4 mb-8">
-                Traditional Ashtakoot matching assumes a bride and groom; we
-                used the order you entered.
+                Traditional Guna Milan assumes a bride and groom; we used the
+                order you entered.
               </p>
             )}
 
-            {/* Guna breakdown: show 3, blur the rest */}
+            {/* Guna breakdown: all eight kootas. The page promises a free
+                match, and the numbers are already computed. */}
             {result.gunas.length > 0 && (
               <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 mb-8">
-                <h3 className="text-lg font-display text-white/80 mb-4">
-                  Ashtakoot Analysis
-                </h3>
+                <h2 className="text-lg font-display text-white/80 mb-1">
+                  The eight factors behind the score
+                </h2>
+                <p className="mb-4 text-xs text-white/55">
+                  Each factor has its own maximum; together they add up to 36.
+                </p>
                 <div className="space-y-3">
                   {result.gunas.map((guna, i) => {
-                    const isLocked = i >= 3;
                     return (
                       <div
                         key={i}
-                        className={`flex items-center justify-between py-2 border-b border-white/5 last:border-0 ${
-                          isLocked ? "blur-[4px] select-none" : ""
-                        }`}
+                        className="flex items-center justify-between py-2 border-b border-white/5 last:border-0"
                       >
                         <span className="text-sm text-white/70">
                           {guna.name || `Guna ${i + 1}`}
+                          {kootaMeaning(guna.name) && (
+                            <span className="block text-xs text-white/55">
+                              {kootaMeaning(guna.name)}
+                            </span>
+                          )}
                         </span>
                         <div className="flex items-center gap-3">
                           <div className="w-24 h-1.5 bg-white/10 rounded-full overflow-hidden">
@@ -410,7 +462,7 @@ export default function FreeMatching() {
                               }}
                             />
                           </div>
-                          <span className="text-sm text-white/50 w-10 text-right">
+                          <span className="text-sm text-white/70 w-10 text-right tabular-nums">
                             {guna.score}/{guna.maxScore}
                           </span>
                         </div>
@@ -418,26 +470,21 @@ export default function FreeMatching() {
                     );
                   })}
                 </div>
-                {result.gunas.length > 3 && (
-                  <div className="flex items-center justify-center gap-2 mt-4 text-gold/80 text-sm">
-                    <Lock className="w-4 h-4" />
-                    {result.gunas.length - 3} more gunas hidden
-                  </div>
-                )}
               </div>
             )}
 
             {/* CTA */}
             <div className="rounded-xl border border-gold/20 bg-gold/5 p-6 mb-8 text-center">
-              <Sparkles className="w-6 h-6 text-gold mx-auto mb-3" />
-              <p className="text-white/70 mb-1">
-                See all{" "}
-                <span className="text-gold font-medium">36 points</span> +
-                the full compatibility analysis
+              <Sparkles
+                className="w-6 h-6 text-gold mx-auto mb-3"
+                aria-hidden="true"
+              />
+              <p className="text-white/75 mb-1">
+                The score is the start. The full match explains it.
               </p>
-              <p className="text-white/55 text-sm">
-                Get detailed insights on each guna, Mangal Dosha check, and
-                personalized relationship guidance.
+              <p className="text-white/60 text-sm">
+                What each factor means for the two of you, a Manglik check for
+                both charts, and where you fit together or pull apart.
               </p>
             </div>
 
@@ -447,12 +494,13 @@ export default function FreeMatching() {
               className="block w-full min-h-12 py-3 rounded-xl bg-gold text-black font-semibold text-base text-center hover:bg-gold/90 transition-all"
             >
               <span className="flex items-center justify-center gap-2">
-                See All 36 Points + Full Analysis — Create Free Account
+                Get the full reading of this match — create a free account
                 <ArrowRight className="w-5 h-5" />
               </span>
             </Link>
             <p className="text-center text-white/50 text-sm mt-3">
-              Free account — unlock full compatibility report
+              The detailed reading costs 5 credits. New accounts start with 15
+              free.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
               <Link
@@ -472,8 +520,9 @@ export default function FreeMatching() {
             </div>
 
             <button
+              type="button"
               onClick={() => setResult(null)}
-              className="block mx-auto mt-8 text-white/55 hover:text-white/60 text-sm underline underline-offset-4 transition-colors"
+              className="block mx-auto mt-8 min-h-11 text-white/60 hover:text-white text-sm underline underline-offset-4 transition-colors"
             >
               Check another match
             </button>

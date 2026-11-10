@@ -18,7 +18,7 @@ export const REPORT_PRODUCTS: ClientReportProduct[] = [
   {
     type: "natal",
     title: REPORT_PRICING.natal.title,
-    description: "A downloadable Vedic birth chart report for your core placements.",
+    description: "A PDF reading of your birth chart. Note: this report uses Western astrology, so your signs in it may be one sign off from your Vedic chart here.",
     creditCost: REPORT_PRICING.natal.creditCost,
     cta: "Generate PDF",
     icon: FileText,

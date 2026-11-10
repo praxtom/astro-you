@@ -1,11 +1,17 @@
 import { Component, ReactNode } from "react";
-import { AlertTriangle } from "lucide-react";
 import { reportError } from "../lib/reportError";
+import { StatusNotice } from "./ui/StatusNotice";
 
 interface Props {
   children: ReactNode;
-  /** Short label for the fallback, e.g. "insights panel". */
+  /** Short label for error reports, e.g. "insights panel". Not shown to users. */
   label?: string;
+  /**
+   * Classes for the fallback card. When the boundary is a direct child of a
+   * grid, pass the tile's span classes (e.g. "sm:col-span-2 lg:col-span-4")
+   * so a failed tile keeps its place instead of collapsing to one column.
+   */
+  className?: string;
 }
 
 interface State {
@@ -29,15 +35,19 @@ export class SectionErrorBoundary extends Component<Props, State> {
     reportError(error, { boundary: this.props.label ?? "section" });
   }
 
+  private reset = () => {
+    this.setState({ hasError: false });
+  };
+
   render() {
     if (this.state.hasError) {
       return (
-        <div className="glass rounded-3xl p-6 border border-white/10 flex items-center gap-3 text-white/50">
-          <AlertTriangle className="text-amber-400/70 shrink-0" size={18} />
-          <span className="text-sm">
-            This {this.props.label ?? "section"} couldn't load right now.
-          </span>
-        </div>
+        <StatusNotice
+          size="section"
+          message="This part of the page didn't load. Try again, or refresh the page if it keeps happening."
+          onRetry={this.reset}
+          className={`min-w-0 ${this.props.className ?? ""}`.trim()}
+        />
       );
     }
     return this.props.children;

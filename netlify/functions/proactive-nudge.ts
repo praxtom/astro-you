@@ -4,7 +4,7 @@ import { buildUserContext } from "./shared/user-context";
 import { selectNudgePartner } from "./shared/nudge-partner";
 import {
   verifyToken,
-  enforceIpRateLimit,
+  enforceUserRateLimit,
   AuthError,
 } from "./shared/require-auth";
 
@@ -48,7 +48,7 @@ export default async (req: Request, _context: Context) => {
     let decoded;
     try {
       decoded = await verifyToken(idToken);
-      await enforceIpRateLimit(req, "proactive_nudge", 20, 60 * 60 * 1000);
+      await enforceUserRateLimit(decoded.uid, "proactive_nudge", 20, 60 * 60 * 1000);
     } catch (err) {
       const status = err instanceof AuthError ? err.status : 401;
       return new Response(

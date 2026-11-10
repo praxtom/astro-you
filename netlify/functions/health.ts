@@ -66,6 +66,17 @@ export default async (_req: Request, _context: Context) => {
     ),
   };
 
+  // Load the in-house astrology engine. Every chart and chat function imports
+  // it, so a load failure here means they are all down even though the env
+  // looks complete (this is exactly how a packaging bug once went unnoticed).
+  try {
+    await import("./shared/astro-engine");
+    required.astroEngine = true;
+  } catch (err) {
+    console.error("[Health] astro engine failed to load:", err);
+    required.astroEngine = false;
+  }
+
   const jobs = required.firebaseAdmin
     ? await checkJobsFresh()
     : { fresh: null, stale: [] as string[] };

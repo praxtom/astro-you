@@ -81,16 +81,18 @@ export const InnerCircleManager: React.FC<InnerCircleManagerProps> = ({
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-gold">
                     <Users size={18} />
-                    <h3 className="font-display uppercase tracking-widest text-sm">The Sangha (Inner Circle)</h3>
+                    <h3 className="font-display uppercase tracking-widest text-sm">Inner Circle</h3>
                 </div>
                 <button
+                    type="button"
                     onClick={() => {
                         setEditingRel(undefined);
                         setDraft(undefined);
                         setIsFormOpen(true);
                     }}
-                    className="p-1.5 bg-gold/10 hover:bg-gold/20 text-gold rounded-lg transition-colors"
-                    title="Add to Sangha"
+                    className="min-h-11 min-w-11 flex items-center justify-center bg-gold/10 hover:bg-gold/20 text-gold rounded-lg transition-colors"
+                    title="Add a person"
+                    aria-label="Add a person to your inner circle"
                 >
                     <Plus size={18} />
                 </button>
@@ -98,10 +100,10 @@ export const InnerCircleManager: React.FC<InnerCircleManagerProps> = ({
 
             {keyRelationships.length === 0 ? (
                 <div className="bg-white/5 border border-dashed border-white/10 rounded-2xl p-8 text-center">
-                    <Users size={32} className="text-white/10 mx-auto mb-3" />
-                    <p className="text-white/55 text-sm">
-                        No connections mapped yet.<br />
-                        Add key people to give the Guru social context.
+                    <Users size={32} className="text-white/20 mx-auto mb-3" aria-hidden="true" />
+                    <p className="text-white/60 text-sm">
+                        No one added yet. Tap + to add the people who matter
+                        most, so your readings and chats can account for them.
                     </p>
                 </div>
             ) : (
@@ -129,11 +131,13 @@ export const InnerCircleManager: React.FC<InnerCircleManagerProps> = ({
                                     </div>
                                 </div>
                                 <button
+                                    type="button"
                                     onClick={() => {
                                         setEditingRel(rel);
                                         setIsFormOpen(true);
                                     }}
-                                    className="p-1.5 opacity-0 group-hover:opacity-100 text-white/55 hover:text-white transition-all"
+                                    aria-label={`Edit ${rel.name}`}
+                                    className="p-2 opacity-100 [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-white/55 hover:text-white transition-all"
                                 >
                                     <Edit2 size={14} />
                                 </button>
@@ -151,8 +155,8 @@ export const InnerCircleManager: React.FC<InnerCircleManagerProps> = ({
                             </div>
                             
                             {rel.notes && (
-                                <p className="mt-2 text-[11px] text-white/50 line-clamp-1 italic">
-                                    "{rel.notes}"
+                                <p className="mt-2 text-xs text-white/60 line-clamp-2">
+                                    {rel.notes}
                                 </p>
                             )}
                         </motion.div>

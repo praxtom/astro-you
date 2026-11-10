@@ -23,7 +23,9 @@
  *   Drik Panchang and most modern Indian almanacs (as opposed to the centre
  *   of the disc, used by some traditional siddhantic panchangs).
  */
-import * as Astronomy from "astronomy-engine";
+/// <reference types="node" />
+import { createRequire } from "node:module";
+import type * as AstronomyTypes from "astronomy-engine";
 import type {
   BodyPosition,
   EphemerisBody,
@@ -34,21 +36,29 @@ import type {
 import { J2000 } from "./julian.js";
 import { normDeg } from "./types.js";
 
+// astronomy-engine@2.1.19 ships its ESM build as plain `.js` without
+// `"type": "module"`, so a native ESM `import` of the package makes Node load
+// `esm/astronomy.js` as CommonJS and crash with "Unexpected token 'export'" —
+// which took down every function that imports this file. Load the CommonJS
+// build (the package's `require` export) instead. This file is server-only.
+const Astronomy = createRequire(import.meta.url)(
+  "astronomy-engine",
+) as typeof AstronomyTypes;
 const DEG = Math.PI / 180;
 
-function timeFromJdUT(jdUT: number): Astronomy.AstroTime {
+function timeFromJdUT(jdUT: number): AstronomyTypes.AstroTime {
   return Astronomy.MakeTime(jdUT - J2000);
 }
 
-function timeFromJdTT(jdTT: number): Astronomy.AstroTime {
+function timeFromJdTT(jdTT: number): AstronomyTypes.AstroTime {
   return Astronomy.AstroTime.FromTerrestrialTime(jdTT - J2000);
 }
 
-function nutationDeg(time: Astronomy.AstroTime): number {
+function nutationDeg(time: AstronomyTypes.AstroTime): number {
   return Astronomy.e_tilt(time).dpsi / 3600;
 }
 
-const PLANET_BODY: Partial<Record<EphemerisBody, Astronomy.Body>> = {
+const PLANET_BODY: Partial<Record<EphemerisBody, AstronomyTypes.Body>> = {
   Sun: Astronomy.Body.Sun,
   Mercury: Astronomy.Body.Mercury,
   Venus: Astronomy.Body.Venus,

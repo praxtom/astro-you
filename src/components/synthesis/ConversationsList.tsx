@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { StatusNotice } from "../ui/StatusNotice";
 import { ConversationListView } from "./ConversationsListView";
 
 interface ConversationsListProps {
@@ -18,6 +19,7 @@ export default function ConversationsList({
 }: ConversationsListProps) {
   const [chats, setChats] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -26,13 +28,23 @@ export default function ConversationsList({
   useEffect(() => {
     const q = query(
       collection(db, "users", userId, "chats"),
-      orderBy("lastUpdatedAt", "desc")
+      orderBy("lastUpdatedAt", "desc"),
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setChats(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-      setIsLoading(false);
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        setChats(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+        setLoadFailed(false);
+        setIsLoading(false);
+      },
+      (err) => {
+        // Without this the panel sat on its loading line forever.
+        console.error("Could not load conversations:", err);
+        setLoadFailed(true);
+        setIsLoading(false);
+      },
+    );
 
     return () => unsubscribe();
   }, [userId]);
@@ -52,13 +64,18 @@ export default function ConversationsList({
 
   if (isLoading)
     return (
-      <div
-        className="p-4 text-xs uppercase tracking-widest opacity-20"
-        role="status"
-        aria-live="polite"
-      >
-        Aligning…
+      <div className="p-4 text-xs text-white/55" role="status">
+        Loading conversations…
       </div>
+    );
+
+  if (loadFailed)
+    return (
+      <StatusNotice
+        size="section"
+        className="m-3"
+        message="Your past conversations could not be loaded. Refresh the page to try again."
+      />
     );
 
   return (

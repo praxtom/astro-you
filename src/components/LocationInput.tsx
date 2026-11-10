@@ -216,7 +216,7 @@ export default function LocationInput({
       {label && (
         <label
           htmlFor={resolvedInputId}
-          className="block text-caption mb-3 opacity-40 uppercase tracking-widest text-xs font-bold"
+          className="block text-caption mb-3 text-white/60 uppercase tracking-widest text-xs font-bold"
         >
           {label}
         </label>
@@ -276,13 +276,13 @@ export default function LocationInput({
                 setLookupError(null);
                 setNoMatch(false);
               }}
-              className="text-white/20 hover:text-white/60 transition-colors"
+              className="text-white/50 hover:text-white/80 transition-colors"
               aria-label="Clear location"
             >
               <X size={18} />
             </button>
           ) : (
-            <div className="text-white/20">{icon || <MapPin size={20} />}</div>
+            <div className="text-white/50" aria-hidden="true">{icon || <MapPin size={20} />}</div>
           )}
         </div>
       </div>

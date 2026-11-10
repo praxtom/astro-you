@@ -3,7 +3,7 @@ import { generateSadhanaPath } from "./shared/gemini";
 import { buildUserContext } from "./shared/user-context";
 import {
   AuthError,
-  enforceIpRateLimit,
+  enforceUserRateLimit,
   verifyToken,
 } from "./shared/require-auth";
 
@@ -18,7 +18,7 @@ export default async (req: Request, _context: Context) => {
     let decoded;
     try {
       decoded = await verifyToken(idToken);
-      await enforceIpRateLimit(req, "sadhana_path", 20, 60 * 60 * 1000);
+      await enforceUserRateLimit(decoded.uid, "sadhana_path", 20, 60 * 60 * 1000);
     } catch (err) {
       const status = err instanceof AuthError ? err.status : 401;
       return new Response(

@@ -62,13 +62,13 @@ const HOUSE_MEANINGS: Record<number, { short: string; theme: string }> = {
   3: { short: "Courage", theme: "Siblings, communication, skills" },
   4: { short: "Home", theme: "Mother, property, emotions" },
   5: { short: "Children", theme: "Creativity, romance, education" },
-  6: { short: "Health", theme: "Enemies, debts, service" },
+  6: { short: "Health", theme: "Rivals, debts, daily work" },
   7: { short: "Marriage", theme: "Partnerships, spouse, business" },
-  8: { short: "Mystery", theme: "Transformation, inheritance, occult" },
-  9: { short: "Dharma", theme: "Father, fortune, spirituality" },
+  8: { short: "Change", theme: "Transformation, shared money, hidden matters" },
+  9: { short: "Fortune", theme: "Father, luck, beliefs" },
   10: { short: "Career", theme: "Profession, status, authority" },
   11: { short: "Gains", theme: "Income, friends, aspirations" },
-  12: { short: "Loss", theme: "Expenses, moksha, foreign lands" },
+  12: { short: "Release", theme: "Expenses, rest, liberation, foreign lands" },
 };
 
 const SANSKRIT_SIGNS = [
@@ -831,7 +831,7 @@ export default function CelestialChart({
     : null;
 
   const pillClass = (active: boolean) =>
-    `px-3 py-2 md:px-4 rounded-full text-[0.6rem] md:text-[0.65rem] font-bold uppercase tracking-[0.2em] transition-all ${
+    `px-3 py-2 md:px-4 rounded-full text-[0.6875rem] font-bold uppercase tracking-[0.2em] transition-all ${
       active
         ? "bg-gold text-black shadow-[0_0_24px_rgba(255,205,106,0.35)]"
         : "text-white/55 hover:text-white"
@@ -846,25 +846,29 @@ export default function CelestialChart({
           <div>
             <div className="flex items-center gap-3 mb-2">
               <div className="h-px w-8 bg-gold/50" />
-              <span className="text-[0.6rem] font-bold uppercase tracking-[0.4em] text-gold/80">
-                The Observatory
+              <span className="text-[0.6875rem] font-bold uppercase tracking-[0.4em] text-gold/80">
+                3D view
               </span>
             </div>
             <h2 className="text-3xl md:text-5xl font-display text-white leading-tight">
-              The Birth <span className="text-gold italic">Chart</span>
+              Your birth <span className="text-gold italic">chart</span>
             </h2>
           </div>
 
           <div className="flex max-w-full flex-wrap items-center gap-2">
             <div className="flex bg-white/5 p-1 rounded-full border border-white/10 backdrop-blur-md">
               <button
+                type="button"
                 onClick={() => setIsDiamondView(true)}
+                aria-pressed={isDiamondView}
                 className={pillClass(isDiamondView)}
               >
                 Diamond
               </button>
               <button
+                type="button"
                 onClick={() => setIsDiamondView(false)}
+                aria-pressed={!isDiamondView}
                 className={pillClass(!isDiamondView)}
               >
                 Wheel
@@ -872,31 +876,38 @@ export default function CelestialChart({
             </div>
 
             <button
+              type="button"
               onClick={() => setShowWesternPlanets(!showWesternPlanets)}
-              className={`px-3 py-2 rounded-full text-[0.6rem] md:text-[0.65rem] font-bold uppercase tracking-[0.2em] transition-all border ${
+              aria-pressed={showWesternPlanets}
+              title="Show Uranus, Neptune and Pluto, used in Western astrology"
+              className={`px-3 py-2 rounded-full text-[0.6875rem] font-bold uppercase tracking-[0.2em] transition-all border ${
                 showWesternPlanets
                   ? "border-gold/40 bg-gold/10 text-gold"
                   : "bg-white/5 border-white/10 text-white/55 hover:text-white hover:border-white/30"
               }`}
             >
-              Western
+              Outer planets
             </button>
 
             {isDiamondView && (
               <button
+                type="button"
                 onClick={() => setShowHouseInfo(!showHouseInfo)}
-                className={`px-3 py-2 rounded-full text-[0.6rem] md:text-[0.65rem] font-bold uppercase tracking-[0.2em] transition-all border ${
+                aria-pressed={showHouseInfo}
+                className={`px-3 py-2 rounded-full text-[0.6875rem] font-bold uppercase tracking-[0.2em] transition-all border ${
                   showHouseInfo
                     ? "border-gold/40 bg-gold/10 text-gold"
                     : "bg-white/5 border-white/10 text-white/55 hover:text-white hover:border-white/30"
                 }`}
               >
-                Learn
+                House meanings
               </button>
             )}
 
             <button
+              type="button"
               onClick={() => setIsRotating(!isRotating)}
+              aria-label={isRotating ? "Pause rotation" : "Slow rotation"}
               className={`p-3 rounded-full border transition-all ${
                 isRotating
                   ? "border-gold/30 bg-gold/10 text-gold"
@@ -908,6 +919,7 @@ export default function CelestialChart({
             </button>
 
             <button
+              type="button"
               onClick={onClose}
               className="p-3 rounded-full border border-white/10 bg-white/5 hover:bg-gold/10 hover:border-gold/30 text-white/55 hover:text-gold transition-all group"
               aria-label="Close expanded chart"
@@ -927,7 +939,7 @@ export default function CelestialChart({
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p
-                    className="text-[0.6rem] font-bold uppercase tracking-[0.35em] mb-1"
+                    className="text-[0.6875rem] font-bold uppercase tracking-[0.3em] mb-1"
                     style={{ color: selectedInfo?.color || GOLD }}
                   >
                     {selected.name.split("_").join(" ")}
@@ -938,8 +950,9 @@ export default function CelestialChart({
                   </h3>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setSelected(null)}
-                  className="p-1.5 rounded-lg text-white/50 hover:text-gold transition-colors"
+                  className="-m-1 p-2 rounded-lg text-white/60 hover:text-gold transition-colors"
                   aria-label="Dismiss planet details"
                 >
                   <X size={14} />
@@ -960,12 +973,19 @@ export default function CelestialChart({
                 </p>
                 {selected.nakshatra && (
                   <p className="text-white/55">
-                    Nakshatra · {selected.nakshatra}
+                    Birth star (nakshatra) · {selected.nakshatra}
+                  </p>
+                )}
+                {selected.is_retrograde && (
+                  <p className="text-white/55">
+                    Retrograde: it seems to move backwards from Earth, so its
+                    themes tend to ask for a second look.
                   </p>
                 )}
               </div>
               {onAskAbout && (
                 <button
+                  type="button"
                   onClick={() =>
                     onAskAbout(
                       timeUnknown
@@ -973,7 +993,7 @@ export default function CelestialChart({
                         : `What does ${selectedInfo?.name || selected.name} in ${selectedSignName}, in my ${selected.house}th house, mean for me?`,
                     )
                   }
-                  className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gold text-black text-[0.65rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors"
+                  className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gold text-black text-[0.6875rem] font-bold uppercase tracking-[0.2em] hover:bg-gold/90 transition-colors"
                 >
                   <Sparkles size={12} />
                   Ask Jyotish about this
@@ -981,17 +1001,18 @@ export default function CelestialChart({
               )}
             </div>
           ) : (
-            <p className="max-w-md text-sm font-display italic text-white/50 leading-relaxed">
-              Touch a planet to read its placement. "The sky is a map of
-              potential; your will determines the path."
+            <p className="max-w-md text-sm text-white/60 leading-relaxed">
+              {isDiamondView
+                ? "The 12 sections are houses, each an area of life; house 1 is you. Tap a planet to see where it sits and what that area covers."
+                : `The outer ring is the 12 signs${timeUnknown ? "" : ", and LAGNA marks your rising sign"}. Tap a planet to see its sign and house.`}
             </p>
           )}
 
           <div className="md:text-right">
-            <div className="text-[0.6rem] font-bold uppercase tracking-[0.35em] text-white/50 mb-1.5">
+            <div className="text-[0.6875rem] font-bold uppercase tracking-[0.3em] text-white/55 mb-1.5">
               {timeUnknown
-                ? "Chandra Lagna (birth time unknown)"
-                : "Ascendant Lagna"}
+                ? "House 1 from your Moon (birth time unknown)"
+                : "Rising sign (Lagna)"}
             </div>
             <div className="text-2xl font-display italic text-gold">
               {timeUnknown

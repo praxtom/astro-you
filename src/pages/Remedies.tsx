@@ -52,9 +52,9 @@ function formatPrice(price: number, currency: Currency) {
 }
 
 function fulfillmentLabel(product: RemedyProduct) {
-  if (product.fulfillment === "digital") return "Instant plan";
-  if (product.fulfillment === "review") return "Review first";
-  return "Request first";
+  if (product.fulfillment === "digital") return "Plan ready right away";
+  if (product.fulfillment === "review") return "Checked against your chart first";
+  return "Confirmed with you before booking";
 }
 
 export default function Remedies() {
@@ -238,21 +238,23 @@ export default function Remedies() {
       <div>
         <section className="grid gap-4 lg:grid-cols-[1fr_20rem] lg:items-end">
           <div>
-            <p className="platform-eyebrow mb-2">Remedy Studio</p>
+            <p className="platform-eyebrow mb-2">Remedies</p>
             <h1 className="type-page-title max-w-3xl">
               Practical remedies, reviewed before you buy.
             </h1>
             <p className="platform-copy mt-3 max-w-2xl">
-              Start with low-risk practices. Request paid reviews only when a
-              gemstone, puja, yantra, or kit needs chart context.
+              A remedy is a small, steady practice (a mantra, a weekly fast,
+              giving, sometimes a stone) used to support a part of life your
+              chart shows as hard. Start with the free practices; paid items
+              are checked against your chart before you pay.
             </p>
           </div>
 
           <aside className="platform-panel p-4">
             <div className="flex items-start gap-3">
-              <ShieldCheck className="mt-0.5 text-gold" size={21} />
+              <ShieldCheck className="mt-0.5 shrink-0 text-gold" size={21} aria-hidden="true" />
               <div>
-                <p className="type-card-title text-white">No fear selling</p>
+                <p className="type-card-title text-white">No fear-based selling</p>
                 <p className="type-body-sm mt-1 text-white/60">
                   Remedies are framed as support practices. Paid items require
                   review before purchase or booking.
@@ -262,21 +264,86 @@ export default function Remedies() {
           </aside>
         </section>
 
-        <section className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
-          <div className="min-w-0 space-y-4">
+        <section className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_22rem] xl:grid-rows-[auto_1fr]">
+          {/* Personal suggestions come before the catalog on phones and
+              tablets; at xl they sit at the top of the right column. */}
+          <section className="platform-panel p-4 xl:col-start-2 xl:row-start-1">
+            <p className="platform-eyebrow mb-1">Suggested for your chart</p>
+            <p className="type-body-sm mb-3 text-white/55">
+              Pick one and practise it daily for a few weeks; steadiness is the point.
+            </p>
+            {profileLoading || remediesLoading ? (
+              <div className="flex items-center gap-2 py-4 text-sm text-white/60" aria-busy="true">
+                <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+                Reading your chart…
+              </div>
+            ) : !hasBirthProfile ? (
+              <StatusNotice
+                tone="info"
+                size="section"
+                message="Add your birth date and time to get remedy suggestions from your chart."
+                action={{ label: "Create birth profile", to: "/onboarding" }}
+              />
+            ) : remediesError ? (
+              remediesErrorKind === "signin" ? (
+                <StatusNotice
+                  tone="info"
+                  size="section"
+                  message="Sign in to see remedy suggestions from your chart."
+                  action={{ label: "Sign in", onClick: () => requestSignIn() }}
+                />
+              ) : (
+                <StatusNotice
+                  size="section"
+                  message="Remedy suggestions from your chart couldn't be loaded. Check your connection and try again."
+                  onRetry={retryRemedies}
+                />
+              )
+            ) : suggestedRemedies.length > 0 ? (
+              <div className="space-y-3">
+                {suggestedRemedies.map((remedy) => (
+                  <div
+                    key={`${remedy.category}-${remedy.name}`}
+                    className="border-b border-white/10 pb-3 last:border-0 last:pb-0"
+                  >
+                    <p className="type-body-sm font-semibold text-white/80">
+                      {remedy.name}
+                    </p>
+                    <p className="type-meta mt-1 text-gold">
+                      {remedy.category}
+                      {remedy.planet ? ` · for ${remedy.planet}` : ""}
+                    </p>
+                    {remedy.detail && remedy.detail !== remedy.name && (
+                      <p className="type-body-sm mt-1 text-white/60">
+                        {remedy.detail}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="type-body-sm text-white/60">
+                No specific remedies were returned for your chart. The
+                practices in the catalog are still safe to start with.
+              </p>
+            )}
+          </section>
+
+          <div className="min-w-0 space-y-4 xl:col-start-1 xl:row-start-1 xl:row-span-2">
             <section className="platform-panel p-4">
               <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <h2 className="type-section-title">Remedy catalog</h2>
-                  <p className="type-body-sm text-white/55">
-                    Request guidance now; payment and fulfillment can be added
-                    once partners are ready.
+                  <p className="type-body-sm text-white/60">
+                    Free practices are ready to start. Paid items begin as a
+                    request, so they are checked against your chart first.
                   </p>
                 </div>
                 <div className="relative w-full md:w-72">
                   <Search
                     className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50"
                     size={16}
+                    aria-hidden="true"
                   />
                   <label htmlFor="remedy-search" className="sr-only">
                     Search remedies
@@ -329,60 +396,7 @@ export default function Remedies() {
             </section>
           </div>
 
-          <aside className="space-y-4">
-            <section className="platform-panel p-4">
-              <p className="platform-eyebrow mb-3">From your chart</p>
-              {profileLoading || remediesLoading ? (
-                <div className="flex items-center gap-2 py-4 text-sm text-white/60" aria-busy="true">
-                  <Loader2 size={16} className="animate-spin" />
-                  Reading remedy context
-                </div>
-              ) : !hasBirthProfile ? (
-                <StatusNotice
-                  tone="info"
-                  size="section"
-                  message="Add your birth date and time to get remedy suggestions from your chart."
-                  action={{ label: "Create birth profile", to: "/onboarding" }}
-                />
-              ) : remediesError ? (
-                remediesErrorKind === "signin" ? (
-                  <StatusNotice
-                    tone="info"
-                    size="section"
-                    message="Sign in to see remedy suggestions from your chart."
-                    action={{ label: "Sign in", onClick: () => requestSignIn() }}
-                  />
-                ) : (
-                  <StatusNotice
-                    size="section"
-                    message="Remedy suggestions from your chart couldn't be loaded. Check your connection and try again."
-                    onRetry={retryRemedies}
-                  />
-                )
-              ) : suggestedRemedies.length > 0 ? (
-                <div className="space-y-3">
-                  {suggestedRemedies.map((remedy) => (
-                    <div
-                      key={`${remedy.category}-${remedy.name}`}
-                      className="border-b border-white/10 pb-3 last:border-0 last:pb-0"
-                    >
-                      <p className="type-body-sm font-semibold text-white/80">
-                        {remedy.name}
-                      </p>
-                      <p className="type-meta mt-1 text-gold">
-                        {remedy.category}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="type-body-sm text-white/60">
-                  No specific remedies were returned for your chart. The
-                  practices in the catalog are still safe to start with.
-                </p>
-              )}
-            </section>
-
+          <aside className="space-y-4 xl:col-start-2 xl:row-start-2 xl:self-start">
             <section className="platform-panel p-4">
               <p className="platform-eyebrow mb-3">Recent requests</p>
               {requestsError ? (
@@ -393,7 +407,8 @@ export default function Remedies() {
                 />
               ) : requests.length === 0 ? (
                 <p className="type-body-sm text-white/55">
-                  Guidance requests will appear here.
+                  Nothing requested yet. Tap Request guidance on any item and
+                  its progress shows here.
                 </p>
               ) : (
                 <div className="space-y-3">
@@ -411,7 +426,8 @@ export default function Remedies() {
                         </p>
                       </div>
                       <p className="type-meta shrink-0 text-gold">
-                        {formatPrice(request.product?.priceInRupees ?? 0, currency)}
+                        {/* Requests store the rupee price, so show it in rupees. */}
+                        {formatPrice(request.product?.priceInRupees ?? 0, "INR")}
                       </p>
                     </div>
                   ))}
@@ -420,7 +436,7 @@ export default function Remedies() {
             </section>
 
             <section className="platform-panel p-4">
-              <p className="platform-eyebrow mb-3">Safety rules</p>
+              <p className="platform-eyebrow mb-3">Our promises</p>
               <div className="space-y-3 type-body-sm text-white/60">
                 <p>Gemstones are reviewed before recommendation.</p>
                 <p>Mantra, service, routine, and discipline come first.</p>
@@ -445,7 +461,7 @@ export default function Remedies() {
               role="dialog"
               aria-modal="true"
               aria-labelledby="remedy-dialog-title"
-              className="platform-panel-strong w-full max-w-lg p-5 shadow-2xl"
+              className="platform-panel-strong max-h-[90dvh] w-full max-w-lg overflow-y-auto p-5 shadow-2xl"
             >
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
@@ -459,8 +475,8 @@ export default function Remedies() {
                     {selectedProduct.description}
                   </p>
                 </div>
-                <p className="type-price text-gold">
-                  {formatPrice(selectedProduct.priceInRupees, currency)}
+                <p className="type-price shrink-0 text-gold">
+                  {formatPrice(selectedProduct.prices[currency], currency)}
                 </p>
               </div>
 
@@ -470,7 +486,7 @@ export default function Remedies() {
                     key={item}
                     className="flex items-center gap-2 text-sm text-white/60"
                   >
-                    <CheckCircle2 size={15} className="text-gold" />
+                    <CheckCircle2 size={15} className="shrink-0 text-gold" aria-hidden="true" />
                     {item}
                   </div>
                 ))}
@@ -504,6 +520,7 @@ export default function Remedies() {
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={() => requestGuidance(selectedProduct)}
                   disabled={requestingId === selectedProduct.id}
                   className="platform-button-primary disabled:opacity-60"
@@ -537,7 +554,7 @@ function RemedyProductCard({
     <article className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gold/10 text-gold">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gold/10 text-gold" aria-hidden="true">
             <Icon size={19} />
           </div>
           <div className="min-w-0">
@@ -562,6 +579,7 @@ function RemedyProductCard({
       </div>
 
       <button
+        type="button"
         onClick={onSelect}
         className="platform-button-secondary mt-4 w-full"
       >

@@ -11,14 +11,14 @@ import {
   Crown,
   Heart,
   HelpCircle,
-  LayoutDashboard,
+  Home,
+  LayoutGrid,
+  MessageCircle,
   Flame,
   LogIn,
   LogOut,
   Menu,
-  ScrollText,
   Settings,
-  Sparkles,
   Sun,
   Wallet,
   X,
@@ -34,8 +34,8 @@ import {
 
 const SPACE_ICONS: Record<Space["id"], typeof Sun> = {
   today: Sun,
-  guidance: Sparkles,
-  chart: ScrollText,
+  guidance: MessageCircle,
+  chart: LayoutGrid,
   bonds: Heart,
   path: Flame,
 };
@@ -75,7 +75,7 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
     {
       label: "Home",
       to: "/dashboard",
-      icon: LayoutDashboard,
+      icon: Home,
       active: location.pathname === "/dashboard",
     },
     ...SPACES.map((space) => ({
@@ -133,12 +133,12 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
 
   const userMenuItems = [
     {
-      label: "Dashboard",
-      icon: LayoutDashboard,
+      label: "Home",
+      icon: Home,
       onClick: goToDashboard,
     },
     {
-      label: "Wallet",
+      label: "Wallet & credits",
       icon: Wallet,
       onClick: () => navigate("/wallet"),
     },
@@ -209,19 +209,19 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                     href="#journey"
                     className="flex items-center gap-2 rounded-full border border-transparent px-2.5 py-1.5 text-sm font-bold transition-all hover:bg-white/5 hover:text-white"
                   >
-                    Methodology
+                    How it works
                   </a>
                   <a
                     href="#features"
                     className="flex items-center gap-2 rounded-full border border-transparent px-2.5 py-1.5 text-sm font-bold transition-all hover:bg-white/5 hover:text-white"
                   >
-                    Insights
+                    Features
                   </a>
                   <a
                     href="/synthesis"
                     className="flex items-center gap-2 rounded-full border border-transparent px-2.5 py-1.5 text-sm font-bold transition-all hover:bg-white/5 hover:text-white"
                   >
-                    Readings
+                    Ask a question
                   </a>
                   <a
                     href="/pricing"
@@ -332,10 +332,10 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                   <div className="flex items-center gap-4">
                     <div className="hidden xl:flex flex-col items-end">
                       <span className="text-gold font-display text-sm uppercase drop-shadow-[0_0_8px_rgba(255,215,0,0.3)]">
-                        ✦ Seeker
+                        ✦ Guest
                       </span>
-                      <span className="text-[0.6875rem] uppercase text-gold/40 font-black mt-0.5">
-                        Guest Mode
+                      <span className="text-[0.6875rem] text-white/55 font-semibold mt-0.5">
+                        Sign in to save your chart
                       </span>
                     </div>
                     {onShowAuth && (
@@ -351,8 +351,8 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                     <button
                       onClick={() => navigate("/")}
                       className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-white/55 hover:text-white"
-                      title="Exit to Landing"
-                      aria-label="Exit to landing page"
+                      title="Leave guest mode"
+                      aria-label="Leave guest mode"
                     >
                       <LogOut size={16} />
                     </button>
@@ -431,13 +431,13 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
           ) : (
             <>
               <a href="#journey" onClick={() => setIsMobileMenuOpen(false)}>
-                Methodology
+                How it works
               </a>
               <a href="#features" onClick={() => setIsMobileMenuOpen(false)}>
-                Insights
+                Features
               </a>
               <a href="/synthesis" onClick={() => setIsMobileMenuOpen(false)}>
-                Readings
+                Ask a question
               </a>
               <a href="/pricing" onClick={() => setIsMobileMenuOpen(false)}>
                 Pricing
@@ -453,10 +453,10 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
             <>
               <div className="flex flex-col items-center text-center gap-2">
                 <span className="text-gold text-xl font-semibold">
-                  {profile?.name || user.displayName || "Seeker"}
+                  {profile?.name || user.displayName || "Your account"}
                 </span>
                 <span className="text-xs uppercase text-white/55">
-                  Currently Logged In
+                  Signed in
                 </span>
               </div>
 
@@ -469,7 +469,7 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                 }}
                 className="px-6 py-2.5 rounded-full bg-gold/10 border border-gold/30 text-gold font-bold uppercase text-xs"
               >
-                Go to Dashboard
+                Go to Home
               </button>
 
               <button
@@ -480,7 +480,7 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                 className="flex items-center gap-2 text-white/55 hover:text-white transition-colors"
               >
                 <Wallet size={16} />
-                <span className="text-sm uppercase">Wallet</span>
+                <span className="text-sm uppercase">Wallet & credits</span>
               </button>
 
               <button
@@ -524,7 +524,7 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                 className="flex items-center gap-2 text-white/55 hover:text-white transition-colors"
               >
                 <LogOut size={16} />
-                <span className="text-sm uppercase">Logout</span>
+                <span className="text-sm uppercase">Sign out</span>
               </button>
             </>
           ) : (
@@ -551,7 +551,7 @@ export default function Header({ onShowAuth, onShowOnboarding }: HeaderProps) {
                     }}
                     className="min-h-11 px-6 py-2.5 bg-white/5 border border-white/10 rounded-full text-white/60 hover:text-white transition-all uppercase text-xs font-bold"
                   >
-                    Exit Guest Mode
+                    Leave guest mode
                   </button>
                 </>
               ) : (

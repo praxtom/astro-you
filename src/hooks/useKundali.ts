@@ -76,12 +76,14 @@ export function useKundali(
   birthData: BirthData | null,
   chartType: ChartType = "D1",
   zodiacMode?: ZodiacMode,
+  useProfileCache = true,
 ): UseKundaliResult {
   // Divisional charts are always computed sidereally (kundali.ts ignores the
   // zodiac mode for them), so only a D1 can be Western.
   const mode: ZodiacMode =
     chartType === "D1" ? normalizeZodiacMode(zodiacMode) : "vedic";
-  const { user } = useAuth();
+  const { user: signedInUser } = useAuth();
+  const user = useProfileCache ? signedInUser : null;
   const [kundaliData, setKundaliData] = useState<KundaliData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

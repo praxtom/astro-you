@@ -19,6 +19,7 @@ import { REPORT_PRICING } from "../lib/report-pricing";
 import { PERSONAS } from "../lib/personas";
 import { useCreditTopup } from "../hooks/useCreditTopup";
 import { TrustProofStrip } from "../components/trust/TrustProofStrip";
+import { StatusNotice } from "../components/ui/StatusNotice";
 import { useCurrency } from "../hooks/useCurrency";
 import {
   formatMoney,
@@ -33,6 +34,17 @@ const GUIDE_RATES = [...new Set(PERSONAS.map((p) => p.pricePerMin))].sort(
 const GUIDE_RATE_LABEL = `${GUIDE_RATES.slice(0, -1).join(", ")} or ${
   GUIDE_RATES[GUIDE_RATES.length - 1]
 }`;
+/** Rupees per credit across packs and plans, cheapest and dearest. */
+const INR_PER_CREDIT = [
+  ...CREDIT_PACKS.map((pack) => pack.amounts.INR / pack.minutes),
+  ...Object.values(TIERS)
+    .filter((tier) => tier.prices.INR > 0 && tier.limits.credits > 0)
+    .map((tier) => tier.prices.INR / tier.limits.credits),
+];
+const formatRupeeRate = (n: number) => `₹${n.toFixed(2)}`;
+const CREDIT_RUPEE_RANGE = `${formatRupeeRate(
+  Math.min(...INR_PER_CREDIT),
+)} to ${formatRupeeRate(Math.max(...INR_PER_CREDIT))}`;
 const REPORT_COSTS = Object.values(REPORT_PRICING).sort(
   (a, b) => a.creditCost - b.creditCost,
 );
@@ -157,59 +169,26 @@ export default function Pricing() {
             </div>
           </div>
         )}
-        <section className="grid grid-cols-1 lg:grid-cols-[1fr_19rem] gap-4 items-start mb-4">
-          <div>
-            <p className="platform-eyebrow mb-2">Plans and Credits</p>
-            <h1 className="type-page-title max-w-3xl">
-              Start free. Pay when guidance becomes a habit.
-            </h1>
-            <p className="platform-copy mt-3 max-w-2xl">
-              Subscriptions add credits every month and make Jyotish chat
-              unlimited. Credit packs are there when you only need AI guide
-              sessions or reports.
-            </p>
-          </div>
-          <aside className="platform-panel-strong p-3">
-            <p className="type-body-sm text-white/55">
-              Credits are shared across Jyotish chat, AI guide sessions, and
-              PDF reports. AI guide sessions start at {GUIDE_RATES[0]}{" "}
-              credits/min.
-            </p>
-            <div className="mt-2 flex items-end justify-between border-t border-gold/20 pt-2">
-              <div>
-                <p className="type-meta uppercase text-gold/65">
-                  Selected pack
-                </p>
-                <p className="type-card-title text-white mt-1">
-                  {selectedPack.label}
-                </p>
-                <p className="type-meta text-white/50 mt-1">
-                  {formatCreditRate(selectedPack, currency)}
-                </p>
-              </div>
-              <p className="type-price text-gold">
-                {formatMoney(getPackAmount(selectedPack, currency), currency)}
-              </p>
-            </div>
-            <button
-              onClick={() => handleTopup()}
-              disabled={isPaying}
-              className="platform-button-primary mt-3 w-full"
-            >
-              {isPaying ? (
-                <Loader2 size={15} className="animate-spin" />
-              ) : (
-                <Wallet size={15} />
-              )}
-              Buy selected pack
-            </button>
-          </aside>
+        <section className="mb-4">
+          <p className="platform-eyebrow mb-2">Plans and Credits</p>
+          <h1 className="type-page-title max-w-3xl">
+            Start free. Pay when guidance becomes a habit.
+          </h1>
+          <p className="platform-copy mt-3 max-w-2xl">
+            Credits are how you pay inside AstroYou: 1 chat message is 1
+            credit, a guide session is a few credits a minute. You get{" "}
+            {TIERS.free.limits.credits} free when you sign up. After that, a
+            credit costs {CREDIT_RUPEE_RANGE} depending on the pack or plan.
+          </p>
+          <p className="platform-copy mt-2 max-w-2xl">
+            Plans add credits every month and make Jyotish chat unlimited.
+            Credit packs are a one-time top-up, for when you only need guide
+            sessions or reports.
+          </p>
         </section>
 
-        {(error || topupError) && (
-          <div className="platform-panel mb-4 border-red-400/20 bg-red-500/10 p-3 text-sm text-red-200">
-            {error || topupError}
-          </div>
+        {error && (
+          <StatusNotice size="section" className="mb-4" message={error} />
         )}
 
         <TrustProofStrip className="mb-4" />
@@ -227,13 +206,15 @@ export default function Pricing() {
         </section>
 
         <section className="mt-4">
-          <div className="mb-3 flex items-end justify-between gap-3">
-            <div>
-              <p className="platform-eyebrow mb-2">Credit Packs</p>
-              <h2 className="type-section-title">Top up only when needed.</h2>
-            </div>
-            <p className="hidden sm:block type-body-sm text-white/55">
+          <div className="mb-3">
+            <p className="platform-eyebrow mb-2">Credit Packs</p>
+            <h2 className="type-section-title">Top up only when needed.</h2>
+            <p className="mt-1 type-body-sm text-white/55">
               Unused purchased credits stay in your wallet.
+            </p>
+            <p className="mt-1 type-body-sm text-white/55">
+              Credits are shared across Jyotish chat, guide sessions and PDF
+              reports. Guide sessions start at {GUIDE_RATES[0]} credits/min.
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -242,6 +223,8 @@ export default function Pricing() {
               return (
                 <button
                   key={pack.minutes}
+                  type="button"
+                  aria-pressed={isSelected}
                   onClick={() => {
                     setSelectedPackMinutes(pack.minutes);
                     trackAcquisitionEvent("pricing_pack_selected", {
@@ -282,6 +265,41 @@ export default function Pricing() {
               );
             })}
           </div>
+          {/* The buy box sits under the picker it acts on: choose, then pay. */}
+          <div className="platform-panel-strong mt-3 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-end justify-between gap-4 sm:justify-start sm:gap-6">
+              <div>
+                <p className="type-meta uppercase text-gold/65">
+                  Selected pack
+                </p>
+                <p className="type-card-title text-white mt-1">
+                  {selectedPack.label}
+                </p>
+                <p className="type-meta text-white/50 mt-1">
+                  {formatCreditRate(selectedPack, currency)}
+                </p>
+              </div>
+              <p className="type-price text-gold">
+                {formatMoney(getPackAmount(selectedPack, currency), currency)}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleTopup()}
+              disabled={isPaying}
+              className="platform-button-primary w-full sm:w-auto sm:min-w-[14rem]"
+            >
+              {isPaying ? (
+                <Loader2 size={15} className="animate-spin" aria-hidden="true" />
+              ) : (
+                <Wallet size={15} aria-hidden="true" />
+              )}
+              Buy selected pack
+            </button>
+          </div>
+          {topupError && (
+            <StatusNotice size="section" className="mt-3" message={topupError} />
+          )}
         </section>
 
         <section className="mt-4 platform-panel p-4">
@@ -296,10 +314,11 @@ export default function Pricing() {
               </p>
             </div>
             <div>
-              <p className="type-card-title text-white">AI guide sessions</p>
+              <p className="type-card-title text-white">Guide sessions</p>
               <p className="type-body-sm text-white/55 mt-1">
-                {GUIDE_RATE_LABEL} credits per minute, depending on the guide.
-                The clock runs from your first message until the session
+                {GUIDE_RATE_LABEL} credits per minute, depending on the guide
+                (so 10 minutes at {GUIDE_RATES[0]}/min is{" "}
+                {GUIDE_RATES[0] * 10} credits). The clock runs from your first message until the session
                 closes, and a partial minute is charged as a full minute. A
                 session where you send nothing costs nothing.
               </p>
@@ -323,35 +342,22 @@ export default function Pricing() {
           </p>
         </section>
 
-        <section className="mt-4 platform-panel p-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
-            <div>
-              <p className="platform-eyebrow mb-2">Billing</p>
-              <p className="type-body-sm text-white/55">
-                Razorpay checkout in INR. Cancel anytime.
-              </p>
-            </div>
-            <div>
-              <p className="platform-eyebrow mb-2">Consults</p>
-              <p className="type-body-sm text-white/55">
-                Consult minutes are rounded up — a partial minute bills as a
-                full minute.
-              </p>
-            </div>
-            <div>
-              <p className="platform-eyebrow mb-2">Reports</p>
-              <p className="type-body-sm text-white/55">
-                Generated PDFs are saved for redownload.
-              </p>
-            </div>
-            <div>
-              <p className="platform-eyebrow mb-2">Value</p>
-              <p className="type-body-sm text-white/55">
-                Pricing is shown before you start.
-              </p>
-            </div>
-          </div>
-        </section>
+        {/* Billing terms. The partial-minute rule is stated under "Guide
+            sessions" above, so it isn't repeated here. */}
+        <ul className="mt-4 grid grid-cols-1 gap-2 px-1 type-body-sm text-white/55 md:grid-cols-3">
+          <li>
+            <span className="font-semibold text-white/75">Billing:</span>{" "}
+            Razorpay checkout in INR. Cancel anytime.
+          </li>
+          <li>
+            <span className="font-semibold text-white/75">Reports:</span>{" "}
+            Generated PDFs are saved for redownload.
+          </li>
+          <li>
+            <span className="font-semibold text-white/75">No surprises:</span>{" "}
+            Pricing is shown before you start.
+          </li>
+        </ul>
       </div>
     </div>
   );
@@ -384,10 +390,10 @@ function PlanCard({
           <h2 className="type-section-title text-white">{tier.name}</h2>
           <p className="type-body-sm text-white/55 mt-2">
             {tier.id === "free"
-              ? "Good for trying the platform."
+              ? `Try it with ${tier.limits.credits} free credits. No card needed.`
               : tier.id === "premium"
-                ? "For daily chat and regular readings."
-                : "For frequent AI guide sessions and reports."}
+                ? "For chatting most days and regular readings."
+                : "For frequent guide sessions and reports."}
           </p>
         </div>
         <div className="text-right">
@@ -424,13 +430,18 @@ function PlanCard({
       <ul className="space-y-2.5 flex-1">
         {tier.features.map((feature) => (
           <li key={feature} className="flex gap-2 type-body-sm text-white/65">
-            <Check size={15} className="mt-0.5 shrink-0 text-emerald-300" />
+            <Check
+              size={15}
+              className="mt-0.5 shrink-0 text-emerald-300"
+              aria-hidden="true"
+            />
             <span>{feature}</span>
           </li>
         ))}
       </ul>
 
       <button
+        type="button"
         onClick={onSelect}
         disabled={isDisabled}
         className={`mt-4 w-full ${
@@ -444,7 +455,7 @@ function PlanCard({
           : tier.prices.INR === 0
             ? "Get started"
             : "Subscribe"}
-        {!isLoading && <ArrowRight size={15} />}
+        {!isLoading && <ArrowRight size={15} aria-hidden="true" />}
       </button>
     </article>
   );

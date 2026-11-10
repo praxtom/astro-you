@@ -599,8 +599,8 @@ p {
 .section-label {
   font-family: var(--font-body);
   text-transform: uppercase;
-  letter-spacing: 0.4em;
-  font-size: 0.6rem;
+  letter-spacing: 0.25em;
+  font-size: 0.6875rem;
   font-weight: 900;
   color: rgba(197, 160, 89, 0.8);
   margin-bottom: 2rem;

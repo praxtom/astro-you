@@ -393,9 +393,40 @@ export const AtmanService = {
       await transactAtmanFields(userId, (atman) => {
         const routines = atman.routines || [];
         if (!routines.some((r) => r.id === routineId)) return null;
+        const now = new Date();
+        const toDate = (value: unknown): Date | null => {
+          if (!value) return null;
+          if (value instanceof Date) return value;
+          if (
+            typeof value === "object" &&
+            typeof (value as { toDate?: unknown }).toDate === "function"
+          ) {
+            return (value as { toDate: () => Date }).toDate();
+          }
+          const parsed = new Date(value as string | number);
+          return Number.isNaN(parsed.getTime()) ? null : parsed;
+        };
+        const dayStart = (d: Date) =>
+          new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+        const target = routines.find((r) => r.id === routineId);
+        const last = toDate(target?.lastCompletedAt);
+        const daysSince = last
+          ? Math.round((dayStart(now) - dayStart(last)) / 86_400_000)
+          : null;
+        // Already done today: one completion per day, no extra streak days.
+        if (daysSince === 0) return null;
         const updatedRoutines = routines.map((r) =>
           r.id === routineId
-            ? { ...r, streak: (r.streak || 0) + 1, lastCompletedAt: new Date() }
+            ? {
+                ...r,
+                // A missed day restarts the streak.
+                streak:
+                  daysSince !== null &&
+                  daysSince <= (r.frequency === "weekly" ? 8 : 1)
+                    ? (r.streak || 0) + 1
+                    : 1,
+                lastCompletedAt: now,
+              }
             : r,
         );
         return {

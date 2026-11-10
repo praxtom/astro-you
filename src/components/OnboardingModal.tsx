@@ -612,10 +612,10 @@ export default function OnboardingModal({
                     className="text-xl font-display text-white"
                   >
                     {step === "upload" && "Upload Kundali"}
-                    {step === "identity" && "Personal Basis"}
-                    {step === "temporal" && "Birth Time"}
-                    {step === "spatial" && "Birth Location"}
-                    {step === "present" && "Current Location"}
+                    {step === "identity" && "About you"}
+                    {step === "temporal" && "Birth date and time"}
+                    {step === "spatial" && "Birth place"}
+                    {step === "present" && "Where you live now"}
                   </h3>
                 </div>
               </div>
@@ -665,9 +665,9 @@ export default function OnboardingModal({
                   {/* Step 0: Upload */}
                   {step === "upload" && (
                     <div>
-                      <p className="text-sm text-white/50 mb-4">
-                        Upload an image of your Kundali to auto-fill your
-                        profile.
+                      <p className="text-sm text-white/60 mb-4">
+                        Upload a photo of your Kundali and we'll read your
+                        birth details from it, so you don't have to type them.
                       </p>
 
                       {/* Hidden file input */}
@@ -702,7 +702,7 @@ export default function OnboardingModal({
                                 <Upload className="w-6 h-6 text-gold" />
                               </div>
                               <p className="text-sm text-white/80 font-medium mb-1">
-                                Click to upload chart
+                                Choose a photo of your Kundali
                               </p>
                               <p className="text-[0.6875rem] text-white/55">
                                 JPG, PNG or WebP, up to 4.5 MB
@@ -736,7 +736,7 @@ export default function OnboardingModal({
                             >
                               <Loader2 className="w-4 h-4 text-gold animate-spin" />
                               <span className="text-xs text-white/60">
-                                Analyzing celestial patterns…
+                                Reading your birth chart…
                               </span>
                             </div>
                           )}
@@ -760,7 +760,7 @@ export default function OnboardingModal({
                                   <div className="col-span-2 flex items-center gap-2 mb-1">
                                     <Check className="w-4 h-4 text-emerald-400" />
                                     <span className="text-xs text-emerald-400 font-bold uppercase tracking-widest">
-                                      Match Found
+                                      Details found
                                     </span>
                                   </div>
                                   {parsedChart.birthDetails.dob && (
@@ -790,7 +790,7 @@ export default function OnboardingModal({
                                 onClick={useParsedData}
                                 className="w-full py-3 rounded-xl bg-gold text-[#030308] text-xs font-bold uppercase tracking-widest"
                               >
-                                Apply & Continue
+                                Use these details
                               </button>
                             </div>
                           )}
@@ -816,9 +816,10 @@ export default function OnboardingModal({
                   {/* Step 1: Identity */}
                   {step === "identity" && (
                     <div>
-                      <p className="text-sm text-white/50 mb-4">
-                        Let's start with your basic profile details for accurate
-                        analysis.
+                      <p className="text-sm text-white/60 mb-4">
+                        Your Kundali (birth chart) is built from your name,
+                        birth date, time and place. Your forecast, matching and
+                        every answer are read from it.
                       </p>
                       <div className="space-y-4">
                         <div>
@@ -875,8 +876,10 @@ export default function OnboardingModal({
                   {/* Step 2: Temporal */}
                   {step === "temporal" && (
                     <div>
-                      <p className="text-sm text-white/50 mb-4">
-                        Precision is key. When exactly did your journey begin?
+                      <p className="text-sm text-white/60 mb-4">
+                        As written on your birth certificate or janam patri.
+                        The time decides your rising sign and houses; even 15
+                        minutes can change them.
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
@@ -962,9 +965,11 @@ export default function OnboardingModal({
                       )}
                       {formData.birthTimeUnknown && (
                         <div className="mt-4 p-3 rounded-lg bg-gold/5 border border-gold/10">
-                          <p className="text-xs text-gold/60 leading-relaxed">
-                            Note: Using 12:00 noon as a reference. Some chart
-                            aspects may be less precise.
+                          <p className="text-xs text-gold/80 leading-relaxed">
+                            We'll use 12:00 noon. Your planets' signs and daily
+                            forecast will mostly be right; your rising sign and
+                            houses may not be. You can add the exact time
+                            later in Settings.
                           </p>
                         </div>
                       )}
@@ -974,16 +979,16 @@ export default function OnboardingModal({
                   {/* Step 3: Spatial */}
                   {step === "spatial" && (
                     <div>
-                      <p className="text-sm text-white/50 mb-4">
-                        Precision is key. Where were you when the stars were
-                        aligned this way?
+                      <p className="text-sm text-white/60 mb-4">
+                        The town or city where you were born. Pick it from the
+                        suggestions so your chart uses the right local time.
                       </p>
                       <div className="space-y-4">
                         <LocationInput
                           inputId="onboarding-birth-location"
                           name="birth-location"
                           autoComplete="off"
-                          label="Birth Location"
+                          label="Birth place"
                           value={formData.pob}
                           onChange={(val) => {
                             // Typing invalidates any previously selected
@@ -1011,12 +1016,12 @@ export default function OnboardingModal({
                   {/* Step 4: Present */}
                   {step === "present" && (
                     <div>
-                      <p className="text-sm text-white/50 mb-1">
+                      <p className="text-sm text-white/60 mb-1">
                         Where do you live now? (optional)
                       </p>
                       <p className="text-xs text-white/60 mb-4">
-                        Used for your local Panchang and Rahu Kaal — you can
-                        skip.
+                        Sets your daily timings, like Rahu Kaal, to your local
+                        sunrise. Skip it and we'll use your birth place.
                       </p>
                       <div className="space-y-4">
                         <div className="space-y-4">
@@ -1024,7 +1029,7 @@ export default function OnboardingModal({
                             inputId="onboarding-current-location"
                             name="current-location"
                             autoComplete="off"
-                            label="Current Location"
+                            label="Where you live now"
                             value={formData.currentLocation}
                             onChange={(val) => {
                               // Typing invalidates an earlier pick's coordinates.
@@ -1108,7 +1113,7 @@ export default function OnboardingModal({
                   <Loader2 className="animate-spin" size={20} />
                 ) : (
                   <>
-                    {step === "present" ? "Begin My Journey" : "Continue"}
+                    {step === "present" ? "Open my chart" : "Continue"}
                     <span className="group-hover:translate-x-1 transition-transform">
                       →
                     </span>

@@ -2,6 +2,7 @@ import React from "react";
 import {
   KundaliData,
   PLANETS,
+  ZODIAC_SIGNS,
   calculateHouseSigns,
   getSignNumberByCode,
 } from "../../lib/astrology";
@@ -11,6 +12,14 @@ import "./Kundali.css";
 interface KundaliProps {
   data: KundaliData;
   className?: string;
+}
+
+/** "Mesha" for a sign code ("Ari"), western name or Sanskrit name. */
+function signLabel(sign: string): string {
+  const match = ZODIAC_SIGNS.find(
+    (z) => z.code === sign || z.western === sign || z.name === sign,
+  );
+  return match?.name ?? sign;
 }
 
 const Kundali: React.FC<KundaliProps> = ({ data, className = "" }) => {
@@ -86,7 +95,7 @@ const Kundali: React.FC<KundaliProps> = ({ data, className = "" }) => {
 
   return (
     <div className={`kundali-container ${className}`}>
-      <svg viewBox="0 0 800 800" className="kundali-svg">
+      <svg viewBox="0 0 800 800" className="kundali-svg kundali-natal">
         {/* Definitions for gradients/glows */}
         <defs>
           <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -148,8 +157,11 @@ const Kundali: React.FC<KundaliProps> = ({ data, className = "" }) => {
                       <tspan className="degree-text" dx="2" dy="-5">
                         {Math.floor(p.degree)}°
                       </tspan>
+                      {/* Absolute y, not dy: the degree tspan is hidden on
+                          phones (Kundali.css), and a relative shift would then
+                          push the marker off the planet's baseline. */}
                       {p.is_retrograde && (
-                        <tspan className="retro-text" dx="2" dy="5">
+                        <tspan className="retro-text" dx="2" y={yOffset}>
                           (R)
                         </tspan>
                       )}
@@ -165,7 +177,7 @@ const Kundali: React.FC<KundaliProps> = ({ data, className = "" }) => {
           <text
             x={400}
             y={235}
-            className="degree-text"
+            className="lagna-note-text"
             textAnchor="middle"
             style={{ fill: "rgba(229,185,106,0.7)" }}
           >
@@ -174,13 +186,74 @@ const Kundali: React.FC<KundaliProps> = ({ data, className = "" }) => {
         )}
       </svg>
 
+      {/* Phones hide the in-chart degrees (too small to read at this size,
+          see Kundali.css), so list them here instead. */}
+      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:hidden">
+        {data.planetary_positions
+          .filter(
+            (p) =>
+              p.name !== "Ascendant" &&
+              p.name !== "True_Node" &&
+              p.name !== "True_South_Node",
+          )
+          .map((p) => (
+            <div key={p.name} className="flex justify-between gap-2">
+              <dt className="text-white/55">{p.name.replace(/_/g, " ")}</dt>
+              <dd className="text-white/80 tabular-nums">
+                {signLabel(p.sign)} {Math.floor(p.degree)}°
+                {p.is_retrograde ? " R" : ""}
+              </dd>
+            </div>
+          ))}
+      </dl>
+
       {timeUnknown && (
         <p className="mt-2 text-center text-xs text-white/55">
           House 1 is your Moon sign (Chandra Lagna, birth time unknown) — add
           your birth time to see your rising sign.
         </p>
       )}
-      {/* Legend/Info - Removed Nakshatra/Sidereal labels as requested */}
+      {/* First-timer legend: what the numbers, letters and house positions
+          mean. Collapsed so it costs one line where space is tight. */}
+      <details className="mt-3 text-xs text-white/60">
+        <summary className="cursor-pointer select-none font-semibold uppercase tracking-widest text-white/60 hover:text-gold">
+          How to read this chart
+        </summary>
+        <ul className="mt-2 space-y-1.5 leading-relaxed">
+          <li>
+            <span className="text-white/80">The top middle diamond is you</span>{" "}
+            (house 1: body, personality, how you come across).{" "}
+            {timeUnknown
+              ? "Without a birth time it uses your Moon sign."
+              : "Its sign is your rising sign."}
+          </li>
+          <li>
+            <span className="text-white/80">
+              Houses 2 to 12 run anti-clockwise
+            </span>{" "}
+            from there. Each is one area of life: money, siblings, home,
+            children, health, partner, change, beliefs, career, gains, letting
+            go.
+          </li>
+          <li>
+            <span className="text-white/80">Small gold numbers are signs:</span>{" "}
+            1 Aries (Mesha), 2 Taurus, 3 Gemini, 4 Cancer, 5 Leo, 6 Virgo, 7
+            Libra, 8 Scorpio, 9 Sagittarius, 10 Capricorn, 11 Aquarius, 12
+            Pisces (Meena).
+          </li>
+          <li>
+            <span className="text-white/80">Two letters are planets:</span> Su
+            Sun, Mo Moon, Ma Mars, Me Mercury, Ju Jupiter, Ve Venus, Sa Saturn,
+            Ra Rahu, Ke Ketu (Ur, Ne, Pl: Uranus, Neptune, Pluto). The small
+            number beside it is its degree within the sign.
+          </li>
+          <li>
+            <span className="text-white/80">(R) means retrograde:</span> the
+            planet seems to move backwards from Earth, so its themes tend to ask
+            for a second look.
+          </li>
+        </ul>
+      </details>
     </div>
   );
 };

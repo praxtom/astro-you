@@ -21,6 +21,8 @@
   border-radius: 1rem;
 }
 
+/* The SVG is drawn on an 800-unit grid and scales down ~0.45x on a phone,
+   so these sizes are what keep the labels legible at that width. */
 .kundali-svg {
   width: 100%;
   height: 100%;
@@ -38,28 +40,53 @@
 
 .rashi-text {
   font-family: "Outfit", sans-serif;
-  font-size: 24px;
-  font-weight: 300;
-  fill: rgba(255, 215, 0, 0.4);
+  font-size: 26px;
+  font-weight: 400;
+  fill: rgba(255, 215, 0, 0.65);
 }
 
 .planet-text {
   font-family: "Inter", sans-serif;
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 500;
   filter: drop-shadow(0 0 5px rgba(0, 0, 0, 0.5));
 }
 
 .degree-text {
-  font-size: 10px;
-  opacity: 0.6;
+  font-size: 15px;
+  opacity: 0.8;
   font-weight: 400;
 }
 
 .retro-text {
-  font-size: 10px;
+  font-size: 15px;
   fill: #f87171;
   font-weight: bold;
+}
+
+.lagna-note-text {
+  font-size: 15px;
+  font-weight: 400;
+}
+
+/* Phones (below Tailwind's sm, 640px): the chart renders ~300px wide, about
+   0.37x of the 800-unit grid, so a 15-unit degree label lands near 5-6px.
+   Degrees are dropped here (unreadable at that size; the chat page's expanded
+   chart shows them), and sign numbers and planet names grow to 30 units, about 11px on screen.
+   The birth-time-unknown note is repeated as HTML under the chart, so the
+   in-chart copy goes too. Scoped to the natal chart; TransitOverlay shares
+   these class names but keeps its own sizing. */
+@media (max-width: 639.98px) {
+  .kundali-natal .degree-text,
+  .kundali-natal .lagna-note-text {
+    display: none;
+  }
+
+  .kundali-natal .rashi-text,
+  .kundali-natal .planet-text,
+  .kundali-natal .retro-text {
+    font-size: 30px;
+  }
 }
 
 .house-group {

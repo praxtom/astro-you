@@ -1,18 +1,14 @@
 import type { ReactNode } from "react";
-import { Moon, Share2, Sparkles, Sun, CalendarDays } from "lucide-react";
+import { Sparkles, Sun } from "lucide-react";
 import type { PanchangData } from "../../hooks/usePanchang";
 import type { TodayGuide } from "../../lib/todayGuide";
 import { TILE } from "./primitives";
 import { GlossaryTerm } from "../ui/GlossaryTerm";
-import type { LunarLike } from "../../lib/moon-phase";
 
 /**
- * Apple-Weather-style dashboard pieces: a centred hero that carries the day's
- * reading once, and self-labelled tiles that draw the data (day bar, moon)
- * instead of only writing it. Every tile uses the same header.
+ * Apple-Weather-style dashboard tiles: self-labelled tiles that draw the data
+ * (day bar) instead of only writing it. Every tile uses the same header.
  */
-
-type Lunar = LunarLike | null;
 
 const asText = (v: unknown) =>
   typeof v === "string" && v.trim() && v.trim() !== "—" ? v.trim() : undefined;
@@ -44,7 +40,10 @@ const nowMinutes = () => {
   return d.getHours() * 60 + d.getMinutes();
 };
 
-/** One header style for every tile: small icon + label, optional action. */
+/**
+ * One header for every dashboard tile: a gold line icon, the title, and an
+ * optional action on the right. Every tile passes an icon.
+ */
 export function TileHead({
   icon,
   children,
@@ -55,130 +54,23 @@ export function TileHead({
   action?: ReactNode;
 }) {
   return (
-    <div className="mb-3 flex items-center justify-between gap-3">
-      <p className="flex items-center gap-2 text-[0.78rem] font-semibold uppercase tracking-[0.08em] text-white/55">
-        {icon}
+    <div className="mb-3 flex min-h-11 items-center justify-between gap-3">
+      <h2 className="flex items-center gap-2 font-body text-[0.78rem] font-semibold uppercase tracking-[0.08em] text-white/55">
+        {icon && (
+          <span className="text-gold/70 [&>svg]:size-[15px]" aria-hidden="true">
+            {icon}
+          </span>
+        )}
         {children}
-      </p>
+      </h2>
       {action}
     </div>
   );
 }
 
-/* ---------- Moon disk with a correct terminator ---------- */
-function moonPath(f: number, waxing: boolean, R: number) {
-  const rx = Math.abs(1 - 2 * f) * R;
-  const crescent = f < 0.5;
-  return waxing
-    ? `M0 ${-R} A${R} ${R} 0 0 1 0 ${R} A${rx} ${R} 0 0 ${crescent ? 0 : 1} 0 ${-R} Z`
-    : `M0 ${-R} A${R} ${R} 0 0 0 0 ${R} A${rx} ${R} 0 0 ${crescent ? 1 : 0} 0 ${-R} Z`;
-}
-export function MoonDisk({
-  lunar,
-  size = 96,
-}: {
-  lunar: Lunar;
-  size?: number;
-}) {
-  const f = Math.max(0, Math.min(1, (lunar?.illumination ?? 50) / 100));
-  const phase = (lunar?.phase || "").toLowerCase();
-  const waxing = !/(wan|last|third)/.test(phase);
-  const R = 48;
-  return (
-    <svg
-      viewBox="-52 -52 104 104"
-      width={size}
-      height={size}
-      role="img"
-      aria-label={
-        lunar ? `Moon ${Math.round(f * 100)}% lit, ${lunar.phase}` : "Moon"
-      }
-      className="drop-shadow-[0_0_22px_rgba(243,234,214,0.22)]"
-    >
-      <circle r={R} fill="#14162b" />
-      <path d={moonPath(f, waxing, R)} fill="#f3ead6" />
-      <circle r={R} fill="none" stroke="rgba(255,255,255,0.18)" />
-    </svg>
-  );
-}
-
-/* ---------- Hero ---------- */
-function greetingForHour(hour: number): string {
-  if (hour < 5) return "Good night";
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
-}
-
-export function TodayHero({
-  name,
-  place,
-  panchang,
-  lunar,
-  reading,
-  readingLoading,
-  chips,
-  onShareSign,
-}: {
-  name: string;
-  place?: string;
-  panchang: PanchangData | null;
-  lunar: Lunar;
-  reading: string;
-  readingLoading: boolean;
-  chips?: ReactNode;
-  onShareSign: () => void;
-}) {
-  const now = new Date();
-  const date = now.toLocaleDateString("en-IN", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
-  const firstName = name.split(" ")[0] || name;
-  const tithi = asText(panchang?.tithi);
-  const nak = asText(panchang?.nakshatra);
-  return (
-    <section
-      className="text-center pt-6 pb-10 animate-reveal-progressive"
-      aria-labelledby="today-hero"
-    >
-      <p className="text-[0.95rem] text-white/60">
-        {date}
-        {place ? `, ${place}` : ""}
-      </p>
-      <h1
-        id="today-hero"
-        className="mt-1 font-display text-[2.6rem] md:text-[3.6rem] leading-[1.05] text-white/95"
-      >
-        {greetingForHour(now.getHours())}, {firstName}
-      </h1>
-      <div className="mt-6 flex justify-center">
-        <MoonDisk lunar={lunar} size={92} />
-      </div>
-      {(tithi || nak) && (
-        <p className="mt-3 text-lg text-white/85">
-          {tithi}
-          {tithi && nak ? " · " : ""}
-          {nak && `Moon in ${nak}`}
-        </p>
-      )}
-      <p className="mx-auto mt-4 max-w-[34ch] font-display text-[1.6rem] md:text-[1.9rem] leading-snug text-white/88">
-        {readingLoading ? "Reading today's sky…" : reading}
-      </p>
-      <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
-        {chips}
-        <button
-          type="button"
-          onClick={onShareSign}
-          className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-3.5 py-1.5 text-[0.85rem] text-white/60 hover:text-gold transition-colors"
-        >
-          <Share2 size={13} /> Share my sign
-        </button>
-      </div>
-    </section>
-  );
-}
+/** The one action style used in tile headers and at the foot of tiles. */
+export const TILE_ACTION_CLASS =
+  "inline-flex min-h-11 shrink-0 items-center gap-1.5 text-[0.85rem] font-semibold text-gold/85 transition-colors hover:text-gold";
 
 /* ---------- Your day: day bar with Rahu Kaal, Abhijit and now ---------- */
 export function DayTile({
@@ -276,9 +168,10 @@ export function DayTile({
               />
             )}
           </div>
-          <div className="mt-2.5 flex justify-between text-[0.85rem] text-white/50">
+          {/* On phones the legend takes its own line so the row never cramps. */}
+          <div className="mt-2.5 grid grid-cols-2 gap-y-1.5 text-[0.85rem] text-white/55 sm:flex sm:justify-between">
             <span>Sunrise {hhmm(day[0])}</span>
-            <span className="flex gap-3">
+            <span className="order-last col-span-2 flex gap-3 sm:order-none">
               {rahu && (
                 <span className="text-rose-200/80">
                   <GlossaryTerm k="rahu-kaal">Rahu Kaal</GlossaryTerm>
@@ -290,69 +183,10 @@ export function DayTile({
                 </span>
               )}
             </span>
-            <span>Sunset {hhmm(day[1])}</span>
+            <span className="text-right">Sunset {hhmm(day[1])}</span>
           </div>
         </>
       )}
-    </div>
-  );
-}
-
-/* ---------- Moon ---------- */
-export function MoonTile({
-  panchang,
-  lunar,
-}: {
-  panchang: PanchangData | null;
-  lunar: Lunar;
-}) {
-  const sign = asText(panchang?.moonSign);
-  return (
-    <div className={TILE}>
-      <TileHead icon={<Moon size={15} />}>Moon</TileHead>
-      <p className="font-display text-[1.9rem] leading-tight text-white/95">
-        {lunar ? `${Math.round(lunar.illumination)}% lit` : "—"}
-      </p>
-      <p className="mt-1.5 text-[0.98rem] leading-relaxed text-white/65">
-        {lunar?.phase ?? "Phase unavailable"}
-        {sign ? ` in ${sign}` : ""}.
-      </p>
-    </div>
-  );
-}
-
-/* ---------- Panchang ---------- */
-export function PanchangTile({
-  panchang,
-  loading,
-}: {
-  panchang: PanchangData | null;
-  loading: boolean;
-}) {
-  const rows: [string, string | undefined, string | undefined][] = [
-    ["Tithi", asText(panchang?.tithi), asText(panchang?.tithiEnd)],
-    ["Nakshatra", asText(panchang?.nakshatra), asText(panchang?.nakshatraEnd)],
-    ["Yoga", asText(panchang?.yoga), undefined],
-    ["Karana", asText(panchang?.karana), undefined],
-  ];
-  return (
-    <div className={TILE}>
-      <TileHead icon={<CalendarDays size={15} />}>Panchang</TileHead>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[0.98rem]">
-        {rows.map(([k, v, end]) => (
-          <div key={k} className="contents">
-            <dt className="text-white/50">{k}</dt>
-            <dd className="text-right text-white/90">
-              {v ?? (loading ? "…" : "—")}
-              {end && (
-                <span className="block text-[0.8rem] text-white/55">
-                  till {end}
-                </span>
-              )}
-            </dd>
-          </div>
-        ))}
-      </dl>
     </div>
   );
 }
@@ -381,25 +215,25 @@ export function TodayForYouTile({
           <button
             type="button"
             onClick={onSaveIntention}
-            className="rounded-full bg-gold/12 px-3.5 py-1.5 text-[0.82rem] font-semibold text-gold hover:bg-gold hover:text-black transition-colors"
+            className={TILE_ACTION_CLASS}
           >
-            Save intention
+            Set today's intention
           </button>
         }
       >
         Today, for you
       </TileHead>
       {guide.context && (
-        <p className="-mt-1 mb-4 text-[0.85rem] text-white/50">
+        <p className="-mt-1 mb-4 text-[0.9rem] text-white/60">
           {guide.context}
         </p>
       )}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-5">
         {cols.map(([k, v]) => (
           <div key={k}>
-            <p className="font-display text-[1.45rem] leading-tight text-white/92">
+            <h3 className="font-display text-[1.3rem] leading-tight text-white/92">
               {k}
-            </p>
+            </h3>
             <p className="mt-1.5 text-[0.98rem] leading-relaxed text-white/65">
               {v}
             </p>
@@ -407,7 +241,9 @@ export function TodayForYouTile({
         ))}
       </div>
       {showNudge && (
-        <p className="mt-5 text-[0.92rem] italic text-white/55">{guide.nudge}</p>
+        <p className="mt-5 text-[0.92rem] italic text-white/55">
+          {guide.nudge}
+        </p>
       )}
       {guide.why && (
         <p className="mt-4 border-t border-white/[0.06] pt-4 text-[0.92rem] leading-relaxed text-white/55">
@@ -422,12 +258,14 @@ export function TodayForYouTile({
 /** Generic chart fact tile (Moon sign, Rising). */
 export function FactTile({
   label,
+  icon,
   value,
   note,
   children,
   className = "",
 }: {
   label: string;
+  icon?: ReactNode;
   value: ReactNode;
   note?: ReactNode;
   children?: ReactNode;
@@ -435,7 +273,7 @@ export function FactTile({
 }) {
   return (
     <div className={`${TILE} ${className}`}>
-      <TileHead>{label}</TileHead>
+      <TileHead icon={icon}>{label}</TileHead>
       <p className="font-display text-[1.75rem] leading-tight text-white/95">
         {value}
       </p>

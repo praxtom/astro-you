@@ -19,7 +19,8 @@ test("legal policy copy covers production-critical surfaces", () => {
     .join(" ");
 
   for (const required of [
-    "AI",
+    "automated systems",
+    "not a person",
     "credits",
     "subscriptions",
     "Refund",

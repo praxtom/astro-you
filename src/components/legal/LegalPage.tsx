@@ -22,7 +22,7 @@ export function LegalPage({
           to="/"
           className="mb-6 inline-flex items-center gap-2 text-sm text-white/55 transition-colors hover:text-white"
         >
-          <ArrowLeft size={16} />
+          <ArrowLeft size={16} aria-hidden="true" />
           Back to home
         </Link>
 
@@ -35,13 +35,18 @@ export function LegalPage({
           </p>
         </section>
 
+        {/* Policy text is read in full: body size and a ~70ch measure, not
+            the 12.8px dashboard caption style it used before. */}
         <section className="platform-panel divide-y divide-white/10">
           {sections.map((section) => (
-            <article key={section.title} className="p-4">
+            <article key={section.title} className="p-5 sm:p-6">
               <h2 className="type-section-title text-gold">{section.title}</h2>
-              <div className="mt-3 space-y-2.5">
+              <div className="mt-3 max-w-[70ch] space-y-3">
                 {section.content.map((paragraph) => (
-                  <p key={paragraph} className="type-body-sm leading-relaxed text-white/58">
+                  <p
+                    key={paragraph}
+                    className="text-[0.9375rem] leading-relaxed text-white/70"
+                  >
                     {paragraph}
                   </p>
                 ))}

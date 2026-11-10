@@ -2751,24 +2751,24 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
       "An honest comparison of a chart-based astrology app and a human astrologer across accuracy, cost, availability, memory, and emotional judgement — including where a human is clearly the better choice.",
     heading: "Astrology App vs Human Astrologer",
     intro:
-      "Both read the same chart. The difference is not accuracy of calculation — software has computed planetary positions more precisely than any human for decades — but what happens after the calculation: interpretation, memory, availability, and judgement about when astrology is the wrong tool entirely.",
+      "Both read the same chart. The difference is not accuracy of calculation — computers have calculated planetary positions more precisely than any human for decades — but what happens after the calculation: interpretation, memory, availability, and judgement about when astrology is the wrong tool entirely.",
     schemaType: "Article",
     sections: [
       {
         title: "Where the two are equivalent",
-        body: "Chart calculation is solved. Ephemeris data, ayanamsa correction, house division, dasha arithmetic, and Ashtakoot scoring are deterministic. A competent human astrologer and any serious software will produce the same Kundali from the same birth data. Anyone claiming an accuracy edge at the calculation stage is selling something.",
+        body: "Chart calculation is solved. Ephemeris data, ayanamsa correction, house division, dasha arithmetic, and Ashtakoot scoring are deterministic. A competent human astrologer and any serious calculator will produce the same Kundali from the same birth data. Anyone claiming an accuracy edge at the calculation stage is selling something.",
       },
       {
-        title: "Where a software guide is genuinely better",
-        body: "Availability at 3am, cost per interaction, and memory. A reading from a chart-based software guide costs a fraction of a per-minute human consultation and does not vary with the practitioner's mood or workload. More importantly, it can hold your entire history — every prior question, your dasha timeline, your stated patterns — without you re-explaining. Most human consultations start from zero because the astrologer sees hundreds of clients.",
+        title: "Where a chart-based guide is genuinely better",
+        body: "Availability at 3am, cost per interaction, and memory. A reading from a chart-based guide costs a fraction of a per-minute human consultation and does not vary with the practitioner's mood or workload. More importantly, it can hold your entire history — every prior question, your dasha timeline, your stated patterns — without you re-explaining. Most human consultations start from zero because the astrologer sees hundreds of clients.",
       },
       {
         title: "Where a human is genuinely better",
-        body: "Grief, crisis, family dynamics, ritual, and any situation where the real need is to be heard rather than analysed. A skilled human astrologer reads the room — they notice when a question about career timing is actually about a failing marriage, they can perform or guide a ritual in person, and they know when to stop giving astrological answers and suggest a doctor, a lawyer, or a therapist. If you are in acute distress, talk to a person. This is not a limitation software is close to solving.",
+        body: "Grief, crisis, family dynamics, ritual, and any situation where the real need is to be heard rather than analysed. A skilled human astrologer reads the room — they notice when a question about career timing is actually about a failing marriage, they can perform or guide a ritual in person, and they know when to stop giving astrological answers and suggest a doctor, a lawyer, or a therapist. If you are in acute distress, talk to a person. This is not a limitation an app is close to solving.",
       },
       {
         title: "The transparency problem in the market",
-        body: "Several large astrology marketplaces route some conversations to scripted or automated responses without disclosure, and users often cannot tell. Whatever you choose, the question worth asking is whether the platform tells you what you are talking to. AstroYou's guides are software, not human astrologers, and every consultation profile says so; that policy is documented on the trust page.",
+        body: "Several large astrology marketplaces route some conversations to scripted or automated responses without disclosure, and users often cannot tell. Whatever you choose, the question worth asking is whether the platform tells you what you are talking to. AstroYou's guides are not human astrologers, and every consultation profile says so; that policy is documented on the trust page.",
       },
       {
         title: "How to decide",
@@ -2778,7 +2778,7 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
     comparison: {
       caption:
         "Astrology app vs human astrologer across the criteria that actually differ",
-      columns: ["Astrology app (software guide)", "Human astrologer"],
+      columns: ["Astrology app (chart-based guide)", "Human astrologer"],
       rows: [
         {
           criterion: "Chart calculation accuracy",
@@ -2823,7 +2823,7 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
     facts: [
       {
         label: "AstroYou guide disclosure",
-        value: "Every guide is labelled as software, not a human astrologer",
+        value: "Every guide is labelled as not a human astrologer",
         source: "Documented on /trust",
       },
       { label: "AstroYou free tier", value: "15 credits, no card required" },
@@ -2836,12 +2836,12 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
       {
         question: "Is an astrology app as accurate as a human astrologer?",
         answer:
-          "For chart calculation, yes — identical, because the mathematics is deterministic. For interpretation, they differ in kind rather than quality: a software guide is more consistent and remembers your chart and the key things you share with it; a skilled human brings emotional judgement and knows when to stop giving astrological answers.",
+          "For chart calculation, yes — identical, because the mathematics is deterministic. For interpretation, they differ in kind rather than quality: a chart-based guide is more consistent and remembers your chart and the key things you share with it; a skilled human brings emotional judgement and knows when to stop giving astrological answers.",
       },
       {
         question: "Are the astrologers on astrology apps real people?",
         answer:
-          "It varies by platform and is often not disclosed. Some marketplaces route conversations to scripted or automated systems without telling the user. Ask the platform directly, and prefer ones that state in writing whether you are talking to software or a person. AstroYou's guides are software, not human astrologers, and every consultation profile says so.",
+          "It varies by platform and is often not disclosed. Some marketplaces route conversations to scripted or automated systems without telling the user. Ask the platform directly, and prefer ones that state in writing whether or not you are talking to a person. AstroYou's guides are not human astrologers, and every consultation profile says so.",
       },
       {
         question: "When should I choose a human astrologer over an app?",
@@ -2851,7 +2851,7 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
       {
         question: "Is an astrology app cheaper than an online astrologer?",
         answer:
-          "Substantially, yes. Human per-minute consultation on Indian astrology marketplaces typically runs many multiples of the cost of a software guide. AstroYou starts at 5 credits per minute with a free tier of 15 credits.",
+          "Substantially, yes. Human per-minute consultation on Indian astrology marketplaces typically runs many multiples of the cost of a chart-based guide. AstroYou starts at 5 credits per minute with a free tier of 15 credits.",
       },
     ],
     primaryCta: { label: "Try Jyotish Free", to: "/free-kundali" },
@@ -2870,7 +2870,7 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
     path: "/astrotalk-alternatives",
     title: "AstroTalk Alternatives: How the Main Options Actually Differ",
     description:
-      "A practical comparison of AstroTalk alternatives for Indian astrology consultation — marketplace model versus chart-based software guide versus free calculators — and which fits which need.",
+      "A practical comparison of AstroTalk alternatives for Indian astrology consultation — marketplace model versus chart-based guide versus free calculators — and which fits which need.",
     heading: "AstroTalk Alternatives",
     intro:
       "AstroTalk popularised per-minute consultation with a large roster of astrologers, and it does that job well. People look for alternatives for three recurring reasons: cost at frequency, uncertainty about who is on the other end, and starting from scratch in every conversation. Different alternatives solve different ones.",
@@ -2886,7 +2886,7 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
       },
       {
         title: "Alternative 1: a chart-based guide that keeps context",
-        body: "This is AstroYou's model. Jyotish, AstroYou's guide, remembers your chart and the key things you share with it, alongside your dasha timeline, at a fraction of per-minute human cost — and every profile states plainly that the guide is software, not a human astrologer. The trade-off is real: you are not talking to a person, and for grief or crisis that matters. The free tier is 15 credits once at signup with no card; AI guide sessions run from 5 credits per minute.",
+        body: "This is AstroYou's model. Jyotish, AstroYou's guide, remembers your chart and the key things you share with it, alongside your dasha timeline, at a fraction of per-minute human cost — and every profile states plainly that the guide is not a human astrologer. The trade-off is real: you are not talking to a person, and for grief or crisis that matters. The free tier is 15 credits once at signup with no card; guide sessions run from 5 credits per minute.",
       },
       {
         title: "Alternative 2: free calculator sites",
@@ -2898,7 +2898,7 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
       },
       {
         title: "Which to choose",
-        body: "If you consult a few times a year and value speaking to a person, stay with a marketplace or find an independent practitioner. If you want frequent, low-cost guidance that remembers your history, a chart-based software guide fits better. If you only need a chart calculated, use a free calculator and stop there.",
+        body: "If you consult a few times a year and value speaking to a person, stay with a marketplace or find an independent practitioner. If you want frequent, low-cost guidance that remembers your history, a chart-based guide fits better. If you only need a chart calculated, use a free calculator and stop there.",
       },
     ],
     comparison: {
@@ -2906,7 +2906,7 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
         "AstroTalk alternatives compared by model, not by marketing claim",
       columns: [
         "Marketplace",
-        "Software guide (AstroYou)",
+        "Chart-based guide (AstroYou)",
         "Free calculator",
         "Independent astrologer",
       ],
@@ -2915,7 +2915,7 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
           criterion: "Who you talk to",
           values: [
             "Human roster; disclosure varies",
-            "Software, labelled as software",
+            "A guide, labelled as not a person",
             "Nobody — output only",
             "One known human",
           ],
@@ -2960,7 +2960,7 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
       },
       {
         label: "Guide disclosure policy",
-        value: "Every guide labelled as software, not a human astrologer",
+        value: "Every guide labelled as not a human astrologer",
         source: "Documented on /trust",
       },
     ],
@@ -2968,12 +2968,12 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
       {
         question: "What is the best AstroTalk alternative?",
         answer:
-          "It depends on frequency. For occasional consultation with a human in your own language, another marketplace or an independent astrologer fits. For frequent guidance that remembers your chart and history at lower cost, a chart-based software guide like AstroYou fits. For one-off chart calculation, a free calculator is sufficient.",
+          "It depends on frequency. For occasional consultation with a human in your own language, another marketplace or an independent astrologer fits. For frequent guidance that remembers your chart and history at lower cost, a chart-based guide like AstroYou fits. For one-off chart calculation, a free calculator is sufficient.",
       },
       {
         question: "Is there a cheaper alternative to AstroTalk?",
         answer:
-          "Yes. Consultation with a software guide costs substantially less per interaction than human per-minute billing. AstroYou starts at 5 credits per minute and includes 15 free credits with no card. Free calculator sites cost nothing at all but do not interpret.",
+          "Yes. Consultation with a chart-based guide costs substantially less per interaction than human per-minute billing. AstroYou starts at 5 credits per minute and includes 15 free credits with no card. Free calculator sites cost nothing at all but do not interpret.",
       },
       {
         question: "Are AstroTalk astrologers real people?",
@@ -3022,11 +3022,11 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
       },
       {
         title: "Alternative 1: chart-based interpretation over the same calculations",
-        body: "AstroYou computes the same sidereal chart with the same Lahiri ayanamsa, then its software guide synthesises across dasha, transits, and your stated situation, and keeps the context between conversations. Kundali generation, matching, and Panchang remain free. The trade-off is a smaller reference library than a twenty-year-old site.",
+        body: "AstroYou computes the same sidereal chart with the same Lahiri ayanamsa, then its guide synthesises across dasha, transits, and your stated situation, and keeps the context between conversations. Kundali generation, matching, and Panchang remain free. The trade-off is a smaller reference library than a twenty-year-old site.",
       },
       {
         title: "Alternative 2: consultation marketplaces",
-        body: "Platforms offering per-minute access to human astrologers. These solve interpretation through a person rather than software. Higher cost per interaction, and quality varies by practitioner, but a good human reading remains the benchmark for a major decision.",
+        body: "Platforms offering per-minute access to human astrologers. These solve interpretation through a person rather than a chart-based guide. Higher cost per interaction, and quality varies by practitioner, but a good human reading remains the benchmark for a major decision.",
       },
       {
         title: "Alternative 3: learning to read it yourself",
@@ -3042,7 +3042,7 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
         "Free calculators, chart-based interpretation, and human consultation compared",
       columns: [
         "Free calculator sites",
-        "Software guide (AstroYou)",
+        "Chart-based guide (AstroYou)",
         "Human consultation",
       ],
       rows: [
@@ -3124,7 +3124,6 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
       "astrosage alternatives",
       "free kundali",
       "kundali app",
-      "kundali software",
       "vedic astrology",
     ],
     updated: SEO_CONTENT_REVIEWED,
@@ -3150,11 +3149,11 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
       },
       {
         title: "Check 3: does it tell you who you are talking to?",
-        body: "This is the clearest integrity signal in the category. Platforms that present software output as a human astrologer are making a choice about honesty that extends to everything else they tell you. Look for an explicit written policy that says whether the guide is software or a person, not an absence of claims.",
+        body: "This is the clearest integrity signal in the category. Platforms that present automated output as a human astrologer are making a choice about honesty that extends to everything else they tell you. Look for an explicit written policy that says whether or not the guide is a person, not an absence of claims.",
       },
       {
         title: "Check 4: does it remember?",
-        body: "A software guide that starts from zero every session is just an ephemeris with a text box. The advantage software actually has over a human practitioner is perfect recall of your chart, your dasha timeline, and everything you have already said. If the app cannot reference last month's conversation, it is not using its main structural advantage.",
+        body: "A guide that starts from zero every session is just an ephemeris with a text box. The advantage a chart-based guide actually has over a human practitioner is perfect recall of your chart, your dasha timeline, and everything you have already said. If the app cannot reference last month's conversation, it is not using its main structural advantage.",
       },
       {
         title: "Check 5: can you see the pricing before signing up?",
@@ -3162,7 +3161,7 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
       },
       {
         title: "How AstroYou scores on its own checklist",
-        body: "AstroYou requires date, exact time, and place; uses the Lahiri ayanamsa; states on every consultation profile that its guides are software, not human astrologers; remembers your chart, dashas, and the key things you share with it between sessions; and publishes full pricing at /pricing and in a machine-readable file at /pricing.md. Where it is weaker: fewer languages than the large marketplaces, and no human astrologers on the roster.",
+        body: "AstroYou requires date, exact time, and place; uses the Lahiri ayanamsa; states on every consultation profile that its guides are not human astrologers; remembers your chart, dashas, and the key things you share with it between sessions; and publishes full pricing at /pricing and in a machine-readable file at /pricing.md. Where it is weaker: fewer languages than the large marketplaces, and no human astrologers on the roster.",
       },
     ],
     comparison: {
@@ -3210,7 +3209,7 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
       {
         question: "What is the best astrology app?",
         answer:
-          "Judge by five checks rather than marketing: does it require exact birth time and place, does it state its ayanamsa, does it tell you whether you are talking to software or a person, does it remember prior conversations, and is pricing visible before signup. Any app failing the first two is producing sun-sign content rather than chart readings.",
+          "Judge by five checks rather than marketing: does it require exact birth time and place, does it state its ayanamsa, does it tell you whether or not you are talking to a person, does it remember prior conversations, and is pricing visible before signup. Any app failing the first two is producing sun-sign content rather than chart readings.",
       },
       {
         question: "Are astrology apps accurate?",
@@ -3225,7 +3224,7 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
       {
         question: "Can an astrology app replace a real astrologer?",
         answer:
-          "For routine questions, chart learning, and timing, it is a reasonable substitute at much lower cost with better memory. For grief, crisis, ritual, or decisions with heavy emotional weight, it is not — a skilled human reads context software misses and knows when to refer you elsewhere.",
+          "For routine questions, chart learning, and timing, it is a reasonable substitute at much lower cost with better memory. For grief, crisis, ritual, or decisions with heavy emotional weight, it is not — a skilled human reads context an app misses and knows when to refer you elsewhere.",
       },
     ],
     primaryCta: { label: "Try AstroYou Free", to: "/free-kundali" },
@@ -3319,7 +3318,7 @@ const COMPARISON_SEO_CONTENT_PAGES: SeoContentPage[] = [
       {
         question: "Which free Kundali app is most accurate?",
         answer:
-          "Accuracy differences between serious tools are almost always ayanamsa differences, not errors. Any tool using Lahiri and requiring exact birth time and place will produce the same chart. The bigger accuracy risk is your recorded birth time, not the software.",
+          "Accuracy differences between serious tools are almost always ayanamsa differences, not errors. Any tool using Lahiri and requiring exact birth time and place will produce the same chart. The bigger accuracy risk is your recorded birth time, not the tool.",
       },
       {
         question: "Why do two Kundali apps show different charts?",

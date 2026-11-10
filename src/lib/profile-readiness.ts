@@ -1,3 +1,4 @@
+import type { BirthData } from "../types/user.js";
 import {
   DEFAULT_ZODIAC_MODE,
   type ZodiacMode,
@@ -18,6 +19,35 @@ const requiredString = (value: unknown): string | null => {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
 };
+
+/** The birth details selected for a single chart conversation. */
+export function parseChartReadingBirthData(value: unknown): BirthData | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  const dob = requiredString(raw.dob);
+  const tob = requiredString(raw.tob);
+  const pob = requiredString(raw.pob);
+  if (
+    !dob || !/^\d{4}-\d{2}-\d{2}$/.test(dob) ||
+    !tob || !/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(tob) ||
+    !pob || pob.length > 200
+  ) return null;
+
+  const coordinates = raw.coordinates as Partial<BirthData["coordinates"]>;
+  const lat = coordinates?.lat;
+  const lng = coordinates?.lng;
+  return {
+    name: requiredString(raw.name)?.slice(0, 100) ?? "",
+    dob,
+    tob: raw.birthTimeUnknown === true ? "12:00" : tob,
+    pob,
+    ...(raw.birthTimeUnknown === true ? { birthTimeUnknown: true } : {}),
+    ...(typeof lat === "number" && Math.abs(lat) <= 90 &&
+        typeof lng === "number" && Math.abs(lng) <= 180
+      ? { coordinates: { lat, lng } }
+      : {}),
+  };
+}
 
 /**
  * Reads a persisted onboarding profile only when the matching completion

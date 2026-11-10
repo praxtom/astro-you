@@ -13,12 +13,15 @@ export function usePanchang(
   lat?: number,
   lng?: number,
   timezone?: string,
+  /** False while the caller is still resolving the place: don't fetch yet. */
+  enabled = true,
 ) {
   const [panchang, setPanchang] = useState<PanchangData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!enabled) return;
     const controller = new AbortController();
 
     const fetchPanchang = async () => {
@@ -58,7 +61,7 @@ export function usePanchang(
 
     fetchPanchang();
     return () => controller.abort();
-  }, [city, lat, lng, timezone]);
+  }, [city, lat, lng, timezone, enabled]);
 
   return { panchang, loading, error };
 }

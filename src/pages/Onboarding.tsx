@@ -552,6 +552,12 @@ export default function Onboarding() {
   };
 
   const dobProblem = birthDateProblem(formData.dob);
+  /** Next does nothing until the step's required fields are filled. */
+  const stepIncomplete =
+    (step === "identity" && (!formData.name || !formData.gender)) ||
+    (step === "temporal" &&
+      (!formData.dob || !formData.tob || Boolean(dobProblem))) ||
+    (step === "spatial" && !formData.pob);
 
   /** Returning users who already saved a chart go straight to it. */
   const handleSignedIn = async () => {
@@ -578,7 +584,9 @@ export default function Onboarding() {
   };
 
   return (
-    <div className="min-h-screen bg-[#030308] flex items-center justify-center p-3 text-content-primary">
+    // Top-anchored (not vertically centred) so the card and its Back/Next
+    // buttons don't jump every time a step changes height.
+    <div className="min-h-screen bg-[#030308] flex justify-center px-3 pt-8 pb-10 sm:pt-[12vh] text-content-primary">
       <OnboardingSEO />
 
       {/* Background Ambiance */}
@@ -589,7 +597,7 @@ export default function Onboarding() {
 
       <div className="w-full max-w-xl glass p-4 md:p-5 relative z-10 border border-white/10 rounded-2xl">
         {/* Progress Bar */}
-        <div className="flex gap-1.5 mb-4">
+        <div className="flex gap-1.5 mb-4" aria-hidden="true">
           {FLOW_STEPS.map(
             (s, i) => {
               // The optional upload detour sits before the first step.
@@ -611,7 +619,7 @@ export default function Onboarding() {
         {/* Step 01: Kundali Upload (Optional) */}
         {step === "upload" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
+            <span className="mb-2 block text-xs font-bold uppercase tracking-[0.2em] text-gold/80">
               Optional
             </span>
             <h1 className="text-title text-3xl mb-3 font-display tracking-tight">
@@ -628,15 +636,18 @@ export default function Onboarding() {
               type="file"
               accept="image/jpeg,image/png,image/webp"
               onChange={handleChartUpload}
-              className="hidden"
+              // sr-only (not hidden) keeps the picker reachable by keyboard.
+              className="peer sr-only"
               id="chart-upload"
+              aria-label="Upload a Kundali image"
+              tabIndex={uploadedImage ? -1 : undefined}
             />
 
             {!uploadedImage ? (
               /* Upload Zone */
               <label
                 htmlFor="chart-upload"
-                className={`relative flex flex-col items-center justify-center w-full h-52 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${
+                className={`relative flex flex-col items-center justify-center w-full h-52 border-2 border-dashed rounded-2xl cursor-pointer transition-all peer-focus-visible:border-gold peer-focus-visible:bg-white/5 ${
                   isUploading
                     ? "border-gold/50 bg-gold/5"
                     : "border-white/20 hover:border-gold/40 hover:bg-white/5"
@@ -653,7 +664,7 @@ export default function Onboarding() {
                       <Upload className="w-8 h-8 text-gold" />
                     </div>
                     <p className="text-lg text-white/80 font-medium mb-2">
-                      Drop your Kundali chart here
+                      Choose a photo of your Kundali
                     </p>
                     <p className="text-sm text-white/60">
                       JPG, PNG, or WebP • Max 4.5 MB
@@ -672,33 +683,42 @@ export default function Onboarding() {
                     className="w-full h-40 object-contain bg-black/20"
                   />
                   <button
+                    type="button"
                     onClick={clearUpload}
-                    className="absolute top-3 right-3 p-2 rounded-full bg-black/60 hover:bg-red-500/80 text-white/80 hover:text-white transition-all"
+                    className="absolute top-2 right-2 inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 hover:bg-red-500/80 text-white/80 hover:text-white transition-all"
                     title="Remove image"
+                    aria-label="Remove image"
                   >
-                    <X size={16} />
+                    <X size={16} aria-hidden="true" />
                   </button>
                 </div>
 
                 {/* Parsing State */}
                 {isParsing && (
-                  <div className="flex items-center justify-center gap-3 py-6 rounded-xl bg-white/5 border border-white/10">
-                    <Loader2 className="w-5 h-5 text-gold animate-spin" />
+                  <div
+                    role="status"
+                    className="flex items-center justify-center gap-3 py-6 rounded-xl bg-white/5 border border-white/10"
+                  >
+                    <Loader2 className="w-5 h-5 text-gold animate-spin" aria-hidden="true" />
                     <span className="text-sm text-white/60">
-                      Analyzing celestial patterns...
+                      Reading your birth chart…
                     </span>
                   </div>
                 )}
 
                 {/* Parse Error */}
                 {parseError && !isParsing && (
-                  <div className="flex items-start gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/30">
-                    <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                  <div
+                    role="alert"
+                    className="flex items-start gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/30"
+                  >
+                    <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" aria-hidden="true" />
                     <div>
                       <p className="text-sm text-red-300">{parseError}</p>
                       <button
+                        type="button"
                         onClick={clearUpload}
-                        className="text-xs text-red-400 hover:text-red-300 underline mt-2"
+                        className="min-h-11 text-sm text-red-300 hover:text-red-200 underline"
                       >
                         Try a different image
                       </button>
@@ -712,7 +732,7 @@ export default function Onboarding() {
                     {/* Confidence Score */}
                     <div className="flex items-center justify-between p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
                       <div className="flex items-center gap-3">
-                        <Check className="w-5 h-5 text-emerald-400" />
+                        <Check className="w-5 h-5 text-emerald-400" aria-hidden="true" />
                         <span className="text-sm text-emerald-300">
                           Chart analyzed successfully
                         </span>
@@ -737,8 +757,8 @@ export default function Onboarding() {
                     {/* Birth Details Detected */}
                     {parsedChart.birthDetails && (
                       <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
-                        <div className="text-xs uppercase tracking-widest text-white/60">
-                          Extracted Details
+                        <div className="text-sm font-semibold text-white/75">
+                          Details found
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           {parsedChart.birthDetails.dob && (
@@ -778,8 +798,8 @@ export default function Onboarding() {
                     {/* Planets Table */}
                     {parsedChart.planets && parsedChart.planets.length > 0 && (
                       <div className="rounded-xl border border-white/10 overflow-hidden">
-                        <div className="bg-white/5 px-4 py-2 text-xs uppercase tracking-widest text-white/60">
-                          Extracted Planets
+                        <div className="bg-white/5 px-4 py-2 text-sm font-semibold text-white/75">
+                          Planets found
                         </div>
                         <div className="max-h-48 overflow-y-auto">
                           {parsedChart.planets.map((planet, idx) => (
@@ -790,7 +810,7 @@ export default function Onboarding() {
                               <span className="text-white/80">
                                 {planet.name}
                               </span>
-                              <span className="text-white/50">
+                              <span className="text-white/60">
                                 {planet.sign} • House {planet.house}
                               </span>
                             </div>
@@ -800,10 +820,11 @@ export default function Onboarding() {
                     )}
 
                     <button
+                      type="button"
                       onClick={useParsedData}
-                      className="w-full btn btn-primary py-3 text-sm font-bold uppercase tracking-widest mt-4"
+                      className="w-full btn btn-primary min-h-11 py-3 text-sm font-bold mt-2"
                     >
-                      Confirm & Auto-fill Profile
+                      Use these details
                     </button>
                   </div>
                 )}
@@ -813,6 +834,7 @@ export default function Onboarding() {
             {/* Skip Option */}
             <div className="mt-4 text-center">
               <button
+                type="button"
                 onClick={() => setStep("identity")}
                 className="min-h-11 text-sm text-white/60 hover:text-white/80 transition-colors underline"
               >
@@ -825,14 +847,16 @@ export default function Onboarding() {
         {/* Step 02: Identity */}
         {step === "identity" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
+            <span className="mb-2 block text-xs font-bold uppercase tracking-[0.2em] text-gold/80">
               Step 01 / 04
             </span>
             <h1 className="text-title text-3xl mb-3 font-display tracking-tight">
-              Personal Basis
+              About you
             </h1>
-            <p className="text-body mb-4 opacity-70 font-sans font-light">
-              We'll start with your basic profile details.
+            <p className="text-body mb-4 text-white/70 font-sans">
+              Four quick steps to build your Kundali, your birth chart. It is
+              what your daily forecast, matching and every answer are read
+              from. We'll start with your name and gender.
             </p>
 
             <div className="space-y-4">
@@ -849,7 +873,7 @@ export default function Onboarding() {
                   placeholder="Enter your name"
                   aria-required="true"
                   autoComplete="name"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-gold/50 transition-all text-base font-sans font-light focus-ring"
+                  className="platform-field text-white placeholder:text-white/50"
                   value={formData.name}
                   onChange={(e) => {
                     const newData = { ...formData, name: e.target.value };
@@ -859,13 +883,16 @@ export default function Onboarding() {
                 />
               </div>
               <div>
-                <label className="block text-caption mb-3 opacity-60 uppercase tracking-widest text-xs font-bold">
+                <p
+                  id="onboarding-gender-label"
+                  className="block text-caption mb-3 opacity-60 uppercase tracking-widest text-xs font-bold"
+                >
                   Gender
-                </label>
+                </p>
                 <div
                   className="grid grid-cols-3 gap-3"
                   role="radiogroup"
-                  aria-label="Gender selection"
+                  aria-labelledby="onboarding-gender-label"
                 >
                   {["Male", "Female", "Other"].map((g) => (
                     <button
@@ -878,7 +905,7 @@ export default function Onboarding() {
                         setFormData(newData);
                         saveStepData(newData);
                       }}
-                      className={`py-3 rounded-xl border transition-all text-sm font-sans tracking-wide focus-ring ${
+                      className={`min-h-11 rounded-xl border transition-all text-sm font-sans focus-ring ${
                         formData.gender === g
                           ? "bg-gold/10 border-gold/50 text-gold shadow-[0_0_15px_rgba(255,215,0,0.1)]"
                           : "bg-white/5 border-white/10 text-white/60 hover:border-white/20"
@@ -897,7 +924,7 @@ export default function Onboarding() {
                 onClick={() => setStep("upload")}
                 className="inline-flex min-h-11 items-center gap-2 text-sm text-gold/80 hover:text-gold transition-colors"
               >
-                <Upload size={15} />
+                <Upload size={15} aria-hidden="true" />
                 Have a Kundali image? Upload it to fill in details
               </button>
               {!user && (
@@ -916,15 +943,16 @@ export default function Onboarding() {
         {/* Step 03: Temporal */}
         {step === "temporal" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
+            <span className="mb-2 block text-xs font-bold uppercase tracking-[0.2em] text-gold/80">
               Step 02 / 04
             </span>
             <h1 className="text-title text-3xl mb-3 font-display tracking-tight">
-              The Moment
+              When were you born?
             </h1>
-            <p className="text-body mb-4 opacity-70 font-sans font-light">
-              When did your spirit first draw breath? Precision determines the
-              alignment of the stars.
+            <p className="text-body mb-4 text-white/70 font-sans">
+              Your birth time decides your rising sign and which area of life
+              each planet affects; even 15 minutes can change them. Check your
+              birth certificate or janam patri, or ask family.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -941,7 +969,7 @@ export default function Onboarding() {
                   max={todayInputValue()}
                   aria-invalid={dobProblem ? true : undefined}
                   aria-describedby={dobProblem ? "onboarding-dob-error" : undefined}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-gold/50 transition-all text-base font-sans font-light appearance-none invert-calendar-icon"
+                  className="platform-field appearance-none text-white invert-calendar-icon"
                   value={formData.dob}
                   onChange={(e) => {
                     const newData = { ...formData, dob: e.target.value };
@@ -960,7 +988,7 @@ export default function Onboarding() {
                 <input
                   id="onboarding-tob"
                   type="time"
-                  className={`w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-gold/50 transition-all text-base font-sans font-light appearance-none invert-calendar-icon ${
+                  className={`platform-field appearance-none text-white invert-calendar-icon ${
                     formData.birthTimeUnknown
                       ? "opacity-40 cursor-not-allowed"
                       : ""
@@ -990,16 +1018,19 @@ export default function Onboarding() {
                     }}
                     className="w-5 h-5 rounded border-2 border-white/20 bg-white/5 checked:bg-gold checked:border-gold appearance-none cursor-pointer transition-all"
                   />
-                  <span className="text-xs text-white/50 group-hover:text-white/70 transition-colors font-sans">
+                  <span className="text-sm text-white/65 group-hover:text-white/80 transition-colors font-sans">
                     I don't know my exact birth time
                   </span>
                 </label>
 
                 {formData.birthTimeUnknown && (
-                  <div className="mt-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                    <p className="text-xs text-amber-400 font-sans">
-                      ⚠️ Using 12:00 noon. Ascendant and house positions may be
-                      less accurate.
+                  <div className="mt-3 flex gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                    <AlertCircle size={14} className="mt-0.5 shrink-0 text-amber-300" aria-hidden="true" />
+                    <p className="text-xs text-amber-200 font-sans">
+                      We'll use 12:00 noon. Your planets' signs and daily
+                      forecast will mostly be right; your rising sign and
+                      houses may not be. You can add the exact time later in
+                      Settings.
                     </p>
                   </div>
                 )}
@@ -1020,21 +1051,23 @@ export default function Onboarding() {
         {/* Step 04: Spatial */}
         {step === "spatial" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
+            <span className="mb-2 block text-xs font-bold uppercase tracking-[0.2em] text-gold/80">
               Step 03 / 04
             </span>
             <h1 className="text-title text-3xl mb-3 font-display tracking-tight">
-              Birth Location
+              Where were you born?
             </h1>
-            <p className="text-body mb-4 opacity-70 font-sans font-light">
-              Your location of birth is essential for accurate planetary
-              mapping.
+            <p className="text-body mb-4 text-white/70 font-sans">
+              Your birth place sets the local time and sky your chart is drawn
+              from. Pick your town or city from the suggestions so we use the
+              right location.
             </p>
 
             <div className="space-y-4">
               <LocationInput
+                size="field"
                 label="Birth Place"
-                placeholder="City, Province, Country"
+                placeholder="Town or city where you were born"
                 value={formData.pob}
                 onChange={(val) => {
                   // Typing invalidates any previously selected coordinates —
@@ -1063,14 +1096,15 @@ export default function Onboarding() {
         {/* Step 05: Present */}
         {step === "present" && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <span className="section-label mb-3 opacity-60 uppercase tracking-[0.3em] font-sans text-xs">
+            <span className="mb-2 block text-xs font-bold uppercase tracking-[0.2em] text-gold/80">
               Step 04 / 04
             </span>
             <h1 className="text-title text-3xl mb-3 font-display tracking-tight">
-              The Presence
+              Last details
             </h1>
-            <p className="text-body mb-4 opacity-70 font-sans font-light">
-              Where does your light shine in this current moment?
+            <p className="text-body mb-4 text-white/70 font-sans">
+              Two quick choices. Where you live now sets your daily timings,
+              like Rahu Kaal, to your local sunrise.
             </p>
 
             {previewFailed && !preview && (
@@ -1083,13 +1117,13 @@ export default function Onboarding() {
             )}
             {preview && (
               <div className="mb-4 p-3 rounded-xl bg-gold/5 border border-gold/20">
-                <p className="text-[0.6875rem] text-gold uppercase tracking-widest font-bold mb-2">
-                  Quick Preview
+                <p className="text-sm text-gold font-semibold mb-1">
+                  Quick preview
                 </p>
                 <p className="text-sm text-white/70">
                   {/* The preview is the D1 chart: `ascendant` is the Lagna,
                       the Moon sign comes from the Moon's own position. */}
-                  Lagna:{" "}
+                  Rising sign (Lagna):{" "}
                   <span className="text-white font-medium">
                     {preview.timeUnknown || birthTimeUnknown
                       ? "needs an exact birth time"
@@ -1099,7 +1133,7 @@ export default function Onboarding() {
                   </span>
                   {previewMoonSign && (
                     <>
-                      {" · "}Moon:{" "}
+                      {" · "}Moon sign:{" "}
                       <span className="text-white font-medium">
                         {previewMoonSign}
                       </span>
@@ -1112,12 +1146,12 @@ export default function Onboarding() {
                     ` · ${preview.planets.length} planets analyzed`}
                 </p>
                 <p className="text-xs text-white/60 mt-1">
-                  Complete your profile for your full personalised reading
+                  Tap “See my chart” for your full Kundali and today's forecast.
                 </p>
               </div>
             )}
 
-            <div className="space-y-6">
+            <div className="space-y-5">
               <div>
                 <label
                   htmlFor="onboarding-zodiac-mode"
@@ -1136,7 +1170,7 @@ export default function Onboarding() {
                     setFormData(newData);
                     saveStepData(newData);
                   }}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 outline-none focus:border-gold/50 transition-colors text-lg font-sans font-light"
+                  className="platform-field text-white"
                 >
                   {ZODIAC_MODES.map((mode) => (
                     <option
@@ -1160,8 +1194,9 @@ export default function Onboarding() {
               </div>
 
               <LocationInput
-                label="Current Location"
-                placeholder="Enter city or coordinates"
+                size="field"
+                label="Where you live now"
+                placeholder="Your current city"
                 value={formData.currentLocation}
                 onChange={(val) => {
                   // Typing invalidates coordinates from an earlier pick.
@@ -1186,13 +1221,14 @@ export default function Onboarding() {
                 }}
                 icon={
                   <button
+                    type="button"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       getCurrentLocation();
                     }}
                     disabled={isLocating}
-                    className="p-2 text-gold/60 hover:text-gold transition-colors"
+                    className="-mr-2 inline-flex h-10 w-10 items-center justify-center text-gold/70 hover:text-gold transition-colors"
                     title="Get current location"
                     aria-label="Use my current location"
                   >
@@ -1216,31 +1252,30 @@ export default function Onboarding() {
         {/* Actions */}
         <div className="flex gap-3 mt-5">
           <button
+            type="button"
             disabled={isSaving}
             onClick={prevStep}
-            className="btn btn-outline py-3 flex-1 font-bold tracking-widest text-xs uppercase"
+            className="btn btn-outline min-h-11 py-3 flex-1 font-bold text-sm"
           >
             {/* Identity is the first step, so it cancels; upload returns to it. */}
             {step === "identity" ? "Cancel" : "Back"}
           </button>
           <button
+            type="button"
             disabled={isSaving}
+            aria-disabled={stepIncomplete || undefined}
+            aria-busy={isSaving || undefined}
             onClick={nextStep}
-            className={`btn btn-primary py-3 flex-[2] font-bold tracking-widest text-xs uppercase flex items-center justify-center gap-2 transition-all ${
-              (step === "identity" && (!formData.name || !formData.gender)) ||
-              (step === "temporal" &&
-                (!formData.dob || !formData.tob || Boolean(dobProblem))) ||
-              (step === "spatial" && !formData.pob)
-                ? "opacity-40 cursor-not-allowed grayscale"
-                : ""
+            className={`btn btn-primary min-h-11 py-3 flex-[2] font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+              stepIncomplete ? "opacity-40 cursor-not-allowed grayscale" : ""
             }`}
           >
             {isSaving ? (
-              <Loader2 className="animate-spin" size={20} />
+              <Loader2 className="animate-spin" size={20} aria-label="Saving" />
             ) : step === "present" ? (
               "See my chart"
             ) : (
-              "Next Step"
+              "Next"
             )}
           </button>
         </div>

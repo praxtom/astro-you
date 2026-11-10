@@ -53,10 +53,10 @@ export const TIERS: Record<SubscriptionTier, TierConfig> = {
     badge: "✦",
     // Every line here must match what the server actually does today.
     features: [
-      `${ENTITLEMENTS.free.limits.monthlyCredits} credits once, when you sign up`,
+      `${ENTITLEMENTS.free.limits.monthlyCredits} free credits once, when you sign up: enough for a few chat messages or a short guide session`,
       "Jyotish chat at 1 credit per message",
       "Free Kundali, Kundali matching and daily Panchang",
-      "Forecasts, reports and AI guide sessions open to you for credits",
+      "Pay with credits for forecasts, reports and guide sessions",
     ],
     limits: {
       credits: ENTITLEMENTS.free.limits.monthlyCredits,
@@ -79,7 +79,7 @@ export const TIERS: Record<SubscriptionTier, TierConfig> = {
       `${formatCredits(ENTITLEMENTS.premium.limits.monthlyCredits)} credits added each month you're billed`,
       `Unlimited Jyotish chat (fair use: ${PAID_CHAT_FAIR_USE_PER_DAY} messages a day)`,
       `About ${perCreditInr("premium")} per credit`,
-      "Spend credits on AI guide sessions, forecasts and PDF reports",
+      "Spend credits on guide sessions, forecasts and PDF reports",
     ],
     limits: {
       credits: ENTITLEMENTS.premium.limits.monthlyCredits,
@@ -101,7 +101,7 @@ export const TIERS: Record<SubscriptionTier, TierConfig> = {
       `${formatCredits(ENTITLEMENTS.pro.limits.monthlyCredits)} credits added each month you're billed`,
       `Unlimited Jyotish chat (fair use: ${PAID_CHAT_FAIR_USE_PER_DAY} messages a day)`,
       `About ${perCreditInr("pro")} per credit — the lowest rate`,
-      "Spend credits on AI guide sessions, forecasts and PDF reports",
+      "Spend credits on guide sessions, forecasts and PDF reports",
     ],
     limits: {
       credits: ENTITLEMENTS.pro.limits.monthlyCredits,

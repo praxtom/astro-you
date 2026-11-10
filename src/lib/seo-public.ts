@@ -28,8 +28,8 @@ export const PUBLIC_TOOL_PAGES = [
     { title: 'Explore eclipse information', body: 'Review eclipse information and traditional astrological themes. Personal impact depends on your own chart rather than your Sun sign alone.' },
     { title: 'Personal chart context', body: 'Complete your birth profile to explore affected houses and planets. Interpretations are for reflection and do not guarantee events.' },
   ] },
-  { path: '/trust', title: 'Trust, Reviews & AI Transparency', description: 'Read how AstroYou labels AI astrologers, moderates reviews, handles testimonials and reports prediction feedback.', sections: [
-    { title: 'AI disclosure', body: 'AI astrologers are labelled as AI. Human expert claims require identity and profile review.' },
+  { path: '/trust', title: 'Trust, Reviews & Transparency', description: 'Read how AstroYou discloses that its guides are not people, moderates reviews, handles testimonials and reports prediction feedback.', sections: [
+    { title: 'Who you are talking to', body: 'AstroYou\'s guides are not people, and every profile says so. Human expert claims require identity and profile review.' },
     { title: 'Reviews and testimonials', body: 'Reviews and opt-in testimonials are moderated before publication. Prediction feedback is shared in aggregate; testimonials are never invented.' },
   ] },
 ];
@@ -47,7 +47,7 @@ export const PUBLIC_PAGE_META = [
   // Reachable, but kept out of search: every guide on AstroYou is AI.
   { path: '/experts/apply', title: 'Apply as an Astrologer', description: 'Learn about applying as an astrologer on AstroYou and the profile review process.', noindex: true },
   { path: '/privacy', title: 'Privacy Policy', description: 'Read how AstroYou collects, uses and protects your account, birth details and guidance data.' },
-  { path: '/terms', title: 'Terms of Service', description: 'Read the terms for using AstroYou, including accounts, credits, AI guidance and service limits.' },
+  { path: '/terms', title: 'Terms of Service', description: 'Read the terms for using AstroYou, including accounts, credits, automated guidance and service limits.' },
   { path: '/refund-policy', title: 'Refund Policy', description: 'Read how AstroYou reviews failed payments, duplicate charges and requests involving credits, reports or consultations.' },
-  { path: '/disclaimer', title: 'Astrology and AI Disclaimer', description: 'Read the limits of astrology and AI guidance, including predictions, remedies and professional advice.' },
+  { path: '/disclaimer', title: 'Astrology and Guidance Disclaimer', description: 'Read the limits of astrology and automated guidance, including predictions, remedies and professional advice.' },
 ];

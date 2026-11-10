@@ -61,6 +61,20 @@ export default async (req: Request, _context: Context) => {
     if (!allowed) {
       return json({ error: "Too many uploads. Please try again later." }, 429);
     }
+    // Site-wide ceiling: every request runs paid Gemini Vision and the
+    // endpoint is open to guests, so per-IP limits alone do not bound spend.
+    const globalBudget = await checkRateLimit({
+      scope: "parse_kundali_global_day",
+      key: "all",
+      limit: 400,
+      windowMs: 24 * 60 * 60 * 1000,
+    });
+    if (!globalBudget.allowed) {
+      return json(
+        { error: "Chart upload is busy right now. Please enter your birth details instead." },
+        429,
+      );
+    }
 
     const body: ParseKundaliRequest = await req.json();
 

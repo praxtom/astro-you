@@ -32,11 +32,11 @@ const FAQS = [
   },
   {
     q: "What's the difference between Jyotish and The Circle?",
-    a: "Jyotish is your personal guide that remembers your chart, your conversations, and what you share over time. The Circle lets you sit with specialised guides (career, love, health, and more) at per-minute rates. Both are software guides, not human astrologers.",
+    a: "Jyotish is your personal guide that remembers your chart, your conversations, and what you share over time. The Circle lets you sit with specialised guides (career, love, health, and more) at per-minute rates. Neither is a human astrologer.",
   },
   {
     q: "Can real astrologers apply to join?",
-    a: "Yes. Use the Expert Network application page. Applications are stored for review and should not become public profiles until identity, credentials, sample guidance, pricing, and quality checks are complete.",
+    a: "Yes. Use the Expert Network application page. Applications are reviewed, and no profile goes public until identity, credentials, sample guidance, pricing, and quality checks are complete.",
   },
   {
     q: "How do I export my data?",
@@ -77,14 +77,14 @@ export default function Help() {
           className="text-center mb-12"
         >
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-white/60 text-sm mb-6">
-            <HelpCircle className="w-3.5 h-3.5 text-gold" />
+            <HelpCircle className="w-3.5 h-3.5 text-gold" aria-hidden="true" />
             Help Center
           </div>
           <h1 className="type-page-title mb-3">
             Frequently Asked Questions
           </h1>
-          <p className="text-white/50 text-lg">
-            Everything you need to know about AstroYou.
+          <p className="text-white/60 text-lg">
+            Accounts, credits, refunds, and your chart.
           </p>
         </motion.div>
 
@@ -97,31 +97,43 @@ export default function Help() {
         >
           {FAQS.map((faq, i) => {
             const isOpen = openIndex === i;
+            const panelId = `help-faq-${i}`;
             return (
               <div
                 key={i}
                 className="rounded-xl border border-white/10 bg-white/[0.03] overflow-hidden transition-colors hover:border-white/15"
               >
                 <button
+                  type="button"
                   onClick={() => setOpenIndex(isOpen ? null : i)}
                   aria-expanded={isOpen}
-                  className="w-full flex items-center justify-between px-5 py-4 text-left"
+                  aria-controls={panelId}
+                  className="w-full flex min-h-11 items-center justify-between px-5 py-4 text-left"
                 >
                   <span className="text-sm sm:text-base text-white/80 font-medium pr-4">
                     {faq.q}
                   </span>
                   <ChevronDown
+                    aria-hidden="true"
                     className={`w-5 h-5 text-white/50 flex-shrink-0 transition-transform duration-300 ${
                       isOpen ? "rotate-180" : ""
                     }`}
                   />
                 </button>
+                {/* grid-rows animates to the answer's real height, so long
+                    answers on narrow screens are never clipped. */}
                 <div
-                  className={`overflow-hidden transition-all duration-300 ${
-                    isOpen ? "max-h-60 opacity-100" : "max-h-0 opacity-0"
+                  id={panelId}
+                  inert={!isOpen}
+                  className={`grid transition-[grid-template-rows,opacity] duration-300 ${
+                    isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
                   }`}
                 >
-                  <p className="px-5 pb-4 text-sm text-white/50 leading-relaxed">{faq.a}</p>
+                  <div className="overflow-hidden">
+                    <p className="px-5 pb-4 text-sm text-white/65 leading-relaxed">
+                      {faq.a}
+                    </p>
+                  </div>
                 </div>
               </div>
             );
@@ -146,14 +158,14 @@ export default function Help() {
               to="/support"
               className="inline-flex min-h-11 items-center gap-2 px-5 py-2.5 rounded-xl bg-gold text-black font-bold hover:bg-gold/90 transition-all text-sm"
             >
-              <LifeBuoy className="w-4 h-4" />
+              <LifeBuoy className="w-4 h-4" aria-hidden="true" />
               Open support ticket
             </Link>
             <a
               href={`mailto:${SUPPORT_EMAIL}`}
               className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/15 px-5 text-sm font-semibold text-white/80 hover:text-white"
             >
-              <Mail className="w-4 h-4" />
+              <Mail className="w-4 h-4" aria-hidden="true" />
               {SUPPORT_EMAIL}
             </a>
           </div>

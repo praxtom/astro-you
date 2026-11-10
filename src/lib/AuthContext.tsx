@@ -161,6 +161,22 @@ async function initializeAccount(currentUser: User): Promise<void> {
               coordinates: parsed.coordinates ?? null,
               birthTimeUnknown: Boolean(parsed.birthTimeUnknown),
             } as Record<string, any>;
+            // Where the guest said they live now: without it the panchang
+            // falls back to the birth place after sign-in.
+            if (
+              typeof parsed.currentLocation === "string" &&
+              parsed.currentLocation.trim()
+            ) {
+              profile.currentLocation = parsed.currentLocation
+                .trim()
+                .slice(0, 200);
+            }
+            if (typeof parsed.timezone === "string" && parsed.timezone.trim()) {
+              profile.timezone = parsed.timezone.trim().slice(0, 64);
+            }
+            if (typeof parsed.zodiacMode === "string") {
+              profile.zodiacMode = normalizeZodiacMode(parsed.zodiacMode);
+            }
             // Sidereal signs, when the guest session already derived
             // them — validated, since storage is untrusted.
             const moonSign = storedSignName(parsed.moonSign);

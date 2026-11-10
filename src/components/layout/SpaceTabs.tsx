@@ -16,12 +16,14 @@ export const SpaceTabs: React.FC = () => {
 
   return (
     <div className="mb-8 animate-reveal-progressive">
-      <div className="flex items-baseline gap-4">
+      {/* The question line says what this space is for; phones see it too,
+          on its own line under the label. */}
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <p className="text-gold/80 text-[0.6875rem] font-bold uppercase tracking-[0.4em]">
           {space.label}
         </p>
-        <span className="hidden sm:block flex-1 h-px bg-linear-to-r from-gold/25 to-transparent" />
-        <p className="hidden md:block text-[0.8125rem] text-white/55 italic font-display">
+        <span className="hidden md:block flex-1 h-px bg-linear-to-r from-gold/25 to-transparent" />
+        <p className="basis-full md:basis-auto text-[0.8125rem] text-white/60 italic font-display">
           {space.question}
         </p>
       </div>

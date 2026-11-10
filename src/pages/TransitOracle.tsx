@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Compass,
-  Clock,
   Calendar as CalendarIcon,
   Sparkles,
   Eye,
@@ -16,6 +15,7 @@ import TransitPredictions from "../components/astrology/TransitPredictions";
 import TransitPositionsTable from "../components/astrology/TransitPositionsTable";
 import BirthProfileRequired from "../components/BirthProfileRequired";
 import { StatusNotice } from "../components/ui/StatusNotice";
+import { GlossaryTerm } from "../components/ui/GlossaryTerm";
 import { useTransit } from "../hooks/useTransit";
 import { useUserProfile } from "../hooks/useUserProfile";
 import { useSubscription } from "../hooks/useSubscription";
@@ -161,33 +161,28 @@ export default function TransitOracle() {
         {/* Title Section */}
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-4 gap-4">
           <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[0.6875rem] font-black uppercase tracking-[0.2em] mb-2">
-              <Clock size={12} /> Live Planetary Movements
-            </div>
             <h1 className="type-page-title mb-3">
-              Transit <span className="text-gold italic">Oracle</span>
+              Today's planets &amp; you{" "}
+              <span className="text-gold italic">(Gochar)</span>
             </h1>
-            <p className="text-base text-white/60 leading-relaxed font-light font-sans max-w-xl">
-              Observe the dance of the cosmos as planets move through your birth
-              houses in real-time. Understand the current celestial energies
-              shaping your path.
+            <p className="text-base text-white/65 leading-relaxed max-w-xl">
+              The planets keep moving. Where they are today, laid over where
+              they were when you were born, shows which parts of your life are
+              busy right now and what to lean into.
             </p>
           </div>
 
           <div className="glass p-4 rounded-2xl border border-white/10 flex flex-col gap-1.5 min-w-55">
             <div className="flex items-center gap-2 text-gold">
-              <CalendarIcon size={16} />
-              <span className="text-xs uppercase font-black tracking-widest">
-                Current Insight Date
+              <CalendarIcon size={16} aria-hidden="true" />
+              <span className="text-xs uppercase font-bold tracking-widest">
+                Today
               </span>
             </div>
             <div className="text-lg font-display tracking-wide">
               {formattedDate}
             </div>
-            <div className="mt-1 text-xs text-white/55 uppercase tracking-[0.2em]">
-              Updates Automatically
-            </div>
-            <div className="mt-1 text-xs text-white/55">
+            <div className="mt-1 text-xs text-white/60">
               Today's reading · {creditLabel(TRANSIT_COST)}, once per day
             </div>
           </div>
@@ -254,28 +249,32 @@ export default function TransitOracle() {
         ) : (
         <>
         {/* View Mode Toggle */}
-        <div className="flex gap-2 mb-4">
+        <div className="flex gap-2 mb-4" role="group" aria-label="Chart view">
           <button
+            type="button"
+            aria-pressed={viewMode === "visual"}
             onClick={() => setViewMode("visual")}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border transition-all duration-300 ${
+            className={`flex min-h-11 items-center gap-2 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border transition-all duration-300 ${
               viewMode === "visual"
                 ? "bg-gold/10 border-gold/50 text-gold"
                 : "bg-white/5 border-white/10 text-white/60 hover:text-white/80 hover:border-white/20"
             }`}
           >
-            <Eye size={14} />
+            <Eye size={14} aria-hidden="true" />
             Visual
           </button>
           <button
+            type="button"
+            aria-pressed={viewMode === "table"}
             onClick={() => setViewMode("table")}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border transition-all duration-300 ${
+            className={`flex min-h-11 items-center gap-2 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border transition-all duration-300 ${
               viewMode === "table"
                 ? "bg-gold/10 border-gold/50 text-gold"
                 : "bg-white/5 border-white/10 text-white/60 hover:text-white/80 hover:border-white/20"
             }`}
           >
-            <Table2 size={14} />
-            Data Table
+            <Table2 size={14} aria-hidden="true" />
+            Table
           </button>
         </div>
 
@@ -290,9 +289,14 @@ export default function TransitOracle() {
             {viewMode === "table" ? (
               /* ── Full Data Table View ── */
               <div className="glass rounded-2xl p-4 overflow-x-auto border border-white/10">
-                <h2 className="text-xs font-black uppercase tracking-[0.3em] text-gold/80 mb-5">
-                  Planetary Positions
+                <h2 className="text-xs font-black uppercase tracking-[0.3em] text-gold/80 mb-2">
+                  Where each planet is today
                 </h2>
+                <p className="mb-5 text-xs leading-relaxed text-white/60">
+                  Degree is the planet's spot inside its sign (0–30°).
+                  Backward (R, retrograde) planets tend to bring their themes
+                  back for review; speed is degrees moved per day.
+                </p>
                 {loading ? (
                   <div className="flex items-center justify-center py-6">
                     <Compass
@@ -319,8 +323,8 @@ export default function TransitOracle() {
                             <th className="text-left py-3 px-2">Planet</th>
                             <th className="text-left py-3 px-2">Sign</th>
                             <th className="text-right py-3 px-2">Degree</th>
-                            <th className="text-center py-3 px-2">Status</th>
-                            <th className="text-right py-3 px-2">Speed</th>
+                            <th className="text-center py-3 px-2">Motion</th>
+                            <th className="text-right py-3 px-2">°/day</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -364,11 +368,11 @@ export default function TransitOracle() {
                                 <td className="py-2.5 px-2 text-center">
                                   {retro ? (
                                     <span className="text-red-400 text-xs font-bold">
-                                      R
+                                      Backward (R)
                                     </span>
                                   ) : (
                                     <span className="text-emerald-400 text-xs">
-                                      D
+                                      Forward
                                     </span>
                                   )}
                                 </td>
@@ -396,11 +400,13 @@ export default function TransitOracle() {
                 <div className="relative z-10">
                   <div className="flex items-center ml-4 mt-4 justify-between">
                     <div>
-                      <h2 className="text-sm font-black tracking-[0.3em] text-white/60 mb-1">
-                        Spatial Distribution
+                      <h2 className="text-sm font-bold uppercase tracking-[0.2em] text-white/70 mb-1">
+                        Today's planets in your houses
                       </h2>
-                      <p className="text-xs text-white/55 italic">
-                        Lagna-centric House Mapping
+                      <p className="text-xs text-white/60">
+                        Each house is one area of life, counted from your{" "}
+                        <GlossaryTerm k="lagna">Lagna</GlossaryTerm> (rising
+                        sign). A planet in a house puts that area in focus.
                       </p>
                     </div>
                   </div>
@@ -435,21 +441,22 @@ export default function TransitOracle() {
             {/* Educational Section */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="glass p-4 rounded-2xl border border-white/5 space-y-2">
-                <h3 className="text-sm font-black uppercase tracking-widest text-white/80">
-                  House Transits
+                <h3 className="text-sm font-semibold text-white/85">
+                  What a house means
                 </h3>
-                <p className="text-xs text-white/60 leading-relaxed font-sans font-light">
-                  Planets entering a house illuminate specific areas of your
-                  life—from identity in the 1st to career in the 10th.
+                <p className="text-sm text-white/65 leading-relaxed">
+                  A planet moving through a house brings its themes to that
+                  part of life, from self in the 1st to career in the 10th.
                 </p>
               </div>
               <div className="glass p-4 rounded-2xl border border-white/5 space-y-2">
-                <h3 className="text-sm font-black uppercase tracking-widest text-white/80">
-                  Aspect Geometry
+                <h3 className="text-sm font-semibold text-white/85">
+                  What an aspect means
                 </h3>
-                <p className="text-xs text-white/60 leading-relaxed font-sans font-light">
-                  The angles between moving planets and your natal points create
-                  temporary energy flows that manifest as events.
+                <p className="text-sm text-white/65 leading-relaxed">
+                  An angle between a planet today and one in your birth chart.
+                  The closer to exact (the smaller the orb, in degrees), the
+                  more you feel it; each one passes in days to weeks.
                 </p>
               </div>
             </div>
@@ -460,14 +467,12 @@ export default function TransitOracle() {
             {/* Gemini Summary Section */}
             <div className="flex flex-col gap-4">
               <h2 className="text-sm font-black uppercase tracking-[0.3em] text-gold/80 mb-2 px-2 flex items-center gap-2">
-                <Sparkles size={14} className="text-gold" /> Cosmic Summary
+                <Sparkles size={14} className="text-gold" aria-hidden="true" />{" "}
+                What today means for you
               </h2>
 
               <div className="glass p-4 rounded-2xl border border-gold/20 bg-gold/5 relative overflow-hidden group">
                 {/* Background Decoration */}
-                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                  <Sparkles size={60} className="text-gold" />
-                </div>
 
                 <div className="relative z-10">
                   <AnimatePresence mode="wait">
@@ -489,15 +494,15 @@ export default function TransitOracle() {
                         animate={{ opacity: 1, y: 0 }}
                         className="space-y-4"
                       >
-                        <p className="text-lg font-sans font-light leading-relaxed text-white/90 italic">
-                          "{aiSummary}"
+                        <p className="max-w-[65ch] text-base leading-relaxed text-white/85">
+                          {aiSummary}
                         </p>
                         <div className="flex items-center gap-2 pt-2 border-t border-white/5">
                           <div className="w-6 h-6 rounded-full bg-gold/20 flex items-center justify-center">
                             <Sparkles size={12} className="text-gold" />
                           </div>
                           <span className="text-xs font-black uppercase tracking-[0.2em] text-gold/80">
-                            Oracle Insight
+                            Transit reading
                           </span>
                         </div>
                       </motion.div>
@@ -530,11 +535,19 @@ export default function TransitOracle() {
             </div>
 
             <div className="flex flex-col gap-4">
-              <h2 className="text-sm font-black uppercase tracking-[0.3em] text-white/60 mb-2 px-2">
-                Transit Analysis
-              </h2>
+              <div className="mb-2 px-2">
+                <h2 className="text-sm font-black uppercase tracking-[0.3em] text-white/60">
+                  Planet by planet
+                </h2>
+                <p className="mt-1 text-xs text-white/55">
+                  Each active link between today's sky and your chart, and how
+                  it may show up.
+                </p>
+              </div>
 
-              <div className="overflow-y-auto max-h-[755px] pr-2 custom-scrollbar">
+              {/* Its own scroll area only beside the chart on wide screens;
+                  on a phone a nested scroller traps the page scroll. */}
+              <div className="lg:overflow-y-auto lg:max-h-[755px] lg:pr-2 custom-scrollbar">
                 <TransitPredictions
                   predictions={predictions || []}
                   fallbackAspects={data?.chart_data?.aspects}

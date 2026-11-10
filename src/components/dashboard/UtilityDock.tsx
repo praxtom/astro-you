@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Download, Gift, Settings, Share2, Sparkles } from "lucide-react";
 import { useAuth } from "../../lib/useAuth";
 import { useReferralInfo } from "../../hooks/useReferralInfo";
+import { TileHead } from "./WeatherTiles";
 
 interface UtilityDockProps {
   /** Still accepted by callers; the dock itself no longer reads it. */
@@ -56,22 +57,22 @@ export const UtilityDock: React.FC<UtilityDockProps> = ({
   };
 
   const linkClass =
-    "flex items-center gap-2.5 text-sm text-white/55 hover:text-gold transition-colors disabled:opacity-50 text-left";
+    "flex min-h-11 items-center gap-2.5 text-sm text-white/65 hover:text-gold transition-colors disabled:opacity-50 text-left";
 
   return (
     <section className="animate-reveal-progressive">
-      <p className="text-[0.6875rem] font-bold uppercase tracking-[0.3em] text-white/50 mb-4">
-        Keep & Share
-      </p>
+      <TileHead icon={<Share2 />}>Keep and share</TileHead>
 
-      <div className="flex flex-col gap-2.5 px-1">
-        <button onClick={onUpdateBirthData} className={linkClass}>
+      {/* The tile spans the full row, so the links fill columns rather than
+          one narrow list down the left edge. */}
+      <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2 lg:grid-cols-3">
+        <button type="button" onClick={onUpdateBirthData} className={linkClass}>
           <Settings size={14} />
           Update Birth Data
         </button>
 
         {user && (
-          <button onClick={onOpenAltar} className={linkClass}>
+          <button type="button" onClick={onOpenAltar} className={linkClass}>
             <Sparkles size={14} />
             Daily Altar
           </button>
@@ -79,6 +80,7 @@ export const UtilityDock: React.FC<UtilityDockProps> = ({
 
         {hasBirthData && (
           <button
+            type="button"
             onClick={onDownloadNatalReport}
             disabled={downloadingNatal}
             className={linkClass}
@@ -91,22 +93,30 @@ export const UtilityDock: React.FC<UtilityDockProps> = ({
         )}
 
         {user && (
-          <button onClick={() => navigate("/reports")} className={linkClass}>
+          <button type="button" onClick={() => navigate("/reports")} className={linkClass}>
             <Download size={14} />
             My Reports
           </button>
         )}
 
         {hasBirthData && (
-          <button onClick={onShareChart} className={linkClass}>
+          <button type="button" onClick={onShareChart} className={linkClass}>
             <Share2 size={14} />
             Share My Chart
           </button>
         )}
 
+        {user && (
+          <button type="button" onClick={exportData} className={linkClass}>
+            <Download size={14} />
+            Export My Data
+          </button>
+        )}
+
         {user && referral.link && (
-          <div className="mt-1 rounded-xl border border-gold/15 bg-gold/4 p-3.5">
+          <div className="mt-2 rounded-xl border border-gold/15 bg-gold/4 p-3.5 sm:col-span-2 lg:col-span-3">
             <button
+              type="button"
               onClick={() => {
                 navigator.clipboard.writeText(referral.link);
                 setReferralCopied(true);
@@ -132,12 +142,6 @@ export const UtilityDock: React.FC<UtilityDockProps> = ({
           </div>
         )}
 
-        {user && (
-          <button onClick={exportData} className={linkClass}>
-            <Download size={14} />
-            Export My Data
-          </button>
-        )}
       </div>
     </section>
   );

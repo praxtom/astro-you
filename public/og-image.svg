@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
   <title id="title">AstroYou social preview</title>
-  <desc id="desc">AstroYou Vedic astrology, Kundali, Panchang, compatibility, and AI Jyotish guidance.</desc>
+  <desc id="desc">AstroYou Vedic astrology, Kundali, Panchang, compatibility, and Jyotish guidance.</desc>
   <rect width="1200" height="630" fill="#030308"/>
   <g opacity="0.75">
     <circle cx="184" cy="140" r="2" fill="#f2c66d"/>
@@ -21,7 +21,7 @@
     <text x="0" y="0" fill="#f4efe5" font-family="Inter, Arial, sans-serif" font-size="86" font-weight="700">AstroYou</text>
     <text x="4" y="70" fill="#e5b96a" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="700" letter-spacing="6">VEDIC ASTROLOGY COMPANION</text>
     <text x="4" y="136" fill="#d8d3ca" font-family="Inter, Arial, sans-serif" font-size="34">Free Kundali, Panchang, Matching,</text>
-    <text x="4" y="184" fill="#d8d3ca" font-family="Inter, Arial, sans-serif" font-size="34">and AI Jyotish guidance.</text>
+    <text x="4" y="184" fill="#d8d3ca" font-family="Inter, Arial, sans-serif" font-size="34">and Jyotish guidance.</text>
   </g>
   <path d="M0 590 C220 550 384 610 600 578 C824 544 982 566 1200 516 L1200 630 L0 630 Z" fill="#17110a"/>
   <path d="M0 590 C220 550 384 610 600 578 C824 544 982 566 1200 516" fill="none" stroke="#e5b96a" stroke-opacity="0.5" stroke-width="2"/>

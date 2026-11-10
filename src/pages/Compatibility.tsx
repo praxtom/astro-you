@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
 import AuthModal from "../components/AuthModal";
 import { postJson } from "../lib/apiFetch";
 import {
@@ -36,7 +35,15 @@ import {
   postPdfReport,
   REPORT_IN_PROGRESS_MESSAGE,
 } from "../lib/report-products";
+import { REPORT_PRICING } from "../lib/report-pricing";
 import { GlossaryTerm } from "../components/ui/GlossaryTerm";
+import { StatusNotice } from "../components/ui/StatusNotice";
+import {
+  gunaVerdict,
+  kootaMeaning,
+  GUNA_TONE_TEXT_CLASS,
+  type GunaTone,
+} from "../lib/guna-verdict";
 
 interface LoveInfluence {
   sign: string;
@@ -389,7 +396,13 @@ export default function Compatibility() {
           `Compatibility failed: ${response.status} ${data?.error ?? ""}`,
         );
       }
-      setTimeAssumed(!birthData.tob);
+      // Unknown birth times are saved as "12:00" with a flag, so an empty
+      // tob alone never catches them.
+      setTimeAssumed(
+        !birthData.tob ||
+          (birthData as { birthTimeUnknown?: boolean }).birthTimeUnknown ===
+            true,
+      );
       setMatchResult(data);
     } catch (err: any) {
       console.error("Compatibility match failed:", err);
@@ -467,6 +480,13 @@ export default function Compatibility() {
     }
   };
 
+  const connectionTips = [
+    ...(matchResult?.love_languages?.person1?.compatibility_tips || []),
+    ...(matchResult?.love_languages?.person2?.compatibility_tips || []),
+  ].slice(0, 6);
+  const showLeftColumn =
+    hasDynamics(matchResult?.dynamics) || connectionTips.length > 0;
+
   return (
     <PageShell wide>
       <div>
@@ -476,19 +496,22 @@ export default function Compatibility() {
             Relationship Insights
           </div>
           <h1 className="type-page-title mb-3">
-            Celestial <span className="text-gold italic">Synchronicity</span>
+            Kundali <span className="text-gold italic">Milan</span>
           </h1>
           <p className="text-white/60 font-sans text-base font-light max-w-2xl mx-auto italic">
-            A professional-grade synthesis of Synastry and Composite dynamics to
-            reveal the soul-level blueprint of your connection.
+            Compare your birth chart with a partner&rsquo;s: the traditional{" "}
+            <GlossaryTerm k="guna-milan">Guna Milan</GlossaryTerm> score out of
+            36, a <GlossaryTerm k="manglik">Manglik</GlossaryTerm> check, and how
+            your two charts fit together.
           </p>
           {user && (
             <button
+              type="button"
               onClick={() => openCircle()}
               className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-widest text-white/60 transition hover:border-gold/30 hover:text-gold"
             >
               <Users size={14} />
-              Your Inner Circle
+              Saved people
               {atmanState?.keyRelationships?.length ? (
                 <span className="text-white/50">
                   ({atmanState.keyRelationships.length})
@@ -620,33 +643,33 @@ export default function Compatibility() {
 
               {!profileLoading && !user && (
                 <p className="text-sm text-white/60">
-                  Sign in to run a match. Your own birth chart is the other
-                  half of the comparison.
+                  Sign in to run a match. Your own birth chart is the other half
+                  of the comparison.
                 </p>
               )}
 
               {needsProfile && (
-                <div role="alert" className="p-4 rounded-xl bg-white/5 border border-white/10 text-sm text-white/75">
-                  Add your own birth details first — a match compares your
-                  chart with your partner's.{" "}
-                  <Link to="/onboarding" className="font-bold text-gold underline-offset-4 hover:underline">
-                    Create your birth profile
-                  </Link>
-                </div>
+                <StatusNotice
+                  tone="info"
+                  size="section"
+                  message="Add your own birth details first. A match compares your chart with your partner's."
+                  action={{
+                    label: "Create your birth profile",
+                    to: "/onboarding",
+                  }}
+                />
               )}
 
               {error && (
-                <div role="alert" className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-200 text-sm animate-shake">
-                  {error}
-                  {needsCredits && (
-                    <>
-                      {" "}
-                      <Link to="/wallet" className="font-bold text-gold underline-offset-4 hover:underline">
-                        Open wallet
-                      </Link>
-                    </>
-                  )}
-                </div>
+                <StatusNotice
+                  size="section"
+                  message={error}
+                  action={
+                    needsCredits
+                      ? { label: "Open wallet", to: "/wallet" }
+                      : undefined
+                  }
+                />
               )}
 
               <button
@@ -666,7 +689,7 @@ export default function Compatibility() {
                 {isMatching ? (
                   <span className="flex items-center justify-center gap-3 relative z-10">
                     <div className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin"></div>
-                    Synthesizing Charts...
+                    Matching charts…
                   </span>
                 ) : (
                   <span className="flex items-center justify-center gap-2 relative z-10">
@@ -686,24 +709,30 @@ export default function Compatibility() {
           <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-1000">
             {/* Master Score Display */}
             <div className="text-center relative">
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gold/5 blur-[120px] rounded-full pointer-events-none" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 md:w-96 md:h-96 bg-gold/5 blur-[120px] rounded-full pointer-events-none" />
 
               <div className="relative inline-block">
-                <svg className="w-64 h-64 md:w-80 md:h-80 transform -rotate-90">
+                {/* viewBox keeps the 283-unit dash (2π·45) in step with the
+                    circle at any rendered size. */}
+                <svg
+                  viewBox="0 0 100 100"
+                  aria-hidden="true"
+                  className="w-52 h-52 md:w-64 md:h-64 transform -rotate-90"
+                >
                   <circle
-                    cx="50%"
-                    cy="50%"
-                    r="45%"
+                    cx="50"
+                    cy="50"
+                    r="45"
                     className="stroke-white/5"
-                    strokeWidth="4"
+                    strokeWidth="2"
                     fill="transparent"
                   />
                   <circle
-                    cx="50%"
-                    cy="50%"
-                    r="45%"
+                    cx="50"
+                    cy="50"
+                    r="45"
                     className="stroke-gold"
-                    strokeWidth="4"
+                    strokeWidth="2"
                     fill="transparent"
                     strokeDasharray="283"
                     strokeDashoffset={
@@ -713,76 +742,97 @@ export default function Compatibility() {
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <div className="text-7xl md:text-8xl font-display font-bold text-white tracking-tighter">
+                  <div className="text-6xl md:text-7xl font-display font-bold text-white tracking-tighter">
                     {matchResult.overall_score}%
                   </div>
-                  <div className="text-gold/40 uppercase tracking-[0.4em] text-[0.6875rem] font-black mt-2">
-                    Harmony Index
+                  <div className="text-gold/75 uppercase tracking-[0.3em] text-[0.6875rem] font-black mt-2">
+                    Overall match
                   </div>
                 </div>
               </div>
-              <button
-                onClick={() => {
-                  const score =
-                    matchResult.overall_score ||
-                    matchResult.compatibility_score ||
-                    0;
-                  // A low number shared out of context reads like a verdict
-                  // on the relationship, so only strong scores carry it.
-                  const text =
-                    score >= SHAREABLE_SCORE
-                      ? `Our compatibility score: ${score}%! ✨ Check yours on AstroYou`
-                      : "We just explored our compatibility on AstroYou ✨ Check yours";
-                  const url = `${window.location.origin}/free-kundali-matching`;
-                  if (navigator.share) {
-                    navigator.share({
-                      title: "AstroYou Compatibility",
-                      text,
-                      url,
-                    });
-                  } else {
-                    window.open(
-                      `https://wa.me/?text=${encodeURIComponent(text + "\n" + url)}`,
-                      "_blank",
-                    );
-                  }
-                }}
-                className="mt-4 p-2 rounded-xl border border-white/10 text-white/55 hover:text-gold hover:border-gold/30 transition-all inline-flex items-center gap-1.5"
-                title="Share result"
-              >
-                <Share2 size={16} />
-                <span className="text-xs uppercase tracking-widest">Share</span>
-              </button>
-              {user && partnerData.name.trim() && !partnerAlreadyInCircle && (
+              <p className="mx-auto mt-3 max-w-md text-xs leading-relaxed text-white/55">
+                Out of 100. It blends the four areas below. The traditional
+                Guna Milan score, out of 36, follows further down.
+              </p>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                 <button
-                  onClick={() =>
-                    openCircle({
-                      name: partnerData.name.trim(),
-                      relation: "partner",
-                      dynamic: "supportive",
-                    })
-                  }
-                  className="mt-3 ml-2 p-2 rounded-xl border border-white/10 text-white/60 hover:text-gold hover:border-gold/30 transition-all inline-flex items-center gap-1.5"
+                  type="button"
+                  onClick={() => {
+                    const score =
+                      matchResult.overall_score ||
+                      matchResult.compatibility_score ||
+                      0;
+                    // A low number shared out of context reads like a verdict
+                    // on the relationship, so only strong scores carry it.
+                    const text =
+                      score >= SHAREABLE_SCORE
+                        ? `Our compatibility score: ${score}%! ✨ Check yours on AstroYou`
+                        : "We just explored our compatibility on AstroYou ✨ Check yours";
+                    const url = `${window.location.origin}/free-kundali-matching`;
+                    if (navigator.share) {
+                      navigator.share({
+                        title: "AstroYou Compatibility",
+                        text,
+                        url,
+                      });
+                    } else {
+                      window.open(
+                        `https://wa.me/?text=${encodeURIComponent(text + "\n" + url)}`,
+                        "_blank",
+                      );
+                    }
+                  }}
+                  className="min-h-11 px-3 py-2 rounded-xl border border-white/10 text-white/60 hover:text-gold hover:border-gold/30 transition-all inline-flex items-center gap-1.5"
                 >
-                  <UserPlus size={16} />
+                  <Share2 size={16} aria-hidden="true" />
                   <span className="text-xs uppercase tracking-widest">
-                    Save {partnerData.name.trim().split(/\s+/)[0]} to your
-                    circle
+                    Share
                   </span>
                 </button>
-              )}
-              {user && (
-                <button
-                  onClick={downloadCompatibilityReport}
-                  disabled={isDownloadingReport}
-                  className="mt-3 p-2 rounded-xl border border-gold/20 text-gold hover:bg-gold/10 transition-all inline-flex items-center gap-1.5 disabled:opacity-50"
-                  title="Download paid report"
-                >
-                  <Download size={16} />
-                  <span className="text-xs uppercase tracking-widest">
-                    {isDownloadingReport ? "Generating" : "PDF Report"}
-                  </span>
-                </button>
+                {user && partnerData.name.trim() && !partnerAlreadyInCircle && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openCircle({
+                        name: partnerData.name.trim(),
+                        relation: "partner",
+                        dynamic: "supportive",
+                      })
+                    }
+                    className="min-h-11 px-3 py-2 rounded-xl border border-white/10 text-white/60 hover:text-gold hover:border-gold/30 transition-all inline-flex items-center gap-1.5"
+                  >
+                    <UserPlus size={16} aria-hidden="true" />
+                    <span className="text-xs uppercase tracking-widest">
+                      Save {partnerData.name.trim().split(/\s+/)[0]} to your
+                      circle
+                    </span>
+                  </button>
+                )}
+                {user && (
+                  <button
+                    type="button"
+                    onClick={downloadCompatibilityReport}
+                    disabled={isDownloadingReport}
+                    className="min-h-11 px-3 py-2 rounded-xl border border-gold/20 text-gold hover:bg-gold/10 transition-all inline-flex items-center gap-1.5 disabled:opacity-50"
+                    title={`A detailed PDF of this match. Uses ${REPORT_PRICING.compatibility.creditCost} credits.`}
+                  >
+                    <Download size={16} aria-hidden="true" />
+                    <span className="text-xs uppercase tracking-widest">
+                      {isDownloadingReport
+                        ? "Generating"
+                        : `PDF report · ${REPORT_PRICING.compatibility.creditCost} credits`}
+                    </span>
+                  </button>
+                )}
+              </div>
+              {/* The form (and its error slot) is gone once a result shows,
+                  so report failures need their own slot here. */}
+              {error && (
+                <StatusNotice
+                  size="section"
+                  message={error}
+                  className="mx-auto mt-4 max-w-xl text-left"
+                />
               )}
             </div>
 
@@ -793,33 +843,15 @@ export default function Compatibility() {
                   matchResult.vedicMatching.total_score ??
                   matchResult.vedicMatching.score ??
                   0;
-                const { color } = getGunaQuality(score);
+                const { color, tone } = getGunaQuality(score);
                 return (
                   <p
                     className={`text-sm font-medium mt-2 text-center ${color}`}
                   >
-                    {score >= 32
-                      ? "Strong long-term compatibility"
-                      : score >= 24
-                        ? "Good compatibility overall"
-                        : score >= 18
-                          ? "Workable, with some friction to navigate"
-                          : "Needs care — worth talking through together or with a guide"}
+                    {GUNA_TONE_SUMMARY[tone]}
                   </p>
                 );
               })()}
-
-            {/* AI Narrative Interpretation */}
-            {matchResult.aiNarrative && (
-              <div className="mb-6 p-5 rounded-2xl bg-gradient-to-br from-gold/5 to-purple-500/5 border border-gold/10">
-                <h3 className="font-display text-sm uppercase tracking-[0.3em] text-gold/60 mb-4">
-                  Jyotish's Insight
-                </h3>
-                <p className="text-sm md:text-base font-sans font-light leading-relaxed text-white/80 whitespace-pre-line">
-                  {matchResult.aiNarrative}
-                </p>
-              </div>
-            )}
 
             {/* Synastry Scores Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
@@ -880,175 +912,207 @@ export default function Compatibility() {
             {timeAssumed && (
               <p className="text-xs text-white/50 text-center -mt-2">
                 Your birth time isn&rsquo;t saved, so we used 12:00 noon. The
-                Moon can change nakshatra within a day, which can move the
-                Guna score. Add your birth time in Settings for an exact match.
+                Moon can change nakshatra within a day, which can move the Guna
+                score. Add your birth time in Settings for an exact match.
               </p>
             )}
             {matchResult.vedicMatching && matchResult.orientationAssumed && (
               <p className="text-xs text-white/55 text-center -mt-2">
-                Traditional Ashtakoot matching assumes a bride and groom; we
-                used the order you entered.
+                Traditional Guna Milan assumes a bride and groom; we used the
+                order you entered.
               </p>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left Column: Dynamics and Growth Kit */}
-              <div className="lg:col-span-1 space-y-6">
-                <section className="glass p-5 md:p-6 rounded-[2rem] border-white/5">
-                  <h3 className="text-sm font-black uppercase tracking-widest text-gold/60 mb-5 flex items-center gap-2">
-                    Relationship Dynamics
-                  </h3>
-                  <div className="space-y-5">
-                    <DynamicItem
-                      label="Power Balance"
-                      value={matchResult.dynamics?.power_dynamics?.balance}
-                      interpretation={
-                        matchResult.dynamics?.power_dynamics?.interpretation
-                      }
-                    />
-                    <DynamicItem
-                      label="Emotional Bond"
-                      value={
-                        matchResult.dynamics?.emotional_connection?.strength
-                      }
-                      interpretation={
-                        matchResult.dynamics?.emotional_connection
-                          ?.interpretation
-                      }
-                    />
-                    <DynamicItem
-                      label="Communication"
-                      value={matchResult.dynamics?.communication_style?.style}
-                      interpretation={
-                        matchResult.dynamics?.communication_style
-                          ?.interpretation
-                      }
-                    />
-                    <DynamicItem
-                      label="Future Outlook"
-                      value={
-                        matchResult.dynamics?.long_term_potential?.potential
-                      }
-                      interpretation={
-                        matchResult.dynamics?.long_term_potential
-                          ?.interpretation
-                      }
-                    />
-                  </div>
-                </section>
+            {/* Narrative reading: after the scores, so long prose never
+                pushes the Guna Milan result below the fold. */}
+            {matchResult.aiNarrative && (
+              <section className="mx-auto max-w-3xl p-5 md:p-6 rounded-2xl bg-white/[0.03] border border-gold/15">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-gold/80 mb-3">
+                  Jyotish&rsquo;s reading of this match
+                </h3>
+                <p className="max-w-[65ch] text-[15px] md:text-base leading-relaxed text-white/80 whitespace-pre-line">
+                  {matchResult.aiNarrative}
+                </p>
+              </section>
+            )}
 
-                {/* Growth Kit (Compatibility Tips) */}
-                {(matchResult.love_languages?.person1?.compatibility_tips ||
-                  matchResult.love_languages?.person2?.compatibility_tips) && (
-                  <section className="glass p-5 md:p-6 rounded-[2rem] border border-gold/10 bg-gold/[0.02]">
-                    <h3 className="text-sm font-black uppercase tracking-widest text-gold mb-5 flex items-center gap-2">
-                      Connection Kit
-                    </h3>
-                    <ul className="space-y-3">
-                      {[
-                        ...(matchResult.love_languages.person1
-                          ?.compatibility_tips || []),
-                        ...(matchResult.love_languages.person2
-                          ?.compatibility_tips || []),
-                      ]
-                        .slice(0, 6)
-                        .map((tip, i) => (
+            <div
+              className={`grid grid-cols-1 gap-6 ${showLeftColumn ? "lg:grid-cols-3" : ""}`}
+            >
+              {/* Left Column: Dynamics and Growth Kit. Skipped when empty so
+                  the right column takes the full width instead of leaving a
+                  dead third. */}
+              {showLeftColumn && (
+                <div className="lg:col-span-1 space-y-6">
+                  {hasDynamics(matchResult.dynamics) && (
+                    <section className="glass p-5 md:p-6 rounded-[2rem] border-white/5">
+                      <h3 className="text-sm font-black uppercase tracking-widest text-gold/75 mb-5 flex items-center gap-2">
+                        Relationship Dynamics
+                      </h3>
+                      <div className="space-y-5">
+                        <DynamicItem
+                          label="Power Balance"
+                          value={matchResult.dynamics?.power_dynamics?.balance}
+                          interpretation={
+                            matchResult.dynamics?.power_dynamics?.interpretation
+                          }
+                        />
+                        <DynamicItem
+                          label="Emotional Bond"
+                          value={
+                            matchResult.dynamics?.emotional_connection?.strength
+                          }
+                          interpretation={
+                            matchResult.dynamics?.emotional_connection
+                              ?.interpretation
+                          }
+                        />
+                        <DynamicItem
+                          label="Communication"
+                          value={
+                            matchResult.dynamics?.communication_style?.style
+                          }
+                          interpretation={
+                            matchResult.dynamics?.communication_style
+                              ?.interpretation
+                          }
+                        />
+                        <DynamicItem
+                          label="Future Outlook"
+                          value={
+                            matchResult.dynamics?.long_term_potential?.potential
+                          }
+                          interpretation={
+                            matchResult.dynamics?.long_term_potential
+                              ?.interpretation
+                          }
+                        />
+                      </div>
+                    </section>
+                  )}
+
+                  {/* Growth Kit (Compatibility Tips) */}
+                  {connectionTips.length > 0 && (
+                    <section className="glass p-5 md:p-6 rounded-[2rem] border border-gold/10 bg-gold/[0.02]">
+                      <h3 className="text-sm font-black uppercase tracking-widest text-gold mb-5 flex items-center gap-2">
+                        Tips for the two of you
+                      </h3>
+                      <ul className="space-y-3">
+                        {connectionTips.map((tip, i) => (
                           <li
                             key={i}
-                            className="flex gap-4 text-xs text-white/70 font-light italic leading-relaxed group/tip"
+                            className="flex gap-3 text-sm text-white/75 leading-relaxed"
                           >
-                            <span className="text-gold group-hover/tip:scale-125 transition-transform shrink-0">
+                            <span
+                              aria-hidden="true"
+                              className="text-gold shrink-0"
+                            >
                               ✦
                             </span>
                             {tip}
                           </li>
                         ))}
-                    </ul>
-                  </section>
-                )}
-              </div>
-
-              {/* Middle Column: Love Blueprints and Synastry Aspects */}
-              <div className="lg:col-span-2 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <LoveLanguageCard
-                    label={birthData?.name || "Member 1"}
-                    lang={matchResult.love_languages?.person1}
-                    isUser={true}
-                  />
-                  <LoveLanguageCard
-                    label={partnerData.name || "Member 2"}
-                    lang={matchResult.love_languages?.person2}
-                    isUser={false}
-                  />
+                      </ul>
+                    </section>
+                  )}
                 </div>
+              )}
 
-                <section className="glass p-5 md:p-6 rounded-[2rem] border-white/5">
-                  <h3 className="text-sm font-black uppercase tracking-widest text-white/55 mb-5 flex items-center gap-2">
-                    Celestial Aspects
-                  </h3>
-                  <div className="grid grid-cols-1 gap-4">
-                    {(matchResult.sections?.[0]?.interpretations || []).map(
-                      (aspect, i) => (
-                        <div
-                          key={i}
-                          className="bg-white/[0.02] border border-white/5 rounded-3xl p-5 group hover:border-gold/20 hover:bg-white/[0.04] transition-all"
-                        >
-                          <div className="text-[0.6875rem] text-gold/60 font-black uppercase tracking-widest mb-2 group-hover:text-gold transition-colors">
-                            {aspect.factor}
-                          </div>
-                          <div className="text-sm text-white/60 font-light leading-relaxed font-sans">
-                            {aspect.text}
-                          </div>
-                        </div>
-                      ),
-                    )}
-                    {!matchResult.sections?.[0]?.interpretations &&
-                      matchResult.synastry?.key_aspects &&
-                      matchResult.synastry.key_aspects.map((aspect, i) => {
-                        const [title, desc] = aspect.split(": ");
-                        return (
+              {/* Right Column: Love Blueprints, Synastry Aspects, Composite */}
+              <div
+                className={`space-y-6 ${showLeftColumn ? "lg:col-span-2" : ""}`}
+              >
+                {(matchResult.love_languages?.person1 ||
+                  matchResult.love_languages?.person2) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <LoveLanguageCard
+                      label={birthData?.name || "Member 1"}
+                      lang={matchResult.love_languages?.person1}
+                      isUser={true}
+                    />
+                    <LoveLanguageCard
+                      label={partnerData.name || "Member 2"}
+                      lang={matchResult.love_languages?.person2}
+                      isUser={false}
+                    />
+                  </div>
+                )}
+
+                {Boolean(
+                  matchResult.sections?.[0]?.interpretations?.length ||
+                  matchResult.synastry?.key_aspects?.length,
+                ) && (
+                  <section className="glass p-5 md:p-6 rounded-[2rem] border-white/5">
+                    <h3 className="text-sm font-black uppercase tracking-widest text-white/60 mb-5 flex items-center gap-2">
+                      How your planets interact
+                    </h3>
+                    <div className="grid grid-cols-1 gap-3">
+                      {(matchResult.sections?.[0]?.interpretations || []).map(
+                        (aspect, i) => (
                           <div
                             key={i}
-                            className="bg-white/5 border border-white/10 rounded-2xl p-4 transition-all"
+                            className="border-b border-white/5 pb-3 last:border-0 last:pb-0"
                           >
-                            <div className="text-[0.6875rem] text-gold/80 font-bold uppercase mb-1">
-                              {title.replace(/_/g, " ")}
+                            <div className="text-[0.6875rem] text-gold/80 font-black uppercase tracking-widest mb-1.5">
+                              {aspect.factor}
                             </div>
-                            <div className="text-sm text-white/60 font-light">
-                              {desc}
+                            <div className="max-w-[65ch] text-sm text-white/70 leading-relaxed">
+                              {aspect.text}
                             </div>
                           </div>
-                        );
-                      })}
-                  </div>
-                </section>
+                        ),
+                      )}
+                      {!matchResult.sections?.[0]?.interpretations &&
+                        matchResult.synastry?.key_aspects &&
+                        matchResult.synastry.key_aspects.map((aspect, i) => {
+                          const [title, desc] = aspect.split(": ");
+                          return (
+                            <div
+                              key={i}
+                              className="border-b border-white/5 pb-3 last:border-0 last:pb-0"
+                            >
+                              <div className="text-[0.6875rem] text-gold/80 font-bold uppercase tracking-widest mb-1">
+                                {title.replace(/_/g, " ")}
+                              </div>
+                              <div className="max-w-[65ch] text-sm text-white/70">
+                                {desc}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </section>
+                )}
 
                 {/* Composite Insights */}
-                <section className="glass p-5 md:p-6 rounded-[2rem] border-white/5 relative overflow-hidden shadow-2xl">
-                  <div className="absolute top-0 right-0 p-6 text-white/5 pointer-events-none">
-                    <Heart size={150} />
-                  </div>
-                  <div className="relative z-10">
-                    <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gold/40 mb-5">
-                      Composite Soul
+                {Boolean(
+                  matchResult.composite?.relationship_purpose ||
+                  matchResult.composite?.strengths?.length ||
+                  matchResult.composite?.challenges?.length,
+                ) && (
+                  <section className="glass p-5 md:p-6 rounded-[2rem] border-white/5">
+                    <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gold/75">
+                      Your relationship as a whole
                     </h3>
-                    <div className="text-3xl font-display italic text-white mb-6 leading-tight">
-                      "
-                      {matchResult.composite?.relationship_purpose ||
-                        "Building a shared legacy of growth"}
-                      "
-                    </div>
+                    <p className="mt-1 mb-4 text-xs text-white/55">
+                      Read from one chart that blends both of yours.
+                    </p>
+                    {matchResult.composite?.relationship_purpose && (
+                      <p className="max-w-[40ch] text-xl md:text-2xl font-display italic text-white leading-snug">
+                        &ldquo;{matchResult.composite.relationship_purpose}
+                        &rdquo;
+                      </p>
+                    )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 pt-6 border-t border-white/5">
                       <div>
-                        <div className="text-[0.6875rem] uppercase tracking-widest text-emerald-400 font-black mb-4 flex items-center gap-2">
-                          <ShieldCheck size={12} /> Synergy Points
+                        <div className="text-[0.6875rem] uppercase tracking-widest text-emerald-400 font-black mb-3 flex items-center gap-2">
+                          <ShieldCheck size={12} aria-hidden="true" /> Strengths
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {matchResult.composite?.strengths?.map((s, i) => (
                             <span
                               key={i}
-                              className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-xs text-emerald-400 font-medium"
+                              className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-xs text-emerald-300 font-medium"
                             >
                               {s}
                             </span>
@@ -1056,14 +1120,15 @@ export default function Compatibility() {
                         </div>
                       </div>
                       <div>
-                        <div className="text-[0.6875rem] uppercase tracking-widest text-orange-400 font-black mb-4 flex items-center gap-2">
-                          <Target size={12} /> Growth Hedges
+                        <div className="text-[0.6875rem] uppercase tracking-widest text-orange-400 font-black mb-3 flex items-center gap-2">
+                          <Target size={12} aria-hidden="true" /> Friction
+                          points
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {matchResult.composite?.challenges?.map((c, i) => (
                             <span
                               key={i}
-                              className="px-4 py-2 bg-orange-500/10 border border-orange-500/20 rounded-full text-xs text-orange-400 font-medium"
+                              className="px-3 py-1.5 bg-orange-500/10 border border-orange-500/20 rounded-full text-xs text-orange-300 font-medium"
                             >
                               {c}
                             </span>
@@ -1071,47 +1136,47 @@ export default function Compatibility() {
                         </div>
                       </div>
                     </div>
-                  </div>
-                </section>
-
-                {/* Cosmic Wisdom Interpretations (Generic) */}
-                {matchResult.interpretations &&
-                  matchResult.interpretations.length > 0 && (
-                    <section className="space-y-6 pt-6">
-                      <div className="flex items-center gap-3 mb-6">
-                        <div className="p-3 rounded-2xl bg-gold/10">
-                          <BookOpen size={24} className="text-gold" />
-                        </div>
-                        <div>
-                          <h3 className="text-2xl font-display font-bold">
-                            Cosmic Wisdom
-                          </h3>
-                          <p className="text-sm text-white/55 font-light">
-                            Deep synthesis of your shared path
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {matchResult.interpretations.map((item, i) => (
-                          <div
-                            key={i}
-                            className="glass p-5 md:p-6 rounded-[2rem] border-white/5 group hover:border-gold/20 transition-all"
-                          >
-                            <h4 className="text-lg font-display font-medium text-gold mb-4 group-hover:translate-x-1 transition-transform inline-flex items-center gap-2">
-                              <Sparkles size={16} className="text-gold/40" />
-                              {item.title}
-                            </h4>
-                            <p className="text-white/60 font-sans font-light leading-relaxed italic">
-                              {item.text}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </section>
-                  )}
+                  </section>
+                )}
               </div>
             </div>
+
+            {/* Interpretations run full width under the grid: inside the
+                right column they made it far taller than the left one and
+                left a large empty area beside them. */}
+            {matchResult.interpretations &&
+              matchResult.interpretations.length > 0 && (
+                <section className="space-y-5">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-gold/10">
+                      <BookOpen
+                        size={20}
+                        className="text-gold"
+                        aria-hidden="true"
+                      />
+                    </div>
+                    <h3 className="text-2xl font-display font-bold">
+                      What the charts say together
+                    </h3>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {matchResult.interpretations.map((item, i) => (
+                      <div
+                        key={i}
+                        className="glass p-5 md:p-6 rounded-[2rem] border-white/5"
+                      >
+                        <h4 className="text-lg font-display font-medium text-gold mb-3">
+                          {item.title}
+                        </h4>
+                        <p className="max-w-[65ch] text-[15px] text-white/75 leading-relaxed">
+                          {item.text}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
 
             <div className="mx-auto max-w-2xl">
               <AskJyotishBridge
@@ -1130,10 +1195,11 @@ export default function Compatibility() {
 
             <div className="text-center pt-8">
               <button
+                type="button"
                 onClick={() => setMatchResult(null)}
                 className="min-h-11 text-white/60 hover:text-white flex items-center gap-2 mx-auto transition-colors font-sans text-xs tracking-widest uppercase"
               >
-                Reset Analysis
+                Run another match
               </button>
             </div>
           </div>
@@ -1162,7 +1228,10 @@ export default function Compatibility() {
             >
               <X size={20} />
             </button>
-            <p className="mb-5 pr-8 text-xs leading-relaxed text-white/60">
+            <h2 className="pr-8 font-display text-lg text-gold">
+              Inner Circle
+            </h2>
+            <p className="mt-1 mb-5 pr-8 text-xs leading-relaxed text-white/60">
               The people you add here give your readings and chats context about
               who matters in your life. You can edit or remove them any time.
             </p>
@@ -1220,6 +1289,16 @@ function ScoreMetric({
   );
 }
 
+function hasDynamics(dynamics: MatchResult["dynamics"]): boolean {
+  if (!dynamics) return false;
+  return Boolean(
+    dynamics.power_dynamics?.balance ||
+    dynamics.emotional_connection?.strength ||
+    dynamics.communication_style?.style ||
+    dynamics.long_term_potential?.potential,
+  );
+}
+
 function DynamicItem({
   label,
   value,
@@ -1229,16 +1308,15 @@ function DynamicItem({
   value: string | undefined;
   interpretation?: string;
 }) {
+  if (!value && !interpretation) return null;
   return (
-    <div className="group/item">
-      <div className="text-[0.6875rem] uppercase tracking-widest text-white/50 mb-2 group-hover/item:text-gold/40 transition-colors font-black">
+    <div>
+      <div className="text-[0.6875rem] uppercase tracking-widest text-white/55 mb-1.5 font-black">
         {label}
       </div>
-      <div className="text-sm font-sans font-light text-white/90 mb-1">
-        {value || "N/A"}
-      </div>
+      {value && <div className="text-sm text-white/90 mb-1">{value}</div>}
       {interpretation && (
-        <div className="text-[11px] font-sans font-light italic text-white/55 leading-relaxed">
+        <div className="text-xs text-white/65 leading-relaxed">
           {interpretation}
         </div>
       )}
@@ -1255,6 +1333,7 @@ function LoveLanguageCard({
   lang: any;
   isUser: boolean;
 }) {
+  if (!lang) return null;
   return (
     <div className="glass p-5 md:p-6 rounded-[2rem] border border-white/5 relative overflow-hidden group/card shadow-2xl">
       <div
@@ -1278,16 +1357,16 @@ function LoveLanguageCard({
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-5">
             <div>
-              <div className="text-[0.6875rem] uppercase tracking-widest text-gold/40 font-black mb-3">
-                Primary Mode
+              <div className="text-[0.6875rem] uppercase tracking-widest text-gold/75 font-black mb-2">
+                Main love language
               </div>
               <div className="text-xl font-display text-white">
                 {lang?.primary_love_language || lang?.primary || "N/A"}
               </div>
             </div>
             <div>
-              <div className="text-[0.6875rem] uppercase tracking-widest text-gold/40 font-black mb-3">
-                Secondary
+              <div className="text-[0.6875rem] uppercase tracking-widest text-gold/75 font-black mb-2">
+                Second
               </div>
               <div className="text-xl font-display text-white/60">
                 {lang?.secondary_love_language || lang?.secondary || "N/A"}
@@ -1336,22 +1415,31 @@ function InfluenceItem({
       </div>
       <div>
         <div className="text-[0.6875rem] uppercase tracking-widest font-black text-white/55 mb-1">
-          {icon} in {sign}
+          {sign ? `${icon} in ${sign}` : icon}
         </div>
-        <div className="text-xs text-white/60 font-light italic leading-relaxed">
-          {text}
-        </div>
+        <div className="text-sm text-white/70 leading-relaxed">{text}</div>
       </div>
     </div>
   );
 }
 
-function getGunaQuality(score: number): { label: string; color: string } {
-  if (score >= 32) return { label: "Excellent", color: "text-yellow-400" };
-  if (score >= 24) return { label: "Good", color: "text-emerald-400" };
-  if (score >= 18) return { label: "Acceptable", color: "text-yellow-500" };
-  return { label: "Needs care", color: "text-amber-300" };
+function getGunaQuality(score: number): {
+  label: string;
+  tone: GunaTone;
+  color: string;
+} {
+  const verdict = gunaVerdict(score);
+  return { ...verdict, color: GUNA_TONE_TEXT_CLASS[verdict.tone] };
 }
+
+
+/** One line of context under the score, keyed to the shared verdict band. */
+const GUNA_TONE_SUMMARY: Record<GunaTone, string> = {
+  great: "Strong long-term compatibility",
+  good: "Good compatibility overall",
+  mid: "Workable, with some friction to navigate",
+  low: "Needs care — worth talking through together or with a guide",
+};
 
 function VedicGunaMilan({
   vedicMatching,
@@ -1387,15 +1475,16 @@ function VedicGunaMilan({
               <GlossaryTerm k="guna-milan">Guna Milan</GlossaryTerm>)
             </h3>
             <p className="text-xs text-white/55 font-light">
-              Traditional 36-point score
+              Traditional 36-point marriage match
             </p>
           </div>
         </div>
 
         <p className="mb-5 text-xs leading-relaxed text-white/55">
-          A traditional 36-point Vedic score. It was designed for marriage
-          matching and assigns the two charts traditional roles, so read it as
-          one lens among several rather than a verdict.
+          Eight factors add up to 36 points. Tradition treats 18 or more as a
+          workable match and 25 or more as a good one. It was designed for
+          marriage matching and assigns the two charts traditional roles, so
+          read it as one lens among several rather than a verdict.
         </p>
 
         {/* Total Score */}
@@ -1418,7 +1507,7 @@ function VedicGunaMilan({
               <thead>
                 <tr className="border-b border-white/10">
                   <th className="text-left py-2 px-3 text-white/55 text-xs uppercase tracking-widest">
-                    Guna
+                    Factor
                   </th>
                   <th className="text-center py-2 px-3 text-white/55 text-xs uppercase tracking-widest">
                     Score
@@ -1440,6 +1529,11 @@ function VedicGunaMilan({
                     <tr key={i} className="border-b border-white/5">
                       <td className="py-3 px-3 text-white/90 font-medium">
                         {g.name || g.guna || `Guna ${i + 1}`}
+                        {kootaMeaning(g.name || g.guna) && (
+                          <span className="block text-xs font-normal text-white/55">
+                            {kootaMeaning(g.name || g.guna)}
+                          </span>
+                        )}
                       </td>
                       <td className="py-3 px-3 text-center">
                         <span
@@ -1499,7 +1593,7 @@ function VedicGunaMilan({
               </li>
               {totalScore < 12 && (
                 <li className="text-amber-400">
-                  A fuller reading (including Nadi) can add nuance the score
+                  A fuller reading of both charts can add nuance the score
                   alone can't
                 </li>
               )}

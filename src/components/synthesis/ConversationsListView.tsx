@@ -166,7 +166,7 @@ export function SynthesisComposerTextarea({
       data-ms-editor="false"
       aria-label="Ask Jyotish a question"
       data-placeholder="Ask Jyotish…"
-      className="max-h-32 min-h-8 min-w-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words border-0 bg-transparent py-1 font-sans text-sm leading-6 text-white/85 outline-none empty:before:pointer-events-none empty:before:text-white/28 empty:before:content-[attr(data-placeholder)] focus:border-0 focus:outline-none focus:ring-0 md:text-[0.95rem]"
+      className="max-h-32 min-h-11 min-w-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words border-0 bg-transparent py-2.5 pl-2.5 pr-1 font-sans text-sm leading-6 text-white/85 outline-none empty:before:pointer-events-none empty:before:block empty:before:truncate empty:before:text-white/50 empty:before:content-[attr(data-placeholder)] focus:border-0 focus:outline-none focus:ring-0 md:text-[0.95rem]"
       onInput={handleInput}
       onKeyDown={onKeyDown}
       // No children: the text is owned by the browser and synced by the
@@ -196,7 +196,10 @@ export function BlueprintToggleButton({
   onToggle,
   buttonRef,
 }: BlueprintToggleButtonProps) {
-  const label = isOpen ? "Collapse right sidebar" : "Open right sidebar";
+  // aria-label is pinned by synthesis-readiness.test.ts; the tooltip says
+  // what the panel actually holds.
+  const label = isOpen ? "Hide chart panel" : "Show chart panel";
+  const tooltip = isOpen ? "Hide birth chart" : "Show birth chart";
 
   return (
     <button
@@ -206,7 +209,7 @@ export function BlueprintToggleButton({
       className={`flex items-center justify-center rounded-xl p-2 transition-colors ${
         isOpen ? "text-gold" : "text-white/50 hover:text-gold"
       }`}
-      title={label}
+      title={tooltip}
       aria-label={label}
       aria-expanded={isOpen}
       aria-controls="synthesis-blueprint-panel"
@@ -227,7 +230,10 @@ export function BlueprintPanelControls({
   return (
     <div className="flex w-full items-center justify-between gap-3">
       <div className="flex items-center gap-1 rounded-full border border-gold/30 bg-gold/5 p-1 text-gold">
-        <div className="flex items-center gap-1.5 px-2 text-[0.6875rem] font-mono">
+        <div
+          className="flex items-center gap-1.5 px-2 text-[0.6875rem] font-mono"
+          title="Each question uses 1 credit"
+        >
           <Sparkles size={10} />
           <span className="font-sans text-white/55">Credits</span>
           <span>{credits}</span>
@@ -236,7 +242,7 @@ export function BlueprintPanelControls({
           type="button"
           onClick={onAddCredits}
           disabled={isPaying}
-          className="flex h-6 items-center gap-1 rounded-full bg-gold/10 px-2 text-[0.58rem] font-bold uppercase tracking-[0.16em] text-gold transition-colors hover:bg-gold/20 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex h-6 items-center gap-1 rounded-full bg-gold/10 px-2 text-[0.6875rem] font-bold uppercase tracking-[0.12em] text-gold transition-colors hover:bg-gold/20 disabled:cursor-not-allowed disabled:opacity-50"
           title="Add credits"
           aria-label="Add credits"
         >
@@ -269,7 +275,7 @@ const CHART_TYPE_DETAILS: Record<
   },
   D9: {
     name: "Navamsa",
-    description: "Marriage, dharma, and planetary maturity.",
+    description: "Marriage, partnership, and how your planets mature.",
   },
 };
 
@@ -412,7 +418,8 @@ export function SynthesisPanelLaunchers({
             type="button"
             onClick={onOpenConversations}
             className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-xl border border-white/8 bg-bg-app/85 text-white/60 backdrop-blur-xl transition-colors hover:text-gold"
-            aria-label="Open conversations"
+            aria-label="Past conversations"
+          title="Past conversations"
             aria-controls="synthesis-conversations-panel"
           >
             <History size={16} />
@@ -425,7 +432,8 @@ export function SynthesisPanelLaunchers({
           type="button"
           onClick={onOpenBlueprint}
           className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-xl border border-white/8 bg-bg-app/85 text-white/60 backdrop-blur-xl transition-colors hover:text-gold"
-          aria-label="Open blueprint"
+          aria-label="Show birth chart"
+          title="Show birth chart"
           aria-controls="synthesis-blueprint-panel"
         >
           <PanelRightOpen size={16} />
@@ -527,12 +535,14 @@ export function ConversationListView({
         <button
           type="button"
           onClick={onToggleCollapsed}
-          className="flex min-w-0 items-center gap-1.5 text-sm text-white/50 transition-colors hover:text-white/75"
+          className="flex min-w-0 items-center gap-1.5 text-sm text-white/55 transition-colors hover:text-white/75"
           aria-expanded={!collapsed}
+          aria-controls="synthesis-recent-conversations"
         >
           <span>Recents</span>
           <ChevronDown
             size={13}
+            aria-hidden="true"
             className={`transition-transform ${collapsed ? "-rotate-90" : ""}`}
           />
         </button>
@@ -548,14 +558,20 @@ export function ConversationListView({
             searchOpen ? "Close conversation search" : "Search conversations"
           }
           aria-expanded={searchOpen}
+          aria-controls="synthesis-conversation-search"
         >
-          {searchOpen ? <X size={15} /> : <Search size={15} />}
+          {searchOpen ? (
+            <X size={15} aria-hidden="true" />
+          ) : (
+            <Search size={15} aria-hidden="true" />
+          )}
         </button>
       </div>
 
       {searchOpen && (
         <div className="px-1 pb-2">
           <input
+            id="synthesis-conversation-search"
             name="conversation-search"
             autoComplete="off"
             type="text"
@@ -569,79 +585,81 @@ export function ConversationListView({
         </div>
       )}
 
-      {!collapsed &&
-        (filteredChats.length === 0 ? (
-          <p className="px-3 py-3 text-xs text-white/25">
-            {searchQuery
-              ? "No matching conversations."
-              : "No past conversations."}
-          </p>
-        ) : (
-          <div className="flex flex-col gap-0.5" role="list">
-            {filteredChats.map((chat) => {
-              const isCurrent = currentId === chat.id;
-              const isConfirming = confirmingDelete === chat.id;
+      <div id="synthesis-recent-conversations" hidden={collapsed}>
+        {!collapsed &&
+          (filteredChats.length === 0 ? (
+            <p className="px-3 py-3 text-xs text-white/55">
+              {searchQuery
+                ? "No matching conversations."
+                : "No past conversations."}
+            </p>
+          ) : (
+            <div className="flex flex-col gap-0.5" role="list">
+              {filteredChats.map((chat) => {
+                const isCurrent = currentId === chat.id;
+                const isConfirming = confirmingDelete === chat.id;
 
-              return (
-                <div
-                  key={chat.id}
-                  role="listitem"
-                  className={`group relative flex min-w-0 items-center rounded-lg transition-colors ${
-                    isCurrent ? "bg-white/8" : "hover:bg-white/5"
-                  }`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => onSelect(chat.id)}
-                    aria-current={isCurrent ? "page" : undefined}
-                    className="min-w-0 flex-1 truncate px-3 py-2.5 pr-10 text-left text-sm text-white/72"
+                return (
+                  <div
+                    key={chat.id}
+                    role="listitem"
+                    className={`group relative flex min-w-0 items-center rounded-lg transition-colors ${
+                      isCurrent ? "bg-white/8" : "hover:bg-white/5"
+                    }`}
                   >
-                    {chat.title || "Untitled conversation"}
-                  </button>
-
-                  {isConfirming ? (
-                    <div className="absolute right-1 flex items-center gap-0.5 rounded-md bg-[#17171d] p-0.5 shadow-lg">
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onConfirmDelete(chat.id);
-                        }}
-                        className="rounded p-1 text-red-400 transition-colors hover:bg-red-500/15"
-                        aria-label="Confirm delete"
-                      >
-                        <Check size={13} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onCancelDelete();
-                        }}
-                        className="rounded p-1 text-white/55 transition-colors hover:bg-white/8 hover:text-white/75"
-                        aria-label="Cancel delete"
-                      >
-                        <X size={13} />
-                      </button>
-                    </div>
-                  ) : (
                     <button
                       type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onDeleteClick(chat.id);
-                      }}
-                      className="absolute right-1.5 rounded-md p-1.5 text-white/50 opacity-0 transition-[color,background-color,opacity] hover:bg-white/8 hover:text-white/70 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
-                      aria-label={`Delete ${chat.title || "conversation"}`}
+                      onClick={() => onSelect(chat.id)}
+                      aria-current={isCurrent ? "page" : undefined}
+                      className="min-w-0 flex-1 truncate px-3 py-2.5 pr-10 text-left text-sm text-white/72"
                     >
-                      <Trash2 size={15} />
+                      {chat.title || "Untitled conversation"}
                     </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ))}
+
+                    {isConfirming ? (
+                      <div className="absolute right-1 flex items-center gap-0.5 rounded-md bg-[#17171d] p-0.5 shadow-lg">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onConfirmDelete(chat.id);
+                          }}
+                          className="rounded p-2 text-red-400 transition-colors hover:bg-red-500/15"
+                          aria-label={`Confirm delete ${chat.title || "conversation"}`}
+                        >
+                          <Check size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onCancelDelete();
+                          }}
+                          className="rounded p-2 text-white/55 transition-colors hover:bg-white/8 hover:text-white/75"
+                          aria-label="Cancel delete"
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onDeleteClick(chat.id);
+                        }}
+                        className="absolute right-1.5 rounded-md p-1.5 text-white/50 opacity-0 transition-[color,background-color,opacity] hover:bg-white/8 hover:text-white/70 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
+                        aria-label={`Delete ${chat.title || "conversation"}`}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+      </div>
     </div>
   );
 }

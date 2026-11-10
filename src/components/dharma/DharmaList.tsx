@@ -20,8 +20,8 @@ export const DharmaList: React.FC<DharmaListProps> = ({ routines, userId, onComp
 
     if (!routines || routines.length === 0) {
         return (
-            <div className="text-white/55 text-sm text-center py-4 italic">
-                No active practices yet.
+            <div className="text-white/60 text-sm text-center py-4">
+                No practices yet. When your guide suggests one in a chat, you can add it here and tick it off each day.
             </div>
         );
     }
@@ -55,8 +55,11 @@ export const DharmaList: React.FC<DharmaListProps> = ({ routines, userId, onComp
                             <div className="p-4">
                                 <div className="flex items-center justify-between">
                                     <button
+                                        type="button"
                                         onClick={() => setExpandedId(isExpanded ? null : routine.id)}
-                                        className="flex items-center gap-3 flex-1 text-left"
+                                        aria-expanded={isExpanded}
+                                        aria-controls={`routine-details-${routine.id}`}
+                                        className="flex items-center gap-3 flex-1 min-w-0 text-left"
                                     >
                                         <div className={`
                                             p-2 rounded-lg
@@ -75,10 +78,10 @@ export const DharmaList: React.FC<DharmaListProps> = ({ routines, userId, onComp
                                             </h4>
                                             <div className="flex items-center gap-2 text-xs text-white/55 mt-1">
                                                 <span className="flex items-center gap-1">
-                                                    <Clock size={10} /> {routine.durationMinutes}m
+                                                    <Clock size={10} /> {routine.durationMinutes} min
                                                 </span>
                                                 <span>•</span>
-                                                <span className="text-gold/80">{routine.streak} day streak</span>
+                                                <span className="text-gold/80">{routine.streak} {routine.streak === 1 ? 'day' : 'days'} in a row</span>
                                             </div>
                                         </div>
 
@@ -89,13 +92,15 @@ export const DharmaList: React.FC<DharmaListProps> = ({ routines, userId, onComp
                                     </button>
 
                                     <button
+                                        type="button"
                                         onClick={() => !isCompletedToday && handleComplete(routine.id)}
                                         disabled={!!isCompletedToday}
+                                        aria-label={isCompletedToday ? `${routine.title}: done today` : `Mark ${routine.title} done for today`}
                                         className={`
-                                            w-8 h-8 rounded-full flex items-center justify-center transition-all ml-3 shrink-0
+                                            w-11 h-11 rounded-full flex items-center justify-center transition-all ml-3 shrink-0
                                             ${isCompletedToday
                                                 ? 'bg-gold text-black scale-100'
-                                                : 'bg-white/10 text-white/20 hover:bg-gold/20 hover:text-gold hover:scale-110'
+                                                : 'bg-white/10 text-white/50 hover:bg-gold/20 hover:text-gold hover:scale-110'
                                             }
                                         `}
                                     >
@@ -108,6 +113,7 @@ export const DharmaList: React.FC<DharmaListProps> = ({ routines, userId, onComp
                             <AnimatePresence>
                                 {isExpanded && (routine.description || (routine.steps && routine.steps.length > 0)) && (
                                     <motion.div
+                                        id={`routine-details-${routine.id}`}
                                         initial={{ height: 0, opacity: 0 }}
                                         animate={{ height: 'auto', opacity: 1 }}
                                         exit={{ height: 0, opacity: 0 }}
@@ -116,16 +122,16 @@ export const DharmaList: React.FC<DharmaListProps> = ({ routines, userId, onComp
                                     >
                                         <div className="px-4 pb-4 pt-1 border-t border-white/5">
                                             {routine.description && (
-                                                <p className="text-white/50 text-xs leading-relaxed mb-3">
+                                                <p className="text-white/65 text-sm leading-relaxed mb-3">
                                                     {routine.description}
                                                 </p>
                                             )}
                                             {routine.steps && routine.steps.length > 0 && (
                                                 <div className="space-y-2">
                                                     {routine.steps.map((step, i) => (
-                                                        <div key={i} className="flex gap-2 text-xs">
-                                                            <span className="text-gold/50 font-medium shrink-0">{i + 1}.</span>
-                                                            <span className="text-white/60">{step}</span>
+                                                        <div key={i} className="flex gap-2 text-sm">
+                                                            <span className="text-gold/70 font-medium shrink-0">{i + 1}.</span>
+                                                            <span className="text-white/70">{step}</span>
                                                         </div>
                                                     ))}
                                                 </div>

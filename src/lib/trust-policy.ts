@@ -20,7 +20,7 @@ export interface TrustProcessRow {
 }
 
 export const TRUST_PRINCIPLES = [
-  "AI astrologers are labelled as AI.",
+  "Guides are not people, and every profile says so.",
   "Reviews must come from submitted consultation sessions.",
   "Testimonials are opt-in and never invented.",
   "Prediction feedback is shown only in aggregate.",
@@ -45,7 +45,7 @@ export const TRUST_SIGNALS: TrustSignal[] = [
   },
   {
     title: "Transparency reports",
-    body: "The platform states what is AI-led, what is moderated, what is measured, and what is not claimed yet.",
+    body: "The platform states what is automated, what is moderated, what is measured, and what is not claimed yet.",
     icon: FileText,
   },
 ];
@@ -86,5 +86,5 @@ export const TRUST_PAGE_HERO = {
   icon: ShieldCheck,
   eyebrow: "Trust layer",
   title: "Real signals, clearly marked.",
-  body: "AstroYou is AI-led today and built to support real experts over time. Trust claims must come from user action, moderation, and transparent measurement.",
+  body: "AstroYou's guides are not people, and the platform is built to support real experts over time. Trust claims must come from user action, moderation, and transparent measurement.",
 };

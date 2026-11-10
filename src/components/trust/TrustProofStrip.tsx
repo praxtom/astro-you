@@ -6,6 +6,9 @@ import { useTrustSummary } from "../../hooks/useTrustSummary";
 export function TrustProofStrip({ className = "" }: { className?: string }) {
   const { summary } = useTrustSummary();
   const metrics = getTrustProofMetrics(summary);
+  // Until there is real data, three "Collecting" tiles only tell a visitor
+  // that nobody has used the product yet. Show nothing instead.
+  if (metrics.every((metric) => metric.value === "Collecting")) return null;
 
   return (
     <section className={`platform-panel p-3 ${className}`}>
@@ -29,7 +32,9 @@ export function TrustProofStrip({ className = "" }: { className?: string }) {
               className="rounded-lg border border-white/10 bg-black/20 px-2.5 py-2"
             >
               <p className="type-meta text-white/50">{metric.label}</p>
-              <p className="mt-1 text-sm font-semibold text-gold">{metric.value}</p>
+              <p className="mt-1 text-sm font-semibold text-gold">
+                {metric.value === "Collecting" ? "—" : metric.value}
+              </p>
             </div>
           ))}
         </div>

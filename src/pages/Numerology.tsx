@@ -10,6 +10,8 @@ import BirthProfileRequired from "../components/BirthProfileRequired";
 
 interface CoreNumber {
   name: string;
+  /** One plain line: where the number comes from and what it speaks to. */
+  hint: string;
   number: number | string;
   meaning: string;
 }
@@ -29,10 +31,30 @@ function toText(value: unknown): string {
 }
 
 function parseCoreNumbers(raw: Record<string, any>): CoreNumber[] {
-  const defs: { name: string; keys: string[]; meaningKeys: string[] }[] = [
-    { name: "Life Path", keys: ["life_path", "lifePath", "life_path_number"], meaningKeys: ["life_path_meaning"] },
-    { name: "Destiny", keys: ["destiny", "expression", "destiny_number", "expression_number"], meaningKeys: ["destiny_meaning", "expression_meaning"] },
-    { name: "Soul Urge", keys: ["soul_urge", "soulUrge", "heart_desire", "soul_urge_number"], meaningKeys: ["soul_urge_meaning"] },
+  const defs: {
+    name: string;
+    hint: string;
+    keys: string[];
+    meaningKeys: string[];
+  }[] = [
+    {
+      name: "Life Path",
+      hint: "From your birth date. The broad direction of your life.",
+      keys: ["life_path", "lifePath", "life_path_number"],
+      meaningKeys: ["life_path_meaning"],
+    },
+    {
+      name: "Destiny",
+      hint: "From your full name. Your natural talents and how you use them.",
+      keys: ["destiny", "expression", "destiny_number", "expression_number"],
+      meaningKeys: ["destiny_meaning", "expression_meaning"],
+    },
+    {
+      name: "Soul Urge",
+      hint: "From the vowels in your name. What you want most deep down.",
+      keys: ["soul_urge", "soulUrge", "heart_desire", "soul_urge_number"],
+      meaningKeys: ["soul_urge_meaning"],
+    },
   ];
   const out: CoreNumber[] = [];
   for (const def of defs) {
@@ -45,7 +67,7 @@ function parseCoreNumbers(raw: Record<string, any>): CoreNumber[] {
       (typeof value === "object" ? toText(value?.meaning) : "") ||
       def.meaningKeys.map((k) => toText(raw[k])).find(Boolean) ||
       "";
-    out.push({ name: def.name, number, meaning });
+    out.push({ name: def.name, hint: def.hint, number, meaning });
   }
   return out;
 }
@@ -64,7 +86,8 @@ const ERROR_MESSAGE =
   "We couldn't calculate your numerology right now. Check your connection and try again.";
 
 export default function Numerology() {
-  const { birthData: profileBirthData, loading: profileLoading } = useUserProfile();
+  const { birthData: profileBirthData, loading: profileLoading } =
+    useUserProfile();
   const birthData = useRequestBirthData(profileBirthData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -104,13 +127,19 @@ export default function Numerology() {
           ),
         ]);
 
-        if (!coreRes.ok) throw new Error(`Core numbers failed: ${coreRes.status}`);
+        if (!coreRes.ok)
+          throw new Error(`Core numbers failed: ${coreRes.status}`);
         const coreData = await coreRes.json();
-        const readingData = readingRes.ok ? await readingRes.json().catch(() => null) : null;
+        const readingData = readingRes.ok
+          ? await readingRes.json().catch(() => null)
+          : null;
 
         const numbers = parseCoreNumbers((coreData?.data ?? coreData) || {});
-        const text = readingData ? parseReading(readingData.data ?? readingData) : null;
-        if (numbers.length === 0 && !text) throw new Error("Numerology response had no usable data");
+        const text = readingData
+          ? parseReading(readingData.data ?? readingData)
+          : null;
+        if (numbers.length === 0 && !text)
+          throw new Error("Numerology response had no usable data");
 
         setCoreNumbers(numbers);
         setReading(text);
@@ -148,12 +177,13 @@ export default function Numerology() {
   const header = (
     <div className="flex items-center gap-4 mb-10">
       <div className="p-3 rounded-2xl bg-gold/10 text-gold">
-        <Hash size={28} />
+        <Hash size={28} aria-hidden="true" />
       </div>
       <div>
         <h1 className="type-page-title">Your Numerology</h1>
-        <p className="text-white/55 text-sm mt-1">
-          The sacred mathematics of your soul
+        <p className="text-white/60 text-sm mt-1">
+          Three numbers worked out from your name and birth date, each
+          pointing to a different side of you
         </p>
       </div>
     </div>
@@ -222,41 +252,49 @@ export default function Numerology() {
 
         {/* Core Numbers Grid */}
         {coreNumbers.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-          {coreNumbers.map((cn, idx) => (
-            <div
-              key={cn.name}
-              className={`relative rounded-2xl border p-8 text-center bg-gradient-to-b ${numberColors[idx % numberColors.length]} backdrop-blur-sm transition-transform hover:scale-[1.02]`}
-            >
-              <div className="flex justify-center mb-3 opacity-60">
-                {numberIcons[idx % numberIcons.length]}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            {coreNumbers.map((cn, idx) => (
+              <div
+                key={cn.name}
+                className={`relative rounded-2xl border p-8 text-center bg-gradient-to-b ${numberColors[idx % numberColors.length]} backdrop-blur-sm transition-transform hover:scale-[1.02]`}
+              >
+                <div
+                  className="flex justify-center mb-3 opacity-60"
+                  aria-hidden="true"
+                >
+                  {numberIcons[idx % numberIcons.length]}
+                </div>
+                <div className="text-6xl font-display font-bold mb-3 bg-clip-text text-transparent bg-gradient-to-b from-white to-white/60">
+                  {cn.number}
+                </div>
+                <h3 className="text-lg font-display tracking-wider uppercase mb-1 text-white/80">
+                  {cn.name}
+                </h3>
+                <p className="mb-3 text-xs text-white/60">{cn.hint}</p>
+                {cn.meaning && (
+                  <p className="text-sm text-white/65 leading-relaxed">
+                    {cn.meaning}
+                  </p>
+                )}
               </div>
-              <div className="text-6xl font-display font-bold mb-3 bg-clip-text text-transparent bg-gradient-to-b from-white to-white/60">
-                {cn.number}
-              </div>
-              <h3 className="text-lg font-display tracking-wider uppercase mb-3 text-white/80">
-                {cn.name}
-              </h3>
-              {cn.meaning && (
-                <p className="text-sm text-white/65 leading-relaxed">
-                  {cn.meaning}
-                </p>
-              )}
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
         )}
 
         {/* Full Reading */}
         {reading && (
-          <div className="glass rounded-2xl p-8">
+          <div className="glass rounded-2xl p-6 md:p-8">
             <div className="flex items-center gap-3 mb-5">
-              <Sparkles size={20} className="text-violet-400" />
+              <Sparkles
+                size={20}
+                className="text-violet-400"
+                aria-hidden="true"
+              />
               <h2 className="text-xl font-display tracking-wider">
                 Your Numerology Reading
               </h2>
             </div>
-            <div className="text-white/70 leading-relaxed whitespace-pre-wrap text-base">
+            <div className="max-w-[65ch] text-white/75 leading-relaxed whitespace-pre-wrap text-base">
               {reading}
             </div>
           </div>

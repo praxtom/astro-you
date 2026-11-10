@@ -73,6 +73,20 @@ export async function enforceIpRateLimit(
   });
 }
 
+/**
+ * Rate-limit a signed-in request by the verified uid. Use this instead of the
+ * IP limit once a token is verified: many Indian mobile users share one
+ * carrier (CGNAT) address, so an IP key makes strangers share a quota.
+ */
+export async function enforceUserRateLimit(
+  uid: string,
+  scope: string,
+  limit: number,
+  windowMs: number,
+) {
+  return enforceRateLimit({ scope, key: `uid:${uid}`, limit, windowMs });
+}
+
 /** Standard JSON response helper. */
 export function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {

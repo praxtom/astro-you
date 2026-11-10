@@ -27,7 +27,7 @@ import {
 } from "./shared/kundali-errors.js";
 import {
   verifyToken,
-  enforceIpRateLimit,
+  enforceUserRateLimit,
   AuthError,
 } from "./shared/require-auth";
 import {
@@ -168,7 +168,7 @@ export default async (req: Request, _context: Context) => {
     let decoded;
     try {
       decoded = await verifyToken(idToken);
-      await enforceIpRateLimit(req, "horoscope", 40, 60 * 60 * 1000);
+      await enforceUserRateLimit(decoded.uid, "horoscope", 40, 60 * 60 * 1000);
     } catch (err) {
       const status = err instanceof AuthError ? err.status : 401;
       return new Response(

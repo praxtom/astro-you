@@ -29,7 +29,7 @@ export function PersonalCardNotice({ kind, thing, onRetry }: PersonalCardNoticeP
         <button
           type="button"
           onClick={requestSignIn}
-          className="min-h-11 inline-flex items-center gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.18em] text-gold hover:text-white transition-colors"
+          className="min-h-11 inline-flex items-center gap-1.5 text-[0.85rem] font-semibold text-gold/85 hover:text-gold transition-colors"
         >
           <Lock size={12} />
           Sign in
@@ -47,7 +47,7 @@ export function PersonalCardNotice({ kind, thing, onRetry }: PersonalCardNoticeP
         <button
           type="button"
           onClick={onRetry}
-          className="min-h-11 inline-flex items-center gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.18em] text-white/55 hover:text-gold transition-colors"
+          className="min-h-11 inline-flex items-center gap-1.5 text-[0.85rem] font-semibold text-white/60 hover:text-gold transition-colors"
         >
           <RefreshCw size={12} />
           Try again

@@ -8,7 +8,7 @@ export interface TodayGuide {
   nudge: string;
   /** "Why this?" — the chart and Panchang facts the guidance was drawn from. */
   why: string;
-  /** Short context line, e.g. "Moon in Hasta · 7th from your Moon". */
+  /** Context line, e.g. "Today's Moon is in Hasta nakshatra, the 7th sign from your Moon sign." */
   context?: string;
   /** True when the guidance is drawn from the user's own natal Moon. */
   personal: boolean;
@@ -371,9 +371,11 @@ export function buildTodayGuide(
       `Your guide's memory notes you've seemed ${emotion.replace(/_/g, " ")} lately.`,
     );
 
+  // A first-timer reads this before anything else in the tile, so it says
+  // what it is in full ("Moon in Hasta" alone meant nothing to them).
   const contextParts = [
-    todayNak ? `Moon in ${todayNak}` : null,
-    house ? `${ordinal(house)} from your Moon` : null,
+    todayNak ? `Today's Moon is in ${todayNak} nakshatra` : null,
+    house ? `${ordinal(house)} sign from your Moon sign` : null,
   ].filter(Boolean);
 
   return {
@@ -382,7 +384,7 @@ export function buildTodayGuide(
     caution,
     nudge,
     why: why.join(" "),
-    ...(contextParts.length ? { context: contextParts.join(" · ") } : {}),
+    ...(contextParts.length ? { context: `${contextParts.join(", the ")}.` } : {}),
     personal,
   };
 }

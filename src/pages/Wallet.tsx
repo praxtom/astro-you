@@ -8,7 +8,6 @@ import {
   query,
 } from "firebase/firestore";
 import {
-  AlertCircle,
   ArrowLeft,
   FileText,
   HelpCircle,
@@ -27,6 +26,24 @@ import { CREDIT_PACKS, formatCreditRate } from "../lib/credit-packs";
 import { useCurrency } from "../hooks/useCurrency";
 import { formatMoney } from "../lib/currency";
 import { getPackAmount } from "../lib/credit-packs";
+import { PERSONAS } from "../lib/personas";
+import { REPORT_PRICING } from "../lib/report-pricing";
+import { FEATURE_CREDIT_COST } from "../lib/feature-pricing";
+import { getTier } from "../lib/subscriptions";
+import {
+  activityLabel,
+  humanizeValue,
+  ledgerTypeLabel,
+  statusLabel,
+} from "../lib/wallet-labels";
+import type { ReportType } from "../lib/report-pricing";
+
+/** Guide per-minute rates and report prices, read from the real price lists. */
+const GUIDE_RATES = PERSONAS.map((p) => p.pricePerMin);
+const MIN_GUIDE_RATE = Math.min(...GUIDE_RATES);
+const MAX_GUIDE_RATE = Math.max(...GUIDE_RATES);
+const REPORT_COSTS = Object.values(REPORT_PRICING).map((r) => r.creditCost);
+const READING_COSTS = Object.values(FEATURE_CREDIT_COST);
 
 interface LedgerEntry {
   id: string;
@@ -72,33 +89,6 @@ function formatDate(value: LedgerEntry["createdAt"]) {
     month: "short",
     year: "numeric",
   });
-}
-
-function labelForLedgerType(type?: string) {
-  switch (type) {
-    case "purchase":
-      return "Credit purchase";
-    case "consultation":
-      return "Consultation";
-    case "report":
-      return "PDF report";
-    case "subscription_grant":
-      return "Plan credits";
-    case "referral_bonus":
-      return "Referral bonus";
-    case "signup_bonus":
-      return "Signup credits";
-    case "refund":
-      return "Refund";
-    case "refund_clawback":
-      return "Payment refunded — credits returned";
-    case "admin_adjustment":
-      return "Adjustment";
-    case "synthesis":
-      return "Jyotish chat";
-    default:
-      return "Credit activity";
-  }
 }
 
 export default function Wallet() {
@@ -241,25 +231,35 @@ export default function Wallet() {
     <div>
       <div className="platform-main">
         <button
+          type="button"
           onClick={() => navigate(-1)}
-          className="mb-4 inline-flex items-center gap-2 text-sm text-white/60 hover:text-white"
+          className="mb-4 inline-flex min-h-11 items-center gap-2 text-sm text-white/60 hover:text-white"
         >
-          <ArrowLeft size={16} /> Back
+          <ArrowLeft size={16} aria-hidden="true" /> Back
         </button>
 
-        {pendingCheckoutId && <div className="platform-panel mb-4 p-4">
-          <p className="text-white/70">You have a recent payment to confirm.</p>
-          <button className="mt-2 text-gold" onClick={() => navigate(`/payment/return?checkout=${encodeURIComponent(pendingCheckoutId)}`)}>Check payment status</button>
-        </div>}
-        <section className="grid grid-cols-1 lg:grid-cols-[1fr_20rem] gap-4 items-start mb-4">
+        {pendingCheckoutId && (
+          <StatusNotice
+            tone="info"
+            size="section"
+            className="mb-4"
+            message="You have a recent payment to confirm."
+            action={{
+              label: "Check payment status",
+              to: `/payment/return?checkout=${encodeURIComponent(pendingCheckoutId)}`,
+            }}
+          />
+        )}
+        {/* Same column widths as the section below so the balance card lines
+            up with the sidebar. */}
+        <section className="grid grid-cols-1 xl:grid-cols-[1fr_22rem] gap-4 items-start mb-4">
           <div>
             <p className="platform-eyebrow mb-2">Wallet</p>
-            <h1 className="type-page-title max-w-3xl">
-              Credits, charges, and receipts in one place.
-            </h1>
+            <h1 className="type-page-title max-w-3xl">Your credits</h1>
             <p className="platform-copy mt-3 max-w-2xl">
-              Track purchases, AI guide sessions, report charges, refunds,
-              and plan credits without guessing where your balance went.
+              Credits pay for chat messages, guide sessions, longer forecasts
+              and PDF reports. You always see the cost before anything is
+              charged.
             </p>
           </div>
 
@@ -271,24 +271,39 @@ export default function Wallet() {
                   {user && subscriptionLoading ? (
                     <span className="text-white/55" aria-label="Loading balance">…</span>
                   ) : (
-                    credits
+                    <>
+                      {credits}{" "}
+                      <span className="type-body-sm text-white/60">credits</span>
+                    </>
                   )}
                 </p>
               </div>
-              <WalletIcon className="text-gold" size={25} />
+              <WalletIcon className="text-gold" size={25} aria-hidden="true" />
             </div>
+            {user && !subscriptionLoading && (
+              <p className="type-body-sm text-white/60 mt-2">
+                {credits <= 0
+                  ? "Add a pack below to keep chatting and booking guide sessions."
+                  : tier === "free"
+                    ? `Enough for ${credits} chat message${credits === 1 ? "" : "s"}, or about ${Math.floor(credits / MIN_GUIDE_RATE)} minute${Math.floor(credits / MIN_GUIDE_RATE) === 1 ? "" : "s"} with a guide.`
+                    : `About ${Math.floor(credits / MIN_GUIDE_RATE)} minutes with a guide. Chat is included in your plan.`}
+              </p>
+            )}
             <div className="mt-2 flex items-center justify-between">
               <span className="type-body-sm text-white/60">Plan</span>
-              <span className="type-body-sm text-gold capitalize">{tier}</span>
+              <button
+                type="button"
+                onClick={() => navigate("/pricing")}
+                className="type-body-sm text-gold hover:underline"
+              >
+                {getTier(tier).name} · See plans
+              </button>
             </div>
           </aside>
         </section>
 
         {paymentError && (
-          <div className="platform-panel mb-3 border-amber-400/20 bg-amber-500/10 p-3 text-sm text-amber-100 flex gap-2">
-            <AlertCircle size={16} className="mt-0.5 shrink-0" />
-            <span>{paymentError}</span>
-          </div>
+          <StatusNotice size="section" className="mb-3" message={paymentError} />
         )}
 
         <section className="grid grid-cols-1 xl:grid-cols-[1fr_22rem] gap-4">
@@ -322,10 +337,11 @@ export default function Wallet() {
                           {formatMoney(getPackAmount(pack, currency), currency)}
                         </p>
                         <p className="type-meta text-white/55">
-                          {formatCreditRate(pack)}
+                          {formatCreditRate(pack, currency)}
                         </p>
                       </div>
                       <button
+                        type="button"
                         onClick={() => buyPack(pack.minutes)}
                         disabled={isPaying}
                         className="platform-button-primary min-w-32 disabled:opacity-60"
@@ -345,18 +361,19 @@ export default function Wallet() {
               <div className="mb-3">
                 <h2 className="type-section-title">Credit activity</h2>
                 <p className="type-body-sm text-white/55">
-                  Server-written ledger entries.
+                  Every purchase, charge and refund, newest first.
                 </p>
               </div>
               <div className="platform-panel overflow-hidden">
                 {!user ? (
                   <div className="p-4 text-center">
-                    <Receipt className="mx-auto text-white/20 mb-3" size={32} />
+                    <Receipt className="mx-auto text-white/20 mb-3" size={32} aria-hidden="true" />
                     <p className="type-body text-white/70">Private wallet activity</p>
                     <p className="type-body-sm text-white/55 mt-1">
                       Sign in to buy credits and see purchases, charges, and receipts.
                     </p>
                     <button
+                      type="button"
                       onClick={() => setShowAuthModal(true)}
                       className="platform-button-secondary mt-4"
                     >
@@ -364,9 +381,9 @@ export default function Wallet() {
                     </button>
                   </div>
                 ) : loading ? (
-                  <div className="p-4 text-center text-white/60">
-                    <Loader2 className="mx-auto animate-spin mb-3" size={22} />
-                    Loading activity
+                  <div role="status" className="p-4 text-center text-white/60">
+                    <Loader2 className="mx-auto animate-spin mb-3" size={22} aria-hidden="true" />
+                    Loading activity…
                   </div>
                 ) : sectionErrors.ledger ? (
                   <div className="p-4">
@@ -379,10 +396,11 @@ export default function Wallet() {
                   </div>
                 ) : ledger.length === 0 ? (
                   <div className="p-4 text-center">
-                    <Receipt className="mx-auto text-white/20 mb-3" size={32} />
+                    <Receipt className="mx-auto text-white/20 mb-3" size={32} aria-hidden="true" />
                     <p className="type-body text-white/70">No credit activity yet.</p>
                     <p className="type-body-sm text-white/55 mt-1">
-                      Purchases and charges will appear here.
+                      Each time you add or spend credits it shows up here,
+                      with your balance after it.
                     </p>
                   </div>
                 ) : (
@@ -398,19 +416,42 @@ export default function Wallet() {
 
           <aside className="space-y-4">
             <section className="platform-panel p-4">
-              <p className="platform-eyebrow mb-3">Where credits go</p>
+              <p className="platform-eyebrow mb-3">What things cost</p>
               <div className="space-y-3 type-body-sm">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-white/60">AI guide sessions</span>
-                  <span className="text-gold">5-10/min</span>
+                  <span className="text-white/60">Jyotish chat</span>
+                  <span className="text-right text-gold">
+                    1 per message
+                    <span className="block type-meta text-white/55">
+                      Unlimited on Premium and Pro
+                    </span>
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-white/60">Guide sessions</span>
+                  <span className="text-gold">
+                    {MIN_GUIDE_RATE}–{MAX_GUIDE_RATE} a minute
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-white/60">
+                    Longer forecasts, transit and compatibility readings
+                  </span>
+                  <span className="shrink-0 text-gold">
+                    {Math.min(...READING_COSTS)}–{Math.max(...READING_COSTS)} each
+                  </span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-white/60">PDF reports</span>
-                  <span className="text-gold">10-199/report</span>
+                  <span className="text-gold">
+                    {Math.min(...REPORT_COSTS)}–{Math.max(...REPORT_COSTS)} each
+                  </span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-white/60">Plan credits</span>
-                  <span className="text-white/60">Monthly grant</span>
+                  <span className="text-white/60">
+                    Kundali, daily forecast, Panchang
+                  </span>
+                  <span className="text-emerald-300">Free</span>
                 </div>
               </div>
             </section>
@@ -425,12 +466,20 @@ export default function Wallet() {
                     : null
                 }
                 onRetry={() => void loadActivity()}
-                emptyLabel={user ? "No consultations yet." : "Sign in to see sessions."}
+                emptyLabel={
+                  user
+                    ? "No guide sessions yet. Choose a guide to start one."
+                    : "Sign in to see sessions."
+                }
                 rows={consultations.map((item) => ({
                   id: item.id,
                   icon: MessageSquare,
-                  title: item.personaId || "Consultation",
-                  meta: `${item.status || "unknown"} · ${item.cost ?? 0} credits`,
+                  title:
+                    PERSONAS.find((p) => p.id === item.personaId)?.name ??
+                    "Guide session",
+                  meta: [statusLabel(item.status), `${item.cost ?? 0} credits`]
+                    .filter(Boolean)
+                    .join(" · "),
                   date: formatDate(item.createdAt),
                 }))}
               />
@@ -442,14 +491,21 @@ export default function Wallet() {
                 loading={Boolean(user) && loading}
                 error={sectionErrors.reports ? "Reports couldn't be loaded." : null}
                 onRetry={() => void loadActivity()}
-                emptyLabel={user ? "No reports yet." : "Sign in to see reports."}
+                emptyLabel={
+                  user
+                    ? "No PDF reports yet. Reports you buy are listed here."
+                    : "Sign in to see reports."
+                }
                 rows={reports.map((item) => ({
                   id: item.id,
                   icon: FileText,
-                  title: item.title || item.reportType || "Report",
-                  meta: `${item.status || "unknown"} · ${
-                    item.chargedCredits ?? item.creditCost ?? 0
-                  } credits`,
+                  title: reportTitle(item),
+                  meta: [
+                    statusLabel(item.status),
+                    `${item.chargedCredits ?? item.creditCost ?? 0} credits`,
+                  ]
+                    .filter(Boolean)
+                    .join(" · "),
                   date: formatDate(item.createdAt),
                 }))}
               />
@@ -457,7 +513,7 @@ export default function Wallet() {
 
             <section className="platform-panel p-4">
               <div className="flex items-center gap-2 text-gold">
-                <HelpCircle size={15} />
+                <HelpCircle size={15} aria-hidden="true" />
                 <p className="platform-eyebrow">Support</p>
               </div>
               <p className="type-body-sm text-white/60 mt-3">
@@ -465,6 +521,7 @@ export default function Wallet() {
                 open a ticket with the payment or report reference if you have it.
               </p>
               <button
+                type="button"
                 onClick={() => navigate("/support")}
                 className="platform-button-secondary mt-4 w-full"
               >
@@ -488,17 +545,29 @@ export default function Wallet() {
   );
 }
 
+function reportTitle(item: ReportRecord) {
+  if (item.title) return item.title;
+  const known = item.reportType
+    ? REPORT_PRICING[item.reportType as ReportType]?.title
+    : undefined;
+  return known || (item.reportType ? humanizeValue(item.reportType) : "Report");
+}
+
 function LedgerRow({ entry }: { entry: LedgerEntry }) {
   const amount = entry.amount ?? 0;
   const positive = amount > 0;
+  const title = ledgerTypeLabel(entry.type);
+  const source = activityLabel(entry.source);
   return (
     <div className="flex items-center justify-between gap-4 p-4">
       <div className="min-w-0">
         <p className="type-body-sm text-white/80">
-          {labelForLedgerType(entry.type)}
+          {title}
         </p>
         <p className="type-meta text-white/55 mt-1">
-          {entry.source || "system"} {formatDate(entry.createdAt)}
+          {[source !== title ? source : "", formatDate(entry.createdAt)]
+            .filter(Boolean)
+            .join(" · ")}
         </p>
       </div>
       <div className="text-right shrink-0">
@@ -537,7 +606,7 @@ function MiniList({
 }) {
   if (loading) {
     return (
-      <div className="space-y-3" aria-busy="true">
+      <div className="space-y-3" aria-busy="true" aria-label="Loading">
         {[0, 1].map((i) => (
           <div key={i} className="h-8 rounded-lg bg-white/5 animate-pulse" />
         ))}
@@ -562,7 +631,7 @@ function MiniList({
         return (
           <div key={row.id} className="flex items-start gap-3">
             <div className="mt-0.5 h-8 w-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-gold">
-              <Icon size={14} />
+              <Icon size={14} aria-hidden="true" />
             </div>
             <div className="min-w-0">
               <p className="type-body-sm text-white/70 truncate">{row.title}</p>

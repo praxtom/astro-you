@@ -23,13 +23,13 @@ export const ZODIAC_MODES: readonly ZodiacModeMeta[] = [
     mode: "vedic",
     label: "Vedic (sidereal)",
     description:
-      "Jyotish, aligned to the visible constellations using the Lahiri ayanamsa. Uses whole-sign houses, Nakshatras and Dashas.",
+      "Indian astrology (Jyotish), the system Kundalis and Indian horoscopes use. Recommended. Your signs here may be one earlier than the Western sign you know.",
   },
   {
     mode: "western",
     label: "Western (tropical)",
     description:
-      "Aligned to the equinoxes with Placidus houses — the system behind the Sun sign you already know.",
+      "Western astrology, the system behind the Sun sign in most magazines and apps.",
   },
 ];
 

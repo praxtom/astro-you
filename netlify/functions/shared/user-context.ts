@@ -655,15 +655,40 @@ function normalizePanchang(
 ): UserContext["panchangData"] | undefined {
   if (!value || typeof value !== "object") return undefined;
 
-  return {
-    tithi: toOptionalString(value.tithi || value.tithi_name),
-    nakshatra: toOptionalString(value.nakshatra || value.nakshatra_name),
-    yoga: toOptionalString(value.yoga || value.yoga_name),
-    karana: toOptionalString(value.karana || value.karana_name),
-    rahu_kaal: toOptionalString(
-      value.rahu_kaal || value.rahukaal || value.rahuKaal,
+  // Each limb arrives either as a plain string or as an object
+  // ({ name, end_time, ... }); a time window as a string or { start, end }.
+  const label = (field: any): string | undefined => {
+    if (typeof field === "string") return toOptionalString(field);
+    if (field && typeof field === "object") {
+      return toOptionalString(field.name || field.label || field.title);
+    }
+    return undefined;
+  };
+  const window = (field: any): string | undefined => {
+    if (typeof field === "string") return toOptionalString(field);
+    if (field && typeof field === "object") {
+      const start = toOptionalString(field.start || field.start_time);
+      const end = toOptionalString(field.end || field.end_time);
+      return start && end ? `${start} - ${end}` : undefined;
+    }
+    return undefined;
+  };
+  const result = {
+    tithi: label(value.tithi) || toOptionalString(value.tithi_name),
+    nakshatra:
+      label(value.nakshatra) || toOptionalString(value.nakshatra_name),
+    yoga: label(value.yoga) || toOptionalString(value.yoga_name),
+    karana: label(value.karana) || toOptionalString(value.karana_name),
+    rahu_kaal: window(
+      value.inauspicious_periods?.rahu_kalam ||
+        value.rahu_kaal ||
+        value.rahukaal ||
+        value.rahuKaal ||
+        value.rahu_kalam,
     ),
   };
+  // Nothing readable: omit the block rather than tell the model "Unknown".
+  return Object.values(result).some(Boolean) ? result : undefined;
 }
 
 function hasAstrologyContextData(context: WeeklyAstrologyContextData) {

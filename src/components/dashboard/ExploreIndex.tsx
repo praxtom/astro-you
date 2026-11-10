@@ -33,6 +33,7 @@ export const ExploreIndex: React.FC = () => {
     >
       {SPACES.map((space, i) => (
         <button
+          type="button"
           key={space.id}
           onClick={() => navigate(getSpacePrimaryPath(space))}
           className="group relative text-left transition-colors duration-300"
@@ -43,6 +44,7 @@ export const ExploreIndex: React.FC = () => {
             </span>
             <ArrowUpRight
               size={13}
+              aria-hidden="true"
               className="text-white/0 group-hover:text-gold transition-all duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
             />
           </div>
@@ -61,6 +63,7 @@ export const ExploreIndex: React.FC = () => {
 
       {/* sixth cell: the wandering door */}
       <button
+        type="button"
         onClick={() => navigate("/astromap")}
         className="group relative text-left transition-colors duration-300"
       >
@@ -70,6 +73,7 @@ export const ExploreIndex: React.FC = () => {
           </span>
           <ArrowUpRight
             size={13}
+            aria-hidden="true"
             className="text-white/0 group-hover:text-gold transition-all duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
           />
         </div>

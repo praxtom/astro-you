@@ -7,6 +7,9 @@ import {
 } from "./shared/gemini";
 import { auth, db, FieldValue } from "./shared/firebase-admin";
 import { buildUserContext } from "./shared/user-context";
+import { chartBirthData, getCachedNatalChart } from "./shared/astro-cached.js";
+import { normalizePlatformLanguage } from "./shared/languages.js";
+import { isUsableCachedKundali, parseChartReadingBirthData } from "../../src/lib/profile-readiness.js";
 import { checkRateLimit, getRequestIdentifier } from "./shared/rate-limit";
 import { dispatchBackgroundJob } from "./shared/internal-dispatch";
 import {
@@ -240,6 +243,14 @@ export default async (req: Request, context: Context) => {
     });
   }
 
+  const readingBirthData = parseChartReadingBirthData(body.chartReadingBirthData);
+  if (body.chartReadingBirthData != null && !readingBirthData) {
+    return new Response(
+      JSON.stringify({ error: "Open your Kundali again to start this conversation." }),
+      { status: 400, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
   // Authenticated users: hourly cap keyed on uid (and additionally credit-gated
   // below). Guests: a stricter server-side trial cap keyed on the (non-spoofable)
   // client IP — independent of the client-side localStorage timer, which is
@@ -260,7 +271,35 @@ export default async (req: Request, context: Context) => {
           limit: 15,
           windowMs: 24 * 60 * 60 * 1000,
         },
+        // Site-wide ceiling on free guest generations. Per-IP limits alone do
+        // not bound total spend when requests come from many addresses.
+        // Checked last so a request refused per-IP does not use it up.
+        {
+          scope: "synthesis_guest_global_day",
+          key: "all",
+          limit: guestGlobalDailyCap(),
+          windowMs: 24 * 60 * 60 * 1000,
+        },
       ];
+  // Guests get a short trial, so they never need a long transcript.
+  if (
+    !uid &&
+    Array.isArray(messages) &&
+    (messages.length > GUEST_MAX_MESSAGES ||
+      messages.some(
+        (m: any) =>
+          typeof m?.content === "string" &&
+          m.content.length > GUEST_MAX_MESSAGE_CHARS,
+      ))
+  ) {
+    return new Response(
+      JSON.stringify({
+        error: "That message is too long for a guest chat. Sign in to continue.",
+        code: "auth_required",
+      }),
+      { status: 413, headers: { "Content-Type": "application/json" } },
+    );
+  }
   for (const check of limitChecks) {
     const rateLimit = await checkRateLimit(check);
     if (!rateLimit.allowed) {
@@ -289,12 +328,14 @@ export default async (req: Request, context: Context) => {
   // "Pause memory" (users/{uid}.memoryPaused): no consciousness analysis,
   // Atman persistence, memory-ledger writes or chat summary for this turn.
   let memoryPaused = false;
+  let accountLanguage = normalizePlatformLanguage(undefined);
   if (uid) {
     try {
       const userSnap = await db.collection("users").doc(uid).get();
       const userDoc = userSnap.data();
       unmeteredChat = isPaidSubscriptionActive(userDoc?.subscription);
       memoryPaused = userDoc?.memoryPaused === true;
+      accountLanguage = normalizePlatformLanguage(userDoc?.profile?.language || userDoc?.language);
     } catch (subError) {
       // Fall back to metered billing if the subscription lookup fails, and
       // fail closed on memory: if we can't confirm memory is on, don't write.
@@ -400,21 +441,30 @@ export default async (req: Request, context: Context) => {
   // nothing.
   let userContext, kundaliSummary;
   try {
+    const selectedChart = readingBirthData && uid
+      ? await getCachedNatalChart(chartBirthData(readingBirthData))
+      : kundaliData;
+    if (readingBirthData && !isUsableCachedKundali(selectedChart, "D1", "vedic")) {
+      throw new Error("The selected Kundali is unavailable");
+    }
+    // A chart opened from Free Kundali has its own subject. Keep the account
+    // for billing and chat storage, and use only the selected chart for guidance.
     ({ userContext, kundaliSummary } = await buildUserContext({
-      uid,
-      birthData,
-      kundaliData,
+      uid: readingBirthData ? undefined : uid,
+      birthData: readingBirthData ?? birthData,
+      kundaliData: selectedChart,
       previousInteractionId,
-      atmanData,
-      recentSummaries: recentSummaries || undefined,
-      yogaData,
-      panchangData,
+      atmanData: readingBirthData ? undefined : atmanData,
+      recentSummaries: readingBirthData ? undefined : recentSummaries || undefined,
+      yogaData: readingBirthData ? undefined : yogaData,
+      panchangData: readingBirthData ? undefined : panchangData,
       localDate,
     }));
+    if (readingBirthData && uid) userContext.language = accountLanguage;
     const compatibilityContext = sanitizeCompatibilityContext(
       rawCompatibilityContext,
     );
-    if (compatibilityContext && userContext) {
+    if (!readingBirthData && compatibilityContext && userContext) {
       userContext.compatibilityContext = compatibilityContext;
     }
   } catch (err) {
@@ -528,7 +578,7 @@ export default async (req: Request, context: Context) => {
           )
           .map((m: any) => ({ role: m.role as string, content: m.content }));
         const postprocessJob: SynthesisPostprocessJob | null =
-          uid && !memoryPaused
+          uid && !memoryPaused && !readingBirthData
             ? {
                 uid,
                 requestedAt: startedAt,
@@ -682,6 +732,14 @@ export default async (req: Request, context: Context) => {
     headers: SSE_HEADERS,
   });
 };
+
+const GUEST_MAX_MESSAGES = 24;
+const GUEST_MAX_MESSAGE_CHARS = 2000;
+/** Env GUEST_CHAT_DAILY_CAP; default 1,500 free guest replies a day site-wide. */
+function guestGlobalDailyCap(): number {
+  const parsed = Number(process.env.GUEST_CHAT_DAILY_CAP);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 1500;
+}
 
 export const config: Config = {
   path: "/api/synthesis",

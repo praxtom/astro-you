@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Gem, Moon, Flame, HandHeart, Plus, Check } from 'lucide-react';
-import { FactLabel, FactSkeleton } from './primitives';
+import React, { useId, useState } from 'react';
+import { TileHead } from './WeatherTiles';
+import { Gem, Moon, Flame, HandHeart, Plus, Check, Leaf } from 'lucide-react';
+import { FactSkeleton } from './primitives';
 import { Link } from 'react-router-dom';
 import { useRemedies, type Remedy } from '../../hooks/useRemedies';
 import { PersonalCardNotice } from './PersonalCardNotice';
@@ -68,19 +69,21 @@ function RemedyItem({ remedy, onAddRoutine, addedRoutines, canAddRoutine }: Reme
             </div>
             {showButton && (
                 <button
+                    type="button"
                     onClick={() => !isAdded && onAddRoutine(remedy)}
                     disabled={isAdded}
                     title={isAdded ? 'Added to daily sadhana' : 'Add to daily routine'}
+                    aria-label={isAdded ? `${remedy.name} added to your daily sadhana` : `Add ${remedy.name} to your daily routine`}
                     className={`
-                        mt-0.5 flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full
+                        flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full
                         transition-all duration-200
                         ${isAdded
                             ? 'bg-emerald-500/20 text-emerald-400 opacity-100'
-                            : 'bg-white/5 text-white/55 hover:bg-amber-500/20 hover:text-amber-300 opacity-0 group-hover:opacity-100'
+                            : 'bg-white/5 text-white/60 hover:bg-amber-500/20 hover:text-amber-300 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100'
                         }
                     `}
                 >
-                    {isAdded ? <Check size={12} /> : <Plus size={12} />}
+                    {isAdded ? <Check size={14} aria-hidden="true" /> : <Plus size={14} aria-hidden="true" />}
                 </button>
             )}
         </div>
@@ -111,6 +114,7 @@ export const RemediesCard: React.FC<RemediesCardProps> = ({ birthData }) => {
     const { addToast } = useToast();
     const [addedRoutines, setAddedRoutines] = useState<Set<string>>(new Set());
     const [expanded, setExpanded] = useState(false);
+    const listId = useId();
 
     const allRemedies: Remedy[] = (
         Array.isArray(remedies?.remedies) ? remedies.remedies
@@ -149,7 +153,7 @@ export const RemediesCard: React.FC<RemediesCardProps> = ({ birthData }) => {
 
     return (
         <div>
-            <FactLabel>{showFoundation ? 'Daily sadhana' : 'Your remedies'}</FactLabel>
+            <TileHead icon={<Leaf />}>{showFoundation ? 'Daily practice' : 'Your remedies'}</TileHead>
 
             {loading && (
                 <div className="mt-3"><FactSkeleton /></div>
@@ -181,7 +185,7 @@ export const RemediesCard: React.FC<RemediesCardProps> = ({ birthData }) => {
                     )}
                     <Link
                         to="/remedies"
-                        className="mt-4 min-h-11 inline-flex items-center gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.18em] text-gold hover:text-white transition-colors"
+                        className="mt-4 min-h-11 inline-flex items-center gap-1.5 text-[0.85rem] font-semibold text-gold/85 hover:text-gold transition-colors"
                     >
                         Open remedy studio
                     </Link>
@@ -190,7 +194,7 @@ export const RemediesCard: React.FC<RemediesCardProps> = ({ birthData }) => {
 
             {!loading && displayedRemedies.length > 0 && (
                 <>
-                    <div className="mt-3 space-y-4">
+                    <div id={listId} className="mt-3 space-y-4">
                         {displayedRemedies.map((remedy, i) => (
                             <RemedyItem
                                 key={i}
@@ -203,15 +207,18 @@ export const RemediesCard: React.FC<RemediesCardProps> = ({ birthData }) => {
                     </div>
                     {allRemedies.length > 3 && (
                         <button
+                            type="button"
+                            aria-expanded={expanded}
+                            aria-controls={listId}
                             onClick={() => setExpanded(!expanded)}
-                            className="mt-3 block text-[0.75rem] font-bold uppercase tracking-[0.18em] text-white/55 hover:text-gold transition-colors"
+                            className="mt-3 block min-h-11 text-[0.85rem] font-semibold text-white/60 hover:text-gold transition-colors"
                         >
                             {expanded ? 'Show less' : `View all ${allRemedies.length} remedies`}
                         </button>
                     )}
                     <Link
                         to="/remedies"
-                        className="mt-4 min-h-11 inline-flex items-center gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.18em] text-gold hover:text-white transition-colors"
+                        className="mt-4 min-h-11 inline-flex items-center gap-1.5 text-[0.85rem] font-semibold text-gold/85 hover:text-gold transition-colors"
                     >
                         Open remedy studio
                     </Link>

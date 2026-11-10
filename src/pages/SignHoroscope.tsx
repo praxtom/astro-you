@@ -19,11 +19,26 @@ import { getSiteOrigin, siteUrl } from "../lib/site-url";
 export default function SignHoroscope() {
   const { sign, period } = useParams();
   const route = horoscopeRoute(sign, period);
-  return route && sign ? <HoroscopeReading key={route.path} sign={sign} period={period} route={route} /> : <NotFound />;
+  return route && sign ? (
+    <HoroscopeReading
+      key={route.path}
+      sign={sign}
+      period={period}
+      route={route}
+    />
+  ) : (
+    <NotFound />
+  );
 }
 
-function HoroscopeReading({ sign, period = "daily", route }: {
-  sign: string; period?: string; route: NonNullable<ReturnType<typeof horoscopeRoute>>;
+function HoroscopeReading({
+  sign,
+  period = "daily",
+  route,
+}: {
+  sign: string;
+  period?: string;
+  route: NonNullable<ReturnType<typeof horoscopeRoute>>;
 }) {
   const content = getSignHoroscopeContent(sign, period);
   const normalizedSign = content.sign.slug;
@@ -33,6 +48,13 @@ function HoroscopeReading({ sign, period = "daily", route }: {
   const [loading, setLoading] = useState(false);
 
   const fallbackForecast = useMemo(() => content.forecast, [content.forecast]);
+  // The viewer's calendar day, fixed for this visit so the date line and the
+  // live request agree on which day / week / month / year is being read.
+  const viewerToday = useMemo(() => viewerDateKey(), []);
+  const periodLabel = useMemo(
+    () => formatPeriodSpan(normalizedPeriod, viewerToday),
+    [normalizedPeriod, viewerToday],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -45,7 +67,7 @@ function HoroscopeReading({ sign, period = "daily", route }: {
       body: JSON.stringify({
         sign: signName,
         period: normalizedPeriod,
-        localDate: viewerDateKey(),
+        localDate: viewerToday,
       }),
       signal: controller.signal,
     })
@@ -68,7 +90,7 @@ function HoroscopeReading({ sign, period = "daily", route }: {
       cancelled = true;
       controller.abort();
     };
-  }, [signName, normalizedPeriod]);
+  }, [signName, normalizedPeriod, viewerToday]);
 
   const rememberSource = (target: string) => {
     captureAcquisitionSource({
@@ -84,7 +106,7 @@ function HoroscopeReading({ sign, period = "daily", route }: {
     });
   };
 
-  const forecastText = normalizeHoroscopeText(horoscope) || fallbackForecast;
+  const liveForecast = normalizeHoroscopeText(horoscope);
   const canonicalPath = route.path;
   const relatedLinks = [
     ...HOROSCOPE_PERIODS.map((item) => ({
@@ -156,31 +178,29 @@ function HoroscopeReading({ sign, period = "daily", route }: {
           to="/free-kundali"
           className="flex items-center gap-2 text-white/60 hover:text-white mb-8 text-sm"
         >
-          <ArrowLeft size={16} /> Free Kundali
+          <ArrowLeft size={16} aria-hidden="true" /> Free Kundali
         </Link>
 
         <div className="text-center mb-8">
-          <span className="text-5xl">{content.sign.symbol}</span>
-          <h1 className="type-page-title mt-4">
-            {route.title}
-          </h1>
-          <p className="text-white/60 text-sm mt-2">
-            {new Date().toLocaleDateString("en-US", {
-              weekday: "long",
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
-          </p>
+          <span className="text-5xl" aria-hidden="true">
+            {content.sign.symbol}
+          </span>
+          <h1 className="type-page-title mt-4">{route.title}</h1>
+          <p className="text-white/60 text-sm mt-2">{periodLabel}</p>
         </div>
 
         {/* Period tabs */}
-        <div className="flex gap-2 justify-center mb-8">
+        {/* Wraps at 375px: four tracked uppercase tabs overflow one line. */}
+        <nav
+          aria-label="Horoscope period"
+          className="flex flex-wrap gap-2 justify-center mb-8"
+        >
           {HOROSCOPE_PERIODS.map((p) => (
             <Link
               key={p.slug}
               to={`/horoscope/${normalizedSign}/${p.slug}`}
-              className={`inline-flex min-h-11 items-center px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
+              aria-current={normalizedPeriod === p.slug ? "page" : undefined}
+              className={`inline-flex min-h-11 items-center px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
                 normalizedPeriod === p.slug
                   ? "bg-gold/10 border-gold/50 text-gold border"
                   : "bg-white/5 border-white/10 text-white/60 border hover:border-white/30"
@@ -189,18 +209,33 @@ function HoroscopeReading({ sign, period = "daily", route }: {
               {p.name}
             </Link>
           ))}
-        </div>
+        </nav>
 
-        <div className="glass rounded-[2rem] p-8">
+        <div className="glass rounded-[2rem] p-6 sm:p-8" aria-busy={loading}>
           <div className="mb-4 flex items-center gap-2 text-xs uppercase tracking-widest text-white/55">
-            {loading && <Loader2 size={14} className="animate-spin" />}
+            {loading && (
+              <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+            )}
             <span>
               {loading ? "Refreshing live reading" : "Current guidance"}
             </span>
           </div>
-          <p className="text-lg text-white/80 leading-relaxed font-light">
-            {forecastText}
-          </p>
+          {/* The fallback stays in flow (hidden once the live reading lands) so
+              the card never shrinks when the text swaps — no layout jump. */}
+          <div className="grid">
+            <p
+              className={`col-start-1 row-start-1 text-base sm:text-lg text-white/80 leading-relaxed ${
+                liveForecast ? "invisible" : ""
+              }`}
+            >
+              {fallbackForecast}
+            </p>
+            {liveForecast && (
+              <p className="col-start-1 row-start-1 text-base sm:text-lg text-white/80 leading-relaxed">
+                {liveForecast}
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -209,10 +244,10 @@ function HoroscopeReading({ sign, period = "daily", route }: {
               key={item.title}
               className="rounded-xl border border-white/10 bg-white/[0.03] p-4"
             >
-              <h2 className="text-sm font-semibold text-white/85">
+              <h2 className="font-body text-sm font-semibold text-white/85">
                 {item.title}
               </h2>
-              <p className="mt-2 text-sm leading-relaxed text-white/50">
+              <p className="mt-2 text-sm leading-relaxed text-white/65">
                 {item.body}
               </p>
             </section>
@@ -221,7 +256,7 @@ function HoroscopeReading({ sign, period = "daily", route }: {
 
         {/* Other signs */}
         <div className="mt-12">
-          <h2 className="text-xs text-white/55 uppercase tracking-widest text-center mb-4">
+          <h2 className="font-body text-xs font-bold text-white/55 uppercase tracking-widest text-center mb-4">
             Other Signs
           </h2>
           <div className="flex flex-wrap gap-2 justify-center">
@@ -245,7 +280,7 @@ function HoroscopeReading({ sign, period = "daily", route }: {
             <Link
               key={item.href}
               to={item.href}
-              className="rounded-full border border-gold/20 px-3 py-1.5 text-xs text-gold/80 hover:bg-gold/10"
+              className="inline-flex min-h-11 items-center rounded-full border border-gold/20 px-3 py-1.5 text-xs text-gold/80 hover:bg-gold/10"
               onClick={() => rememberSource(item.href)}
             >
               {item.label}
@@ -256,12 +291,12 @@ function HoroscopeReading({ sign, period = "daily", route }: {
         {/* CTA */}
         <div className="mt-12 text-center">
           <p className="text-white/60 text-sm mb-4">
-            Want personalized predictions based on YOUR birth chart?
+            Want a reading based on your own birth chart?
           </p>
           <Link
             to="/free-kundali"
             onClick={() => rememberSource("/free-kundali")}
-            className="inline-block px-6 py-3 rounded-xl bg-gold text-black font-bold text-sm"
+            className="inline-flex min-h-11 items-center px-6 py-3 rounded-xl bg-gold text-black font-bold text-sm"
           >
             Get Free Kundali
           </Link>
@@ -269,6 +304,57 @@ function HoroscopeReading({ sign, period = "daily", route }: {
       </div>
     </div>
   );
+}
+
+/**
+ * The span a reading covers, in en-IN style, from the viewer's YYYY-MM-DD day.
+ * Weeks run Monday to Sunday — the same week the sign-horoscope API reads.
+ *   daily   → "Tuesday, 10 November 2026"
+ *   weekly  → "9–15 November 2026"
+ *   monthly → "November 2026"
+ *   yearly  → "2026"
+ */
+function formatPeriodSpan(period: string, dateKey: string): string {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const day = new Date(Date.UTC(y, m - 1, d));
+  // Dates are built at UTC midnight, so format in UTC to keep the same day.
+  switch (period) {
+    case "weekly": {
+      const sinceMonday = (day.getUTCDay() + 6) % 7;
+      const start = new Date(Date.UTC(y, m - 1, d - sinceMonday));
+      const end = new Date(Date.UTC(y, m - 1, d - sinceMonday + 6));
+      const part = (date: Date, withMonth: boolean, withYear: boolean) =>
+        date.toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: withMonth ? "long" : undefined,
+          year: withYear ? "numeric" : undefined,
+          timeZone: "UTC",
+        });
+      const sameYear = start.getUTCFullYear() === end.getUTCFullYear();
+      const sameMonth = sameYear && start.getUTCMonth() === end.getUTCMonth();
+      // "9–15 November 2026", "30 November – 6 December 2026",
+      // "28 December 2026 – 3 January 2027"
+      if (sameMonth)
+        return `${part(start, false, false)}–${part(end, true, true)}`;
+      return `${part(start, true, !sameYear)} – ${part(end, true, true)}`;
+    }
+    case "monthly":
+      return day.toLocaleDateString("en-IN", {
+        month: "long",
+        year: "numeric",
+        timeZone: "UTC",
+      });
+    case "yearly":
+      return String(y);
+    default:
+      return day.toLocaleDateString("en-IN", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        timeZone: "UTC",
+      });
+  }
 }
 
 function normalizeHoroscopeText(value: unknown): string {

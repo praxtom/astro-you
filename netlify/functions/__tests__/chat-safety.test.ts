@@ -305,7 +305,7 @@ test("persona override keeps the persona name honest about being AI", () => {
     { name: "Meera Devi", promptModifier: "Focus on relationships." },
     "Hindi",
   );
-  assert.match(override, /Your name is Meera Devi, an AI astrology guide/);
+  assert.match(override, /Your name is Meera Devi, an astrology guide on AstroYou \(not a person\)/);
   assert.match(override, /not a human astrologer/);
   assert.match(override, /never invent a personal life/i);
   assert.match(override, /Hinglish/);

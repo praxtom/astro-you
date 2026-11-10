@@ -1,4 +1,6 @@
-import { FactLabel, FactSkeleton } from './primitives';
+import { FactSkeleton } from './primitives';
+import { Hourglass } from 'lucide-react';
+import { TileHead } from './WeatherTiles';
 import { GlossaryTerm } from "../ui/GlossaryTerm";
 import { PersonalCardNotice } from './PersonalCardNotice';
 import type { DashaPeriodSummary } from '../../hooks/useDashaPeriods';
@@ -40,7 +42,7 @@ export function DashaCard({ periods, loading, errorKind, onRetry, hasBirthData }
 
     return (
         <div>
-            <FactLabel>Current dasha</FactLabel>
+            <TileHead icon={<Hourglass />}>Current dasha</TileHead>
             {!maha ? (
                 <div className="mt-3"><PersonalCardNotice kind={errorKind ?? 'unavailable'} thing="current dasha" onRetry={onRetry} /></div>
             ) : (

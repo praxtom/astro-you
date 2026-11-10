@@ -26,7 +26,10 @@ test("guidance is read from the natal Moon: house and tara", () => {
   assert.equal(g.personal, true);
   assert.match(g.why, /7th sign from your natal Moon in Pisces/);
   assert.match(g.why, /Sadhana tara/);
-  assert.equal(g.context, "Moon in Hasta · 7th from your Moon");
+  assert.equal(
+    g.context,
+    "Today's Moon is in Hasta nakshatra, the 7th sign from your Moon sign.",
+  );
   assert.match(g.energy, /relational/i);
 });
 

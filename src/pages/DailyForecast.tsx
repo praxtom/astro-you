@@ -20,6 +20,7 @@ import {
   LogIn,
 } from "lucide-react";
 import { useSubscription, useUserProfile } from "../hooks";
+import { useDialog } from "../hooks/useDialog";
 import { useRequestBirthData } from "../hooks/useRequestBirthData";
 import { useAuth } from "../lib/useAuth";
 import AuthModal from "../components/AuthModal";
@@ -31,6 +32,7 @@ import {
 } from "../lib/report-products";
 import { CardSkeleton, FullPageSkeleton } from "../components/ui/Skeleton";
 import { StatusNotice } from "../components/ui/StatusNotice";
+import { GlossaryTerm } from "../components/ui/GlossaryTerm";
 import type { ForecastData } from "../types";
 import { postJson } from "../lib/apiFetch";
 import { viewerDateKey } from "../lib/viewer-timezone";
@@ -44,10 +46,95 @@ import {
   rememberChargeConfirmation,
 } from "../lib/feature-pricing";
 
+/**
+ * In-app confirmation before a paid PDF is generated. States the exact credit
+ * cost and the current balance; the charge itself still happens in the page's
+ * own handler once the user confirms.
+ */
+function PdfChargeConfirmDialog({
+  reportTitle,
+  price,
+  balance,
+  onConfirm,
+  onCancel,
+}: {
+  reportTitle: string;
+  price: number;
+  balance: number;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialog(dialogRef, onCancel, true);
+  return (
+    <div
+      className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm px-4 pb-4 sm:pb-0"
+      onClick={onCancel}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pdf-confirm-title"
+        aria-describedby="pdf-confirm-desc"
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-sm rounded-[2rem] border border-white/10 bg-[#0b0b14] p-6 shadow-2xl"
+      >
+        <h2
+          id="pdf-confirm-title"
+          className="text-lg font-semibold text-white mb-2"
+        >
+          Download {reportTitle}?
+        </h2>
+        <p id="pdf-confirm-desc" className="text-sm text-white/70 mb-1">
+          This PDF costs {creditLabel(price)}. It will also be saved to your
+          Reports library.
+        </p>
+        <p className="text-sm text-white/60 mb-6">
+          You have {creditLabel(balance)}; {creditLabel(balance - price)} will
+          remain.
+        </p>
+        <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="min-h-11 px-5 rounded-xl border border-white/15 text-white/70 hover:text-white hover:border-white/30 text-sm transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="min-h-11 px-5 rounded-xl bg-gold text-black font-semibold text-sm hover:bg-gold/90 transition-colors"
+          >
+            Download for {creditLabel(price)}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const PERIOD_WINDOW_NAME = {
   weekly: "this week",
   monthly: "this month",
   yearly: "this year",
+} as const;
+
+/** Plain word for a 1–5 rating, so "4/5" says what it means. */
+const ratingWord = (rating: number) => {
+  if (rating >= 5) return "excellent";
+  if (rating >= 4) return "good";
+  if (rating >= 3) return "mixed";
+  if (rating >= 2) return "go gently";
+  return "keep it light";
+};
+
+const PERIOD_NOUN = {
+  daily: "day",
+  weekly: "week",
+  monthly: "month",
+  yearly: "year",
 } as const;
 
 const getAreaIcon = (area: string) => {
@@ -117,6 +204,8 @@ const DailyForecast: React.FC = () => {
     "daily" | "weekly" | "monthly" | "yearly"
   >("daily");
   const [downloading, setDownloading] = useState(false);
+  // Report type awaiting the user's in-app charge confirmation.
+  const [pdfConfirmType, setPdfConfirmType] = useState<ReportType | null>(null);
   // One requestId per PDF purchase, kept until the server answers so a retry
   // after a network drop can never charge twice (same as Reports.tsx).
   const pendingPdfRequestIds = useRef<Partial<Record<ReportType, string>>>({});
@@ -243,7 +332,7 @@ const DailyForecast: React.FC = () => {
     ? REPORT_PRICING[pdfReportType].creditCost
     : null;
 
-  const handleDownloadPDF = async () => {
+  const handleDownloadPDF = () => {
     if (!birthData || downloading) return;
     setPdfError(null);
     setPdfSuccess(null);
@@ -261,17 +350,19 @@ const DailyForecast: React.FC = () => {
       );
       return;
     }
-    const confirmed = window.confirm(
-      `Generate your ${REPORT_PRICING[pdfReportType].title} for ${pdfPrice} credits? It will also be saved to your Reports library.`,
-    );
-    if (!confirmed) return;
+    // Ask in-app first; the charge runs from the dialog's confirm button.
+    setPdfConfirmType(pdfReportType);
+  };
 
+  const generatePdf = async (reportType: ReportType) => {
+    if (!birthData || !user || downloading) return;
+    const reportPrice = REPORT_PRICING[reportType].creditCost;
     setDownloading(true);
     try {
       const idToken = await user.getIdToken();
       const requestId =
-        pendingPdfRequestIds.current[pdfReportType] ?? createReportRequestId();
-      pendingPdfRequestIds.current[pdfReportType] = requestId;
+        pendingPdfRequestIds.current[reportType] ?? createReportRequestId();
+      pendingPdfRequestIds.current[reportType] = requestId;
       const response = await postPdfReport({
         idToken,
         requestId,
@@ -283,24 +374,21 @@ const DailyForecast: React.FC = () => {
           lat: birthData.coordinates?.lat ?? profile?.coordinates?.lat,
           lng: birthData.coordinates?.lng ?? profile?.coordinates?.lng,
         },
-        reportType: pdfReportType,
+        reportType,
         date: viewerDateKey(),
         localDate: viewerDateKey(),
       });
       // The server answered: this purchase attempt is settled either way.
-      delete pendingPdfRequestIds.current[pdfReportType];
+      delete pendingPdfRequestIds.current[reportType];
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        if (
-          response.status === 409 &&
-          payload?.code === "report_in_progress"
-        ) {
+        if (response.status === 409 && payload?.code === "report_in_progress") {
           throw new Error(payload.error || REPORT_IN_PROGRESS_MESSAGE);
         }
         if (response.status === 402) {
           throw new Error(
             payload?.error ||
-              `You need ${pdfPrice} credits for this PDF. Top up on the Reports page.`,
+              `You need ${reportPrice} credits for this PDF. Top up on the Reports page.`,
           );
         }
         throw new Error(
@@ -313,7 +401,7 @@ const DailyForecast: React.FC = () => {
         response.headers
           .get("Content-Disposition")
           ?.match(/filename="([^"]+)"/)?.[1] ||
-        `astroyou-${pdfReportType}-report.pdf`;
+        `astroyou-${reportType}-report.pdf`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -398,12 +486,14 @@ const DailyForecast: React.FC = () => {
 
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <button
+                type="button"
                 onClick={() => navigate("/onboarding")}
                 className="rounded-xl bg-gold px-5 py-3 text-sm font-bold uppercase tracking-widest text-black transition hover:bg-gold/90"
               >
                 Create Profile
               </button>
               <button
+                type="button"
                 onClick={() => navigate("/horoscope/aries/daily")}
                 className="rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-bold uppercase tracking-widest text-white/70 transition hover:border-gold/30 hover:text-gold"
               >
@@ -424,6 +514,19 @@ const DailyForecast: React.FC = () => {
   });
 
   const h = forecast?.horoscope;
+  const influences = h?.planetary_influences ?? [];
+  const lucky = h?.lucky_elements;
+  const luckyRows = (
+    [
+      ["Colors", lucky?.colors],
+      ["Numbers", lucky?.numbers],
+      ["Stones", lucky?.stones],
+      ["Directions", lucky?.directions],
+    ] as const
+  )
+    .map(([label, list]) => [label, (list ?? []).join(", ")] as const)
+    .filter(([, value]) => value.trim() !== "");
+  const luckyTimes = lucky?.times ?? [];
 
   return (
     <PageShell>
@@ -434,43 +537,47 @@ const DailyForecast: React.FC = () => {
             aria-label="Forecast period"
             className="grid grid-cols-4 gap-1.5 sm:flex sm:gap-2"
           >
-          {(["daily", "weekly", "monthly", "yearly"] as const).map((p) => {
-            const feature = FORECAST_PERIOD_FEATURE[p];
-            const cost = feature ? FEATURE_CREDIT_COST[feature] : 0;
-            const name = p.charAt(0).toUpperCase() + p.slice(1);
-            return (
-              <button
-                key={p}
-                type="button"
-                role="tab"
-                aria-selected={period === p}
-                aria-label={cost ? `${name}, ${creditLabel(cost)}` : `${name}, free`}
-                onClick={() => setPeriod(p)}
-                className={`min-h-11 min-w-0 px-1.5 sm:px-4 py-1.5 rounded-xl border text-xs sm:text-sm font-bold uppercase tracking-wide sm:tracking-widest transition-all ${
-                  period === p
-                    ? "bg-gold/10 border-gold/50 text-gold"
-                    : "bg-white/5 border-white/10 text-white/60 hover:border-white/30"
-                }`}
-              >
-                <span className="block">{name}</span>
-                <span
-                  className="block text-[0.68rem] font-semibold normal-case tracking-normal opacity-70"
-                  aria-hidden="true"
+            {(["daily", "weekly", "monthly", "yearly"] as const).map((p) => {
+              const feature = FORECAST_PERIOD_FEATURE[p];
+              const cost = feature ? FEATURE_CREDIT_COST[feature] : 0;
+              const name = p.charAt(0).toUpperCase() + p.slice(1);
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  role="tab"
+                  aria-selected={period === p}
+                  aria-controls="forecast-panel"
+                  aria-label={
+                    cost ? `${name}, ${creditLabel(cost)}` : `${name}, free`
+                  }
+                  onClick={() => setPeriod(p)}
+                  className={`min-h-11 min-w-0 px-1.5 sm:px-4 py-1.5 rounded-xl border text-xs sm:text-sm font-bold uppercase tracking-wide sm:tracking-widest transition-all ${
+                    period === p
+                      ? "bg-gold/10 border-gold/50 text-gold"
+                      : "bg-white/5 border-white/10 text-white/60 hover:border-white/30"
+                  }`}
                 >
-                  {cost ? creditLabel(cost) : "Free"}
-                </span>
-              </button>
-            );
-          })}
+                  <span className="block">{name}</span>
+                  <span
+                    className="block text-[0.68rem] font-semibold normal-case tracking-normal opacity-70"
+                    aria-hidden="true"
+                  >
+                    {cost ? creditLabel(cost) : "Free"}
+                  </span>
+                </button>
+              );
+            })}
           </div>
           {forecast && !loading && (
             <div className="flex gap-2 sm:ml-auto">
               <button
+                type="button"
                 onClick={handleDownloadPDF}
                 disabled={downloading}
                 className="px-4 py-2 min-h-11 rounded-xl border border-white/10 text-white/60 hover:text-gold hover:border-gold/30 text-xs uppercase tracking-widest transition-all flex items-center gap-2 disabled:opacity-50"
               >
-                <Download size={14} />
+                <Download size={14} aria-hidden="true" />
                 {downloading
                   ? "Generating..."
                   : pdfPrice !== null
@@ -478,6 +585,7 @@ const DailyForecast: React.FC = () => {
                     : "PDF Reports"}
               </button>
               <button
+                type="button"
                 onClick={() => {
                   const text = `My ${period} forecast: ${forecast?.horoscope?.overall_theme || "Check your stars!"}\n\nGet yours free: ${window.location.origin}/free-kundali`;
                   if (navigator.share) {
@@ -495,7 +603,7 @@ const DailyForecast: React.FC = () => {
                 }}
                 className="px-4 py-2 min-h-11 rounded-xl border border-white/10 text-white/60 hover:text-gold hover:border-gold/30 text-xs uppercase tracking-widest transition-all flex items-center gap-2"
               >
-                <Share2 size={14} />
+                <Share2 size={14} aria-hidden="true" />
                 Share
               </button>
             </div>
@@ -512,14 +620,15 @@ const DailyForecast: React.FC = () => {
                   ? "Your Weekly Forecast"
                   : "Your Daily Forecast"}
           </h1>
-          <div className="flex flex-wrap items-center gap-3 text-white/60 font-sans italic text-sm">
+          <div className="flex flex-wrap items-center gap-3 text-white/60 text-sm">
             <div className="flex items-center gap-2">
-              <Calendar size={14} />
+              <Calendar size={14} aria-hidden="true" />
               {today}
             </div>
             {!loading && h?.overall_rating && (
-              <div className="flex items-center gap-2 non-italic font-sans text-xs font-bold bg-white/5 border border-white/10 px-3 py-1 rounded-full text-gold">
-                Overall Alignment: {h.overall_rating}/5
+              <div className="flex items-center gap-2 text-xs font-bold bg-white/5 border border-white/10 px-3 py-1 rounded-full text-gold">
+                Your {PERIOD_NOUN[period]} overall: {h.overall_rating}/5 ·{" "}
+                {ratingWord(h.overall_rating)}
               </div>
             )}
           </div>
@@ -536,514 +645,621 @@ const DailyForecast: React.FC = () => {
           >
             <span>{pdfError || pdfSuccess}</span>
             <button
+              type="button"
               onClick={() => navigate("/reports")}
-              className="rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-white/70 hover:border-gold/30 hover:text-gold"
+              className="min-h-11 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-white/70 hover:border-gold/30 hover:text-gold"
             >
               Open Reports
             </button>
           </div>
         )}
 
-        {needsChargeConfirm && period !== "daily" ? (
-          <div
-            role="region"
-            aria-label={`Unlock your ${period} forecast`}
-            className="rounded-2xl border border-gold/20 bg-gold/5 p-5 md:p-6"
-          >
-            <p className="text-xs font-bold uppercase tracking-widest text-gold/80">
-              {period.charAt(0).toUpperCase() + period.slice(1)} ·{" "}
-              {creditLabel(periodCost)}
-            </p>
-            <p className="mt-2 text-base leading-relaxed text-white/80">
-              Your {period} forecast is read from your chart and costs{" "}
-              {creditLabel(periodCost)} for {PERIOD_WINDOW_NAME[period]}.
-              Opening it again {PERIOD_WINDOW_NAME[period]} is free.
-            </p>
-            <p className="mt-1 text-sm text-white/55">
-              You have {creditLabel(credits)}.
-            </p>
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-              {credits >= periodCost ? (
-                <button
-                  type="button"
-                  onClick={confirmCharge}
-                  className="min-h-11 rounded-xl bg-gold px-5 py-2.5 text-sm font-bold text-black transition hover:bg-gold/90"
-                >
-                  Open for {creditLabel(periodCost)}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => navigate("/wallet")}
-                  className="min-h-11 rounded-xl bg-gold px-5 py-2.5 text-sm font-bold text-black transition hover:bg-gold/90"
-                >
-                  Top up credits
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setPeriod("daily")}
-                className="min-h-11 rounded-xl border border-white/15 px-5 py-2.5 text-sm font-semibold text-white/75 transition hover:border-white/30 hover:text-white"
-              >
-                Back to daily (free)
-              </button>
-            </div>
-          </div>
-        ) : loading ? (
-          <div aria-busy="true" aria-live="polite" className="space-y-4">
-            <span className="sr-only">Loading your {period} forecast</span>
-            <CardSkeleton />
-            <CardSkeleton />
-          </div>
-        ) : error ? (
-          errorKind === "auth" ? (
-            <StatusNotice
-              tone="info"
-              size="section"
-              title="Sign in to see your personal forecast"
-              message="Your forecast is read from your own chart, so it needs your AstroYou account."
-              action={{
-                label: "Sign in",
-                icon: LogIn,
-                onClick: () => setShowAuthModal(true),
-              }}
-            />
-          ) : errorKind === "credits" ? (
-            <StatusNotice
-              tone="info"
-              size="section"
-              message={error}
-              action={{ label: "Top up credits", to: "/wallet" }}
-            />
-          ) : (
-            <StatusNotice
-              size="section"
-              message={
-                <>
-                  <p>{error}</p>
-                  <p className="mt-1 text-white/60">
-                    Nothing is wrong with your chart — our forecast service is
-                    just busy.
-                  </p>
-                </>
-              }
-              onRetry={() => setRetryNonce((n) => n + 1)}
-            />
-          )
-        ) : (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-1000">
-            {/* The Daily Pulse (Theme) */}
-            <div className="glass p-4 rounded-2xl border border-white/5 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-5 opacity-5 group-hover:opacity-10 transition-opacity">
-                <Sun size={120} className="text-gold" />
-              </div>
-
-              <div className="relative z-10">
-                <div className="flex items-center gap-3 text-gold mb-5 font-sans">
-                  <span className="w-8 h-[1px] bg-gold/30"></span>
-                  <span className="text-xs font-black uppercase tracking-widest">
-                    {period === "yearly"
-                      ? "This Year's Theme"
-                      : period === "monthly"
-                        ? "This Month's Theme"
-                        : period === "weekly"
-                          ? "This Week's Theme"
-                          : "Today's Theme"}
-                  </span>
-                </div>
-
-                {forecast?.narrative || h?.overall_theme ? (
-                  <p className="text-xl leading-relaxed text-white/90 font-light italic mb-2 first-letter:text-6xl first-letter:font-bold first-letter:text-gold first-letter:mr-3 first-letter:float-left">
-                    {forecast?.narrative || h?.overall_theme}
-                  </p>
+        <div
+          id="forecast-panel"
+          role="tabpanel"
+          aria-label={`${period.charAt(0).toUpperCase() + period.slice(1)} forecast`}
+        >
+          {needsChargeConfirm && period !== "daily" ? (
+            <div
+              role="region"
+              aria-label={`Unlock your ${period} forecast`}
+              className="rounded-2xl border border-gold/20 bg-gold/5 p-5 md:p-6"
+            >
+              <p className="text-xs font-bold uppercase tracking-widest text-gold/80">
+                {period.charAt(0).toUpperCase() + period.slice(1)} ·{" "}
+                {creditLabel(periodCost)}
+              </p>
+              <p className="mt-2 text-base leading-relaxed text-white/80">
+                Your {period} forecast is read from your chart and costs{" "}
+                {creditLabel(periodCost)} for {PERIOD_WINDOW_NAME[period]}.
+                Opening it again {PERIOD_WINDOW_NAME[period]} is free.
+              </p>
+              <p className="mt-1 text-sm text-white/55">
+                You have {creditLabel(credits)}.
+              </p>
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                {credits >= periodCost ? (
+                  <button
+                    type="button"
+                    onClick={confirmCharge}
+                    className="min-h-11 rounded-xl bg-gold px-5 py-2.5 text-sm font-bold text-black transition hover:bg-gold/90"
+                  >
+                    Open for {creditLabel(periodCost)}
+                  </button>
                 ) : (
-                  <p className="text-base text-white/60 mb-2">
-                    No theme was returned for this period. The details below
-                    are still read from your chart.
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/wallet")}
+                    className="min-h-11 rounded-xl bg-gold px-5 py-2.5 text-sm font-bold text-black transition hover:bg-gold/90"
+                  >
+                    Top up credits
+                  </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setPeriod("daily")}
+                  className="min-h-11 rounded-xl border border-white/15 px-5 py-2.5 text-sm font-semibold text-white/75 transition hover:border-white/30 hover:text-white"
+                >
+                  Back to daily (free)
+                </button>
               </div>
             </div>
+          ) : loading ? (
+            <div aria-busy="true" aria-live="polite" className="space-y-4">
+              <span className="sr-only">Loading your {period} forecast</span>
+              <CardSkeleton />
+              <CardSkeleton />
+            </div>
+          ) : error ? (
+            errorKind === "auth" ? (
+              <StatusNotice
+                tone="info"
+                size="section"
+                title="Sign in to see your personal forecast"
+                message="Your forecast is read from your own chart, so it needs your AstroYou account."
+                action={{
+                  label: "Sign in",
+                  icon: LogIn,
+                  onClick: () => setShowAuthModal(true),
+                }}
+              />
+            ) : errorKind === "credits" ? (
+              <StatusNotice
+                tone="info"
+                size="section"
+                message={error}
+                action={{ label: "Top up credits", to: "/wallet" }}
+              />
+            ) : (
+              <StatusNotice
+                size="section"
+                message={
+                  <>
+                    <p>{error}</p>
+                    <p className="mt-1 text-white/60">
+                      Nothing is wrong with your chart — our forecast service is
+                      just busy.
+                    </p>
+                  </>
+                }
+                onRetry={() => setRetryNonce((n) => n + 1)}
+              />
+            )
+          ) : (
+            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+              {/* The Daily Pulse (Theme) */}
+              <div className="glass p-5 md:p-6 rounded-2xl border border-white/5 relative overflow-hidden group">
+                <div
+                  className="absolute top-0 right-0 p-5 opacity-5 group-hover:opacity-10 transition-opacity"
+                  aria-hidden="true"
+                >
+                  <Sun size={120} className="text-gold" />
+                </div>
 
-            {/* Period-specific content */}
-            {period === "weekly" && h?.key_days && (
-              <div className="glass rounded-2xl p-6 mb-6">
-                <h3 className="text-sm uppercase tracking-widest text-white/55 font-bold mb-4">
-                  Key Days This Week
-                </h3>
-                <div className="space-y-3">
-                  {(h.key_days || h.day_by_day || []).map(
-                    (day: any, i: number) => (
-                      <div
-                        key={i}
-                        className="flex items-start gap-3 py-2 border-b border-white/5 last:border-0"
-                      >
-                        <span className="text-gold text-sm font-medium min-w-[80px]">
-                          {day.date || day.day || `Day ${i + 1}`}
-                        </span>
-                        <p className="text-white/70 text-sm">
-                          {day.description || day.theme || day.prediction || ""}
-                        </p>
-                      </div>
-                    ),
+                <div className="relative z-10">
+                  <div className="flex items-center gap-3 text-gold mb-3">
+                    <span
+                      className="w-8 h-[1px] bg-gold/30"
+                      aria-hidden="true"
+                    ></span>
+                    <span className="text-xs font-black uppercase tracking-widest">
+                      {period === "yearly"
+                        ? "This Year's Theme"
+                        : period === "monthly"
+                          ? "This Month's Theme"
+                          : period === "weekly"
+                            ? "This Week's Theme"
+                            : "Today's Theme"}
+                    </span>
+                  </div>
+
+                  {forecast?.narrative || h?.overall_theme ? (
+                    <p className="max-w-[65ch] text-base md:text-[1.0625rem] leading-relaxed text-white/85">
+                      {forecast?.narrative || h?.overall_theme}
+                    </p>
+                  ) : (
+                    <p className="text-base text-white/60 mb-2">
+                      No theme was returned for this period. The details below
+                      are still read from your chart.
+                    </p>
                   )}
                 </div>
               </div>
-            )}
 
-            {period === "monthly" && (h?.key_dates || h?.keyDates) && (
-              <div className="glass rounded-2xl p-6 mb-6">
-                <h3 className="text-sm uppercase tracking-widest text-white/55 font-bold mb-4">
-                  Key Dates This Month
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {(h.key_dates || h.keyDates || []).map(
-                    (kd: any, i: number) => (
-                      <div
-                        key={i}
-                        className="p-3 rounded-xl bg-white/5 border border-white/10"
-                      >
-                        <span className="text-gold text-xs font-bold">
-                          {kd.date || kd.day}
-                        </span>
-                        <p className="text-white/60 text-xs mt-1">
-                          {kd.description || kd.event || kd.prediction}
-                        </p>
-                        {kd.type && (
-                          <span
-                            className={`text-xs mt-1 inline-block px-2 py-0.5 rounded-full ${kd.type === "peak" || kd.type === "auspicious" ? "bg-emerald-500/20 text-emerald-300" : "bg-amber-500/20 text-amber-300"}`}
-                          >
-                            {kd.type}
+              {/* Period-specific content */}
+              {period === "weekly" && h?.key_days && (
+                <div className="glass rounded-2xl p-5 md:p-6">
+                  <h3 className="text-sm uppercase tracking-widest text-white/55 font-bold mb-4">
+                    Key Days This Week
+                  </h3>
+                  <div className="space-y-3">
+                    {(h.key_days || h.day_by_day || []).map(
+                      (day: any, i: number) => (
+                        <div
+                          key={i}
+                          className="flex items-start gap-3 py-2 border-b border-white/5 last:border-0"
+                        >
+                          <span className="text-gold text-sm font-medium min-w-[80px]">
+                            {day.date || day.day || `Day ${i + 1}`}
                           </span>
-                        )}
+                          <p className="text-white/70 text-sm">
+                            {day.description ||
+                              day.theme ||
+                              day.prediction ||
+                              ""}
+                          </p>
+                        </div>
+                      ),
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {period === "monthly" && (h?.key_dates || h?.keyDates) && (
+                <div className="glass rounded-2xl p-5 md:p-6">
+                  <h3 className="text-sm uppercase tracking-widest text-white/55 font-bold mb-4">
+                    Key Dates This Month
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {(h.key_dates || h.keyDates || []).map(
+                      (kd: any, i: number) => (
+                        <div
+                          key={i}
+                          className="p-3 rounded-xl bg-white/5 border border-white/10"
+                        >
+                          <span className="text-gold text-sm font-bold">
+                            {kd.date || kd.day}
+                          </span>
+                          <p className="text-white/70 text-sm leading-relaxed mt-1">
+                            {kd.description || kd.event || kd.prediction}
+                          </p>
+                          {kd.type && (
+                            <span
+                              className={`text-xs mt-1 inline-block px-2 py-0.5 rounded-full ${kd.type === "peak" || kd.type === "auspicious" ? "bg-emerald-500/20 text-emerald-300" : "bg-amber-500/20 text-amber-300"}`}
+                            >
+                              {kd.type}
+                            </span>
+                          )}
+                        </div>
+                      ),
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {period === "yearly" && (h?.quarters || h?.major_transits) && (
+                <div className="glass rounded-2xl p-5 md:p-6">
+                  <h3 className="text-sm uppercase tracking-widest text-white/55 font-bold mb-4">
+                    Yearly Overview
+                  </h3>
+                  {h.quarters && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                      {(h.quarters || []).map((q: any, i: number) => (
+                        <div
+                          key={i}
+                          className="p-4 rounded-xl bg-white/5 border border-white/10"
+                        >
+                          <span className="text-gold text-sm font-bold">
+                            Q{i + 1}
+                          </span>
+                          <p className="text-white/60 text-sm mt-2">
+                            {q.theme || q.description || q.prediction}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {(h.major_transits || h.retrograde_periods) && (
+                    <div>
+                      <h4 className="text-xs uppercase tracking-widest text-white/55 mb-1">
+                        Big planet moves this year
+                      </h4>
+                      <p className="text-xs text-white/55 mb-3">
+                        When a slow planet changes sign or turns backward, the
+                        themes it rules in your chart shift for months.
+                      </p>
+                      <div className="space-y-2">
+                        {(h.major_transits || h.retrograde_periods || [])
+                          .slice(0, 6)
+                          .map((t: any, i: number) => (
+                            <div
+                              key={i}
+                              className="flex items-center gap-2 text-sm"
+                            >
+                              <span className="text-amber-400 min-w-[100px]">
+                                {t.date || t.period}
+                              </span>
+                              <span className="text-white/60">
+                                {t.description ||
+                                  t.event ||
+                                  `${t.planet} ${t.type || ""}`}
+                              </span>
+                            </div>
+                          ))}
                       </div>
-                    ),
+                    </div>
                   )}
                 </div>
-              </div>
-            )}
+              )}
 
-            {period === "yearly" && (h?.quarters || h?.major_transits) && (
-              <div className="glass rounded-2xl p-6 mb-6">
-                <h3 className="text-sm uppercase tracking-widest text-white/55 font-bold mb-4">
-                  Yearly Overview
-                </h3>
-                {h.quarters && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                    {(h.quarters || []).map((q: any, i: number) => (
+              {/* Planetary Influences (Transit Activations). Without any, the
+                sidebar takes the full width instead of leaving 2/3 empty. */}
+              <section
+                className={`grid grid-cols-1 gap-6 ${
+                  influences.length > 0 ? "lg:grid-cols-3" : ""
+                }`}
+              >
+                {influences.length > 0 && (
+                  <div className="lg:col-span-2">
+                    <div className="flex items-center gap-4 mb-1">
+                      <h2 className="text-xl font-light tracking-wide">
+                        Planets shaping your {PERIOD_NOUN[period]}
+                      </h2>
                       <div
-                        key={i}
-                        className="p-4 rounded-xl bg-white/5 border border-white/10"
-                      >
-                        <span className="text-gold text-sm font-bold">
-                          Q{i + 1}
+                        className="h-[1px] flex-grow bg-white/5"
+                        aria-hidden="true"
+                      ></div>
+                    </div>
+                    <p className="mb-5 text-sm text-white/55">
+                      Where the moving planets meet your birth chart. Higher
+                      influence means you'll notice it more.
+                    </p>
+                    <div className="space-y-4">
+                      {influences.map((inf, idx) => (
+                        <div
+                          key={idx}
+                          className="glass p-5 md:p-6 rounded-3xl border border-white/5 flex gap-4 md:gap-6 items-start"
+                        >
+                          <div
+                            className="shrink-0 w-11 h-11 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-gold"
+                            aria-hidden="true"
+                          >
+                            <Zap size={20} />
+                          </div>
+                          <div className="min-w-0 flex-grow">
+                            <div className="flex flex-wrap justify-between items-center gap-x-3 gap-y-1 mb-1.5">
+                              <h3 className="text-[0.95rem] font-semibold text-white/90">
+                                {inf.natal_planet
+                                  ? `${inf.planet} now → your birth ${inf.natal_planet}`
+                                  : `${inf.planet}${inf.aspect_type ? ` · ${inf.aspect_type}` : ""}`}
+                              </h3>
+                              <span className="text-xs font-bold text-gold/80 bg-gold/5 px-2 py-0.5 rounded-full border border-gold/10">
+                                Influence:{" "}
+                                {inf.strength <= 5
+                                  ? `${inf.strength}/5`
+                                  : inf.strength}
+                              </span>
+                            </div>
+                            <p className="max-w-[65ch] text-[0.95rem] text-white/70 leading-relaxed">
+                              {inf.description}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Sidebar: Dasha & Lucky Elements */}
+                <div
+                  className={
+                    influences.length > 0
+                      ? "space-y-6"
+                      : "grid grid-cols-1 gap-6 md:grid-cols-2"
+                  }
+                >
+                  {/* Dasha Block */}
+                  {(forecast?.dasha?.mahadasha || forecast?.dasha?.bhukti) && (
+                    <div className="glass p-6 rounded-[2rem] border border-violet-500/20 bg-violet-500/5">
+                      <div className="flex items-center gap-3 text-violet-400 mb-2">
+                        <Clock size={16} aria-hidden="true" />
+                        <span className="text-xs font-black uppercase tracking-widest">
+                          Your life chapter (
+                          <GlossaryTerm k="dasha">dasha</GlossaryTerm>)
                         </span>
-                        <p className="text-white/60 text-sm mt-2">
-                          {q.theme || q.description || q.prediction}
+                      </div>
+                      <p className="mb-5 text-xs leading-relaxed text-white/60">
+                        The planet ruling this stretch of your life colours
+                        every forecast above.
+                      </p>
+                      {forecast?.dasha?.mahadasha && (
+                        <div className="mb-4">
+                          <div className="text-xs text-white/55 uppercase tracking-[0.2em] mb-1">
+                            <GlossaryTerm k="mahadasha">
+                              Main period
+                            </GlossaryTerm>
+                          </div>
+                          <div className="text-xl font-light text-violet-200">
+                            {forecast.dasha.mahadasha}
+                          </div>
+                        </div>
+                      )}
+                      {forecast?.dasha?.bhukti && (
+                        <div className="mb-5">
+                          <div className="text-xs text-white/55 uppercase tracking-[0.2em] mb-1">
+                            <GlossaryTerm k="antardasha">
+                              Sub-period
+                            </GlossaryTerm>
+                          </div>
+                          <div className="text-xl font-light text-violet-300">
+                            {forecast.dasha.bhukti}
+                          </div>
+                        </div>
+                      )}
+                      {forecast?.dasha?.ends && (
+                        <div className="pt-4 border-t border-violet-500/10 flex items-center justify-between text-xs">
+                          <span className="text-white/55">Sub-period ends</span>
+                          <span className="text-violet-300/90 font-bold">
+                            {new Date(forecast.dasha.ends).toLocaleDateString(
+                              "en-IN",
+                              {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                              },
+                            )}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Rahu Kaal Warning */}
+                  {forecast?.panchang?.rahu_kaal &&
+                    forecast.panchang.rahu_kaal !== "—" && (
+                      <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20">
+                        <span className="text-xs text-red-300/80 uppercase tracking-widest font-bold">
+                          <GlossaryTerm k="rahu-kaal">Rahu Kaal</GlossaryTerm>{" "}
+                          today
+                        </span>
+                        <p className="text-sm text-red-300 mt-1">
+                          {forecast.panchang.rahu_kaal}
                         </p>
+                        <p className="mt-1 text-xs text-white/60">
+                          Hold off on starting new things in this window;
+                          routine work is fine.
+                        </p>
+                      </div>
+                    )}
+
+                  {/* Moon Phase & Sign */}
+                  {h?.moon && (h.moon.phase || h.moon.sign) && (
+                    <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                      <span className="text-xs text-white/55 uppercase tracking-widest font-bold">
+                        Moon today
+                      </span>
+                      <p className="text-sm text-white/70 mt-1">
+                        {[h.moon.phase, h.moon.sign]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                      <p className="mt-1 text-xs text-white/55">
+                        The Moon sets the day's mood and how you react.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Lucky Elements: only the rows the forecast filled in. */}
+                  {(luckyRows.length > 0 || luckyTimes.length > 0) && (
+                    <div className="glass p-6 rounded-[2rem] border border-white/5">
+                      <div className="flex items-center gap-3 text-gold mb-5">
+                        <Star size={16} aria-hidden="true" />
+                        <span className="text-xs font-black uppercase tracking-widest">
+                          Your lucky picks
+                        </span>
+                      </div>
+                      <p className="-mt-3 mb-4 text-xs text-white/55">
+                        Small ways to lean into the {PERIOD_NOUN[period]}: wear,
+                        carry or face these.
+                      </p>
+                      {luckyRows.length > 0 && (
+                        <dl className="space-y-3">
+                          {luckyRows.map(([label, value]) => (
+                            <div
+                              key={label}
+                              className="flex items-baseline justify-between gap-4"
+                            >
+                              <dt className="text-xs text-white/55 uppercase tracking-widest">
+                                {label}
+                              </dt>
+                              <dd className="text-sm text-white/75 text-right">
+                                {value}
+                              </dd>
+                            </div>
+                          ))}
+                        </dl>
+                      )}
+
+                      {luckyTimes.length > 0 && (
+                        <div
+                          className={
+                            luckyRows.length > 0
+                              ? "mt-5 pt-5 border-t border-white/5"
+                              : ""
+                          }
+                        >
+                          <div className="text-xs text-white/55 uppercase tracking-widest mb-3">
+                            Best times to begin things
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {luckyTimes.map((t, i) => (
+                              <span
+                                key={i}
+                                className="bg-white/5 border border-white/10 px-2 py-1 rounded-lg text-xs text-gold/85"
+                              >
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              {/* Tips Section */}
+              {h?.tips && h.tips.length > 0 && (
+                <section className="glass p-6 rounded-[2rem] border border-emerald-500/10 bg-emerald-500/[0.02]">
+                  <div className="flex items-center gap-3 text-emerald-400 mb-5">
+                    <Sparkles size={16} aria-hidden="true" />
+                    <h2 className="text-xs font-black uppercase tracking-widest">
+                      What to do with it
+                    </h2>
+                  </div>
+                  <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {h.tips.map((tip, i) => (
+                      <li key={i} className="flex gap-3 items-start">
+                        <span
+                          className="w-1 h-1 rounded-full bg-emerald-400 mt-2.5 shrink-0"
+                          aria-hidden="true"
+                        ></span>
+                        <p className="text-[0.95rem] text-white/75 leading-relaxed">
+                          {tip}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+              {/* Life Areas Grid */}
+              {h?.life_areas && h.life_areas.length > 0 && (
+                <section>
+                  <div className="flex items-center gap-4 mb-5">
+                    <h2 className="text-xl font-light tracking-wide">
+                      Love, work, money &amp; health
+                    </h2>
+                    <div
+                      className="h-[1px] flex-grow bg-white/5"
+                      aria-hidden="true"
+                    ></div>
+                  </div>
+                  <p className="-mt-3 mb-5 text-sm text-white/55">
+                    Each area is rated out of 5 for this {PERIOD_NOUN[period]}.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {h.life_areas.map((area, idx) => (
+                      <div
+                        key={idx}
+                        className="glass p-5 md:p-6 rounded-[2rem] border border-white/5 flex flex-col"
+                      >
+                        <div className="flex justify-between items-start mb-4">
+                          <div
+                            className={`p-3 rounded-2xl border ${getAreaColor(
+                              area.area,
+                            )}`}
+                            aria-hidden="true"
+                          >
+                            {getAreaIcon(area.area)}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="text-xs font-bold text-white/60"
+                              aria-hidden="true"
+                            >
+                              {area.rating}/5
+                            </span>
+                            <div
+                              className="flex gap-1"
+                              role="img"
+                              aria-label={`Rated ${area.rating} of 5`}
+                            >
+                              {[...Array(5)].map((_, i) => (
+                                <div
+                                  key={i}
+                                  className={`w-1.5 h-1.5 rounded-full ${
+                                    i < area.rating ? "bg-gold" : "bg-white/15"
+                                  }`}
+                                ></div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        <h3 className="text-lg font-medium text-white/90 mb-2 tracking-tight">
+                          {area.title}
+                        </h3>
+                        <p className="text-[0.95rem] text-white/70 leading-relaxed mb-auto">
+                          {area.prediction}
+                        </p>
+                        {area.keywords?.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-5">
+                            {area.keywords.map((kw, kidx) => (
+                              <span
+                                key={kidx}
+                                className="text-xs font-bold uppercase tracking-tight text-white/60 bg-white/5 px-2 py-0.5 rounded-md border border-white/5"
+                              >
+                                {kw}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
-                )}
-                {(h.major_transits || h.retrograde_periods) && (
-                  <div>
-                    <h4 className="text-xs uppercase tracking-widest text-white/55 mb-3">
-                      Major Transits
-                    </h4>
-                    <div className="space-y-2">
-                      {(h.major_transits || h.retrograde_periods || [])
-                        .slice(0, 6)
-                        .map((t: any, i: number) => (
-                          <div
-                            key={i}
-                            className="flex items-center gap-2 text-sm"
-                          >
-                            <span className="text-amber-400 min-w-[100px]">
-                              {t.date || t.period}
-                            </span>
-                            <span className="text-white/60">
-                              {t.description ||
-                                t.event ||
-                                `${t.planet} ${t.type || ""}`}
-                            </span>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+                </section>
+              )}
 
-            {/* Planetary Influences (Transit Activations) */}
-            <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2">
-                <div className="flex items-center gap-4 mb-5">
-                  <h2 className="text-xl font-light tracking-wide">
-                    Transit Activations
-                  </h2>
-                  <div className="h-[1px] flex-grow bg-white/5"></div>
-                </div>
-                <div className="space-y-4">
-                  {h?.planetary_influences?.map((inf, idx) => (
-                    <div
-                      key={idx}
-                      className="glass p-6 rounded-3xl border border-white/5 flex gap-6 items-center group"
-                    >
-                      <div className="shrink-0 w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-gold group-hover:scale-110 transition-transform">
-                        <Zap size={20} />
-                      </div>
-                      <div className="flex-grow">
-                        <div className="flex justify-between items-center mb-1">
-                          <h4 className="text-sm font-bold font-sans text-white/90 uppercase tracking-widest">
-                            {inf.planet} Natal {inf.natal_planet}
-                          </h4>
-                          <span className="text-xs font-bold text-gold/80 bg-gold/5 px-2 py-0.5 rounded-full border border-gold/10">
-                            Strength: {inf.strength}
-                          </span>
-                        </div>
-                        <p className="text-xs text-white/60 font-sans font-light leading-relaxed italic">
-                          {inf.description}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Sidebar: Dasha & Lucky Elements */}
-              <div className="space-y-6">
-                {/* Dasha Block */}
-                <div className="glass p-6 rounded-[2rem] border border-violet-500/20 bg-violet-500/5">
-                  <div className="flex items-center gap-3 text-violet-400 mb-6 font-sans">
-                    <Clock size={16} />
-                    <span className="text-xs font-black uppercase tracking-widest">
-                      Active Life Cycle
-                    </span>
-                  </div>
-                  <div className="mb-4">
-                    <div className="text-xs text-white/55 uppercase tracking-[0.2em] mb-1 font-sans">
-                      Mahadasha
-                    </div>
-                    <div className="text-xl font-light text-violet-200">
-                      {forecast?.dasha?.mahadasha}
-                    </div>
-                  </div>
-                  <div className="mb-6">
-                    <div className="text-xs text-white/55 uppercase tracking-[0.2em] mb-1 font-sans">
-                      Antardasha
-                    </div>
-                    <div className="text-xl font-light text-violet-300">
-                      {forecast?.dasha?.bhukti}
-                    </div>
-                  </div>
-                  <div className="pt-4 border-t border-violet-500/10 flex items-center justify-between text-xs font-sans">
-                    <span className="text-white/55">Phase Ends</span>
-                    <span className="text-violet-400/80 font-bold">
-                      {forecast?.dasha?.ends
-                        ? new Date(forecast.dasha.ends).toLocaleDateString()
-                        : "N/A"}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Rahu Kaal Warning */}
-                {forecast?.panchang?.rahu_kaal &&
-                  forecast.panchang.rahu_kaal !== "—" && (
-                    <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 mb-4">
-                      <span className="text-xs text-red-300/80 uppercase tracking-widest font-bold">
-                        Rahu Kaal
-                      </span>
-                      <p className="text-sm text-red-300 mt-1">
-                        {forecast.panchang.rahu_kaal}
-                      </p>
-                    </div>
-                  )}
-
-                {/* Moon Phase & Sign */}
-                {h?.moon && (
-                  <div className="p-3 rounded-xl bg-white/5 border border-white/10 mb-4">
-                    <span className="text-xs text-white/55 uppercase tracking-widest font-bold">
-                      Moon
-                    </span>
-                    <p className="text-sm text-white/70 mt-1">
-                      {h.moon.phase && `${h.moon.phase} · `}
-                      {h.moon.sign || ""}
-                    </p>
-                  </div>
-                )}
-
-                {/* Lucky Elements */}
-                <div className="glass p-6 rounded-[2rem] border border-white/5">
-                  <div className="flex items-center gap-3 text-gold mb-6 font-sans">
-                    <Star size={16} />
-                    <span className="text-xs font-black uppercase tracking-widest">
-                      Lucky Elements
-                    </span>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-white/55 uppercase tracking-widest font-sans">
-                        Colors
-                      </span>
-                      <div className="flex gap-2">
-                        {h?.lucky_elements?.colors?.map((c, i) => (
-                          <span key={i} className="text-xs text-white/70">
-                            {c}
-                            {i < (h?.lucky_elements?.colors?.length ?? 0) - 1
-                              ? ","
-                              : ""}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-white/55 uppercase tracking-widest font-sans">
-                        Numbers
-                      </span>
-                      <span className="text-xs text-white/70">
-                        {h?.lucky_elements?.numbers?.join(", ")}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-white/55 uppercase tracking-widest font-sans">
-                        Stones
-                      </span>
-                      <span className="text-xs text-white/70 italic">
-                        {h?.lucky_elements?.stones?.join(", ")}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-white/55 uppercase tracking-widest font-sans">
-                        Directions
-                      </span>
-                      <span className="text-xs text-white/70 uppercase tracking-widest">
-                        {h?.lucky_elements?.directions?.join(", ")}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 pt-5 border-t border-white/5">
-                    <div className="text-xs text-white/55 uppercase tracking-widest font-sans mb-3">
-                      Auspicious Times
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {h?.lucky_elements?.times?.map((t, i) => (
-                        <span
-                          key={i}
-                          className="bg-white/5 border border-white/10 px-2 py-1 rounded-lg text-xs font-sans text-gold/80"
-                        >
-                          {t}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* Tips Section */}
-            {h?.tips && h.tips.length > 0 && (
-              <section className="glass p-6 rounded-[2rem] border border-emerald-500/10 bg-emerald-500/[0.02]">
-                <div className="flex items-center gap-3 text-emerald-400 mb-6 font-sans">
-                  <Sparkles size={16} />
-                  <span className="text-xs font-black uppercase tracking-widest">
-                    Celestial Guidance
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {h.tips.map((tip, i) => (
-                    <div key={i} className="flex gap-3 items-start">
-                      <div className="w-1 h-1 rounded-full bg-emerald-400 mt-2 shrink-0"></div>
-                      <p className="text-sm text-white/70 font-sans font-light leading-relaxed italic">
-                        {tip}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* Life Areas Grid */}
-            <section>
-              <div className="flex items-center gap-4 mb-5">
-                <h2 className="text-xl font-light tracking-wide">Life Areas</h2>
-                <div className="h-[1px] flex-grow bg-white/5"></div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {h?.life_areas?.map((area, idx) => (
-                  <div
-                    key={idx}
-                    className="glass p-6 rounded-[2rem] border border-white/5 hover:border-white/10 transition-all group flex flex-col"
-                  >
-                    <div className="flex justify-between items-start mb-6">
-                      <div
-                        className={`p-3 rounded-2xl border ${getAreaColor(
-                          area.area,
-                        )}`}
-                      >
-                        {getAreaIcon(area.area)}
-                      </div>
-                      <div className="flex gap-1">
-                        {[...Array(5)].map((_, i) => (
-                          <div
-                            key={i}
-                            className={`w-1.5 h-1.5 rounded-full ${
-                              i < area.rating ? "bg-gold" : "bg-white/10"
-                            }`}
-                          ></div>
-                        ))}
-                      </div>
-                    </div>
-                    <h3 className="text-lg font-medium text-white/90 mb-2 font-sans tracking-tight">
-                      {area.title}
-                    </h3>
-                    <p className="text-xs text-white/50 leading-relaxed font-sans font-light mb-auto">
-                      {area.prediction}
-                    </p>
-                    <div className="flex flex-wrap gap-2 mt-6">
-                      {area.keywords.map((kw, kidx) => (
-                        <span
-                          key={kidx}
-                          className="text-xs font-black uppercase tracking-tight text-white/55 bg-white/5 px-2 py-0.5 rounded-md border border-white/5"
-                        >
-                          {kw}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* Wisdom Footer */}
-            <section className="glass rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-widest text-gold/80">
-                    Prediction feedback
-                  </p>
-                  <h2 className="mt-1 text-lg font-light tracking-wide">
-                    Did this feel accurate?
-                  </h2>
-                  <p className="mt-1 text-xs text-white/60">
-                    Your response is stored as feedback, not shown publicly.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
+              {/* Prediction feedback. The note sits above the buttons because a
+                button press sends it. */}
+              <section className="glass rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+                <p className="text-xs font-black uppercase tracking-widest text-gold/80">
+                  Prediction feedback
+                </p>
+                <h2 className="mt-1 text-lg font-light tracking-wide">
+                  Did this feel accurate?
+                </h2>
+                <p className="mt-1 text-xs text-white/60">
+                  Tap one below. It helps us check how often forecasts land, and
+                  is never shown publicly.
+                </p>
+                <label htmlFor="forecast-feedback-note" className="sr-only">
+                  Optional note with your feedback
+                </label>
+                <textarea
+                  id="forecast-feedback-note"
+                  value={feedbackNotes}
+                  onChange={(event) => setFeedbackNotes(event.target.value)}
+                  placeholder="Optional: what landed or missed?"
+                  className="mt-4 min-h-20 w-full resize-none rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-base md:text-sm text-white outline-none placeholder:text-white/50 focus:border-gold/40"
+                />
+                <div className="mt-3 flex flex-wrap gap-2">
                   {[
                     { value: "accurate", label: "Accurate" },
                     { value: "partly", label: "Partly" },
                     { value: "missed", label: "Missed" },
                   ].map((item) => (
                     <button
+                      type="button"
                       key={item.value}
+                      aria-pressed={feedbackSignal === item.value}
                       onClick={() =>
                         submitPredictionFeedback(
                           item.value as "accurate" | "partly" | "missed",
                         )
                       }
                       disabled={feedbackSubmitting}
-                      className={`rounded-xl border px-3 py-2 text-xs font-bold uppercase tracking-widest transition-all ${
+                      className={`min-h-11 rounded-xl border px-4 py-2 text-xs font-bold uppercase tracking-widest transition-all ${
                         feedbackSignal === item.value
                           ? "border-gold/50 bg-gold/10 text-gold"
                           : "border-white/10 bg-white/5 text-white/60 hover:border-gold/30 hover:text-gold"
@@ -1053,35 +1269,44 @@ const DailyForecast: React.FC = () => {
                     </button>
                   ))}
                 </div>
-              </div>
-              <textarea
-                value={feedbackNotes}
-                onChange={(event) => setFeedbackNotes(event.target.value)}
-                placeholder="Optional note for the team"
-                className="mt-4 min-h-20 w-full resize-none rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-white/25 focus:border-gold/40"
+                {feedbackStatus && (
+                  <p role="status" className="mt-2 text-xs text-white/60">
+                    {feedbackStatus}
+                  </p>
+                )}
+              </section>
+
+              <AskJyotishBridge
+                eyebrow="Take this further"
+                question={`My ${period} forecast points to ${
+                  h?.overall_theme || "a shifting period"
+                }. What should I actually do about it this ${
+                  period === "daily" ? "week" : period.replace("ly", "")
+                }?`}
               />
-              {feedbackStatus && (
-                <p role="status" className="mt-2 text-xs text-white/60">{feedbackStatus}</p>
-              )}
-            </section>
 
-            <AskJyotishBridge
-              eyebrow="Take this further"
-              question={`My ${period} forecast points to ${
-                h?.overall_theme || "a shifting period"
-              }. What should I actually do about it this ${
-                period === "daily" ? "week" : period.replace("ly", "")
-              }?`}
-            />
-
-            <div className="text-center py-8 border-t border-white/5">
-              <p className="text-white/20 text-[0.6875rem] uppercase tracking-[0.3em] font-light font-sans max-w-md mx-auto leading-relaxed">
-                As above, so below. Infinite wisdom is yours.
-              </p>
+              <div className="text-center py-8 border-t border-white/5">
+                <p className="text-white/50 text-[0.6875rem] uppercase tracking-[0.3em] max-w-md mx-auto leading-relaxed">
+                  As above, so below.
+                </p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
+      {pdfConfirmType && (
+        <PdfChargeConfirmDialog
+          reportTitle={REPORT_PRICING[pdfConfirmType].title}
+          price={REPORT_PRICING[pdfConfirmType].creditCost}
+          balance={credits}
+          onCancel={() => setPdfConfirmType(null)}
+          onConfirm={() => {
+            const type = pdfConfirmType;
+            setPdfConfirmType(null);
+            void generatePdf(type);
+          }}
+        />
+      )}
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
@@ -1097,4 +1322,3 @@ const DailyForecast: React.FC = () => {
 };
 
 export default DailyForecast;
-

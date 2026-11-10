@@ -5,6 +5,7 @@ import { LandingSEO } from "../components/SEO";
 import AuthModal from "../components/AuthModal";
 import OnboardingModal from "../components/OnboardingModal";
 import SectionErrorBoundary from "../components/SectionErrorBoundary";
+import { useDialog } from "../hooks/useDialog";
 import CosmosToSelfStory, {
   type LandingTrustSummary,
 } from "../components/landing/CosmosToSelfStory";
@@ -154,7 +155,7 @@ function PlanetStoryNarrative({
               <span className="text-sm font-semibold uppercase tracking-[0.16em] text-white/90">
                 {force.name}
               </span>
-              <span className="font-display text-sm italic text-white/48">
+              <span className="font-display text-sm italic text-white/55">
                 {force.sanskrit}
               </span>
             </div>
@@ -197,7 +198,11 @@ function PlanetStoryNarrative({
             isSynthesis ? "lg:justify-center" : ""
           }`}
         >
-          <button className="btn btn-primary group px-8" onClick={onReveal}>
+          <button
+            type="button"
+            className="btn btn-primary group px-8"
+            onClick={onReveal}
+          >
             See my free Kundali
             <span className="ml-2 transition-transform group-hover:translate-x-1">
               →
@@ -205,6 +210,7 @@ function PlanetStoryNarrative({
           </button>
           {isOpening ? (
             <button
+              type="button"
               className="btn border-0 bg-transparent px-8 text-white/70 underline decoration-white/20 underline-offset-8 hover:text-white"
               onClick={onHaveChart}
             >
@@ -217,8 +223,8 @@ function PlanetStoryNarrative({
       {isOpening ? (
         <div className="mt-6 max-w-xl space-y-1 text-sm leading-relaxed text-white/70 [text-shadow:0_2px_14px_rgba(0,0,0,0.95)]">
           <p>
-            An AI guide trained on Jyotish reads your birth chart and answers in
-            plain language. It is software, not a human astrologer.
+            A Jyotish guide reads your birth chart and answers in plain
+            language. It is not a human astrologer.
           </p>
           <p className="text-white/55">
             Free to start · plans from ₹{PLANS_FROM_INR}/month
@@ -255,14 +261,10 @@ function HaveChartChoice({
   onUpload: () => void;
   onSignIn: () => void;
 }) {
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [isOpen, onClose]);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  // Focus moves in on open, Tab is trapped, Escape closes, and focus returns
+  // to the "I already have a chart" trigger on close.
+  useDialog(dialogRef, onClose, isOpen);
 
   if (!isOpen) return null;
   return (
@@ -273,6 +275,7 @@ function HaveChartChoice({
         aria-hidden="true"
       />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="have-chart-title"

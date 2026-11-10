@@ -10,7 +10,7 @@ import {
 test("trust policy explicitly blocks fake social proof", () => {
   const copy = [...TRUST_PRINCIPLES, ...TRUST_NOT_CLAIMED_YET].join(" ");
 
-  assert.match(copy, /AI astrologers are labelled/i);
+  assert.match(copy, /Guides are not people, and every profile says so/i);
   assert.match(copy, /No fake review counts/i);
   assert.match(copy, /No fake consultation counts/i);
   assert.match(copy, /No fake verified badges/i);
